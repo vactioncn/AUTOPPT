@@ -12,18 +12,22 @@ import {
   X,
   FloppyDisk,
   Trash,
+  LinkSimple,
+  ArrowSquareOut,
 } from "@phosphor-icons/react";
 import type { Style, Job } from "./types";
 import { api, post, patch, asset, active } from "./api";
 import { Button, Modal, Field, StylePreview, Status } from "./components";
 import { StyleStudio } from "./StyleStudio";
 export function StyleLibrary({
+  urlImportAvailable,
   styles,
   jobs,
   refresh,
   notify,
   onUse,
 }: {
+  urlImportAvailable: boolean;
   styles: Style[];
   jobs: Job[];
   refresh: () => Promise<void>;
@@ -67,7 +71,7 @@ export function StyleLibrary({
           </div>
         </div>
         <div>
-          <h2>上传参考图，建立自己的风格库</h2>
+          <h2>从图片或网址，建立自己的风格库</h2>
           <p>
             配色、字体、图形画法与留白，成为适用于不同内容的设计规范。
             <br />
@@ -76,7 +80,7 @@ export function StyleLibrary({
         </div>
         <Button onClick={() => setCreate(true)}>
           <UploadSimple size={17} />
-          上传参考图片
+          添加参考风格
         </Button>
       </div>
       <div className="section-heading">
@@ -131,6 +135,7 @@ export function StyleLibrary({
       </div>
       {create && (
         <CreateStyle
+          urlImportAvailable={urlImportAvailable}
           onClose={() => setCreate(false)}
           onDone={async (s) => {
             setCreate(false);
@@ -169,19 +174,69 @@ export function StyleLibrary({
   );
 }
 function CreateStyle({
+  urlImportAvailable,
   onClose,
   onDone,
 }: {
+  urlImportAvailable: boolean;
   onClose: () => void;
   onDone: (s: Style) => Promise<void>;
 }) {
   const [name, setName] = useState(""),
+    [source, setSource] = useState<"upload" | "url">("upload"),
+    [url, setUrl] = useState(""),
+    [fetching, setFetching] = useState(false),
+    [imported, setImported] = useState<{
+      id: string;
+      url: string;
+      title: string;
+      skipped: number;
+      truncated: boolean;
+      images: { id: string; preview: string; width: number; height: number }[];
+    } | null>(null),
+    [selected, setSelected] = useState<string[]>([]),
     [files, setFiles] = useState<File[]>([]),
     [previews, setPreviews] = useState<string[]>([]),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [dragging, setDragging] = useState(false);
   const input = useRef<HTMLInputElement>(null);
+  const request = useRef<AbortController | null>(null);
+  useEffect(() => () => request.current?.abort(), []);
+  const fetchImages = async () => {
+    request.current?.abort();
+    const controller = new AbortController();
+    request.current = controller;
+    setFetching(true);
+    setError("");
+    setImported(null);
+    setSelected([]);
+    try {
+      const result = await api("/style-imports", {
+        method: "POST",
+        body: JSON.stringify({ url: url.trim() }),
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted) return;
+      setImported(result);
+      setName((current) =>
+        current.trim() ? current : result.title.slice(0, 60),
+      );
+    } catch (e) {
+      if (!controller.signal.aborted) setError((e as Error).message);
+    } finally {
+      if (request.current === controller) {
+        setFetching(false);
+        request.current = null;
+      }
+    }
+  };
+  const changeSource = (value: "upload" | "url") => {
+    request.current?.abort();
+    setFetching(false);
+    setError("");
+    setSource(value);
+  };
   useEffect(() => {
     const urls = files.map((f) => URL.createObjectURL(f));
     setPreviews(urls);
@@ -201,10 +256,19 @@ function CreateStyle({
     setBusy(true);
     setError("");
     try {
-      const form = new FormData();
-      form.append("name", name);
-      files.forEach((f) => form.append("images", f));
-      const data = await api("/styles", { method: "POST", body: form });
+      let data;
+      if (source === "url") {
+        data = await post("/styles/from-url", {
+          name,
+          importId: imported?.id,
+          imageIds: selected,
+        });
+      } else {
+        const form = new FormData();
+        form.append("name", name);
+        files.forEach((f) => form.append("images", f));
+        data = await api("/styles", { method: "POST", body: form });
+      }
       await onDone(data.style);
     } catch (e) {
       setError((e as Error).message);
@@ -214,8 +278,10 @@ function CreateStyle({
   return (
     <Modal
       title="创建你的视觉风格"
-      subtitle="同一风格可以上传多张不同版式的图片，帮助它理解共同的设计语言。"
-      onClose={onClose}
+      subtitle="上传图片，或粘贴作品网址。选好参考图，再提炼共同的设计语言。"
+      onClose={() => {
+        if (!busy) onClose();
+      }}
     >
       <Field label="风格名称">
         <input
@@ -226,46 +292,192 @@ function CreateStyle({
           placeholder="例如：克制的杂志感 / 大字与留白"
         />
       </Field>
-      <input
-        ref={input}
-        className="visually-hidden"
-        type="file"
-        accept="image/png,image/jpeg,image/webp"
-        multiple
-        onChange={(e) => add(Array.from(e.target.files || []))}
-      />
-      <button
-        className={`upload-zone ${dragging ? "dragging" : ""}`}
-        onClick={() => input.current?.click()}
-        onDragOver={(e) => {
-          e.preventDefault();
-          setDragging(true);
-        }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setDragging(false);
-          add(Array.from(e.dataTransfer.files));
-        }}
-      >
-        <UploadSimple size={30} weight="light" />
-        <strong>拖入参考图片，或点击选择</strong>
-        <span>PNG、JPG、WebP · 每张最多 12 MB · 最多 12 张</span>
-      </button>
-      {files.length > 0 && (
-        <div className="upload-previews">
-          {files.map((f, i) => (
-            <div key={f.name + i}>
-              <img src={previews[i]} alt={f.name} />
-              <button
-                aria-label={`移除 ${f.name}`}
-                onClick={() => setFiles(files.filter((_, n) => n !== i))}
+      <div className="style-source-switch" role="group" aria-label="参考图来源">
+        <button
+          disabled={busy}
+          aria-pressed={source === "upload"}
+          onClick={() => changeSource("upload")}
+        >
+          <UploadSimple size={17} />
+          上传图片
+        </button>
+        <button
+          disabled={busy || !urlImportAvailable}
+          aria-pressed={source === "url"}
+          onClick={() => changeSource("url")}
+        >
+          <LinkSimple size={17} />
+          从网址获取
+        </button>
+      </div>
+      {!urlImportAvailable && (
+        <p className="url-import-hint">
+          网址导入需要更新本地服务后启用，当前生成任务不受影响。
+        </p>
+      )}
+      {source === "url" ? (
+        <div className="url-import">
+          <Field
+            label="作品网址"
+            hint="支持公开作品页或图片链接。网页需要登录、验证时，可改用图片链接或上传图片。"
+          >
+            <div className="url-import-input">
+              <input
+                aria-label="作品网址"
+                type="url"
+                value={url}
+                disabled={fetching || busy}
+                placeholder="https://www.zcool.com.cn/work/…"
+                onChange={(e) => {
+                  setUrl(e.target.value);
+                  setImported(null);
+                  setSelected([]);
+                  setError("");
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && url.trim() && !fetching && !busy) {
+                    e.preventDefault();
+                    void fetchImages();
+                  }
+                }}
+              />
+              <Button
+                onClick={fetchImages}
+                disabled={!url.trim() || busy}
+                loading={fetching}
               >
-                <X size={14} />
-              </button>
+                获取图片
+              </Button>
             </div>
-          ))}
+          </Field>
+          {fetching && (
+            <div className="url-import-progress" role="status">
+              <span>正在读取作品和下载预览，通常需要几十秒…</span>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  request.current?.abort();
+                  setFetching(false);
+                }}
+              >
+                取消获取
+              </Button>
+            </div>
+          )}
+          {imported && (
+            <>
+              <a
+                className="url-import-source"
+                href={imported.url}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {imported.title}
+                <ArrowSquareOut size={16} />
+              </a>
+              <div className="url-import-selection">
+                <strong>找到 {imported.images.length} 张图片</strong>
+                <span role="status">已选 {selected.length} / 12 张</span>
+              </div>
+              <p className="url-import-hint">
+                点击勾选要参考的图片。建议选择 3–5 张不同构图、同一风格的页面。
+              </p>
+              {(imported.skipped > 0 || imported.truncated) && (
+                <p className="url-import-hint">
+                  {imported.skipped > 0 &&
+                    `已略过 ${imported.skipped} 张重复、过小或无法读取的图片。`}
+                  {imported.truncated && "本次最多读取前 36 张作品图片。"}
+                </p>
+              )}
+              <div
+                className="url-import-grid"
+                role="group"
+                aria-label="选择风格参考图"
+              >
+                {imported.images.map((image, i) => (
+                  <label
+                    key={image.id}
+                    className={selected.includes(image.id) ? "selected" : ""}
+                  >
+                    <img src={image.preview} alt={`作品参考图 ${i + 1}`} />
+                    <span>
+                      <input
+                        type="checkbox"
+                        aria-label={`选择第 ${i + 1} 张参考图`}
+                        checked={selected.includes(image.id)}
+                        disabled={
+                          busy ||
+                          (!selected.includes(image.id) &&
+                            selected.length >= 12)
+                        }
+                        onChange={(e) =>
+                          setSelected((current) =>
+                            e.target.checked
+                              ? [...current, image.id]
+                              : current.filter((id) => id !== image.id),
+                          )
+                        }
+                      />
+                      <span>第 {i + 1} 张</span>
+                      <small>
+                        {image.width} × {image.height}
+                      </small>
+                    </span>
+                  </label>
+                ))}
+              </div>
+              {selected.length === 12 && (
+                <p className="url-import-hint" role="status">
+                  已选满 12 张，取消一张后可以更换。
+                </p>
+              )}
+            </>
+          )}
         </div>
+      ) : (
+        <>
+          <input
+            ref={input}
+            className="visually-hidden"
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            multiple
+            onChange={(e) => add(Array.from(e.target.files || []))}
+          />
+          <button
+            className={`upload-zone ${dragging ? "dragging" : ""}`}
+            onClick={() => input.current?.click()}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragging(true);
+            }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragging(false);
+              add(Array.from(e.dataTransfer.files));
+            }}
+          >
+            <UploadSimple size={30} weight="light" />
+            <strong>拖入参考图片，或点击选择</strong>
+            <span>PNG、JPG、WebP · 每张最多 12 MB · 最多 12 张</span>
+          </button>
+          {files.length > 0 && (
+            <div className="upload-previews">
+              {files.map((f, i) => (
+                <div key={f.name + i}>
+                  <img src={previews[i]} alt={f.name} />
+                  <button
+                    aria-label={`移除 ${f.name}`}
+                    onClick={() => setFiles(files.filter((_, n) => n !== i))}
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
       {error && (
         <p className="error-text" role="alert">
@@ -273,12 +485,18 @@ function CreateStyle({
         </p>
       )}
       <div className="modal-actions">
-        <Button onClick={onClose}>取消</Button>
+        <Button onClick={onClose} disabled={busy}>
+          取消
+        </Button>
         <Button
           variant="primary"
           onClick={submit}
           loading={busy}
-          disabled={!name.trim() || !files.length}
+          disabled={
+            !name.trim() ||
+            fetching ||
+            (source === "url" ? !imported || !selected.length : !files.length)
+          }
         >
           保存并提炼风格
           <ArrowRight size={17} />
@@ -349,6 +567,17 @@ function StyleDetail({
                 </a>
               ))}
             </div>
+          )}
+          {style.source && (
+            <a
+              className="url-import-source"
+              href={style.source.url}
+              target="_blank"
+              rel="noreferrer"
+            >
+              参考来源：{style.source.title}
+              <ArrowSquareOut size={16} />
+            </a>
           )}
           <input
             ref={input}

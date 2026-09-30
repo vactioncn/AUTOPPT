@@ -139,6 +139,12 @@ export type Slide = {
   createdAt: string;
 };
 export type Style = {
+  source?: {
+    url: string;
+    title: string;
+    importedAt: string;
+    images: { ref: string; url: string }[];
+  };
   designLanguage?: DesignLanguage;
   imageRecipes?: {
     name: string;
@@ -307,6 +313,7 @@ export type Connection = {
 };
 export type Settings = { text: Connection; image: Connection };
 export type Bootstrap = {
+  features?: { styleUrlImport?: boolean };
   projects: ProjectSummary[];
   styles: Style[];
   settings: Settings;

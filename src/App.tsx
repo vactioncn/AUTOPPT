@@ -190,6 +190,7 @@ export default function App() {
           />
         ) : route === "styles" ? (
           <StyleLibrary
+            urlImportAvailable={!!data.features?.styleUrlImport}
             styles={data.styles}
             jobs={data.jobs}
             refresh={refresh}

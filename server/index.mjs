@@ -51,6 +51,7 @@ import {
 } from "./manuscript-migration.mjs";
 
 import { registerTrials } from "./trials.mjs";
+import { registerStyleImports } from "./style-import.mjs";
 
 const app = express();
 app.disable("x-powered-by");
@@ -111,6 +112,7 @@ const styleReady = (styleId) => {
 app.get("/api/health", (req, res) => res.json({ app: "AutoPPT", ok: true }));
 app.get("/api/bootstrap", (req, res) =>
   res.json({
+    features: { styleUrlImport: true },
     projects: all("project")
       .map((p) => ({
         id: p.id,
@@ -484,6 +486,7 @@ app.post("/api/jobs/:id/cancel", (req, res) =>
   res.json(safeJob(cancel(req.params.id))),
 );
 registerTrials(app, { enqueue });
+registerStyleImports(app, { dataDir, assetPath, put, id, now, enqueue });
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 12 * 1024 * 1024, files: 12 },

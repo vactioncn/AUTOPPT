@@ -1,0 +1,12 @@
+import type { DesignSystem, Scene, Plan, Style } from "../src/types";
+export const W: number;
+export const H: number;
+export const LAYOUTS: [string, string, string, number][];
+export function defaultSystem(style: Partial<Style>): DesignSystem;
+export function systemForStyle(style: Style): DesignSystem;
+export function validateSystem(raw: unknown): DesignSystem;
+export function validateScene(raw: unknown): Scene;
+export function composeScene(plan: Plan, system: DesignSystem): Scene;
+export function samplePlan(layout: DesignSystem["layouts"][number]): Plan;
+export function wrapText(text: string, width: number, size: number): string[];
+export function renderSceneSvg(scene: Scene): string;

@@ -1,0 +1,257 @@
+---
+name: AutoPPT
+description: A quiet personal speech studio with generated images first and design rules on demand.
+colors:
+  accent: "#c94e36"
+  accent-hover: "#b7422d"
+  navigation-active: "#dfe4d6"
+  navigation-ink: "#334731"
+  good-surface: "#e9efdf"
+  good-ink: "#4c673d"
+  warm-surface: "#f9ebd9"
+  warm-ink: "#986023"
+  canvas: "#f6f5f1"
+  paper: "#ffffff"
+  sidebar: "#eeeee7"
+  ink: "#242824"
+  muted: "#696f65"
+  supporting-text: "#64705b"
+  line: "#e1e3db"
+typography:
+  display:
+    fontFamily: '"DM Sans", -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif'
+    fontSize: "36px"
+    fontWeight: 600
+    lineHeight: 1.5
+    letterSpacing: "-0.04em"
+  headline:
+    fontSize: "30px"
+    fontWeight: 600
+    lineHeight: 1.4
+    letterSpacing: "-0.025em"
+  title:
+    fontSize: "20px"
+    fontWeight: 600
+    lineHeight: 1.4
+    letterSpacing: "-0.015em"
+  body:
+    fontSize: "14px"
+    fontWeight: 400
+    lineHeight: 1.6
+  button:
+    fontSize: "13px"
+    fontWeight: 500
+    lineHeight: 1.5
+  label:
+    fontSize: "12px"
+    fontWeight: 500
+rounded:
+  badge: "5px"
+  icon: "6px"
+  control: "8px"
+  notice: "10px"
+  card: "12px"
+  dialog: "16px"
+spacing:
+  small: "8px"
+  control: "12px"
+  medium: "16px"
+  section: "24px"
+  large: "32px"
+components:
+  button-primary:
+    backgroundColor: "{colors.accent}"
+    textColor: "{colors.paper}"
+    typography: "{typography.button}"
+    rounded: "{rounded.control}"
+    padding: "9px 16px"
+  button-secondary:
+    backgroundColor: "{colors.paper}"
+    textColor: "{colors.ink}"
+    typography: "{typography.button}"
+    rounded: "{rounded.control}"
+    padding: "9px 16px"
+  button-ghost:
+    textColor: "{colors.muted}"
+    typography: "{typography.button}"
+    rounded: "{rounded.control}"
+    padding: "9px 10px"
+  button-danger:
+    backgroundColor: "#f9e4df"
+    textColor: "#a93625"
+    typography: "{typography.button}"
+    rounded: "{rounded.control}"
+    padding: "9px 16px"
+  input:
+    backgroundColor: "{colors.paper}"
+    textColor: "{colors.ink}"
+    rounded: "{rounded.control}"
+    padding: "11px 12px"
+  navigation:
+    backgroundColor: "{colors.navigation-active}"
+    textColor: "{colors.navigation-ink}"
+    rounded: "{rounded.control}"
+    padding: "12px 14px"
+  status:
+    backgroundColor: "#eeefe9"
+    textColor: "#67745c"
+    rounded: "{rounded.badge}"
+    padding: "3px 7px"
+  project-card:
+    backgroundColor: "{colors.paper}"
+    textColor: "{colors.ink}"
+    rounded: "{rounded.card}"
+  slide-preview:
+    backgroundColor: "{colors.paper}"
+    rounded: "9px"
+  segmented:
+    backgroundColor: "#e9ece1"
+    rounded: "{rounded.control}"
+    padding: "4px"
+  studio-disclosure:
+    textColor: "{colors.ink}"
+    padding: "18px 0"
+---
+
+# Design System: AutoPPT
+
+## Overview
+
+**Creative North Star: "Quiet Personal Speech Studio"**
+
+The interface is a warm, restrained working environment for a person developing an ongoing speech. Pale paper surfaces, olive supporting tones and a terracotta action color keep attention on the manuscript and the actual generated image. The style workbench leads with the complete image, followed by content and feedback; native disclosures reveal the detailed rules and design plan when needed.
+
+This records the implemented system in `src/styles.css`, `src/studio.css`, `src/scene.css`, the shared components and main views, refreshed on 2026-09-30. The selected style is a whole visual grammar: typography, palette, linework, details and whitespace. Content determines the original composition and expression; style determines how it is drawn. The application palette does not become the output style. This corrects the operating flow within the incumbent visual system. Product behavior remains documented in `PRODUCT.md`.
+
+**Key Characteristics:**
+- Warm light canvas with white working surfaces and fine olive-gray borders.
+- Large, complete generated images paired with quiet saved-state captions and PNG download.
+- Compact persistent navigation; content and feedback beneath the image, with design rules and history available on demand.
+- Explicit progress, saved state, incomplete work and recovery actions.
+
+## Colors
+
+### Primary
+
+Terracotta (`accent`) marks primary actions, selected pages and selected style choices. Its darker companion supplies the primary button hover state.
+
+### Secondary
+
+Pale olive and dark olive (`navigation-active`, `navigation-ink`) identify the current navigation destination. Green status colors indicate readiness or configured state; amber status colors indicate pending attention. Status meaning also appears in words and, where used, an icon.
+
+### Neutral
+
+Warm canvas, white paper and the slightly darker sidebar create the main surface hierarchy. Ink carries primary content; muted text supports secondary content. The final stylesheet uses `supporting-text` across most captions, hints and metadata. Fine `line` borders separate working areas without making every region a card.
+
+**The Content Palette Rule.** Keep saved slide-style colors and source-image colors inside their preview surfaces; the surrounding controls retain the application palette.
+
+## Typography
+
+DM Sans is bundled locally at weights 400, 500, 600 and 700 through `src/main.tsx`. Chinese text uses the declared system fallbacks, beginning with PingFang SC on macOS. All interface roles inherit this stack; no separate display or monospaced face is used.
+
+The frontmatter records the base hierarchy. Home display type varies with viewport; general page headings use local sizes around the headline role. Section and card titles step down to compact supporting labels. Page numbers and batch counts use tabular numerals where alignment matters.
+
+Generated image typography follows the saved style and design plan; it does not inherit the interface heading scale. Long manuscript passages preserve whitespace. Manuscript rows have a comfortable reading measure (75ch maximum) and open line spacing (2.1); the note editor uses similar spacing (2.05). Small interface hints are compact, including some mobile labels (9–11px); this describes the current implementation, not a general minimum-size recommendation.
+
+## Layout
+
+The desktop shell uses a sticky full-height sidebar (222px) and a flexible main column. The main page is centered within a maximum width (1500px), with normal page padding (38px 44px 40px). Settings use a narrower maximum width (1100px). Borders and spacing divide page headings, project controls, the gallery and the manuscript composer.
+
+Project and style libraries use three columns; page previews use two larger columns. The current-batch gallery, all-pages view and manuscript view share a segmented switch. The composer follows the gallery, while submitted source text is available in a disclosure. Page detail places the complete image and redesign controls beside tabbed notes, design and versions (1.65:1 columns with a 280px minimum information panel).
+
+The style workbench leads with a centered image (1040px maximum width, 24px vertical margin), shown at full width with its natural proportions. Manuscript and feedback occupy equal columns beneath it (30px gap). Native disclosures follow for full design rules, the whole style language and the selected design plan. The history strip scrolls horizontally with result cards (230px wide).
+
+| Viewport | Implemented behavior |
+| --- | --- |
+| At least 1600px | Wider page padding (44px 60px), larger home display (42px), larger gallery gaps. |
+| At most 1150px | Sidebar narrows to 192px; project/style libraries become two columns; workflow becomes two columns; toolbars wrap; page detail narrows to 1.4:1 columns with a 260px minimum information panel. |
+| At most 850px | Sidebar becomes a 76px icon rail; recent projects are hidden; page detail stacks vertically; versions use two columns. |
+| At most 780px | The style-workbench heading and manuscript/feedback columns stack; the promotion button becomes full-width; history remains horizontally scrollable. |
+| At most 600px | Navigation becomes a fixed bottom bar (62px); page padding is 24px 18px 28px; libraries and slide galleries become one column; settings, split preview and style detail stack. |
+
+On mobile, bulk actions and toasts sit above the bottom navigation. The home illustration is hidden, page selection controls stay visible, and the style chooser retains two columns. Dialogs remain scrollable within the viewport.
+
+**The Preview First Rule.** Preserve the complete generated image and reveal secondary controls through detail views and disclosures as space contracts.
+
+## Elevation & Depth
+
+Most surfaces are flat, separated by pale tones and one-pixel borders. Project cards lift slightly on hover (3px); they do not acquire a shadow. Soft shadows are reserved for the illustrative paper stack, the selected segmented option, floating bulk actions, toasts and modal dialogs. Their exact values live in the sidecar.
+
+Dialogs use a dim translucent backdrop with a small blur (3px). The modal is the strongest elevation; normal library cards remain quieter.
+
+Motion is brief and functional: button and project-card transitions (0.18s), page border and reveal transitions (0.15s), task progress (0.3s), and a continuous loading spinner (1.2s). Reduced-motion preferences collapse animations and transitions to near-zero duration.
+
+## Shapes
+
+Controls have gently rounded corners; cards and composers use the larger card radius; dialogs use the broadest radius. The frontmatter carries the recurring sizes. Fine borders supply definition, dashed borders identify add/upload areas, and circular shapes are limited to small indicators, color swatches and numbered workflow markers.
+
+Project page previews use a landscape frame (16:9), with images kept complete through `object-fit: contain`. The large trial image preserves its natural proportions. Historical web scenes remain viewable as scalable SVG. Project covers remain uncropped; source images may use `object-fit: cover` in the style library’s contact-sheet thumbnails.
+
+Trial history uses a solid terracotta outline for the selected result. No scene-selection marker or element-editing controls appear in the current image workflow.
+
+## Components
+
+### Buttons
+
+Primary, secondary, ghost and danger variants share compact type, centered icon/text alignment and a minimum height (40px). Primary actions are terracotta; secondary actions are white with a fine border; ghost actions are quiet until hover; danger actions use a pale red treatment. Loading adds a spinner and disables the button. Disabled buttons reduce opacity (0.5). Buttons and links have a visible terracotta focus outline (3px, offset 3px).
+
+### Inputs / Fields
+
+Fields pair a visible label with white bordered inputs and optional help text. Ordinary inputs and textareas show a warm focus outline (2px, offset 1px). The manuscript composer is an implemented exception: its textarea is borderless and suppresses the outline inside the containing panel. Do not describe it as having a focus ring that does not exist. Multiline fields preserve roomy line spacing and vertical resizing.
+
+### Navigation
+
+The main navigation combines Phosphor icons, concise labels and optional counts. Active desktop items gain pale olive fill and darker text. The icon rail hides visible labels at the intermediate breakpoint; the mobile bottom bar restores compact labels beneath icons. Model settings remain a separate navigation destination.
+
+### Chips / Status
+
+Small rounded badges communicate neutral, good and warm states. They are informational labels, not filters. Ready badges may include a checkmark. Configuration labels say what is configured; a successful model-list connection is not presented as completed page-generation proof.
+
+### Cards / Containers
+
+Project cards combine a 16:9 cover, name and compact metadata. Style cards add reference or starting-style labels, description and color swatches. Their previews may show a reference image or a typography/color sample; built-in choices are labeled “内置起始风格”. White composer and connection panels use the same border and radius language.
+
+### Page Preview and Detail
+
+Page frames show the complete generated image, with historical web scenes preserved for viewing and labeled as historical. Missing results display a text-and-icon placeholder with separate waiting, generating and incomplete messages. Selection appears as a terracotta outline, with bulk actions in a floating dark olive bar. Opening a page reveals the large preview, PNG download, navigation, manual splitting and redesign controls, plus separate tabs for manuscript, design and versions. The redesign form uses the whole saved style without a template or visual-direction selector. When a content brief is available, the design tab shows “这一页要表达什么” and “为什么这样表现” before the detailed plan. Saved notes and a page awaiting redesign remain distinct states; version restoration is an explicit action.
+
+The current workflow produces images and exposes single-image download. Element editing and PPTX export are paused; retained historical scenes are not presented as the current output format.
+
+### Segmented Controls and Dialogs
+
+The gallery switch uses a pale olive track and a white active option. Detail tabs use an underline instead. Native dialogs open with `showModal()`, support Escape and a close button, and close when the user clicks outside their bounds; dirty manuscript edits prompt before closing. Split and merge proposals are visibly previewed before generation.
+
+### Style Workbench
+
+The style-detail action opens a full workspace within the existing shell. A single large generated image is the visual anchor, with its saved state and “保存图片” link immediately below. The manuscript input offers an expandable existing-page picker; the adjacent feedback field has separate actions for “只调整这一页” and “调整规范并再试”. Changing manuscript or rules leaves the previous result visible with an explicit caption until another trial completes. Running and incomplete trials retain written status and recovery controls.
+
+Native disclosures keep the full candidate rules, whole style language and selected design plan available on demand. Candidate manuscript, feedback, rules and selected trial survive reopening. A separate promotion row saves the completed selected image trial’s style snapshot as the formal style. Promotion remains disabled while work is running, manuscript/rules differ from that trial, a completed image result is missing or the trial is already applied. Selecting a history card restores its manuscript and candidate snapshot without promoting it. Historical web trials retain the caption “历史网页”; another trial produces an image.
+
+**The Resolved Style Rule.** Source-image management remains in style creation and explicit re-extraction. After understanding content relationships, trial and production planning apply the full saved style to resolve each page’s `styleExecution`: `typeHierarchy` covers cross-scale typography, `spatialRhythm` organizes density and whitespace, `graphicHierarchy` establishes graphic and line hierarchy, and `microDetail` carries editorial microdetails. Style fidelity depends on these relationships, beyond color, large type and simple lines. Actual auxiliary microcopy must enter `displayText` and only summarize or translate the page’s content. Image requests receive only resolved page choices, without conflicting alternatives from the whole style library or original reference images. The workbench offers no reference comparison or automatic deviation review.
+
+**The Candidate Boundary Rule.** Keep candidate and formal style rules visibly separate; only the explicit promotion action changes the style used for later production.
+
+### Whole Style Language
+
+Within “完整设计规范”, `StyleLanguage` uses the native disclosure “查看用于创作的风格规范” and the explanation “同一套视觉规则，随内容形成不同的表现。” Its eight text sections are “风格特征”, “字体与文字层级”, “色彩组合”, “构图与留白原则”, “图形画法”, “细节与辅助标记”, “如何延伸到不同内容” and “避免的做法”. These describe a reusable drawing grammar; reference-image subjects, counts and positions are not fixed templates. The design-plan disclosure begins with “这一页要表达什么” and “为什么这样表现” when a content brief is available, followed by the composition, speaking intent, graphic details, inherited style features, adaptations and display text.
+
+The current interface evidence remains `.impeccable/review/content-first-desktop.png`, `.impeccable/review/content-first-user-1039.png`, `.impeccable/review/content-first-mobile.png` and `.impeccable/review/content-first-plan.png`; this backend correction leaves the application UI and tokens unchanged. The user rejected the previous two image outputs, which remain in history. After the correction, a fresh independent reviewer returned a ship disposition for three actual samples only: position (`.local/assets/cb0d9b65-f610-444e-b0e3-c2c55b8e0150.png`), causal chain (`.local/assets/fb0fd983-9a99-439c-8ea5-976132483c40.png`) and statement (`.local/assets/e059bb34-b70f-4dd0-a871-9f344ec1f66a.png`). This sample review does not guarantee future output quality or reference-style fidelity. The user’s manuscript and formal style remain unchanged.
+
+## Do's and Don'ts
+
+### Do:
+- **Do** preserve complete generated images and keep historical web scenes clearly identified.
+- **Do** reuse the warm shell, terracotta action color and olive supporting states across all views.
+- **Do** show progress, incomplete work, changed inputs, saved notes and pages awaiting redesign as distinct states with meaningful text.
+- **Do** keep the actual image ahead of detailed rules, with content and feedback directly beneath it.
+- **Do** let content determine the expression and original composition, with the whole style grammar determining how it is drawn.
+- **Do** keep page-only changes, candidate rule revisions and formal-style promotion visibly separate.
+- **Do** keep the full manuscript accessible alongside condensed page text, with manual split/merge previews and version history available on demand.
+
+### Don't:
+- **Don't** present missing results, failed pages or stale previews as newly completed output.
+- **Don't** let the application palette substitute for the user’s saved output style or let that style recolor application controls.
+- **Don't** reintroduce template or visual-direction pickers, generic layout galleries, element editing or PPTX export into the current image workflow.
+- **Don't** reintroduce source-image selection, reference comparison or automatic deviation review into the finalized trial and production flows.
+- **Don't** treat choosing a history result as saving its candidate rules to the formal style.
+- **Don't** treat reviewed image samples or a successful interface review as a general guarantee of output quality or reference-style fidelity.

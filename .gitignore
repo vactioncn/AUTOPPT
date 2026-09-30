@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.local/
+.env
+.env.*
+!.env.example
+.impeccable/review/
+test-results/
+*.tsbuildinfo
+.DS_Store

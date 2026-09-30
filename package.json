@@ -1,0 +1,38 @@
+{
+  "name": "autoppt",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "dev": "node server/index.mjs",
+    "start": "NODE_ENV=production node server/index.mjs",
+    "build": "tsc -b && vite build",
+    "test": "node --test tests/*.test.mjs",
+    "check": "npm run build && npm test",
+    "test:browser": "BROWSER_TEST=1 node --test tests/workflow.test.mjs"
+  },
+  "dependencies": {
+    "@fontsource/dm-sans": "^5.3.0",
+    "@phosphor-icons/react": "^2.1.10",
+    "express": "^5.1.0",
+    "multer": "^2.0.2",
+    "pptxgenjs": "^4.0.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "sharp": "^0.34.4"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.0",
+    "@types/node": "^24.10.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^5.0.4",
+    "jszip": "^3.10.2",
+    "prettier": "^3.9.9",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.9"
+  }
+}

@@ -1,0 +1,428 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-30T08:47:00Z",
+  "title": "Design System: AutoPPT",
+  "extensions": {
+    "colorMeta": {
+      "accent": {
+        "role": "primary",
+        "displayName": "Accent",
+        "tonalRamp": [
+          "oklch(15.00% 0.16180 32.95)",
+          "oklch(26.43% 0.16180 32.95)",
+          "oklch(37.86% 0.16180 32.95)",
+          "oklch(49.29% 0.16180 32.95)",
+          "oklch(60.71% 0.16180 32.95)",
+          "oklch(72.14% 0.16180 32.95)",
+          "oklch(83.57% 0.16180 32.95)",
+          "oklch(95.00% 0.16180 32.95)"
+        ]
+      },
+      "accent-hover": {
+        "role": "primary",
+        "displayName": "Accent Hover",
+        "tonalRamp": [
+          "oklch(15.00% 0.15578 32.38)",
+          "oklch(26.43% 0.15578 32.38)",
+          "oklch(37.86% 0.15578 32.38)",
+          "oklch(49.29% 0.15578 32.38)",
+          "oklch(60.71% 0.15578 32.38)",
+          "oklch(72.14% 0.15578 32.38)",
+          "oklch(83.57% 0.15578 32.38)",
+          "oklch(95.00% 0.15578 32.38)"
+        ]
+      },
+      "navigation-active": {
+        "role": "secondary",
+        "displayName": "Navigation Active",
+        "tonalRamp": [
+          "oklch(15.00% 0.01947 122.85)",
+          "oklch(26.43% 0.01947 122.85)",
+          "oklch(37.86% 0.01947 122.85)",
+          "oklch(49.29% 0.01947 122.85)",
+          "oklch(60.71% 0.01947 122.85)",
+          "oklch(72.14% 0.01947 122.85)",
+          "oklch(83.57% 0.01947 122.85)",
+          "oklch(95.00% 0.01947 122.85)"
+        ]
+      },
+      "navigation-ink": {
+        "role": "secondary",
+        "displayName": "Navigation Ink",
+        "tonalRamp": [
+          "oklch(15.00% 0.04467 142.37)",
+          "oklch(26.43% 0.04467 142.37)",
+          "oklch(37.86% 0.04467 142.37)",
+          "oklch(49.29% 0.04467 142.37)",
+          "oklch(60.71% 0.04467 142.37)",
+          "oklch(72.14% 0.04467 142.37)",
+          "oklch(83.57% 0.04467 142.37)",
+          "oklch(95.00% 0.04467 142.37)"
+        ]
+      },
+      "good-surface": {
+        "role": "secondary",
+        "displayName": "Good Surface",
+        "tonalRamp": [
+          "oklch(15.00% 0.02214 123.64)",
+          "oklch(26.43% 0.02214 123.64)",
+          "oklch(37.86% 0.02214 123.64)",
+          "oklch(49.29% 0.02214 123.64)",
+          "oklch(60.71% 0.02214 123.64)",
+          "oklch(72.14% 0.02214 123.64)",
+          "oklch(83.57% 0.02214 123.64)",
+          "oklch(95.00% 0.02214 123.64)"
+        ]
+      },
+      "good-ink": {
+        "role": "secondary",
+        "displayName": "Good Ink",
+        "tonalRamp": [
+          "oklch(15.00% 0.07181 135.00)",
+          "oklch(26.43% 0.07181 135.00)",
+          "oklch(37.86% 0.07181 135.00)",
+          "oklch(49.29% 0.07181 135.00)",
+          "oklch(60.71% 0.07181 135.00)",
+          "oklch(72.14% 0.07181 135.00)",
+          "oklch(83.57% 0.07181 135.00)",
+          "oklch(95.00% 0.07181 135.00)"
+        ]
+      },
+      "warm-surface": {
+        "role": "secondary",
+        "displayName": "Warm Surface",
+        "tonalRamp": [
+          "oklch(15.00% 0.02830 74.30)",
+          "oklch(26.43% 0.02830 74.30)",
+          "oklch(37.86% 0.02830 74.30)",
+          "oklch(49.29% 0.02830 74.30)",
+          "oklch(60.71% 0.02830 74.30)",
+          "oklch(72.14% 0.02830 74.30)",
+          "oklch(83.57% 0.02830 74.30)",
+          "oklch(95.00% 0.02830 74.30)"
+        ]
+      },
+      "warm-ink": {
+        "role": "secondary",
+        "displayName": "Warm Ink",
+        "tonalRamp": [
+          "oklch(15.00% 0.10415 64.12)",
+          "oklch(26.43% 0.10415 64.12)",
+          "oklch(37.86% 0.10415 64.12)",
+          "oklch(49.29% 0.10415 64.12)",
+          "oklch(60.71% 0.10415 64.12)",
+          "oklch(72.14% 0.10415 64.12)",
+          "oklch(83.57% 0.10415 64.12)",
+          "oklch(95.00% 0.10415 64.12)"
+        ]
+      },
+      "canvas": {
+        "role": "neutral",
+        "displayName": "Canvas",
+        "tonalRamp": [
+          "oklch(15.00% 0.00541 95.10)",
+          "oklch(26.43% 0.00541 95.10)",
+          "oklch(37.86% 0.00541 95.10)",
+          "oklch(49.29% 0.00541 95.10)",
+          "oklch(60.71% 0.00541 95.10)",
+          "oklch(72.14% 0.00541 95.10)",
+          "oklch(83.57% 0.00541 95.10)",
+          "oklch(95.00% 0.00541 95.10)"
+        ]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Paper",
+        "tonalRamp": [
+          "oklch(15.00% 0.00000 89.88)",
+          "oklch(26.43% 0.00000 89.88)",
+          "oklch(37.86% 0.00000 89.88)",
+          "oklch(49.29% 0.00000 89.88)",
+          "oklch(60.71% 0.00000 89.88)",
+          "oklch(72.14% 0.00000 89.88)",
+          "oklch(83.57% 0.00000 89.88)",
+          "oklch(95.00% 0.00000 89.88)"
+        ]
+      },
+      "sidebar": {
+        "role": "neutral",
+        "displayName": "Sidebar",
+        "tonalRamp": [
+          "oklch(15.00% 0.00930 106.58)",
+          "oklch(26.43% 0.00930 106.58)",
+          "oklch(37.86% 0.00930 106.58)",
+          "oklch(49.29% 0.00930 106.58)",
+          "oklch(60.71% 0.00930 106.58)",
+          "oklch(72.14% 0.00930 106.58)",
+          "oklch(83.57% 0.00930 106.58)",
+          "oklch(95.00% 0.00930 106.58)"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "tonalRamp": [
+          "oklch(15.00% 0.00927 145.31)",
+          "oklch(26.43% 0.00927 145.31)",
+          "oklch(37.86% 0.00927 145.31)",
+          "oklch(49.29% 0.00927 145.31)",
+          "oklch(60.71% 0.00927 145.31)",
+          "oklch(72.14% 0.00927 145.31)",
+          "oklch(83.57% 0.00927 145.31)",
+          "oklch(95.00% 0.00927 145.31)"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Muted",
+        "tonalRamp": [
+          "oklch(15.00% 0.01696 132.60)",
+          "oklch(26.43% 0.01696 132.60)",
+          "oklch(37.86% 0.01696 132.60)",
+          "oklch(49.29% 0.01696 132.60)",
+          "oklch(60.71% 0.01696 132.60)",
+          "oklch(72.14% 0.01696 132.60)",
+          "oklch(83.57% 0.01696 132.60)",
+          "oklch(95.00% 0.01696 132.60)"
+        ]
+      },
+      "supporting-text": {
+        "role": "neutral",
+        "displayName": "Supporting Text",
+        "tonalRamp": [
+          "oklch(15.00% 0.03517 131.86)",
+          "oklch(26.43% 0.03517 131.86)",
+          "oklch(37.86% 0.03517 131.86)",
+          "oklch(49.29% 0.03517 131.86)",
+          "oklch(60.71% 0.03517 131.86)",
+          "oklch(72.14% 0.03517 131.86)",
+          "oklch(83.57% 0.03517 131.86)",
+          "oklch(95.00% 0.03517 131.86)"
+        ]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Line",
+        "tonalRamp": [
+          "oklch(15.00% 0.01093 118.04)",
+          "oklch(26.43% 0.01093 118.04)",
+          "oklch(37.86% 0.01093 118.04)",
+          "oklch(49.29% 0.01093 118.04)",
+          "oklch(60.71% 0.01093 118.04)",
+          "oklch(72.14% 0.01093 118.04)",
+          "oklch(83.57% 0.01093 118.04)",
+          "oklch(95.00% 0.01093 118.04)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Home Display",
+        "purpose": "Home introduction; responsive local overrides apply."
+      },
+      "body": {
+        "displayName": "Working Text",
+        "purpose": "Bundled DM Sans for Latin text and system Chinese fallbacks; manuscript views increase line spacing."
+      }
+    },
+    "shadows": [
+      {
+        "name": "paper-illustration",
+        "value": "0 12px 28px #27301a14",
+        "purpose": "Home paper illustration only."
+      },
+      {
+        "name": "segmented-active",
+        "value": "0 1px 3px #2030100a",
+        "purpose": "Active gallery switch option."
+      },
+      {
+        "name": "selection-bar",
+        "value": "0 8px 26px #18201226",
+        "purpose": "Floating bulk actions."
+      },
+      {
+        "name": "dialog",
+        "value": "0 24px 80px #1c251e33",
+        "purpose": "Native modal dialog."
+      },
+      {
+        "name": "toast",
+        "value": "0 6px 22px #1e291c24",
+        "purpose": "Transient saved/action feedback."
+      }
+    ],
+    "motion": [
+      {
+        "name": "control-transition",
+        "value": "0.18s ease",
+        "purpose": "Button background and project-card motion."
+      },
+      {
+        "name": "preview-transition",
+        "value": "0.15s ease",
+        "purpose": "Preview border and project-open reveal."
+      },
+      {
+        "name": "progress-transition",
+        "value": "0.3s ease",
+        "purpose": "Task progress transform."
+      },
+      {
+        "name": "spinner",
+        "value": "1.2s linear infinite",
+        "purpose": "Busy states; reduced-motion override applies."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "0.01ms",
+        "purpose": "Animation and transition duration when reduced motion is requested; animation iteration count becomes 1."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "wide-min",
+        "value": "1600px"
+      },
+      {
+        "name": "compact-max",
+        "value": "1150px"
+      },
+      {
+        "name": "rail-max",
+        "value": "850px"
+      },
+      {
+        "name": "studio-stack-max",
+        "value": "780px"
+      },
+      {
+        "name": "mobile-max",
+        "value": "600px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Implemented Button variant; loading and disabled states share the same dimensions.",
+      "html": "<button class=\"ds-button-primary\">生成这一段</button>",
+      "css": ".ds-button-primary{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:9px 16px;border:0;border-radius:8px;font:500 13px/1.5 'DM Sans',-apple-system,'PingFang SC',sans-serif;white-space:nowrap;cursor:pointer;transition:background .18s,transform .18s;background:var(--accent,#c94e36);color:#fff;}.ds-button-primary:focus-visible{outline:3px solid #ce775d;outline-offset:3px;}.ds-button-primary:disabled{opacity:.5;cursor:not-allowed;}.ds-button-primary:hover:not(:disabled){background:#b7422d;}@media(prefers-reduced-motion:reduce){.ds-button-primary{transition-duration:.01ms}}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Implemented Button variant; loading and disabled states share the same dimensions.",
+      "html": "<button class=\"ds-button-secondary\">保存讲稿</button>",
+      "css": ".ds-button-secondary{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:9px 16px;border:0;border-radius:8px;font:500 13px/1.5 'DM Sans',-apple-system,'PingFang SC',sans-serif;white-space:nowrap;cursor:pointer;transition:background .18s,transform .18s;background:#fff;color:var(--ink,#242824);border:1px solid #dfe1d8;}.ds-button-secondary:focus-visible{outline:3px solid #ce775d;outline-offset:3px;}.ds-button-secondary:disabled{opacity:.5;cursor:not-allowed;}.ds-button-secondary:hover:not(:disabled){background:#f4f5ef;}@media(prefers-reduced-motion:reduce){.ds-button-secondary{transition-duration:.01ms}}"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Implemented Button variant; loading and disabled states share the same dimensions.",
+      "html": "<button class=\"ds-button-ghost\">查看设计方案</button>",
+      "css": ".ds-button-ghost{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:9px 16px;border:0;border-radius:8px;font:500 13px/1.5 'DM Sans',-apple-system,'PingFang SC',sans-serif;white-space:nowrap;cursor:pointer;transition:background .18s,transform .18s;background:transparent;color:var(--muted,#696f65);padding-inline:10px;}.ds-button-ghost:focus-visible{outline:3px solid #ce775d;outline-offset:3px;}.ds-button-ghost:disabled{opacity:.5;cursor:not-allowed;}.ds-button-ghost:hover:not(:disabled){background:#ebece4;color:var(--ink,#242824);}@media(prefers-reduced-motion:reduce){.ds-button-ghost{transition-duration:.01ms}}"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Implemented Button variant; loading and disabled states share the same dimensions.",
+      "html": "<button class=\"ds-button-danger\">确认删除</button>",
+      "css": ".ds-button-danger{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:9px 16px;border:0;border-radius:8px;font:500 13px/1.5 'DM Sans',-apple-system,'PingFang SC',sans-serif;white-space:nowrap;cursor:pointer;transition:background .18s,transform .18s;background:#f9e4df;color:#a93625;}.ds-button-danger:focus-visible{outline:3px solid #ce775d;outline-offset:3px;}.ds-button-danger:disabled{opacity:.5;cursor:not-allowed;}@media(prefers-reduced-motion:reduce){.ds-button-danger{transition-duration:.01ms}}"
+    },
+    {
+      "name": "Labeled Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "A standard field with label and help text; the manuscript composer has its own borderless treatment.",
+      "html": "<label class=\"ds-field\"><span>项目名称</span><input placeholder=\"这场演讲的主题\"/><small>用于识别本机项目</small></label>",
+      "css": ".ds-field{display:flex;flex-direction:column;gap:8px;font:400 14px/1.6 'DM Sans',-apple-system,'PingFang SC',sans-serif;color:var(--ink,#242824)}.ds-field>span{font-size:12px;font-weight:500}.ds-field input{border:1px solid var(--line,#e1e3db);border-radius:8px;background:#fff;color:var(--ink,#242824);padding:11px 12px;font:inherit;font-size:13px;caret-color:var(--accent,#c94e36)}.ds-field input:focus{outline:2px solid #d68c76;outline-offset:1px}.ds-field input::placeholder{color:#69755f}.ds-field small{font-size:10px;color:#64705b}"
+    },
+    {
+      "name": "Main Navigation",
+      "kind": "nav",
+      "refersTo": "navigation",
+      "description": "Desktop active destination; the responsive rail and bottom bar are specified in DESIGN.md.",
+      "html": "<nav class=\"ds-nav\" aria-label=\"主导航\"><button class=\"ds-active\"><svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" aria-hidden=\"true\"><rect x=\"3\" y=\"4\" width=\"18\" height=\"16\" rx=\"2\"/><path d=\"M3 9h18\"/></svg>我的项目<span>2</span></button><button>风格库<span>3</span></button></nav>",
+      "css": ".ds-nav{display:grid;gap:6px;background:#eeeee7;padding:10px;font-family:'DM Sans',-apple-system,'PingFang SC',sans-serif}.ds-nav button{display:flex;align-items:center;gap:12px;text-align:left;padding:12px 14px;border:0;border-radius:8px;background:transparent;color:#686d63;font-family:inherit;font-size:13px;line-height:1.6;font-weight:400;cursor:pointer}.ds-nav button:hover{background:#e4e6dc}.ds-nav button.ds-active{background:#dfe4d6;color:#334731;font-weight:500}.ds-nav button:focus-visible{outline:3px solid #ce775d;outline-offset:3px}.ds-nav span{margin-left:auto;font-size:11px;color:#747c6b}"
+    },
+    {
+      "name": "Status Badges",
+      "kind": "chip",
+      "refersTo": "status",
+      "description": "Informational neutral, ready and attention states use text as well as color.",
+      "html": "<div class=\"ds-status-row\"><span class=\"ds-status\">待连接</span><span class=\"ds-status ds-good\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3\" aria-hidden=\"true\"><path d=\"m5 12 4 4L19 6\"/></svg>已配置密钥</span><span class=\"ds-status ds-warm\">画面待更新</span></div>",
+      "css": ".ds-status-row{display:flex;gap:8px;flex-wrap:wrap}.ds-status{display:inline-flex;align-items:center;gap:4px;white-space:nowrap;font:400 10px/1.6 'DM Sans',-apple-system,'PingFang SC',sans-serif;padding:3px 7px;background:#eeefe9;color:#67745c;border-radius:5px}.ds-status.ds-good{background:#e9efdf;color:#4c673d}.ds-status.ds-warm{background:#f9ebd9;color:#986023}"
+    },
+    {
+      "name": "Project Card",
+      "kind": "card",
+      "refersTo": "project-card",
+      "description": "White library container with uncropped cover area and quiet project metadata; the example contains a placeholder, not generated artwork.",
+      "html": "<button class=\"ds-project\"><div class=\"ds-cover\">等待生成画面</div><div class=\"ds-project-content\"><h3>一场新的演讲</h3><p>1 段讲稿 · 0 页画面</p></div></button>",
+      "css": ".ds-project{padding:0;text-align:left;background:#fff;border:1px solid var(--line,#e1e3db);border-radius:12px;overflow:hidden;width:280px;max-width:100%;color:var(--ink,#242824);font-family:'DM Sans',-apple-system,'PingFang SC',sans-serif;cursor:pointer;transition:transform .18s,border-color .18s}.ds-project:hover{transform:translateY(-3px);border-color:#a5ae9b}.ds-project:focus-visible{outline:3px solid #ce775d;outline-offset:3px}.ds-cover{aspect-ratio:16/9;background:#e8eadf;display:grid;place-items:center;font-size:11px;color:#64705b}.ds-project-content{padding:18px 18px 17px}.ds-project-content h3{font-size:14px;font-weight:600;line-height:1.5;margin:0}.ds-project-content p{margin:7px 0 0;font-size:11px;line-height:1.6;color:#64705b}@media(prefers-reduced-motion:reduce){.ds-project{transition-duration:.01ms}}"
+    },
+    {
+      "name": "Design Rules and Whole Style Language",
+      "kind": "custom",
+      "refersTo": "studio-disclosure",
+      "description": "Native disclosures keep full candidate rules and the eight StyleLanguage text sections secondary to the actual generated image. This textual specimen uses representative rule placeholders, not generated artwork.",
+      "html": "<details class=\"ds-rules\" open><summary>完整设计规范</summary><label class=\"ds-rules-field\"><span>试做设计规范</span><textarea aria-label=\"试做设计规范\" placeholder=\"此处显示已保存的完整风格规则\"></textarea></label><details class=\"ds-rules\"><summary>查看用于创作的风格规范</summary><p class=\"ds-rules-help\">同一套视觉规则，随内容形成不同的表现。</p><div><h4>风格特征</h4><p>此处显示已保存的风格特征。</p></div><div><h4>字体与文字层级</h4><p>此处显示已保存的字体与文字层级。</p></div><div><h4>色彩组合</h4><p>此处显示已保存的色彩组合。</p></div><div><h4>构图与留白原则</h4><p>此处显示已保存的构图与留白原则。</p></div><div><h4>图形画法</h4><p>此处显示已保存的图形画法。</p></div><div><h4>细节与辅助标记</h4><p>此处显示已保存的细节与辅助标记。</p></div><div><h4>如何延伸到不同内容</h4><p>此处显示已保存的如何延伸到不同内容。</p></div><div><h4>避免的做法</h4><p>此处显示已保存的避免的做法。</p></div></details></details>",
+      "css": ".ds-rules{font:400 14px/1.6 \"DM Sans\",-apple-system,\"PingFang SC\",sans-serif;color:var(--ink,#242824);border-top:1px solid var(--line,#e1e3db);padding:18px 0;margin-top:20px}.ds-rules>summary{font-size:14px;font-weight:500;cursor:pointer}.ds-rules[open]>summary{margin-bottom:20px}.ds-rules summary:focus-visible{outline:auto}.ds-rules-field{display:flex;flex-direction:column;gap:8px;font-size:12px;font-weight:500}.ds-rules-field textarea{min-height:170px;padding:14px;border:1px solid var(--line,#e1e3db);border-radius:8px;background:var(--paper,#fff);color:var(--ink,#242824);font:400 14px/1.9 \"DM Sans\",-apple-system,\"PingFang SC\",sans-serif;resize:vertical}.ds-rules-field textarea:focus{outline:2px solid #d68c76;outline-offset:1px}.ds-rules-help{font-size:12px;color:#64705b;line-height:1.8}.ds-rules>div{margin-top:20px}.ds-rules h4{margin:0;font-weight:600}.ds-rules>div p{margin:0}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Quiet Personal Speech Studio",
+    "overview": "The interface is a warm, restrained working environment for a person developing an ongoing speech. Pale paper surfaces, olive supporting tones and a terracotta action color keep attention on the manuscript and the actual generated image. The style workbench leads with the complete image, followed by content and feedback; native disclosures reveal the detailed rules and design plan when needed.\n\nThis records the implemented system in `src/styles.css`, `src/studio.css`, `src/scene.css`, the shared components and main views, refreshed on 2026-09-30. The selected style is a whole visual grammar: typography, palette, linework, details and whitespace. Content determines the original composition and expression; style determines how it is drawn. The application palette does not become the output style. This corrects the operating flow within the incumbent visual system. Product behavior remains documented in `PRODUCT.md`.",
+    "keyCharacteristics": [
+      "Warm light canvas with white working surfaces and fine olive-gray borders.",
+      "Large, complete generated images paired with quiet saved-state captions and PNG download.",
+      "Compact persistent navigation; content and feedback beneath the image, with design rules and history available on demand.",
+      "Explicit progress, saved state, incomplete work and recovery actions."
+    ],
+    "rules": [
+      {
+        "name": "The Content Palette Rule",
+        "body": "Keep saved slide-style colors and source-image colors inside their preview surfaces; the surrounding controls retain the application palette.",
+        "section": "colors"
+      },
+      {
+        "name": "The Preview First Rule",
+        "body": "Preserve the complete generated image and reveal secondary controls through detail views and disclosures as space contracts.",
+        "section": "layout"
+      },
+      {
+        "name": "The Candidate Boundary Rule",
+        "body": "Keep candidate and formal style rules visibly separate; only the explicit promotion action changes the style used for later production.",
+        "section": "components"
+      },
+      {
+        "name": "The Resolved Style Rule",
+        "body": "Source-image management remains in style creation and explicit re-extraction. After understanding content relationships, trial and production planning apply the full saved style to resolve each page’s `styleExecution`: `typeHierarchy` covers cross-scale typography, `spatialRhythm` organizes density and whitespace, `graphicHierarchy` establishes graphic and line hierarchy, and `microDetail` carries editorial microdetails. Style fidelity depends on these relationships, beyond color, large type and simple lines. Actual auxiliary microcopy must enter `displayText` and only summarize or translate the page’s content. Image requests receive only resolved page choices, without conflicting alternatives from the whole style library or original reference images. The workbench offers no reference comparison or automatic deviation review.",
+        "section": "components"
+      }
+    ],
+    "dos": [
+      "Do preserve complete generated images and keep historical web scenes clearly identified.",
+      "Do reuse the warm shell, terracotta action color and olive supporting states across all views.",
+      "Do show progress, incomplete work, changed inputs, saved notes and pages awaiting redesign as distinct states with meaningful text.",
+      "Do keep the actual image ahead of detailed rules, with content and feedback directly beneath it.",
+      "Do let content determine the expression and original composition, with the whole style grammar determining how it is drawn.",
+      "Do keep page-only changes, candidate rule revisions and formal-style promotion visibly separate.",
+      "Do keep the full manuscript accessible alongside condensed page text, with manual split/merge previews and version history available on demand."
+    ],
+    "donts": [
+      "Don't present missing results, failed pages or stale previews as newly completed output.",
+      "Don't let the application palette substitute for the user’s saved output style or let that style recolor application controls.",
+      "Don't reintroduce template or visual-direction pickers, generic layout galleries, element editing or PPTX export into the current image workflow.",
+      "Don't reintroduce source-image selection, reference comparison or automatic deviation review into the finalized trial and production flows.",
+      "Don't treat choosing a history result as saving its candidate rules to the formal style.",
+      "Don't treat reviewed image samples or a successful interface review as a general guarantee of output quality or reference-style fidelity."
+    ]
+  }
+}

@@ -1,0 +1,1328 @@
+import { useState, useEffect, useRef, useCallback } from "react";
+import {
+  Plus,
+  ArrowRight,
+  ArrowUp,
+  CheckCircle,
+  CheckSquare,
+  Square,
+  Palette,
+  Scissors,
+  Unite,
+  ArrowCounterClockwise,
+  ArrowsClockwise,
+  WarningCircle,
+  SpinnerGap,
+  FileText,
+  ArrowLeft,
+  CaretLeft,
+  CaretRight,
+  PencilSimple,
+  Clock,
+  X,
+  Eye,
+  FloppyDisk,
+  Stop,
+} from "@phosphor-icons/react";
+import { api, post, patch, asset, active } from "./api";
+import { SceneView } from "./SceneView";
+import type { Project, Style, Slide, Job, Settings } from "./types";
+import { Button, Modal, Field, SlideImage, Status } from "./components";
+
+export function Workspace({
+  id,
+  styles,
+  settings,
+  notify,
+  onRefresh,
+  onSettings,
+}: {
+  id: string;
+  styles: Style[];
+  settings: Settings;
+  notify: (s: string) => void;
+  onRefresh: () => Promise<void>;
+  onSettings: () => void;
+}) {
+  const [project, setProject] = useState<Project | null>(null),
+    [jobs, setJobs] = useState<Job[]>([]),
+    [draft, setDraft] = useState(""),
+    [saving, setSaving] = useState(false),
+    [error, setError] = useState(""),
+    [submitting, setSubmitting] = useState(false),
+    [filter, setFilter] = useState("latest"),
+    [selected, setSelected] = useState<string[]>([]),
+    [detail, setDetail] = useState<string | null>(null),
+    [split, setSplit] = useState<string | null>(null),
+    [proposalOpen, setProposalOpen] = useState(false),
+    [showScript, setShowScript] = useState(false),
+    [renaming, setRenaming] = useState(false);
+  const initialized = useRef(false),
+    draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null),
+    draftRequest = useRef<Promise<unknown>>(Promise.resolve()),
+    composer = useRef<HTMLTextAreaElement>(null);
+  const refresh = useCallback(async () => {
+    const [p, j] = await Promise.all([
+      api<Project>("/projects/" + id),
+      api<Job[]>("/jobs?projectId=" + id),
+    ]);
+    setProject((prev) => (!prev || p.revision >= prev.revision ? p : prev));
+    setJobs(j);
+    if (!initialized.current) {
+      setDraft(localStorage.getItem("autoppt-draft:" + id) ?? p.draft);
+      initialized.current = true;
+    }
+  }, [id]);
+  useEffect(() => {
+    refresh().catch((e) => setError(e.message));
+    const t = setInterval(
+      () => refresh().catch((e) => setError(e.message)),
+      1800,
+    );
+    return () => {
+      clearInterval(t);
+      if (draftTimer.current) clearTimeout(draftTimer.current);
+    };
+  }, [refresh]);
+  const run = async (fn: () => Promise<unknown>, message?: string) => {
+    setError("");
+    try {
+      await fn();
+      await refresh();
+      await onRefresh();
+      if (message) notify(message);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+  function updateDraft(text: string) {
+    localStorage.setItem("autoppt-draft:" + id, text);
+    setDraft(text);
+    setSaving(true);
+    if (draftTimer.current) clearTimeout(draftTimer.current);
+    draftTimer.current = setTimeout(() => {
+      draftRequest.current = patch("/projects/" + id, { draft: text })
+        .then(() => {
+          setSaving(false);
+          if (localStorage.getItem("autoppt-draft:" + id) === text)
+            localStorage.removeItem("autoppt-draft:" + id);
+        })
+        .catch((e) => {
+          setSaving(false);
+          setError("草稿保存失败：" + e.message);
+        });
+    }, 700);
+  }
+  const add = async () => {
+    if (!draft.trim()) return;
+    setSubmitting(true);
+    setError("");
+    if (draftTimer.current) clearTimeout(draftTimer.current);
+    try {
+      await draftRequest.current;
+      await post("/projects/" + id + "/batches", { text: draft });
+      localStorage.removeItem("autoppt-draft:" + id);
+      setDraft("");
+      setSaving(false);
+      setFilter("latest");
+      await refresh();
+      await onRefresh();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  if (!project)
+    return (
+      <div className="page loading-page">
+        {error ? (
+          <p className="error-text">{error}</p>
+        ) : (
+          <SpinnerGap className="spin" size={24} />
+        )}
+      </div>
+    );
+  const busy = jobs.find((j) => active(j.status));
+  const lastJob = jobs[0];
+  const currentBatch = project.batches.at(-1);
+  const sourceBatch =
+    filter === "latest" || filter === "all"
+      ? currentBatch
+      : project.batches.find((b) => b.id === filter);
+  const incomplete = project.batches.filter((b) => !b.slideIds.length);
+  const style = styles.find((s) => s.id === project.styleId);
+  const shown =
+    filter === "all"
+      ? project.slides
+      : project.slides.filter((s) =>
+          s.batchIds.includes(
+            filter === "latest" ? currentBatch?.id || "" : filter,
+          ),
+        );
+  const detailSlide = project.slides.find((s) => s.id === detail);
+  const splitSlide = project.slides.find((s) => s.id === split);
+  const selectedPages = project.slides.filter((s) => selected.includes(s.id));
+  const select = (sid: string) =>
+    setSelected((old) =>
+      old.includes(sid) ? old.filter((s) => s !== sid) : [...old, sid],
+    );
+  const merge = () =>
+    run(async () => {
+      await post("/projects/" + id + "/proposal", {
+        type: "merge",
+        slideIds: selected,
+      });
+      setSelected([]);
+    }, "正在准备合并方案，原页面会保留到你确认。");
+  const pending = project.slides.filter(
+    (s) => !(s.image || s.scene) || s.status === "error",
+  );
+  return (
+    <div className="page workspace">
+      <div className="workspace-heading">
+        <div>
+          <div className="project-title-row">
+            <h1>{project.title}</h1>
+            <button
+              className="icon-btn"
+              aria-label="修改项目名称"
+              onClick={() => setRenaming(true)}
+            >
+              <PencilSimple size={18} />
+            </button>
+          </div>
+          <p>
+            {project.batches.length} 段逐字稿<span>·</span>
+            {project.slides.length} 页画面<span>·</span>
+            {project.slides
+              .reduce((n, s) => n + s.notes.trim().length, 0)
+              .toLocaleString()}{" "}
+            字
+          </p>
+        </div>
+      </div>
+      <div className="project-controls">
+        <div className="project-style">
+          <Palette size={17} />
+          <span>当前风格</span>
+          <select
+            aria-label="项目视觉风格"
+            value={project.styleId}
+            disabled={!!busy}
+            onChange={(e) =>
+              run(
+                () => patch("/projects/" + id, { styleId: e.target.value }),
+                "继续制作和重新设计将使用这个风格，已生成画面保持原样。",
+              )
+            }
+          >
+            {(!style || style.deletedAt) && (
+              <option value={project.styleId} disabled>
+                {style?.name || "原风格"}（已删除，请另选）
+              </option>
+            )}
+            {styles
+              .filter((s) => !!s.rules && !s.deletedAt)
+              .map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+          </select>
+        </div>
+        <div className="quiet-meta">
+          <span>16:9 宽屏</span>
+          <span>逐页保留完整讲稿</span>
+        </div>
+      </div>
+      <p className="generation-style-help">
+        继续制作、补齐页面和重新设计均使用当前风格。已生成的画面可选中后批量重做。
+      </p>
+      {style?.deletedAt && (
+        <div className="inline-notice warm">
+          <WarningCircle size={20} />
+          <span>
+            当前风格已删除，请在上方选择其他风格。已有页面与备注已保留。
+          </span>
+        </div>
+      )}
+      {(!settings.text.hasKey || !settings.image.hasKey) && (
+        <div className="inline-notice">
+          <WarningCircle size={20} />
+          <span>
+            先连接模型，即可自动分析文稿和生成画面。草稿可以先写下来。
+          </span>
+          <Button onClick={onSettings}>连接模型</Button>
+        </div>
+      )}
+      {error && (
+        <div className="error-banner" role="alert">
+          <WarningCircle size={19} />
+          <span>{error}</span>
+          <button
+            className="icon-btn"
+            aria-label="关闭错误提示"
+            onClick={() => setError("")}
+          >
+            <X size={18} />
+          </button>
+        </div>
+      )}
+      {busy && (
+        <div className="job-banner" role="status">
+          <SpinnerGap className="spin" size={22} />
+          <div>
+            <strong>{busy.stage}</strong>
+            <span>已完成的内容会自动保存，你可以先准备下一段。</span>
+          </div>
+          {busy.total > 0 && (
+            <span className="job-count">
+              {busy.done} / {busy.total}
+            </span>
+          )}
+          <Button
+            variant="ghost"
+            onClick={() => run(() => post("/jobs/" + busy.id + "/cancel"))}
+          >
+            <Stop size={15} />
+            停止
+          </Button>
+          {busy.total > 0 && (
+            <div
+              className="job-progress"
+              style={{
+                transform: `scaleX(${Math.max(0.03, busy.done / busy.total)})`,
+              }}
+            />
+          )}
+        </div>
+      )}
+      {!busy &&
+        lastJob &&
+        ["failed", "interrupted", "cancelled"].includes(lastJob.status) && (
+          <div className="inline-notice warm">
+            <WarningCircle size={20} />
+            <div>
+              <strong>{lastJob.stage}</strong>
+              <p>{lastJob.error}</p>
+            </div>
+            <Button
+              onClick={() => run(() => post("/jobs/" + lastJob.id + "/retry"))}
+            >
+              继续未完成任务
+              <ArrowRight size={16} />
+            </Button>
+          </div>
+        )}
+      {!busy &&
+        incomplete
+          .filter((b) => b.jobId !== lastJob?.id)
+          .map((b) => (
+            <div className="inline-notice warm" key={b.id}>
+              <WarningCircle size={20} />
+              <div>
+                <strong>{b.label} 尚未完成拆分</strong>
+                <p>原文已保存。可以继续完成这一段的图片制作。</p>
+              </div>
+              {b.jobId && (
+                <Button
+                  onClick={() => run(() => post("/jobs/" + b.jobId + "/retry"))}
+                >
+                  继续这一段
+                  <ArrowRight size={16} />
+                </Button>
+              )}
+            </div>
+          ))}
+      {project.proposal && (
+        <div className="inline-notice proposal-notice">
+          <CheckCircle size={22} />
+          <div>
+            <strong>
+              {project.proposal.type === "split" ? "拆分" : "合并"}方案已准备好
+            </strong>
+            <p>
+              预览 {project.proposal.notes.length} 页新方案，确认后再生成画面。
+            </p>
+          </div>
+          <Button variant="primary" onClick={() => setProposalOpen(true)}>
+            查看新方案
+            <ArrowRight size={16} />
+          </Button>
+        </div>
+      )}
+      {sourceBatch && (
+        <details className="submitted-manuscript">
+          <summary>
+            {sourceBatch.label} · 提交时的原文{" "}
+            <span>{sourceBatch.text.length} 字</span>
+          </summary>
+          <p>{sourceBatch.text}</p>
+        </details>
+      )}
+      {project.slides.length > 0 && (
+        <>
+          <div className="gallery-toolbar">
+            <div className="segmented">
+              <button
+                className={filter === "latest" && !showScript ? "active" : ""}
+                onClick={() => {
+                  setFilter("latest");
+                  setShowScript(false);
+                  setSelected([]);
+                }}
+              >
+                本次制作{" "}
+                <span>
+                  {
+                    project.slides.filter((s) =>
+                      s.batchIds.includes(currentBatch?.id || ""),
+                    ).length
+                  }
+                </span>
+              </button>
+              <button
+                className={filter === "all" && !showScript ? "active" : ""}
+                onClick={() => {
+                  setFilter("all");
+                  setShowScript(false);
+                  setSelected([]);
+                }}
+              >
+                全部页面 <span>{project.slides.length}</span>
+              </button>
+              <button
+                className={showScript ? "active" : ""}
+                onClick={() => {
+                  setShowScript(true);
+                  setSelected([]);
+                }}
+              >
+                <FileText size={15} />
+                演说稿
+              </button>
+            </div>
+            <div className="gallery-actions">
+              {!busy && pending.some((s) => !(s.image || s.scene)) && (
+                <Button
+                  variant="ghost"
+                  onClick={() =>
+                    run(() =>
+                      post("/projects/" + id + "/render", {
+                        slideIds: pending
+                          .filter((s) => !(s.image || s.scene))
+                          .map((s) => s.id),
+                        redesign: false,
+                      }),
+                    )
+                  }
+                >
+                  <ArrowsClockwise size={15} />
+                  补齐未生成页面
+                </Button>
+              )}
+              {project.undo && (
+                <Button
+                  variant="ghost"
+                  disabled={!!busy}
+                  onClick={() =>
+                    run(
+                      () => post("/projects/" + id + "/undo"),
+                      "已恢复调整前的页面。",
+                    )
+                  }
+                >
+                  <ArrowCounterClockwise size={15} />
+                  撤销{project.undo.label}
+                </Button>
+              )}
+              {project.batches.length > 1 && !showScript && (
+                <select
+                  className="batch-select"
+                  aria-label="查看段落"
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value)}
+                >
+                  <option value="latest">最近一段</option>
+                  <option value="all">全部段落</option>
+                  {project.batches.map((b, i) => (
+                    <option value={b.id} key={b.id}>
+                      第 {i + 1} 段 · {b.text.trim().slice(0, 12)}…
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          </div>
+          {showScript ? (
+            <div className="manuscript-list">
+              <div className="manuscript-intro">
+                <h2>你的完整演说稿</h2>
+                <p>按照页面顺序排列。点击任意一段，修改对应页面的讲稿。</p>
+              </div>
+              {project.slides.map((s, i) => (
+                <button
+                  key={s.id}
+                  className="manuscript-row"
+                  onClick={() => setDetail(s.id)}
+                >
+                  <span>{String(i + 1).padStart(2, "0")}</span>
+                  <p>{s.notes}</p>
+                  <PencilSimple size={16} />
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="slide-grid">
+              {shown.map((s) => (
+                <article
+                  className={`slide-card ${selected.includes(s.id) ? "selected" : ""}`}
+                  key={s.id}
+                >
+                  <button
+                    className="slide-open"
+                    onClick={() => setDetail(s.id)}
+                    aria-label={`打开第 ${project.slides.indexOf(s) + 1} 页：${s.plan?.title || "页面"}`}
+                  >
+                    <SlideImage slide={s} />
+                  </button>
+                  <button
+                    className={`slide-checkbox ${selected.includes(s.id) ? "checked" : ""}`}
+                    disabled={!!busy}
+                    onClick={() => select(s.id)}
+                    aria-label={`选择第 ${project.slides.indexOf(s) + 1} 页`}
+                  >
+                    {selected.includes(s.id) ? (
+                      <CheckSquare size={23} weight="fill" />
+                    ) : (
+                      <Square size={23} />
+                    )}
+                  </button>
+                  <div className="slide-caption">
+                    <span className="page-number">
+                      {String(project.slides.indexOf(s) + 1).padStart(2, "0")}
+                    </span>
+                    <div>
+                      <h3>{s.plan?.title || s.notes.trim().slice(0, 24)}</h3>
+                      <p>
+                        {s.notes.trim().length} 字讲稿
+                        {s.versions.length > 0 &&
+                          ` · ${s.versions.length + 1} 个版本`}
+                      </p>
+                      <p className="slide-style-label">
+                        {s.image || s.scene ? "画面风格：" : "待制作："}
+                        {s.image || s.scene
+                          ? s.imageStyle?.name ||
+                            styles.find((style) => style.id === s.styleId)
+                              ?.name ||
+                            "原风格"
+                          : style?.name || "请选择风格"}
+                      </p>
+                    </div>
+                    {s.status === "generating" ? (
+                      <Status>制作中</Status>
+                    ) : s.status === "error" ? (
+                      <Status tone="warm">需重试</Status>
+                    ) : s.stale ? (
+                      <Status tone="warm">画面待更新</Status>
+                    ) : s.image || s.scene ? (
+                      <CheckCircle className="ready-check" size={17} />
+                    ) : (
+                      <Status>待制作</Status>
+                    )}
+                  </div>
+                  {s.error && <p className="card-error">{s.error}</p>}
+                </article>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+      {selected.length > 0 && (
+        <div className="selection-bar">
+          <span>已选 {selected.length} 页</span>
+          <span className="selection-pages">
+            {selectedPages.map((s) => project.slides.indexOf(s) + 1).join("、")}
+          </span>
+          <Button
+            disabled={!!busy || !style || !!style.deletedAt}
+            onClick={() =>
+              run(async () => {
+                await post("/projects/" + id + "/render", {
+                  slideIds: selected,
+                  redesign: true,
+                });
+                setSelected([]);
+              }, `正在按「${style?.name}」重新设计，旧版本会保留。`)
+            }
+          >
+            <ArrowsClockwise size={17} />
+            按当前风格重做
+          </Button>
+          <Button
+            variant="primary"
+            disabled={selected.length < 2 || !!busy}
+            onClick={merge}
+          >
+            <Unite size={17} />
+            合并所选页面
+          </Button>
+          <button
+            className="icon-btn"
+            aria-label="取消选择"
+            onClick={() => setSelected([])}
+          >
+            <X size={18} />
+          </button>
+        </div>
+      )}
+      {!project.slides.length && !busy && (
+        <div className="workspace-empty">
+          <div className="empty-page-stack">
+            <div />
+            <div />
+            <div>
+              <FileText size={35} weight="light" />
+              <span>你的第一段，会成为新的画面。</span>
+            </div>
+          </div>
+          <h2>先从一小段开始。</h2>
+          <p>粘贴你的逐字稿，内容拆分、画面设计和图片生成，交给 AutoPPT。</p>
+        </div>
+      )}
+      <section
+        className={`composer ${!project.slides.length ? "first-composer" : ""}`}
+      >
+        <div className="composer-heading">
+          <div>
+            <span className="composer-number">
+              {String(project.batches.length + 1).padStart(2, "0")}
+            </span>
+            <h2>
+              {project.batches.length ? "继续添加下一段" : "添加第一段逐字稿"}
+            </h2>
+          </div>
+          <span className="draft-state">
+            {saving
+              ? "正在保存草稿…"
+              : draft
+                ? "草稿已保存"
+                : "可以先给一小段，满意后再继续"}
+          </span>
+        </div>
+        <textarea
+          ref={composer}
+          aria-label="添加逐字稿"
+          value={draft}
+          onChange={(e) => updateDraft(e.target.value)}
+          placeholder={
+            project.batches.length
+              ? "接下来，你想讲什么？粘贴下一段逐字稿…"
+              : "把你准备讲的话放在这里。\n不需要整理格式，也不需要自己分成 PPT 页面。"
+          }
+          maxLength={200000}
+          onKeyDown={(e) => {
+            if (
+              (e.metaKey || e.ctrlKey) &&
+              e.key === "Enter" &&
+              !busy &&
+              !submitting
+            ) {
+              e.preventDefault();
+              add();
+            }
+          }}
+        />
+        <div className="composer-footer">
+          <span>
+            {draft.length.toLocaleString()} 字
+            <span className="composer-shortcut">⌘ Enter 生成</span>
+          </span>
+          <Button
+            variant="primary"
+            onClick={add}
+            disabled={
+              !draft.trim() ||
+              !!busy ||
+              !settings.text.hasKey ||
+              !settings.image.hasKey
+            }
+            loading={submitting}
+          >
+            {busy ? "正在制作上一段" : "生成这一段"}
+            <ArrowUp size={17} />
+          </Button>
+        </div>
+      </section>
+      {project.slides.length > 0 && (
+        <p className="workspace-bottom">
+          逐字稿与图片自动关联 · 逐段制作，随时调整 · 所有内容保存在本机
+        </p>
+      )}
+      {detailSlide && (
+        <SlideDetail
+          slide={detailSlide}
+          index={project.slides.indexOf(detailSlide)}
+          total={project.slides.length}
+          projectId={id}
+          revision={project.revision}
+          styles={styles}
+          currentStyle={style}
+          busy={!!busy}
+          onClose={() => setDetail(null)}
+          onNavigate={(offset) =>
+            setDetail(
+              project.slides[project.slides.indexOf(detailSlide) + offset]
+                ?.id || detail,
+            )
+          }
+          onSplit={() => {
+            setSplit(detailSlide.id);
+            setDetail(null);
+          }}
+          onChanged={async () => {
+            await refresh();
+            await onRefresh();
+          }}
+          notify={notify}
+        />
+      )}
+      {splitSlide && (
+        <SplitDialog
+          slide={splitSlide}
+          projectId={id}
+          onClose={() => setSplit(null)}
+          onDone={async () => {
+            setSplit(null);
+            await refresh();
+            notify("正在准备拆分后的画面方案。");
+          }}
+        />
+      )}
+      {proposalOpen && project.proposal && (
+        <Modal
+          wide
+          title={
+            project.proposal.type === "split" ? "预览拆分方案" : "预览合并方案"
+          }
+          subtitle="确认后生成新页面。原来的页面会保留，可撤销这次调整。"
+          onClose={() => setProposalOpen(false)}
+        >
+          <div className="proposal-grid">
+            {project.proposal.plans.map((plan, i) => (
+              <div className="proposal-item" key={i}>
+                <Status>新页面 {i + 1}</Status>
+                <h3>{plan.title}</h3>
+                <div className="proposed-display">
+                  {plan.displayText.map((t, i) => (
+                    <p key={i}>{t}</p>
+                  ))}
+                </div>
+                <p>{plan.layout}</p>
+                <details>
+                  <summary>
+                    对应逐字稿 · {project.proposal!.notes[i].length} 字
+                  </summary>
+                  <p className="preserve-text">{project.proposal!.notes[i]}</p>
+                </details>
+              </div>
+            ))}
+          </div>
+          <div className="modal-actions">
+            <Button
+              onClick={() =>
+                run(async () => {
+                  await api("/projects/" + id + "/proposal", {
+                    method: "DELETE",
+                  });
+                  setProposalOpen(false);
+                })
+              }
+            >
+              放弃这次调整
+            </Button>
+            <Button
+              variant="primary"
+              disabled={!!busy}
+              onClick={() =>
+                run(async () => {
+                  await post("/projects/" + id + "/proposal/commit", {
+                    proposalId: project.proposal!.id,
+                  });
+                  setProposalOpen(false);
+                })
+              }
+            >
+              确认并生成页面
+              <ArrowRight size={17} />
+            </Button>
+          </div>
+        </Modal>
+      )}
+      {renaming && (
+        <Rename
+          project={project}
+          onClose={() => setRenaming(false)}
+          onSave={(title) =>
+            run(async () => {
+              await patch("/projects/" + id, { title });
+              setRenaming(false);
+            })
+          }
+        />
+      )}
+    </div>
+  );
+}
+function Rename({
+  project,
+  onClose,
+  onSave,
+}: {
+  project: Project;
+  onClose: () => void;
+  onSave: (s: string) => void;
+}) {
+  const [name, setName] = useState(project.title);
+  return (
+    <Modal title="修改演讲主题" onClose={onClose}>
+      <Field label="主题">
+        <input
+          autoFocus
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          maxLength={100}
+        />
+      </Field>
+      <div className="modal-actions">
+        <Button onClick={onClose}>取消</Button>
+        <Button
+          variant="primary"
+          onClick={() => onSave(name)}
+          disabled={!name.trim()}
+        >
+          保存
+        </Button>
+      </div>
+    </Modal>
+  );
+}
+function SlideDetail({
+  slide,
+  index,
+  total,
+  projectId,
+  revision,
+  styles,
+  currentStyle,
+  busy,
+  onClose,
+  onNavigate,
+  onSplit,
+  onChanged,
+  notify,
+}: {
+  slide: Slide;
+  index: number;
+  total: number;
+  projectId: string;
+  revision: number;
+  styles: Style[];
+  currentStyle?: Style;
+  busy: boolean;
+  onClose: () => void;
+  onNavigate: (n: number) => void;
+  onSplit: () => void;
+  onChanged: () => Promise<void>;
+  notify: (s: string) => void;
+}) {
+  const [tab, setTab] = useState("notes"),
+    [notes, setNotes] = useState(slide.notes),
+    [feedback, setFeedback] = useState(""),
+    [loading, setLoading] = useState(false),
+    [error, setError] = useState(""),
+    [history, setHistory] = useState<string | null>(null);
+  useEffect(() => {
+    setNotes(slide.notes);
+    setFeedback("");
+    setHistory(null);
+  }, [slide.id, slide.notes]);
+  const dirty = notes !== slide.notes;
+  const act = async (fn: () => Promise<unknown>) => {
+    setLoading(true);
+    setError("");
+    try {
+      await fn();
+      await onChanged();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+  const save = () =>
+    act(async () => {
+      await patch(`/projects/${projectId}/slides/${slide.id}`, { notes });
+      notify("讲稿已保存，可以按新稿重新生成图片。");
+    });
+  const redesign = () =>
+    act(async () => {
+      if (dirty)
+        await patch(`/projects/${projectId}/slides/${slide.id}`, { notes });
+      await post(`/projects/${projectId}/render`, {
+        slideIds: [slide.id],
+        redesign: true,
+        feedback,
+      });
+      notify("正在换一个思路重新设计，旧版本会保留。");
+    });
+  const nav = (n: number) => {
+    if (dirty && !confirm("讲稿还未保存，确定离开这一页吗？")) return;
+    onNavigate(n);
+  };
+  const close = () => {
+    if (dirty && !confirm("讲稿还未保存，确定关闭吗？")) return;
+    onClose();
+  };
+  const version = slide.versions.find((v) => v.id === history);
+  const displayed = version || slide;
+  const imageStyleName =
+    displayed.imageStyle?.name ||
+    styles.find((s) => s.id === displayed.styleId)?.name ||
+    "原风格";
+  return (
+    <Modal
+      wide
+      title={`第 ${index + 1} 页 · ${slide.plan?.title || "页面详情"}`}
+      subtitle={`${index + 1} / ${total} · ${slide.notes.length} 字讲稿`}
+      onClose={close}
+    >
+      <div className="detail-layout">
+        <div className="detail-visual">
+          <SlideImage
+            slide={
+              version
+                ? {
+                    ...slide,
+                    image: version.image,
+                    scene: version.scene,
+                    plan: version.plan,
+                  }
+                : slide
+            }
+          />
+          {(displayed.image || displayed.scene) && (
+            <p className="image-style-meta">
+              画面风格：{imageStyleName}
+              {displayed.scene
+                ? " · 历史网页记录"
+                : displayed.imageStyle
+                  ? displayed.imageStyle.imageRefs.length
+                    ? ` · 出图时附有 ${displayed.imageStyle.imageRefs.length} 张参考图`
+                    : " · 仅按风格规则与设计方案出图"
+                  : " · 历史页面"}
+            </p>
+          )}
+          {version && (
+            <div className="version-viewing">
+              <Clock size={15} />
+              正在查看历史版本
+              <Button variant="ghost" onClick={() => setHistory(null)}>
+                返回当前版本
+              </Button>
+            </div>
+          )}
+          <div className="detail-toolbar">
+            <div>
+              <Button
+                variant="ghost"
+                onClick={() => nav(-1)}
+                disabled={index === 0}
+              >
+                <CaretLeft size={17} />
+                上一页
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => nav(1)}
+                disabled={index === total - 1}
+              >
+                下一页
+                <CaretRight size={17} />
+              </Button>
+            </div>
+            <Button
+              disabled={busy || loading || dirty}
+              onClick={onSplit}
+              title={dirty ? "请先保存讲稿" : "手动选择原文分界"}
+            >
+              <Scissors size={17} />
+              拆分这一页
+            </Button>
+          </div>
+          {displayed.image && (
+            <a
+              className="btn secondary"
+              href={asset(displayed.image)}
+              download={`第${index + 1}页.png`}
+            >
+              保存图片
+            </a>
+          )}
+          <div className="redesign-box">
+            <h3>换一个思路，再设计一次</h3>
+            <p className="generation-style-help">
+              将使用：
+              {currentStyle && !currentStyle.deletedAt
+                ? currentStyle.name
+                : "请先在项目中选择可用风格"}
+            </p>
+            <textarea
+              aria-label="重新设计要求"
+              value={feedback}
+              onChange={(e) => setFeedback(e.target.value)}
+              placeholder={
+                "例如：文字太多了，只保留核心数字，换成更有冲击力的排版。\n也可以不填，直接让它重新构思。"
+              }
+              disabled={busy}
+            />
+            <Button
+              variant="primary"
+              onClick={redesign}
+              loading={loading}
+              disabled={
+                busy ||
+                !notes.trim() ||
+                !currentStyle ||
+                !!currentStyle.deletedAt
+              }
+            >
+              <ArrowsClockwise size={17} />
+              {busy
+                ? "正在制作中"
+                : slide.stale || dirty
+                  ? "按新稿重新设计"
+                  : "重新设计这页"}
+            </Button>
+          </div>
+        </div>
+        <div className="detail-info">
+          <div className="detail-tabs">
+            <button
+              className={tab === "notes" ? "active" : ""}
+              onClick={() => setTab("notes")}
+            >
+              逐字稿
+            </button>
+            <button
+              className={tab === "plan" ? "active" : ""}
+              onClick={() => setTab("plan")}
+            >
+              设计方案
+            </button>
+            <button
+              className={tab === "versions" ? "active" : ""}
+              onClick={() => setTab("versions")}
+            >
+              版本 {slide.versions.length + 1}
+            </button>
+          </div>
+          {tab === "notes" ? (
+            <>
+              <p className="detail-help">
+                完整原文保存在这里，与当前图片对应。
+              </p>
+              <textarea
+                className="notes-editor"
+                aria-label="本页逐字稿"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                disabled={busy}
+              />
+              <div className="notes-footer">
+                <span>
+                  {notes.length} 字
+                  {dirty
+                    ? " · 未保存"
+                    : slide.stale
+                      ? " · 画面待更新"
+                      : " · 已保存"}
+                </span>
+                <Button
+                  onClick={save}
+                  loading={loading}
+                  disabled={!dirty || busy || !notes.trim()}
+                >
+                  <FloppyDisk size={16} />
+                  保存讲稿
+                </Button>
+              </div>
+              {slide.stale && (
+                <p className="small-notice">
+                  讲稿已经修改。确认内容后，可以按新稿重新设计画面。
+                </p>
+              )}
+            </>
+          ) : tab === "plan" ? (
+            <div className="plan-details">
+              {slide.plan ? (
+                <>
+                  {slide.plan.contentBrief && (
+                    <>
+                      <h4>这一页要表达什么</h4>
+                      <p>{slide.plan.contentBrief.claim}</p>
+                      <p>{slide.plan.contentBrief.visualTask}</p>
+                      <h4>为什么这样表现</h4>
+                      <p>{slide.plan.selectionReason}</p>
+                    </>
+                  )}
+                  <h4>画面文字</h4>
+                  {slide.plan.displayText.map((t, i) => (
+                    <p className="display-line" key={i}>
+                      {t}
+                    </p>
+                  ))}
+                  <h4>版面安排</h4>
+                  <p>{slide.plan.layout}</p>
+                  <h4>视觉表达</h4>
+                  <p>{slide.plan.visual}</p>
+                  <h4>讲述意图</h4>
+                  <p>{slide.plan.rationale}</p>
+                </>
+              ) : (
+                <p>画面方案将在制作时生成。</p>
+              )}
+            </div>
+          ) : (
+            <div className="versions-list">
+              <p className="detail-help">
+                可以先比较画面，再恢复。恢复会一并还原对应讲稿。
+              </p>
+              <button
+                className={!history ? "version-card current" : "version-card"}
+                onClick={() => setHistory(null)}
+              >
+                {slide.scene ? (
+                  <SceneView scene={slide.scene} label="当前版本" />
+                ) : (
+                  slide.image && <img src={asset(slide.image)} alt="当前版本" />
+                )}
+                <span>
+                  当前版本
+                  <CheckCircle size={16} />
+                </span>
+              </button>
+              {[...slide.versions].reverse().map((v, i) => (
+                <div key={v.id} className="version-item">
+                  <button
+                    className={
+                      history === v.id ? "version-card current" : "version-card"
+                    }
+                    onClick={() => setHistory(v.id)}
+                  >
+                    {v.scene ? (
+                      <SceneView scene={v.scene} label="历史版本" />
+                    ) : v.image ? (
+                      <img
+                        src={asset(v.image)}
+                        alt={`历史版本 ${slide.versions.length - i}`}
+                      />
+                    ) : (
+                      <span>尚未生成</span>
+                    )}
+                    <span>
+                      版本 {slide.versions.length - i}
+                      <small>
+                        {new Date(v.createdAt).toLocaleTimeString("zh-CN", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </small>
+                    </span>
+                  </button>
+                  <Button
+                    variant="ghost"
+                    disabled={busy || loading}
+                    onClick={() =>
+                      act(async () => {
+                        await post(
+                          `/projects/${projectId}/slides/${slide.id}/restore`,
+                          { versionId: v.id },
+                        );
+                        setHistory(null);
+                        notify("已恢复画面及对应讲稿。");
+                      })
+                    }
+                  >
+                    恢复这个版本
+                    <ArrowCounterClockwise size={14} />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+      {error && (
+        <p className="error-text" role="alert">
+          {error}
+        </p>
+      )}
+    </Modal>
+  );
+}
+function SplitDialog({
+  slide,
+  projectId,
+  onClose,
+  onDone,
+}: {
+  slide: Slide;
+  projectId: string;
+  onClose: () => void;
+  onDone: () => Promise<void>;
+}) {
+  const [cuts, setCuts] = useState<number[]>([]),
+    [cursor, setCursor] = useState(0),
+    [suggestions, setSuggestions] = useState<number[]>([]),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState("");
+  const textarea = useRef<HTMLTextAreaElement>(null);
+  const add = (n: number) => {
+    if (n <= 0 || n >= slide.notes.length) {
+      setError("请把光标放在原文中间，两侧都需要有讲稿。");
+      return;
+    }
+    setError("");
+    setCuts((old) => [...new Set([...old, n])].sort((a, b) => a - b));
+  };
+  const suggest = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const data = await post("/projects/" + projectId + "/suggest-split", {
+        slideId: slide.id,
+      });
+      setSuggestions(data.cuts);
+      if (!data.cuts.length)
+        setError("AI 认为这段内容适合保持完整；你仍然可以手动分界。");
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const submit = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      await post("/projects/" + projectId + "/proposal", {
+        type: "split",
+        slideId: slide.id,
+        cuts,
+      });
+      await onDone();
+    } catch (e) {
+      setError((e as Error).message);
+      setBusy(false);
+    }
+  };
+  const boundaries = [0, ...cuts, slide.notes.length];
+  return (
+    <Modal
+      wide
+      title="你来决定，在哪里翻页"
+      subtitle="点击原文中的分界位置，再插入分界。原文保持完整，不会删改。"
+      onClose={onClose}
+    >
+      <div className="split-layout">
+        <div>
+          <textarea
+            ref={textarea}
+            className="split-source"
+            aria-label="选择逐字稿分界位置"
+            readOnly
+            value={slide.notes}
+            onSelect={(e) => setCursor(e.currentTarget.selectionStart)}
+          />
+          <div className="split-cursor">
+            分界位置：
+            {cursor === 0
+              ? "请点击原文中的位置"
+              : `第 ${cursor} 个字符之后`}{" "}
+            {cursor > 0 && (
+              <span>
+                …{slide.notes.slice(Math.max(0, cursor - 12), cursor)}
+                <b>｜</b>
+                {slide.notes.slice(cursor, cursor + 12)}…
+              </span>
+            )}
+          </div>
+          <div className="split-buttons">
+            <Button
+              variant="primary"
+              onClick={() => add(cursor)}
+              disabled={cursor <= 0 || cursor >= slide.notes.length}
+            >
+              <Scissors size={17} />
+              在这里插入分界
+            </Button>
+            <Button onClick={suggest} loading={busy}>
+              建议分界
+            </Button>
+          </div>
+          {suggestions.length > 0 && (
+            <div className="split-suggestions">
+              <strong>AI 建议，仅供参考</strong>
+              {suggestions.map((n) => (
+                <button key={n} onClick={() => add(n)}>
+                  …{slide.notes.slice(Math.max(0, n - 14), n)}
+                  <Plus size={15} />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="split-preview">
+          <h3>将拆成 {cuts.length + 1} 页</h3>
+          {boundaries.slice(0, -1).map((from, i) => (
+            <div className="split-unit" key={from}>
+              <div>
+                <span>第 {i + 1} 页</span>
+                <small>{boundaries[i + 1] - from} 字</small>
+                {i > 0 && (
+                  <button
+                    className="icon-btn"
+                    aria-label={`移除第 ${i} 个分界`}
+                    onClick={() => setCuts(cuts.filter((c) => c !== from))}
+                  >
+                    <X size={15} />
+                  </button>
+                )}
+              </div>
+              <p>{slide.notes.slice(from, boundaries[i + 1])}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+      {error && (
+        <p className="error-text" role="alert">
+          {error}
+        </p>
+      )}
+      <div className="modal-actions">
+        <Button onClick={onClose}>取消</Button>
+        <Button
+          variant="primary"
+          loading={busy}
+          disabled={!cuts.length}
+          onClick={submit}
+        >
+          预览 {cuts.length + 1} 页新方案
+          <ArrowRight size={17} />
+        </Button>
+      </div>
+    </Modal>
+  );
+}

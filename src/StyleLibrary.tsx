@@ -1,0 +1,512 @@
+import { StyleLanguage } from "./StyleLanguage";
+import { useEffect, useState, useRef } from "react";
+import {
+  Plus,
+  ArrowRight,
+  UploadSimple,
+  Image as ImageIcon,
+  Palette,
+  SpinnerGap,
+  CheckCircle,
+  ArrowClockwise,
+  X,
+  FloppyDisk,
+  Trash,
+} from "@phosphor-icons/react";
+import type { Style, Job } from "./types";
+import { api, post, patch, asset, active } from "./api";
+import { Button, Modal, Field, StylePreview, Status } from "./components";
+import { StyleStudio } from "./StyleStudio";
+export function StyleLibrary({
+  styles,
+  jobs,
+  refresh,
+  notify,
+  onUse,
+}: {
+  styles: Style[];
+  jobs: Job[];
+  refresh: () => Promise<void>;
+  notify: (s: string) => void;
+  onUse: (id: string) => void;
+}) {
+  const [create, setCreate] = useState(false),
+    [studio, setStudio] = useState<string | null>(null),
+    [detail, setDetail] = useState<string | null>(null);
+  const visibleStyles = styles.filter((s) => !s.deletedAt);
+  const selected = visibleStyles.find((s) => s.id === detail);
+  const studioStyle = visibleStyles.find((s) => s.id === studio);
+  if (studioStyle)
+    return (
+      <StyleStudio
+        key={studioStyle.id}
+        style={studioStyle}
+        onBack={() => setStudio(null)}
+        refreshStyles={refresh}
+        notify={notify}
+      />
+    );
+  return (
+    <div className="page styles-page">
+      <div className="page-heading">
+        <div>
+          <h1>把喜欢的，变成你的风格。</h1>
+          <p>从参考图片中提炼视觉语言，让不同内容拥有一致的表达。</p>
+        </div>
+        <Button variant="primary" onClick={() => setCreate(true)}>
+          <Plus size={18} />
+          创建风格
+        </Button>
+      </div>
+      <div className="styles-explainer">
+        <div className="reference-mini">
+          <div />
+          <div />
+          <div>
+            <Palette size={28} weight="light" />
+          </div>
+        </div>
+        <div>
+          <h2>上传参考图，建立自己的风格库</h2>
+          <p>
+            配色、字体、图形画法与留白，成为适用于不同内容的设计规范。
+            <br />
+            用真实内容试做图片，打磨构图、字体和图形细节。
+          </p>
+        </div>
+        <Button onClick={() => setCreate(true)}>
+          <UploadSimple size={17} />
+          上传参考图片
+        </Button>
+      </div>
+      <div className="section-heading">
+        <div>
+          <h2>
+            全部风格{" "}
+            <span>{String(visibleStyles.length).padStart(2, "0")}</span>
+          </h2>
+        </div>
+        <span className="muted">跨项目使用，持续积累</span>
+      </div>
+      <div className="style-library-grid">
+        {visibleStyles.map((s) => (
+          <article className="style-card" key={s.id}>
+            <button
+              className="style-cover-button"
+              onClick={() => setDetail(s.id)}
+            >
+              <StylePreview style={s} />
+            </button>
+            <div className="style-card-info">
+              <div>
+                <h3>{s.name}</h3>
+                <span>
+                  {s.builtin ? "内置起始风格" : `${s.refs.length} 张参考图`}
+                </span>
+              </div>
+              <p>{s.description}</p>
+              <div className="style-card-bottom">
+                <div className="swatches">
+                  {s.colors.map((c, i) => (
+                    <span key={i} style={{ background: c }} title={c} />
+                  ))}
+                </div>
+                {s.status === "analyzing" ? (
+                  <Status>
+                    <SpinnerGap className="spin" size={14} />
+                    正在提炼
+                  </Status>
+                ) : s.status === "error" ? (
+                  <Status tone="warm">提炼未完成</Status>
+                ) : (
+                  <Button variant="ghost" onClick={() => setDetail(s.id)}>
+                    查看风格
+                    <ArrowRight size={15} />
+                  </Button>
+                )}
+              </div>
+            </div>
+          </article>
+        ))}
+      </div>
+      {create && (
+        <CreateStyle
+          onClose={() => setCreate(false)}
+          onDone={async (s) => {
+            setCreate(false);
+            await refresh();
+            setDetail(s.id);
+            notify("参考图已保存，正在提炼视觉风格。");
+          }}
+        />
+      )}
+      {selected && (
+        <StyleDetail
+          key={selected.id}
+          style={selected}
+          onClose={() => setDetail(null)}
+          refresh={refresh}
+          notify={notify}
+          analyzing={
+            jobs.some(
+              (j) =>
+                j.type === "style" &&
+                j.styleId === selected.id &&
+                active(j.status),
+            ) || selected.status === "analyzing"
+          }
+          onUse={() => {
+            setDetail(null);
+            onUse(selected.id);
+          }}
+          onTest={() => {
+            setDetail(null);
+            setStudio(selected.id);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+function CreateStyle({
+  onClose,
+  onDone,
+}: {
+  onClose: () => void;
+  onDone: (s: Style) => Promise<void>;
+}) {
+  const [name, setName] = useState(""),
+    [files, setFiles] = useState<File[]>([]),
+    [previews, setPreviews] = useState<string[]>([]),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState(""),
+    [dragging, setDragging] = useState(false);
+  const input = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const urls = files.map((f) => URL.createObjectURL(f));
+    setPreviews(urls);
+    return () => urls.forEach((u) => URL.revokeObjectURL(u));
+  }, [files]);
+  const add = (items: File[]) => {
+    const supported = items.filter(
+      (f) =>
+        ["image/png", "image/jpeg", "image/webp"].includes(f.type) &&
+        f.size <= 12 * 1024 * 1024,
+    );
+    if (supported.length !== items.length)
+      setError("仅支持 12 MB 以内的 PNG、JPG 和 WebP 图片。");
+    setFiles((old) => [...old, ...supported].slice(0, 12));
+  };
+  const submit = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const form = new FormData();
+      form.append("name", name);
+      files.forEach((f) => form.append("images", f));
+      const data = await api("/styles", { method: "POST", body: form });
+      await onDone(data.style);
+    } catch (e) {
+      setError((e as Error).message);
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal
+      title="创建你的视觉风格"
+      subtitle="同一风格可以上传多张不同版式的图片，帮助它理解共同的设计语言。"
+      onClose={onClose}
+    >
+      <Field label="风格名称">
+        <input
+          autoFocus
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          maxLength={60}
+          placeholder="例如：克制的杂志感 / 大字与留白"
+        />
+      </Field>
+      <input
+        ref={input}
+        className="visually-hidden"
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        multiple
+        onChange={(e) => add(Array.from(e.target.files || []))}
+      />
+      <button
+        className={`upload-zone ${dragging ? "dragging" : ""}`}
+        onClick={() => input.current?.click()}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragging(false);
+          add(Array.from(e.dataTransfer.files));
+        }}
+      >
+        <UploadSimple size={30} weight="light" />
+        <strong>拖入参考图片，或点击选择</strong>
+        <span>PNG、JPG、WebP · 每张最多 12 MB · 最多 12 张</span>
+      </button>
+      {files.length > 0 && (
+        <div className="upload-previews">
+          {files.map((f, i) => (
+            <div key={f.name + i}>
+              <img src={previews[i]} alt={f.name} />
+              <button
+                aria-label={`移除 ${f.name}`}
+                onClick={() => setFiles(files.filter((_, n) => n !== i))}
+              >
+                <X size={14} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      {error && (
+        <p className="error-text" role="alert">
+          {error}
+        </p>
+      )}
+      <div className="modal-actions">
+        <Button onClick={onClose}>取消</Button>
+        <Button
+          variant="primary"
+          onClick={submit}
+          loading={busy}
+          disabled={!name.trim() || !files.length}
+        >
+          保存并提炼风格
+          <ArrowRight size={17} />
+        </Button>
+      </div>
+    </Modal>
+  );
+}
+function StyleDetail({
+  style,
+  onClose,
+  refresh,
+  notify,
+  onUse,
+  analyzing,
+  onTest,
+}: {
+  style: Style;
+  onClose: () => void;
+  refresh: () => Promise<void>;
+  notify: (s: string) => void;
+  onUse: () => void;
+  analyzing: boolean;
+  onTest: () => void;
+}) {
+  const [rules, setRules] = useState(style.rules),
+    [feedback, setFeedback] = useState(""),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState(""),
+    [editing, setEditing] = useState(false),
+    [confirmDelete, setConfirmDelete] = useState(false);
+  const input = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!editing) setRules(style.rules);
+  }, [style.rules, editing]);
+  const act = async (fn: () => Promise<unknown>, message: string) => {
+    setBusy(true);
+    setError("");
+    try {
+      await fn();
+      await refresh();
+      notify(message);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal
+      wide
+      title={style.name}
+      subtitle={
+        style.builtin
+          ? "内置起始规则，可以加入自己的参考图继续调试。"
+          : `${style.refs.length} 张参考图 · 可用于你的所有演讲项目`
+      }
+      onClose={onClose}
+    >
+      <div className="style-detail-layout">
+        <div>
+          <StylePreview style={style} />
+          {style.refs.length > 0 && (
+            <div className="reference-grid">
+              {style.refs.map((r, i) => (
+                <a key={r} href={asset(r)} target="_blank" rel="noreferrer">
+                  <img src={asset(r)} alt={`参考图 ${i + 1}`} />
+                </a>
+              ))}
+            </div>
+          )}
+          <input
+            ref={input}
+            className="visually-hidden"
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            multiple
+            onChange={(e) => {
+              const files = Array.from(e.target.files || []);
+              if (!files.length) return;
+              const form = new FormData();
+              files.forEach((f) => form.append("images", f));
+              act(
+                () =>
+                  api("/styles/" + style.id + "/references", {
+                    method: "POST",
+                    body: form,
+                  }),
+                "新参考图已保存，点击重新提炼以更新规则。",
+              );
+            }}
+          />
+          <Button
+            className="add-reference"
+            onClick={() => input.current?.click()}
+            disabled={busy || analyzing || style.refs.length >= 12}
+          >
+            <Plus size={17} />
+            补充参考图片
+          </Button>
+          <div className="style-feedback">
+            <h3>把风格再调近一点</h3>
+            <textarea
+              aria-label="风格调整要求"
+              value={feedback}
+              onChange={(e) => setFeedback(e.target.value)}
+              placeholder="例如：留白再多一些，减少装饰图形，数字页的对比更强。"
+              disabled={analyzing}
+            />
+            <Button
+              onClick={() =>
+                act(
+                  () => post("/styles/" + style.id + "/analyze", { feedback }),
+                  "正在结合参考图和反馈重新提炼。",
+                )
+              }
+              loading={busy || analyzing}
+            >
+              <ArrowClockwise size={17} />
+              {analyzing ? "正在提炼风格…" : "重新提炼风格"}
+            </Button>
+          </div>
+        </div>
+        <div className="style-rules">
+          <div className="style-rules-heading">
+            <h3>提炼出的设计语言</h3>
+            {!!style.rules && (
+              <Button
+                variant="ghost"
+                onClick={() => setEditing(!editing)}
+                disabled={analyzing}
+              >
+                {editing ? "取消编辑" : "手动调整"}
+              </Button>
+            )}
+          </div>
+          {analyzing && (
+            <div className="analyzing-style">
+              <SpinnerGap size={24} className="spin" />
+              <p>正在观察配色、字体、构图和留白…</p>
+              <span>完成后，设计规则会自动出现在这里。</span>
+            </div>
+          )}
+          {style.error && <p className="error-text">{style.error}</p>}
+          {editing ? (
+            <>
+              <textarea
+                className="rules-editor"
+                aria-label="风格设计规则"
+                value={rules}
+                onChange={(e) => setRules(e.target.value)}
+              />
+              <Button
+                onClick={() =>
+                  act(async () => {
+                    await patch("/styles/" + style.id, { rules });
+                    setEditing(false);
+                  }, "风格规则已保存。")
+                }
+                loading={busy}
+              >
+                <FloppyDisk size={16} />
+                保存规则
+              </Button>
+            </>
+          ) : style.rules ? (
+            <div className="rules-text">{style.rules}</div>
+          ) : (
+            !analyzing && (
+              <p className="muted">
+                参考图已保存。点击“重新提炼风格”获取设计规则。
+              </p>
+            )
+          )}
+        </div>
+      </div>
+      {error && (
+        <p className="error-text" role="alert">
+          {error}
+        </p>
+      )}
+      {!!style.rules && <StyleLanguage style={style} />}
+      <div className="modal-actions">
+        <Button
+          variant="ghost"
+          disabled={busy || analyzing}
+          onClick={() => setConfirmDelete(!confirmDelete)}
+        >
+          <Trash size={17} />
+          删除风格
+        </Button>
+        <Button disabled={!style.rules || analyzing} onClick={onUse}>
+          用此风格新建项目
+        </Button>
+        <Button
+          variant="primary"
+          disabled={!style.rules || analyzing}
+          onClick={onTest}
+        >
+          打开风格试做
+          <ArrowRight size={17} />
+        </Button>
+      </div>
+      {confirmDelete && (
+        <div className="inline-notice warm delete-style-confirm">
+          <div>
+            <strong>删除「{style.name}」？</strong>
+            <p>
+              会从风格库移除。已有页面、讲稿和历史版本保留；使用它的项目需另选风格才能继续制作。
+            </p>
+          </div>
+          <Button disabled={busy} onClick={() => setConfirmDelete(false)}>
+            取消
+          </Button>
+          <Button
+            variant="danger"
+            loading={busy}
+            onClick={() =>
+              act(async () => {
+                await api("/styles/" + style.id, { method: "DELETE" });
+                onClose();
+              }, "风格已删除，已有页面和历史版本已保留。")
+            }
+          >
+            确认删除风格
+          </Button>
+        </div>
+      )}
+    </Modal>
+  );
+}

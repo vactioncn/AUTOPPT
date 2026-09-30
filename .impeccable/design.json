@@ -3,6 +3,20 @@
   "generatedAt": "2026-09-30T08:47:00Z",
   "title": "Design System: AutoPPT",
   "extensions": {
+    "outputStyleCorrection": {
+      "date": "2026-09-30",
+      "scope": "Generated output only; application palette and navigation unchanged; original 示例演讲 source slides untouched.",
+      "styleCompilerVersion": 3,
+      "planningVersion": 5,
+      "planning": "Typographic expressions are permitted for more content relationships; legacy raster plans without an engine declaration remain accepted.",
+      "projectId": "76279902-8efb-4e61-ade7-3595a836670e",
+      "samples": {
+        "black": ".local/assets/9b52e759-f952-49b1-9598-f247e41de0d9.png",
+        "whiteFinal": ".local/assets/35f1a308-5ab5-4d45-bcc7-70eeaaf0ec40.png",
+        "freshContent": ".local/assets/0cfe1ef6-efee-4cab-a225-4d6e191e30ed.png"
+      },
+      "review": "Initially rebuild; subsequently black and fresh content passed. The remaining white alignment issue was fixed and marked resolved/ship, limited to its listed fixes. No guarantee across styles or pages. Earlier thin-blue sample approval was rejected by the user and is superseded."
+    },
     "colorMeta": {
       "accent": {
         "role": "primary",
@@ -386,6 +400,21 @@
       "Explicit progress, saved state, incomplete work and recovery actions."
     ],
     "rules": [
+      {
+        "name": "The Current Style Authority Rule",
+        "body": "Current explicit style rules take precedence over historical observations. For the restored Neo-Swiss style, the user prefers the original 示例演讲 pages 6–9: bold Chinese sans-serif type, black/white/lime, and compositions that vary with the content. Refinement adds only small supporting copy and precise microdetails. The original Neo-Swiss history is restored in the local database with a refinement addendum; this example does not hardcode other styles.",
+        "section": "components"
+      },
+      {
+        "name": "The Details Refinement Rule",
+        "body": "The model declares `details` or `composition` mode. With an unchanged manuscript, `details` preserves the previous main copy, layout and visual, adding only short supporting annotations. A changed manuscript disables preservation of the old copy.",
+        "section": "components"
+      },
+      {
+        "name": "The Opaque Image Rule",
+        "body": "Image requests are text-only and require an opaque background. Unexpected transparent output is rejected while retaining the previous image and pending plan.",
+        "section": "components"
+      },
       {
         "name": "The Content Palette Rule",
         "body": "Keep saved slide-style colors and source-image colors inside their preview surfaces; the surrounding controls retain the application palette.",

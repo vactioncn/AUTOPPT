@@ -235,7 +235,17 @@ Native disclosures keep the full candidate rules, whole style language and selec
 
 Within “完整设计规范”, `StyleLanguage` uses the native disclosure “查看用于创作的风格规范” and the explanation “同一套视觉规则，随内容形成不同的表现。” Its eight text sections are “风格特征”, “字体与文字层级”, “色彩组合”, “构图与留白原则”, “图形画法”, “细节与辅助标记”, “如何延伸到不同内容” and “避免的做法”. These describe a reusable drawing grammar; reference-image subjects, counts and positions are not fixed templates. The design-plan disclosure begins with “这一页要表达什么” and “为什么这样表现” when a content brief is available, followed by the composition, speaking intent, graphic details, inherited style features, adaptations and display text.
 
-The current interface evidence remains `.impeccable/review/content-first-desktop.png`, `.impeccable/review/content-first-user-1039.png`, `.impeccable/review/content-first-mobile.png` and `.impeccable/review/content-first-plan.png`; this backend correction leaves the application UI and tokens unchanged. The user rejected the previous two image outputs, which remain in history. After the correction, a fresh independent reviewer returned a ship disposition for three actual samples only: position (`.local/assets/cb0d9b65-f610-444e-b0e3-c2c55b8e0150.png`), causal chain (`.local/assets/fb0fd983-9a99-439c-8ea5-976132483c40.png`) and statement (`.local/assets/e059bb34-b70f-4dd0-a871-9f344ec1f66a.png`). This sample review does not guarantee future output quality or reference-style fidelity. The user’s manuscript and formal style remain unchanged.
+### Output Style Correction — 2026-09-30
+
+**The Current Style Authority Rule.** Current explicit style rules take precedence over historical observations. For the restored Neo-Swiss style, the user prefers the original 示例演讲 pages 6–9: bold Chinese sans-serif type, black/white/lime, and compositions that vary with the content. Refinement adds only small supporting copy and precise microdetails. The original Neo-Swiss history is restored in the local database with a refinement addendum; this example does not hardcode other styles.
+
+**The Details Refinement Rule.** The model declares `details` or `composition` mode. With an unchanged manuscript, `details` preserves the previous main copy, layout and visual, adding only short supporting annotations. A changed manuscript disables preservation of the old copy.
+
+**The Opaque Image Rule.** Image requests are text-only and require an opaque background. Unexpected transparent output is rejected while retaining the previous image and pending plan.
+
+Style compiler v3 and planning v5 carry this correction; planning permits typographic expressions for more content relationships. Legacy raster plans without an engine declaration remain accepted. The original 示例演讲 source slides are untouched. This changes generated output behavior; the application palette and navigation remain unchanged. Existing interface evidence remains `.impeccable/review/content-first-desktop.png`, `.impeccable/review/content-first-user-1039.png`, `.impeccable/review/content-first-mobile.png` and `.impeccable/review/content-first-plan.png`.
+
+Actual samples in test project `76279902-8efb-4e61-ade7-3595a836670e` are black (`.local/assets/9b52e759-f952-49b1-9598-f247e41de0d9.png`), final white (`.local/assets/35f1a308-5ab5-4d45-bcc7-70eeaaf0ec40.png`) and fresh content (`.local/assets/0cfe1ef6-efee-4cab-a225-4d6e191e30ed.png`). The independent reviewer first required a rebuild, then passed the black and fresh-content samples. The remaining white-page alignment issue was fixed and marked resolved/ship, limited to its listed fixes. This does not guarantee other styles or pages. The earlier thin-blue sample approval was rejected by the user and is superseded.
 
 ## Do's and Don'ts
 

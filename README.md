@@ -2,9 +2,17 @@
 
 本机个人演讲图片工作台。逐段追加逐字稿，按观点拆分，依据自己的风格规范设计并生成图片。支持导出整页图片加逐页讲稿备注的 PPTX。
 
+## 下载与使用说明
+
+- **[下载 Word 使用说明](https://github.com/vactioncn/AUTOPPT/raw/refs/heads/main/docs/AutoPPT-安装与使用说明.docx)**：可保存到电脑或直接转发给同事。
+- **[在线阅读安装与使用说明](docs/同事安装与使用说明.md)**：查看安装、模型配置、首次测试和常见问题。
+- **[下载最新完整代码 ZIP](https://github.com/vactioncn/AUTOPPT/archive/refs/heads/main.zip)**：解压后按说明安装运行。
+
+以上入口始终指向 `main` 分支的最新版本。
+
 ## 启动
 
-首次使用请先阅读 [同事安装与使用说明](docs/同事安装与使用说明.md)，包含 Mac / Windows 安装、模型配置、首次测试、备份和更新步骤。可转发的 [Word 版](docs/AutoPPT-安装与使用说明.docx) 内容相同。
+首次使用请先阅读上方说明，Markdown 与 Word 两个版本内容保持同步。
 
 安装 Node.js 24 LTS（最低 22.13），下载代码后在项目目录运行：
 

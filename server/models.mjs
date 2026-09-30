@@ -14,6 +14,7 @@ import {
   validateComposition,
   validateLanguage,
   validateStyleExecution,
+  preserveComposition,
 } from "./content-planning.mjs";
 
 export class ProviderError extends Error {}
@@ -165,12 +166,12 @@ export async function styleLanguageFor(style, signal) {
   const saved = get("styleLanguage", key);
   if (saved) return validateLanguage(saved.language);
   const out = await jsonModel(
-    `你是风格规范整理师。从已保存的风格分析文字中建立真正可延伸的设计语言；没有图片输入，不重新读原参考图。
-区分“风格不变量”与“某张参考的具体内容”。必须保留字形字重、字号比例、配色组合、强调手法、线条/节点细节、图形画法、微型标注、对齐、留白节奏和质感的辨识性；不能只写极简、专业之类形容词。
-抽象的目标是保留设计完成度，不是取所有图片的最小公约数。按观察判断哪些跨页关系构成辨识度：例如大字与很小的标注之间的尺度张力，密集叙事区域与完整空场的对照，主图形/结构辅助线/局部标记的层级。把这些关系写成可执行的尺度、对比与位置原则，并明确它们在新内容中如何存续。若原风格具有出版物式页眉页脚、宽字距短标签、引线、裁切、轮廓疏密等细部，它们是风格的组成部分，不能因不是正文事实而一概删除。若参考本来只有纯文字或没有这些细部，也不要强行加入。分别说明字形性格和字重：字号大不等于粗，中文主笔画粗细、字面舒展度、转角与中宫要有可辨别的描述；不要只写无衬线。观察中的具体数值作为估计范围，不伪造字体识别。
-删除把所有内容绑在具体图案和固定区域上的限制：原图出现地图、岛屿、台阶、曲线、三个节点、左文右图、某个坐标，不等于每页都要照搬。把这些观察转成能用于新内容的视觉语言，比如细线的绘制方式、节点层次、强调区域、信息层级，而不是规定对象或数量。不同明暗/强调色/字重变化若属于同一套风格，明确可用的组合、共同规则和使用边界，不绑定固定参考编号或页面模板。不捏造风格中没有的装饰。
-区分事实与视觉语法：年份、坐标、公司名、统计、未讲述的阶段不能凭空补；主题英文短译、既有观点的短标签、没有量值含义的对齐刻线、局部边界等可以按风格保留，不需要抄参考原文。avoid只限制破坏风格的做法，不要把正常的微观构成全归为“无意义装饰”，导致下游只剩大字和一根线。
-本规范将独立交给页面设计与图片生成。用完整可执行文字返回 {"identity":"独特辨识特征","typography":"字体性格、字重组合、尺度层级","colorSystem":"允许的色彩组合与使用约束","compositionPrinciples":"对齐、重心、留白和密度原则；不锁版面","graphicLanguage":"线条、形状、节点、轮廓、质感的具体画法，不要求重复原图案","detailLanguage":"微型文字、辅助标记等细节规则","adaptationRules":"同风格如何表现不同内容关系","avoid":"破坏风格的通用做法"}。`,
+    `你是风格规范整理师。依据已保存的文字整理可延伸的设计语言；不读取参考图片。
+优先级：用户当前rules中的明确取舍 > savedObservations中的历史观察。观察只用于补充未规定的细节，不能把已确定的粗黑体改成细字、把黑白与荧光强调改成其他配色。不要平均不同参考的特征，也不要把历史变体全部混进默认风格。
+先保住宏观辨识度：字体性格与字重、主次字号反差、配色组合、视觉焦点、强调手法、疏密与留白。再说明细节：边距、对齐、断行、色块内边距、连接线端点、辅助文字的可读性。大字与粗字都可以是风格的核心；精细不等于纤细，细节不能压过主表达。
+把固定对象与风格语法分开：地图、曲线、三个节点、左文右图只是某页的内容表达，不能成为所有页面的模板。新内容可以用大字问答、主次数字、非对称对照、关系图等不同形式；只采用符合内容和本风格的表现，不固定数量和位置。
+微观细节按需出现：有信息需要解释才补短注释、单位、关系标签；纯文字页可以只精修字距、断行、边距和强调边界。不要要求每页必须有英文、页码、装饰网格或多级辅助线。全部事实、数字与名称必须来自逐字稿。
+返回完整可执行的八项文字，不输出模板目录：{"identity":"独特辨识特征及优先级","typography":"字体性格、明确字重、主次尺度","colorSystem":"默认配色与允许变化的边界","compositionPrinciples":"焦点、对齐、疏密和留白，不锁版面","graphicLanguage":"与风格一致的图形、线条和节点画法","detailLanguage":"克制且不损害主表达的细节精度","adaptationRules":"同一风格如何根据内容创作不同表现","avoid":"破坏本风格的做法"}。`,
     JSON.stringify({
       name: style.name,
       rules: style.rules,
@@ -204,26 +205,30 @@ export async function design(
     (await analyzePageContents([{ id: "page", notes }], context, signal)).page;
   const language =
     options.designLanguage || (await styleLanguageFor(style, signal));
-  const out = await jsonModel(
-    `你是演讲页面设计师与视觉艺术总监。根据已经独立分析的内容关系和完整风格规范，为图片模型设计一张16:9演讲画面。不读参考图片。
-决策顺序：先服从contentBrief的视觉任务，构思至少两种不同的内容表现，比较哪一种能更准确、直接地让观众理解，再用style.designLanguage完成选中构思。这里没有模板库，没有需要匹配或挑选的参考图。每页允许原创构图，不能仅换标题复用上一页插画。
-风格是字体性格、配色组合、强调手法、线条和图形画法、信息层级、对齐与留白节奏。应用完整而具体的风格语言，但不要把它降格为换色卡片。一个风格可表现层级、断开的业务链、局部与整体的对照、大数字或纯文字结论。视觉结构服从内容，视觉语言服从风格；风格中的明暗或强调色变体不是固定模板，也不要为凑变化随意混搭。
-内容关系只是语义骨架，绝不是最终视觉。把“一个节点/三段断线”直接放大到页面上，只能得到说明示意图，不能证明风格已落实。你必须在不增加事实的前提下，用此风格的字体比例、组织密度、图形细工和细部标识完成画面；若风格包含微型标注、页边秩序或多级辅助线，不能省掉它们再称为“留白”。若风格是纯文字，则以精确字形、断行与空间关系完成同样的视觉层级，不硬加图形。
-上屏内容先编辑成适合该风格尺度的短句。原文的限定词必须有，但可放进小字号说明，避免把整句口播放大成横跨全页的粗体横幅。主标题、说明、微标注的比例必须来自风格规范，不能把说明也放到标题的一半大小。按语义主动断行，形成有张力的文字块而不是平均铺开的长行。轻字重风格须写出细而均匀笔画、开阔字腔、舒展字面等可见特征，色块内文字保持同字重，不因白字反差而加粗。
-构图由内容和风格共同完成：一个明确焦点配合轻重不同的辅助区，聚集的内容区域与连续空场形成对照；避免所有元素横向等距摊平、标题和大色块彼此隔着无组织空白。图形在需要时分为主关系、低对比结构支撑、局部精细标记；“不照搬具体图案”不意味着“去掉图形复杂度”。合理使用该风格原有的细实/虚线、尺度变化、对齐引导、裁切或轮廓疏密，但不画虚假的数据轴，不加入不存在的业务阶段。
-visualForm是内容关系标签，必须属于contentBrief.allowedForms，不是预制布局。具体形状、数量、位置、主次、连接方式都由本页内容决定。地图仅在真的需要空间关系时使用，不用岛屿隐喻取代直接的流程、层级或因果表现。绝不能从“地图、起点、孤岛、蓝海”等口播词直接联想到背景插画。
-考虑nearbyPages实际已用的构图与图形。相邻页内容关系不同，不能无理由重复相同构图与隐喻；相同关系的连续展开可以延续，禁止为了多样性随机换色或轮换模板。返回compositionKey概括本页原创骨架（如“横向断点流程，单节点强调”），repeatReason说明与相邻页是否相似及内容上的理由。
-如果previous存在且feedback为空，主动换适合的新构图；有反馈时只改相关部分。用户反馈优先。displayText列出全部且唯一上屏文字，精炼、无Markdown；原文完整保存，不把设计解释/概念示意声明印在图中，必要的事实限定词必须保留。事实数字名字仅来自本页原文，不能为了塞入3阶段模板发明阶段。
-previous只是旧方案，不能成为风格依据，尤其不能继承旧图遗漏的细节或错误字重。若规范原有微型文字，就从本页内容提炼简短的章节词、关系词、英文短译，作为真实的次级阅读层；全部放入displayText并在microDetail中指定用途与位置。不能为了防止虚构而禁用全部页边标识，也不能复制无来源的年份、坐标、CONFIDENTIAL等标签。辅助文字应低对比、有节奏，不堆砌英文装高级。
-返回styleExecution四项具体落实说明：typeHierarchy列出本页采用的标题/说明/微字尺度、字形和字重；spatialRhythm说明焦点、聚集区、完整空场和对齐关系；graphicHierarchy说明主图形及风格特有辅助层怎样服务本页，纯文字风格也需说明如何用字形/负空间承担；microDetail说明保留的原生细部及实际文字，没有细部的风格明确不添加的依据。它们必须与layout、visual、typography及displayText一致，避免规范说有细部、方案又把所有细部删掉。
-layout给出本页区域比例、重心、标题断行、字重/字号比例、对齐和空白；visual具体说明图形的连通/断开/包含/先后/突出位置、颜色、笔触、节点和微观细节，服从contentBrief.mustNotImply。styleFeatures至少3项，描述实际继承了什么、落在哪里。rationale用人话说明为什么选这个画面，说明为什么它比另一种表现更能传达本页内容。
-只返回 {"title":"主题","displayText":["全部上屏文字，包含需要的微型短标签"],"visualForm":"内容允许的关系类型","compositionKey":"原创构图骨架","selectionReason":"为什么这页适合这种表现","alternatives":[{"idea":"一种表现构思","reason":"与选中构思的内容适用性比较"},{"idea":"另一种表现构思","reason":"具体取舍"}],"repeatReason":"与前后页的衔接理由","layout":"本页具体构图","visual":"本页图形绘制说明","typography":"本页的具体字体/字重与尺度要求","styleExecution":{"typeHierarchy":"具体尺度与笔画性格","spatialRhythm":"疏密、重心与对齐","graphicHierarchy":"主次图形及细工","microDetail":"文字细部、辅助标记及其位置"},"styleFeatures":["至少3项具体风格特征及落点"],"adaptations":"新表现如何沿用同一风格","rationale":"内容与画面的对应"}。`,
+  let out = await jsonModel(
+    `你是演讲页面设计师与视觉艺术总监。把内容和当前风格结合，构思一张16:9演讲画面。不读参考图片，不从模板库选版式。
+先理解contentBrief的核心观点与观众需要看懂的关系，再比较两种表现思路，选择最直接、有表现力的一种。文字本身也能承担表达：问答可用巨大回答与小问题形成停顿，数字可用主次尺度，转折可用非对称对照，多个业务关系可用明确的连接图。不要把所有页都变成解释性节点图，也不要只换文字反复使用同一构图。
+字体字重、配色、强调手法及整体气质服从style.designLanguage。若本风格以强势黑体和巨大字号反差为核心，就明确保留；若规定轻字重就使用轻字重。精细线条不等于细字体。明暗变化与内容情绪、叙述任务相适应，不按页码机械轮换。
+先完成主表达，再补细节。保持一个明确视觉焦点、清楚的阅读顺序和有意安排的空白。辅助说明补充原文中的限定词、时间、单位、解释或关系，不挤占主角。不要为了极简删除必要的细节文字，也不要为了“专业”添加无用英文、边框、页脚、坐标或装饰线。
+微观精度落在：文字块的对齐和断行、主次字距行距、强调色块边界与内边距、线条层级、端点连接、标签间距。纯文字页无需额外图形；复杂关系页可以保留丰富图形，但每条连线和每个标签必须能解释本页内容。
+必须返回editScope：新页或换思路用composition；已有方案且反馈仅要求保留构图、微调或补细节时用details。details时程序会锁定previous的原标题、上屏主文案、layout和visual，禁止重写它们。仅用detailText列出0—4条必要的短注释（每条最多40字），并在microDetail里明确其位置和从属字号；不增加新主标题、不扩大客户/数字等焦点、不删除原图标、不把强调色改掉。新主张或大段说明不属于微观精修。
+previous是上一版的真实文字方案（包括早期格式）。反馈要求保留布局、只补细节时，将其作为已认可的构图基准：保留主体区域、阅读顺序、视觉重心、主字权重、主配色和主图形，只修反馈提到的细节；不能借精修重新构图。反馈要求换思路/重做或没有反馈时才重新构思；用户明确修改风格时服从新风格。不要机械沿用上一页的内容对象。
+visualForm必须属于contentBrief.allowedForms，它只是表达分类而非模板。typographic允许文字直接表达内容关系。地图仅用于真实空间关系；不因口播提到“地图、孤岛、蓝海”就反复画岛屿。服从mustNotImply，不能捏造事实、阶段、数据或已实现的结果。
+参考nearbyPages的实际构图。关系不同应有合适的表现差异，关系相同的连续讲述可以延续，不为凑多样性乱换风格。repeatReason说明内容上的衔接。
+displayText是全部且唯一上屏文字，保留关键限定词，无Markdown。主标题、必要的解释、单位、关系词都明确列出；不把整段逐字稿搬上图，不补原文未提供的事实。原文完整保存在备注中。
+styleExecution四项必须具体且相互一致：typeHierarchy指定字重/主次尺度；spatialRhythm指定焦点、分组与空白；graphicHierarchy指定图形画法，纯文字页说明由字形和空间承担；microDetail说明实际需要的注释或边距、对齐、边界精修，无需每页凑装饰。layout写清区域、比例、阅读顺序、断行和背景色；visual写清图形与强调色。styleFeatures至少3项，rationale解释内容与表现的对应。
+只返回 {"editScope":"composition或details","detailText":["仅details模式的必要短注释，可为空"],"title":"主题","displayText":["全部上屏文字"],"visualForm":"允许的表现分类","compositionKey":"本页原创构图骨架","selectionReason":"内容为何适合这种表现","alternatives":[{"idea":"表现思路一","reason":"适用性与取舍"},{"idea":"表现思路二","reason":"适用性与取舍"}],"repeatReason":"与邻页的衔接","layout":"具体构图与背景色","visual":"图形和强调手法","typography":"明确字体字重与尺度","styleExecution":{"typeHierarchy":"字重与尺度","spatialRhythm":"重心与分组","graphicHierarchy":"图形层级或纯文字组织","microDetail":"必要的说明与细节精度"},"styleFeatures":["三项具体风格落点"],"adaptations":"新内容如何延续风格","rationale":"内容与画面的对应"}。`,
     JSON.stringify({
       notes,
       context,
       feedback,
       previous:
-        previous?.engine === "image"
+        previous &&
+        options.notesUnchanged !== false &&
+        (!previous.engine || previous.engine === "image") &&
+        Array.isArray(previous.displayText) &&
+        typeof previous.layout === "string" &&
+        !previous.scene
           ? {
               title: previous.title,
               displayText: previous.displayText,
@@ -231,7 +236,8 @@ layout给出本页区域比例、重心、标题断行、字重/字号比例、�
               visual: previous.visual,
               styleFeatures: previous.styleFeatures,
               adaptations: previous.adaptations,
-              layoutId: previous.layoutId,
+              typography: previous.visualDirection?.typography,
+              styleExecution: previous.styleExecution,
             }
           : null,
       contentBrief: brief,
@@ -244,6 +250,20 @@ layout给出本页区域比例、重心、标题断行、字重/字号比例、�
     [],
     signal,
   );
+  if (
+    previous &&
+    feedback &&
+    !["composition", "details"].includes(out.editScope)
+  )
+    throw new Error("模型未明确区分精修与重新构图，请重试。");
+  const isRefinement =
+    out.editScope === "details" &&
+    previous &&
+    options.notesUnchanged !== false &&
+    (!previous.engine || previous.engine === "image") &&
+    Array.isArray(previous.displayText) &&
+    typeof previous.layout === "string";
+  if (isRefinement) out = preserveComposition(previous, out, language);
   const base = checkPlan(out);
   validateComposition(out, brief);
   const styleExecution = validateStyleExecution(out.styleExecution);
@@ -259,6 +279,7 @@ layout给出本页区域比例、重心、标题断行、字重/字号比例、�
     ...base,
     engine: "image",
     planningVersion: PLANNING_VERSION,
+    editScope: isRefinement ? "details" : "composition",
     styleExecution,
     contentBrief: brief,
     visualForm: out.visualForm,
@@ -357,16 +378,17 @@ export async function refineDesignSystem(style, feedback, signal) {
 export function imagePrompt(plan) {
   // A resolved page spec avoids asking the image model to choose among the library's variants again.
   // Every authored micro-label must be in the exact-copy list; otherwise the copy whitelist erases it.
-  return `Create one meticulously typeset presentation slide, exact 16:9, flat front view, full bleed. Text-only generation, no reference image attached. The art direction below is already resolved for this page. Execute it completely; do not simplify it into a generic explanatory diagram or redesign its typographic hierarchy.
+  return `Create one meticulously typeset presentation slide, exact 16:9, flat front view, full bleed. Render the entire canvas fully OPAQUE, including the specified background; never remove the background or return a transparent cutout. Text-only generation, no reference image attached. The art direction below is already resolved for this page. Execute it completely; do not simplify it into a generic explanatory diagram or redesign its typographic hierarchy.
 PAGE MEANING: ${plan.contentBrief?.claim || plan.title}
 FACTUAL LIMITS: ${JSON.stringify(plan.contentBrief?.mustNotImply || [])}
+EDIT SCOPE: ${plan.editScope === "details" ? "DETAIL REFINEMENT ONLY. The composition and graphic direction below are approved and locked. Small refinements cannot replace the headline, redistribute the main regions, enlarge a secondary label, remove pictograms, or change the color emphasis." : "Original composition for this content."}
 PAGE COMPOSITION: ${plan.layout}
 GRAPHIC ART DIRECTION: ${plan.visual}
 RESOLVED STYLE EXECUTION: ${JSON.stringify(plan.styleExecution || plan.visualDirection)}
 TYPOGRAPHY: ${plan.visualDirection?.typography || "Follow the page specification"}
-Large size does not imply bold weight. Follow the prescribed stroke character and scale contrast, including all small text levels. For a prescribed slender regular/light CJK treatment, use the appearance of a light-weight modern CJK sans: thin monoline stems around 3–5% of glyph height, large open counters, no heavy solid wedges or poster-black strokes. This applies to BLACK HEADLINES as well as reverse WHITE lettering. If bold is explicitly prescribed, follow that instead. Highlighting never changes the prescribed letter weight. Do not promote explanatory sentences or micro-labels to headline size.
+Follow the page's explicitly chosen type weight and scale. Bold/black typography must remain strong, with substantial strokes; regular/light typography must remain light when that is the specified style. Fine graphic lines never imply thinning the headline. Preserve the chosen hierarchy, visual center, background, accent color and composition. Micro-level precision means careful alignment, spacing, highlight padding and clean connections, not a new visual style. Supporting text stays readable and subordinate.
 EXACT VISIBLE COPY (includes all authored micro-labels): ${JSON.stringify(plan.displayText)}
-Use only these entries as text, in the prescribed roles and positions, with exact Chinese characters. Preserve deliberate line breaks, short lines and tracking. Do not omit the small editorial labels, guide marks or delicate secondary graphic layers explicitly specified above: they are part of the design, not accidental decoration. Keep fine line hierarchy, dash rhythm, aligned endpoints and carefully organized negative space. Where solid-color ink and fills are specified, render them uniform and crisp, without mottling, paper texture, gradients or faux ink bleed. Do not add extra dates, coordinates, numbers, claims, watermarks, mockups, UI, or text copied from instructions. Deliver the finished slide itself.`;
+Use only these entries as text, in the prescribed roles and positions, with exact Chinese characters. In a relationship diagram, an entry such as A → B may be distributed across its two labeled nodes with a drawn connector; do not additionally print the whole relation as a competing heading. Preserve deliberate line breaks, short lines and tracking. Include the supporting copy and graphic details explicitly specified above. Supporting annotations must fit around the established diagram without shifting its starting points, shortening its span, or breaking shared node alignment. Do not invent micro-labels, guide marks or extra decoration for a page that does not ask for them. Keep fine line hierarchy, dash rhythm, aligned endpoints and carefully organized negative space. Where solid-color ink and fills are specified, render them uniform and crisp, without mottling, paper texture, gradients or faux ink bleed. Do not add extra dates, coordinates, numbers, claims, watermarks, mockups, UI, or text copied from instructions. Deliver the finished slide itself.`;
 }
 export async function generateImage(plan, style, signal) {
   const config = settings().image;
@@ -376,12 +398,20 @@ export async function generateImage(plan, style, signal) {
     model: config.model,
     prompt,
     size: "1536x864",
+    background: "opaque",
     referenceMode: "rules-only",
   };
   const result = await request(
     "image",
     "/images/generations",
-    { model: config.model, prompt, size: "1536x864", quality: "high", n: 1 },
+    {
+      model: config.model,
+      prompt,
+      size: "1536x864",
+      quality: "high",
+      background: "opaque",
+      n: 1,
+    },
     signal,
   );
   const item = result.data?.[0];
@@ -402,6 +432,10 @@ export async function generateImage(plan, style, signal) {
     .rotate()
     .png()
     .toBuffer();
+  if (!(await sharp(normalized).stats()).isOpaque)
+    throw new ProviderError(
+      "图片服务返回了透明底，未保存为成品。设计方案已保留，请重试生成完整背景的页面。",
+    );
   const filename = id() + ".png";
   writeFileSync(assetPath(filename), normalized);
   return filename;

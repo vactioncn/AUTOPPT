@@ -2,7 +2,7 @@ import { styleRecipes } from "../shared/image-style.mjs";
 import { createHash } from "node:crypto";
 
 // Compiler revisions invalidate derived language, not the user's approved style record.
-export const STYLE_LANGUAGE_VERSION = 2;
+export const STYLE_LANGUAGE_VERSION = 3;
 export const styleLanguageKey = (style) =>
   `language-v${STYLE_LANGUAGE_VERSION}-` + styleStamp(style).fingerprint;
 

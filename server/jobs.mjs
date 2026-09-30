@@ -256,6 +256,8 @@ async function renderSlides(j, ids, signal, redesign = false) {
           {
             contentBrief: briefs[s.id],
             designLanguage: language,
+            // Changed source copy must be re-edited; never freeze an obsolete headline or number.
+            notesUnchanged: !s.stale,
             nearbyPages: nearbyCompositions(p.slides, s.id),
           },
         );

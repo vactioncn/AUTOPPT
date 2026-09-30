@@ -5,6 +5,7 @@ import {
   validateComposition,
   nearbyCompositions,
   validateStyleExecution,
+  preserveComposition,
 } from "../server/content-planning.mjs";
 import { styleLanguageKey } from "../server/core.mjs";
 const pages = [
@@ -27,6 +28,8 @@ test("semantic briefs preserve page mapping and evidence; a metaphor cannot sile
   );
   assert(!out.a.allowedForms.includes("map"));
   assert(out.b.allowedForms.includes("flow"));
+  assert(out.a.allowedForms.includes("typographic"));
+  assert(out.b.allowedForms.includes("typographic"));
   assert.throws(() =>
     validateBriefs(
       {
@@ -122,9 +125,45 @@ test("derived language has a compiler revision and changes with the user's rules
     rules: "approved rules",
     colors: [],
   };
-  assert.match(styleLanguageKey(style), /^language-v2-/);
+  assert.match(styleLanguageKey(style), /^language-v3-/);
   assert.notEqual(
     styleLanguageKey(style),
     styleLanguageKey({ ...style, rules: "revised rules" }),
+  );
+});
+
+// Protect the approved design even when the model proposes an over-eager redesign.
+test("detail refinement cannot replace approved composition, copy or graphic emphasis", () => {
+  const previous = {
+    title: "原主题",
+    displayText: ["原主标题", "原单位"],
+    layout: "两行大标题，图形在下方",
+    visual: "荧光标题与两个图标路径",
+    visualDirection: { typography: "强势黑体" },
+  };
+  const proposed = {
+    title: "新标题",
+    displayText: ["巨大新增说明"],
+    layout: "一行小标题",
+    visual: "删掉图标，扩大节点",
+    detailText: ["逐步汇集"],
+    styleExecution: {
+      microDetail: "补充说明放在对应线段附近，使用次级字号，不改变已有构图。",
+    },
+  };
+  const result = preserveComposition(previous, proposed, {
+    typography: "常规字体",
+  });
+  assert.equal(result.layout, previous.layout);
+  assert.equal(result.visual, previous.visual);
+  assert.equal(result.typography, "强势黑体");
+  assert.deepEqual(result.displayText, ["原主标题", "原单位", "逐步汇集"]);
+  assert.deepEqual(previous.displayText, ["原主标题", "原单位"]);
+  assert.throws(() =>
+    preserveComposition(
+      previous,
+      { ...proposed, detailText: ["过长".repeat(25)] },
+      {},
+    ),
   );
 });

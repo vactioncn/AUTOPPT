@@ -22,6 +22,7 @@ test(
     const calls = [];
     const imageRequests = [];
     let failImage = false;
+    let transparentImage = false;
     let imageCalls = 0,
       failDesign = false,
       failSegment = false,
@@ -39,6 +40,23 @@ test(
           failImage = false;
           res.statusCode = 503;
           res.end('{"error":{"message":"Test image failure"}}');
+        } else if (transparentImage) {
+          transparentImage = false;
+          const transparent = await sharp({
+            create: {
+              width: 1600,
+              height: 900,
+              channels: 4,
+              background: "#00000000",
+            },
+          })
+            .png()
+            .toBuffer();
+          res.end(
+            JSON.stringify({
+              data: [{ b64_json: transparent.toString("base64") }],
+            }),
+          );
         } else
           res.end(
             JSON.stringify({ data: [{ b64_json: image.toString("base64") }] }),
@@ -157,6 +175,8 @@ test(
           return;
         }
         output = {
+          editScope: data.previous && data.feedback ? "details" : "composition",
+          detailText: [],
           title: "LOCAL TEST FIXTURE",
           displayText: ["LOCAL TEST FIXTURE", "DETAIL LABEL"],
           visualForm: data.contentBrief.allowedForms[0],
@@ -343,6 +363,27 @@ test(
       versionId: project.slides[0].versions.at(-1).id,
     });
     assert.equal((await read()).slides[0].image, originalImage);
+    // An unexpected cutout must not replace a usable slide; retry retains the designed page.
+    transparentImage = true;
+    const transparentJob = await req(
+      `/projects/${id}/render`,
+      { slideIds: [sid], redesign: true },
+      "POST",
+      202,
+    );
+    const rejected = await poll(transparentJob);
+    assert.equal(rejected.status, "failed");
+    assert.match((await read()).slides[0].error, /透明底/);
+    assert.equal((await read()).slides[0].image, originalImage);
+    const beforeOpaqueRetry = calls.filter((c) => c.type === "design").length;
+    assert.equal(
+      (await poll(await req(`/jobs/${transparentJob.id}/retry`, {}))).status,
+      "completed",
+    );
+    assert.equal(
+      calls.filter((c) => c.type === "design").length,
+      beforeOpaqueRetry,
+    );
     const cuts = [5, 10, 15, 20]; // Explicit UTF-16 source offsets, preserving the original text.
     job = await req(
       `/projects/${id}/proposal`,
@@ -563,11 +604,19 @@ test(
     assert.equal(project.slides[0].image, "legacy.png");
     job = await req(
       `/projects/${id}/render`,
-      { slideIds: [old.id], redesign: true },
+      {
+        slideIds: [old.id],
+        redesign: true,
+        feedback: "保留原有构图，只补对齐和说明细节",
+      },
       "POST",
       202,
     );
     assert.equal((await poll(job)).status, "completed");
+    const legacyRequest = calls.filter((c) => c.type === "design").at(-1).data;
+    assert.equal(legacyRequest.previous.layout, old.plan.layout);
+    assert.deepEqual(legacyRequest.previous.displayText, old.plan.displayText);
+    assert.equal(legacyRequest.feedback, "保留原有构图，只补对齐和说明细节");
     project = await read();
     assert(project.slides[0].image);
     assert.equal(project.slides[0].versions.at(-1).image, "legacy.png");
@@ -580,10 +629,37 @@ test(
       202,
     );
     assert.equal((await poll(job)).status, "completed");
+    assert.equal(
+      calls.filter((c) => c.type === "design").at(-1).data.previous,
+      null,
+    );
     project = await read();
     assert(project.slides[1].image);
     assert.equal(project.slides[1].scene, null);
     assert(project.slides[1].versions.at(-1).scene);
+    // A changed manuscript invalidates approved copy, even when feedback asks for detail polish.
+    const revisedNotes = project.slides[0].notes + "新的限定条件。";
+    await req(
+      `/projects/${id}/slides/${project.slides[0].id}`,
+      { notes: revisedNotes },
+      "PATCH",
+    );
+    const changedSourceJob = await req(
+      `/projects/${id}/render`,
+      {
+        slideIds: [project.slides[0].id],
+        redesign: true,
+        feedback: "保留布局，只精修细节",
+      },
+      "POST",
+      202,
+    );
+    assert.equal((await poll(changedSourceJob)).status, "completed");
+    const changedSourceRequest = calls
+      .filter((c) => c.type === "design")
+      .at(-1).data;
+    assert.equal(changedSourceRequest.previous, null);
+    assert.equal(changedSourceRequest.notes, revisedNotes);
     assert.equal(
       calls.filter((c) => c.type === "design").some((c) => c.refs !== 0),
       false,
@@ -596,7 +672,10 @@ test(
     assert(imageCalls > 0);
     assert(
       imageRequests.every(
-        (r) => Object.keys(r).sort().join() === "model,n,prompt,quality,size",
+        (r) =>
+          Object.keys(r).sort().join() ===
+            "background,model,n,prompt,quality,size" &&
+          r.background === "opaque",
       ),
     );
     assert(
@@ -751,7 +830,10 @@ test(
     assert(imageCalls > 0);
     assert(
       imageRequests.every(
-        (r) => Object.keys(r).sort().join() === "model,n,prompt,quality,size",
+        (r) =>
+          Object.keys(r).sort().join() ===
+            "background,model,n,prompt,quality,size" &&
+          r.background === "opaque",
       ),
     );
     assert(

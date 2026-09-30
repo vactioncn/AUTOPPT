@@ -269,7 +269,7 @@ export async function runTrial(job, signal, progress) {
         t.feedback,
         parent?.plan,
         signal,
-        {},
+        { notesUnchanged: t.notes === parent?.notes },
       );
       signal.throwIfAborted();
       put("trial", t);

@@ -1,13 +1,42 @@
 // Content structures constrain meaning, not style or fixed template geometry.
-export const PLANNING_VERSION = 3;
+export const PLANNING_VERSION = 5;
+
+// Refinement is additive. A model must not replace approved macro decisions with its new draft.
+export function preserveComposition(previous, proposed, language) {
+  const additions = proposed.detailText || [];
+  if (
+    !Array.isArray(additions) ||
+    additions.length > 4 ||
+    additions.some(
+      (text) => typeof text !== "string" || !text.trim() || text.length > 40,
+    )
+  )
+    throw new Error("精修补充文字过多，请保留原构图并使用简短说明。");
+  return {
+    ...proposed,
+    title: previous.title,
+    layout: previous.layout,
+    visual: previous.visual,
+    displayText: [...new Set([...previous.displayText, ...additions])],
+    typography: previous.visualDirection?.typography || language.typography,
+    styleExecution: {
+      typeHierarchy:
+        previous.styleExecution?.typeHierarchy || language.typography,
+      spatialRhythm: previous.styleExecution?.spatialRhythm || previous.layout,
+      graphicHierarchy:
+        previous.styleExecution?.graphicHierarchy || previous.visual,
+      microDetail: proposed.styleExecution.microDetail,
+    },
+  };
+}
 export const RELATION_FORMS = {
-  positioning: ["position", "hierarchy"],
-  hierarchy: ["hierarchy", "position", "comparison"],
-  causality: ["flow", "comparison", "relationship"],
+  positioning: ["position", "hierarchy", "typographic"],
+  hierarchy: ["hierarchy", "position", "comparison", "typographic"],
+  causality: ["flow", "comparison", "relationship", "typographic"],
   process: ["flow", "sequence"],
-  comparison: ["comparison"],
+  comparison: ["comparison", "typographic"],
   partWhole: ["relationship", "hierarchy"],
-  data: ["metric", "chart"],
+  data: ["metric", "chart", "typographic"],
   statement: ["typographic", "statement"],
   invitation: ["typographic", "relationship"],
   exploration: ["relationship", "typographic"],

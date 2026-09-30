@@ -17,6 +17,7 @@ import {
 } from "./models.mjs";
 import { PLANNING_VERSION, nearbyCompositions } from "./content-planning.mjs";
 import { snapshot, styleStamp } from "./core.mjs";
+import { MANUSCRIPT_VERSION, spokenManuscript } from "./manuscript.mjs";
 import { runTrial } from "./trials.mjs";
 const controllers = new Map();
 let processing = false;
@@ -147,7 +148,9 @@ export function newSlide(
     id: id(),
     batchIds,
     styleId,
+    // Input is already spoken text; do not reinterpret a manual split as Markdown.
     notes,
+    manuscriptVersion: MANUSCRIPT_VERSION,
     plan,
     planStyle,
     image: null,
@@ -406,6 +409,10 @@ async function run(j, signal) {
     return;
   }
   if (j.type === "proposal") {
+    if (j.payload.manuscriptVersion !== MANUSCRIPT_VERSION) {
+      j.payload.notes = j.payload.notes.map(spokenManuscript);
+      j.payload.manuscriptVersion = MANUSCRIPT_VERSION;
+    }
     const plans = [];
     const style = styleFor(p, j);
     const initialRevision = p.revision;
@@ -449,6 +456,7 @@ async function run(j, signal) {
       type: j.payload.type,
       sourceIds: j.payload.sourceIds,
       notes: j.payload.notes,
+      manuscriptVersion: MANUSCRIPT_VERSION,
       plans,
       styleId: p.styleId,
       planStyle: styleStamp(style),

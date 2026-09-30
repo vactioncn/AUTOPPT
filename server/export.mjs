@@ -3,6 +3,7 @@ import sharp from "sharp";
 import { readFile } from "node:fs/promises";
 import { assetPath } from "./store.mjs";
 import { renderSceneSvg } from "../shared/slides.mjs";
+import { speakerNotes } from "./manuscript.mjs";
 
 const WIDTH = 40 / 3;
 const HEIGHT = 7.5;
@@ -96,7 +97,7 @@ export async function exportPresentation(project, { allowStale = false } = {}) {
       altText: page.plan?.title || `第 ${index + 1} 页`,
       objectName: `整页图片 ${index + 1}`,
     });
-    slide.addNotes(page.notes);
+    slide.addNotes(speakerNotes(page));
   }
   return pptx.write({ outputType: "nodebuffer", compression: true });
 }

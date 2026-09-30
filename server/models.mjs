@@ -7,6 +7,7 @@ import {
   styleLanguageKey,
 } from "./core.mjs";
 import sharp from "sharp";
+import { spokenManuscript } from "./manuscript.mjs";
 import { styleRecipes } from "../shared/image-style.mjs";
 import {
   PLANNING_VERSION,
@@ -108,6 +109,9 @@ export async function jsonModel(system, user, refs = [], signal) {
   }
 }
 export async function segment(text, context, signal, onProgress = () => {}) {
+  text = spokenManuscript(text);
+  if (!text.trim())
+    throw new Error("去掉 Markdown 标题后没有正文，请补充需要讲述的内容。");
   const allParts = sentences(text);
   const groups = [];
   let group = [],

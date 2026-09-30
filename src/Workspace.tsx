@@ -986,15 +986,21 @@ function SlideDetail({
       setLoading(false);
     }
   };
+  const persistNotes = async () => {
+    const saved = await patch<Project>(
+      `/projects/${projectId}/slides/${slide.id}`,
+      { notes },
+    );
+    setNotes(saved.slides.find((s) => s.id === slide.id)!.notes);
+  };
   const save = () =>
     act(async () => {
-      await patch(`/projects/${projectId}/slides/${slide.id}`, { notes });
-      notify("讲稿已保存，可以按新稿重新生成图片。");
+      await persistNotes();
+      notify("演讲正文已保存，Markdown 标题已自动去掉。");
     });
   const redesign = () =>
     act(async () => {
-      if (dirty)
-        await patch(`/projects/${projectId}/slides/${slide.id}`, { notes });
+      if (dirty) await persistNotes();
       await post(`/projects/${projectId}/render`, {
         slideIds: [slide.id],
         redesign: true,
@@ -1156,7 +1162,7 @@ function SlideDetail({
           {tab === "notes" ? (
             <>
               <p className="detail-help">
-                完整原文保存在这里，与当前图片对应。
+                这里是对应本页的演讲正文。保存时会自动去掉 Markdown 标题，保留正文段落。
               </p>
               <textarea
                 className="notes-editor"

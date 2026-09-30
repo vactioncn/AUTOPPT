@@ -130,3 +130,21 @@ test("export reports empty, missing, unreadable, unsegmented and stale pages wit
   );
   assert.equal(exportFilename("..."), "演讲.pptx");
 });
+
+test("PPT notes remove legacy writing headings but preserve literal text at manual page boundaries", async () => {
+  const slides = [
+    {
+      image: "page-0.png",
+      notes: "## 只在撰写时看\n\n实际口播正文。\n\n### 下一部分\n\n第二段。",
+    },
+    {
+      image: "page-0.png",
+      notes: "# 正文中被手动分到下一页的符号",
+      manuscriptVersion: 1,
+    },
+  ];
+  await inspectPresentation(await exportPresentation(project(slides)), [
+    { ...slides[0], notes: "实际口播正文。\n\n第二段。" },
+    slides[1],
+  ]);
+});

@@ -40,6 +40,15 @@ import {
 } from "./jobs.mjs";
 import { jsonModel } from "./models.mjs";
 import { exportPresentation, exportFilename } from "./export.mjs";
+import {
+  spokenManuscript,
+  speakerNotes,
+  MANUSCRIPT_VERSION,
+} from "./manuscript.mjs";
+import {
+  cleanProjectManuscripts,
+  migrateManuscripts,
+} from "./manuscript-migration.mjs";
 
 import { registerTrials } from "./trials.mjs";
 
@@ -185,6 +194,8 @@ app.post("/api/projects/:id/batches", (req, res) => {
     throw new Error("请先写下这一段逐字稿。");
   if (text.length > 200000)
     throw new Error("单次最多支持 20 万字，请分段添加。");
+  if (!spokenManuscript(text).trim())
+    throw new Error("去掉 Markdown 标题后没有正文，请补充需要讲述的内容。");
   const batch = {
     id: id(),
     text,
@@ -214,9 +225,13 @@ app.patch("/api/projects/:id/slides/:sid", (req, res) => {
     throw new Error("逐字稿不能为空。");
   if (req.body.notes.length > 200000)
     throw new Error("逐字稿过长，请拆分页面。");
-  if (s.notes !== req.body.notes) {
+  const notes = spokenManuscript(req.body.notes);
+  if (!notes.trim())
+    throw new Error("去掉 Markdown 标题后没有正文，请补充需要讲述的内容。");
+  if (s.notes !== notes) {
     s.versions.push(snapshot(s));
-    s.notes = req.body.notes;
+    s.notes = notes;
+    s.manuscriptVersion = MANUSCRIPT_VERSION;
     s.stale = true;
     delete s.pendingPlan;
     delete s.pendingPlanStyle;
@@ -288,7 +303,8 @@ app.post("/api/projects/:id/slides/:sid/restore", (req, res) => {
   if (!v) throw new Error("历史版本不存在");
   s.versions.push(snapshot(s));
   Object.assign(s, {
-    notes: v.notes,
+    notes: speakerNotes(v),
+    manuscriptVersion: MANUSCRIPT_VERSION,
     plan: v.plan,
     image: v.image,
     scene: v.scene || null,
@@ -352,9 +368,14 @@ app.post("/api/projects/:id/proposal", (req, res) => {
     notes = splitAt(s.notes, req.body.cuts);
     sourceIds = [s.id];
   } else throw new Error("未知的调整方式");
-  res
-    .status(202)
-    .json(enqueue("proposal", p.id, { type: req.body.type, notes, sourceIds }));
+  res.status(202).json(
+    enqueue("proposal", p.id, {
+      type: req.body.type,
+      notes,
+      sourceIds,
+      manuscriptVersion: MANUSCRIPT_VERSION,
+    }),
+  );
 });
 app.delete("/api/projects/:id/proposal", (req, res) => {
   const p = projectOrThrow(req.params.id);
@@ -415,6 +436,7 @@ app.post("/api/projects/:id/undo", (req, res) => {
   p.slides = p.undo.slides;
   p.undo = null;
   p.proposal = null;
+  cleanProjectManuscripts(p);
   for (const b of p.batches)
     b.slideIds = p.slides
       .filter((s) => s.batchIds.includes(b.id))
@@ -442,7 +464,7 @@ app.get("/api/projects/:id/export", async (req, res) => {
 });
 app.get("/api/projects/:id/manuscript", (req, res) => {
   const p = projectOrThrow(req.params.id);
-  res.type("text/plain").send(p.slides.map((s) => s.notes).join(""));
+  res.type("text/plain").send(p.slides.map(speakerNotes).join(""));
 });
 app.get("/api/jobs", (req, res) =>
   res.json(
@@ -662,6 +684,7 @@ if (process.env.NODE_ENV === "production") {
   app.use(vite.middlewares);
 }
 recoverJobs();
+migrateManuscripts();
 app.listen(port, "127.0.0.1", () =>
   console.log(`AutoPPT → http://127.0.0.1:${port} · data: ${dataDir}`),
 );

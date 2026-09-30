@@ -138,6 +138,7 @@ export function snapshot(slide) {
     id: crypto.randomUUID(),
     createdAt: new Date().toISOString(),
     notes: slide.notes,
+    manuscriptVersion: slide.manuscriptVersion,
     plan: slide.plan,
     image: slide.image,
     scene: slide.scene,

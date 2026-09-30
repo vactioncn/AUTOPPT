@@ -334,10 +334,38 @@ test(
       id = project.id;
     const read = () => req("/projects/" + id);
     const text = "第一句话。第二句话。第三句话。第四句话。第五句话。";
-    let job = await req(`/projects/${id}/batches`, { text }, "POST", 202);
+    await req(
+      `/projects/${id}/batches`,
+      { text: "# 只有大标题\n\n## 没有正文" },
+      "POST",
+      400,
+    );
+    assert.equal((await read()).batches.length, 0);
+    const submittedText = "# 撰写时的大标题\n\n## 本节内容\n\n" + text;
+    let job = await req(
+      `/projects/${id}/batches`,
+      { text: submittedText },
+      "POST",
+      202,
+    );
     assert.equal((await poll(job)).status, "completed");
     project = await read();
     assert.equal(project.slides[0].notes, text);
+    assert.equal(project.batches[0].text, submittedText);
+    const initialRevision = project.revision;
+    await req(
+      `/projects/${id}/slides/${project.slides[0].id}`,
+      { notes: "### 阅读时跳过的标题\n\n" + text },
+      "PATCH",
+    );
+    assert.equal((await read()).revision, initialRevision);
+    assert.equal((await read()).slides[0].stale, false);
+    await req(
+      `/projects/${id}/slides/${project.slides[0].id}`,
+      { notes: "## 只剩标题" },
+      "PATCH",
+      400,
+    );
     assert(project.slides[0].image);
     assert.equal(project.slides[0].scene, null);
     assert.equal(project.slides[0].review, null);
@@ -607,6 +635,8 @@ test(
     );
     const old = legacy.slides[0];
     old.image = "legacy.png";
+    old.notes = "## 旧版撰写标题\n\n" + old.notes;
+    delete old.manuscriptVersion;
     old.scene = null;
     old.plan.engine = undefined;
     legacy.slides[1].scene = composeScene(samplePlan(sys.layouts[0]), sys);
@@ -621,6 +651,14 @@ test(
     await boot();
     project = await read();
     assert.equal(project.slides[0].image, "legacy.png");
+    assert(!project.slides[0].notes.includes("旧版撰写标题"));
+    const rawVersion = project.slides[0].versions.at(-1);
+    assert(rawVersion.notes.startsWith("## 旧版撰写标题"));
+    await req(`/projects/${id}/slides/${project.slides[0].id}/restore`, {
+      versionId: rawVersion.id,
+    });
+    project = await read();
+    assert(!project.slides[0].notes.includes("旧版撰写标题"));
     const legacyExport = await fetch(base + `/projects/${id}/export`);
     assert.equal(legacyExport.status, 200);
     await inspectPresentation(
@@ -777,8 +815,21 @@ test(
       ).toHaveCount(0);
       await page
         .getByLabel("本页逐字稿", { exact: true })
-        .fill("浏览器修改后的原稿。");
+        .fill("## 撰写用标题\n\n浏览器修改后的原稿。");
       await page.getByRole("button", { name: "保存讲稿", exact: true }).click();
+      await expect(
+        page.getByRole("button", { name: "保存讲稿", exact: true }),
+      ).toBeDisabled();
+      await expect(page.getByLabel("本页逐字稿", { exact: true })).toHaveValue(
+        "浏览器修改后的原稿。",
+      );
+      await page
+        .getByLabel("本页逐字稿", { exact: true })
+        .fill("# 只加标题\n\n浏览器修改后的原稿。");
+      await page.getByRole("button", { name: "保存讲稿", exact: true }).click();
+      await expect(page.getByLabel("本页逐字稿", { exact: true })).toHaveValue(
+        "浏览器修改后的原稿。",
+      );
       await expect(
         page.getByRole("button", { name: "保存讲稿", exact: true }),
       ).toBeDisabled();

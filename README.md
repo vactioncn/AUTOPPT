@@ -4,15 +4,19 @@
 
 ## 启动
 
-双击 **启动 AutoPPT.command**，或运行：
+首次使用请先阅读 [同事安装与使用说明](docs/同事安装与使用说明.md)，包含 Mac / Windows 安装、模型配置、首次测试、备份和更新步骤。可转发的 [Word 版](docs/AutoPPT-安装与使用说明.docx) 内容相同。
+
+安装 Node.js 24 LTS（最低 22.13），下载代码后在项目目录运行：
 
 ```sh
-npm install
+npm ci
 npm run build
-node scripts/start.mjs
+npm start
 ```
 
-入口：http://127.0.0.1:4317 。开发模式 `npm run dev`。需要 Node.js 22.13 或更新版本。关闭浏览器不会停止任务；重启电脑后重新打开启动入口。
+入口：http://127.0.0.1:4317 。保持终端开启，按 `Ctrl+C` 停止服务。开发模式为 `npm run dev`。
+
+完成首次安装和构建后，也可双击 Mac 的 **启动 AutoPPT.command**，或运行 `node scripts/start.mjs` 在后台启动。后台模式关闭浏览器或终端不会停止任务；重启电脑后需重新启动。日常更新前请先停止旧服务，再安装依赖、构建并启动。
 
 ## 制作流程
 

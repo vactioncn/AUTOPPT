@@ -733,6 +733,26 @@ img {
 .workspace-heading h1 {
   font-size: 27px;
 }
+.workspace-heading > .btn {
+  flex-shrink: 0;
+}
+.ppt-export-summary h3 {
+  overflow-wrap: anywhere;
+}
+.ppt-export-summary p,
+.export-notice {
+  font-size: 13px;
+  line-height: 1.8;
+  margin-top: 12px;
+}
+.ppt-export-summary p {
+  color: var(--muted);
+}
+.export-notice {
+  padding: 12px 16px;
+  border-left: 3px solid var(--accent);
+  background: #f7f1e8;
+}
 .workspace-heading p {
   font-size: 12px;
   color: #74806a;

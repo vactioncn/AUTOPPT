@@ -39,6 +39,7 @@ import {
   newSlide,
 } from "./jobs.mjs";
 import { jsonModel } from "./models.mjs";
+import { exportPresentation, exportFilename } from "./export.mjs";
 
 import { registerTrials } from "./trials.mjs";
 
@@ -421,9 +422,24 @@ app.post("/api/projects/:id/undo", (req, res) => {
   saveProject(p);
   res.json(p);
 });
-app.get("/api/projects/:id/export", (req, res) =>
-  res.status(410).json({ error: "当前专注图片生成，PPTX 导出已暂停。" }),
-);
+app.get("/api/projects/:id/export", async (req, res) => {
+  const p = projectOrThrow(req.params.id);
+  assertIdle(p.id);
+  if (
+    req.query.revision !== undefined &&
+    req.query.revision !== String(p.revision)
+  )
+    throw Object.assign(
+      new Error("项目内容已更新，请关闭导出窗口后重新导出。"),
+      { status: 409 },
+    );
+  const buffer = await exportPresentation(p, {
+    allowStale:
+      req.query.allowStale === "1" &&
+      req.query.revision === String(p.revision),
+  });
+  res.attachment(exportFilename(p.title)).send(buffer);
+});
 app.get("/api/projects/:id/manuscript", (req, res) => {
   const p = projectOrThrow(req.params.id);
   res.type("text/plain").send(p.slides.map((s) => s.notes).join(""));

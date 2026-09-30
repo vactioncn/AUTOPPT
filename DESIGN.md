@@ -215,7 +215,7 @@ Project cards combine a 16:9 cover, name and compact metadata. Style cards add r
 
 Page frames show the complete generated image, with historical web scenes preserved for viewing and labeled as historical. Missing results display a text-and-icon placeholder with separate waiting, generating and incomplete messages. Selection appears as a terracotta outline, with bulk actions in a floating dark olive bar. Opening a page reveals the large preview, PNG download, navigation, manual splitting and redesign controls, plus separate tabs for manuscript, design and versions. The redesign form uses the whole saved style without a template or visual-direction selector. When a content brief is available, the design tab shows “这一页要表达什么” and “为什么这样表现” before the detailed plan. Saved notes and a page awaiting redesign remain distinct states; version restoration is an explicit action.
 
-The current workflow produces images and exposes single-image download. Element editing and PPTX export are paused; retained historical scenes are not presented as the current output format.
+The current workflow produces images and exposes single-image download and project PPTX export. The workspace header has an “导出 PPT” action. Its dialog explains that each page is one complete image with the latest saved manuscript in speaker notes, preserving page order and image proportions. Missing pages, unsegmented batches and active jobs block download with an explanation. Changed manuscripts show an explicit current-image/latest-notes download label. Historical scenes flatten into a single PNG for export. Element editing remains paused.
 
 ### Segmented Controls and Dialogs
 
@@ -251,7 +251,7 @@ The current interface evidence remains `.impeccable/review/content-first-desktop
 ### Don't:
 - **Don't** present missing results, failed pages or stale previews as newly completed output.
 - **Don't** let the application palette substitute for the user’s saved output style or let that style recolor application controls.
-- **Don't** reintroduce template or visual-direction pickers, generic layout galleries, element editing or PPTX export into the current image workflow.
+- **Don't** reintroduce template or visual-direction pickers, generic layout galleries or element editing into the current image workflow. PPTX export must remain complete images with speaker notes.
 - **Don't** reintroduce source-image selection, reference comparison or automatic deviation review into the finalized trial and production flows.
 - **Don't** treat choosing a history result as saving its candidate rules to the formal style.
 - **Don't** treat reviewed image samples or a successful interface review as a general guarantee of output quality or reference-style fidelity.

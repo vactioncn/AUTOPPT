@@ -1,10 +1,50 @@
 import pptxgen from "pptxgenjs";
 import sharp from "sharp";
+import { readFile } from "node:fs/promises";
 import { assetPath } from "./store.mjs";
-import { validateScene } from "../shared/slides.mjs";
-const inch = (v) => v / 120;
-const color = (v) => v.replace("#", "");
-export async function exportPresentation(project) {
+import { renderSceneSvg } from "../shared/slides.mjs";
+
+const WIDTH = 40 / 3;
+const HEIGHT = 7.5;
+
+export function exportFilename(title) {
+  const name = String(title || "")
+    .replace(/[\x00-\x1f\x7f<>:"/\\|?*]/g, "_")
+    .replace(/[. ]+$/g, "")
+    .trim()
+    .slice(0, 100);
+  return `${name || "演讲"}.pptx`;
+}
+
+async function pageImage(page) {
+  // Match preview source priority. Retained web scenes are flattened once.
+  let data = page.scene
+    ? await sharp(
+        Buffer.from(
+          renderSceneSvg(page.scene).replace(
+            'width="100%" height="100%"',
+            'width="1600" height="900"',
+          ),
+        ),
+      )
+        .png()
+        .toBuffer()
+    : await readFile(assetPath(page.image));
+  let meta = await sharp(data).metadata();
+  // Preserve original PNG/JPEG bytes and resolution. Convert WebP and bake
+  // in EXIF rotation for compatibility with PowerPoint and Keynote.
+  if (
+    !["png", "jpeg"].includes(meta.format) ||
+    (meta.orientation && meta.orientation !== 1)
+  ) {
+    data = await sharp(data).rotate().png().toBuffer();
+    meta = await sharp(data).metadata();
+  }
+  if (!meta.width || !meta.height) throw new Error("无法读取图片尺寸");
+  return { data, ...meta };
+}
+
+export async function exportPresentation(project, { allowStale = false } = {}) {
   const unsegmented = project.batches?.filter((b) => !b.slideIds?.length) || [];
   if (unsegmented.length)
     throw new Error(
@@ -12,111 +52,51 @@ export async function exportPresentation(project) {
     );
   if (!project.slides.length)
     throw new Error("先添加一段逐字稿，生成页面后再导出。");
-  const missing = project.slides.filter((s) => !s.scene && !s.image);
+  const missing = project.slides.flatMap((s, i) =>
+    !s.scene && !s.image ? [i + 1] : [],
+  );
   if (missing.length)
-    throw new Error(`还有 ${missing.length} 页未完成，请先完成制作再导出。`);
+    throw new Error(
+      `还有 ${missing.length} 页未完成（第 ${missing.join("、")} 页），请先完成制作再导出。`,
+    );
+  if (!allowStale && project.slides.some((s) => s.stale))
+    throw Object.assign(
+      new Error(
+        "部分页面的讲稿已修改，图片尚未更新。请在导出窗口确认使用当前图片与最新备注。",
+      ),
+      { status: 409 },
+    );
+
   const pptx = new pptxgen();
   pptx.layout = "LAYOUT_WIDE";
   pptx.author = "AutoPPT";
   pptx.title = project.title;
-  pptx.subject = "可编辑页面与逐字稿逐页对应";
+  pptx.subject = "整页图片与逐字稿备注逐页对应";
   pptx.lang = "zh-CN";
-  for (const page of project.slides) {
-    const slide = pptx.addSlide();
-    if (page.scene) {
-      const scene = validateScene(page.scene);
-      slide.background = { color: color(scene.background) };
-      for (const e of scene.elements) {
-        const box = {
-          x: inch(e.x),
-          y: inch(e.y),
-          w: inch(e.w),
-          h: inch(e.h),
-          objectName: e.id,
-        };
-        if (e.type === "text")
-          slide.addText(e.lines.join("\n"), {
-            ...box,
-            fontFace: e.fontFace,
-            fontSize: e.fontSize * 0.6,
-            bold: e.bold,
-            color: color(e.color),
-            align: e.align,
-            margin: 0,
-            breakLine: false,
-            paraSpaceAfter: 0,
-            lineSpacingMultiple: 1.22,
-            valign: "top",
-            isTextBox: true,
-          });
-        else if (e.type === "chart")
-          slide.addChart(
-            e.chartType === "line" ? pptx.ChartType.line : pptx.ChartType.bar,
-            [{ name: e.unit || "数值", labels: e.labels, values: e.values }],
-            {
-              ...box,
-              catAxisLabelFontFace: e.fontFace,
-              catAxisLabelFontSize: 14,
-              valAxisLabelFontSize: 12,
-              chartColors: [color(e.color)],
-              showLegend: false,
-              showValue: true,
-              showTitle: false,
-              showCatName: false,
-              dataLabelFormatCode: e.unit
-                ? `0.##"${e.unit.replaceAll('"', "")}"`
-                : "0.##",
-              catAxisLabelColor: color(e.foreground),
-              valAxisLabelColor: color(e.foreground),
-              dataLabelColor: color(e.foreground),
-              dataLabelPosition: "outEnd",
-              showBorder: false,
-              showMarker: true,
-              lineSize: 2,
-            },
-          );
-        else
-          slide.addShape(
-            e.type === "ellipse"
-              ? pptx.ShapeType.ellipse
-              : e.type === "line"
-                ? pptx.ShapeType.line
-                : e.radius
-                  ? pptx.ShapeType.roundRect
-                  : pptx.ShapeType.rect,
-            {
-              ...box,
-              rectRadius: inch(e.radius || 0),
-              flipH: !!e.flipH,
-              fill: e.fill
-                ? { color: color(e.fill) }
-                : { color: color(scene.background), transparency: 100 },
-              line: {
-                color: color(e.stroke),
-                width: e.strokeWidth * 0.6,
-                transparency: e.strokeWidth ? 0 : 100,
-                ...(e.arrow ? { endArrowType: "triangle" } : {}),
-              },
-            },
-          );
-      }
-    } else {
-      const image = assetPath(page.image),
-        meta = await sharp(image).metadata(),
-        ratio = meta.width / meta.height;
-      let w = 13.333333,
-        h = 7.5;
-      if (ratio > 16 / 9) h = w / ratio;
-      else w = h * ratio;
-      slide.addImage({
-        path: image,
-        x: (13.333333 - w) / 2,
-        y: (7.5 - h) / 2,
-        w,
-        h,
-      });
+  for (const [index, page] of project.slides.entries()) {
+    let image;
+    try {
+      image = await pageImage(page);
+    } catch {
+      throw new Error(
+        `第 ${index + 1} 页的图片无法读取，请检查图片文件或重新制作这一页后再导出。`,
+      );
     }
+    const slide = pptx.addSlide();
+    slide.background = { color: "FFFFFF" };
+    const scale = Math.min(WIDTH / image.width, HEIGHT / image.height);
+    const w = image.width * scale,
+      h = image.height * scale;
+    slide.addImage({
+      data: `image/${image.format};base64,${image.data.toString("base64")}`,
+      x: (WIDTH - w) / 2,
+      y: (HEIGHT - h) / 2,
+      w,
+      h,
+      altText: page.plan?.title || `第 ${index + 1} 页`,
+      objectName: `整页图片 ${index + 1}`,
+    });
     slide.addNotes(page.notes);
   }
-  return pptx.write({ outputType: "nodebuffer" });
+  return pptx.write({ outputType: "nodebuffer", compression: true });
 }

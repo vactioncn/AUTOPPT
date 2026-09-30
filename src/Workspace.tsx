@@ -23,8 +23,9 @@ import {
   Eye,
   FloppyDisk,
   Stop,
+  DownloadSimple,
 } from "@phosphor-icons/react";
-import { api, post, patch, asset, active } from "./api";
+import { api, post, patch, asset, active, downloadPresentation } from "./api";
 import { SceneView } from "./SceneView";
 import type { Project, Style, Slide, Job, Settings } from "./types";
 import { Button, Modal, Field, SlideImage, Status } from "./components";
@@ -56,6 +57,7 @@ export function Workspace({
     [split, setSplit] = useState<string | null>(null),
     [proposalOpen, setProposalOpen] = useState(false),
     [showScript, setShowScript] = useState(false),
+    [exportOpen, setExportOpen] = useState(false),
     [renaming, setRenaming] = useState(false);
   const initialized = useRef(false),
     draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null),
@@ -201,6 +203,13 @@ export function Workspace({
             字
           </p>
         </div>
+        <Button
+          onClick={() => setExportOpen(true)}
+          disabled={!project.slides.length && !project.batches.length}
+        >
+          <DownloadSimple size={18} />
+          导出 PPT
+        </Button>
       </div>
       <div className="project-controls">
         <div className="project-style">
@@ -660,6 +669,15 @@ export function Workspace({
           逐字稿与图片自动关联 · 逐段制作，随时调整 · 所有内容保存在本机
         </p>
       )}
+      {exportOpen && (
+        <ExportDialog
+          project={project}
+          busy={!!busy}
+          hasDraft={!!draft.trim()}
+          onClose={() => setExportOpen(false)}
+          notify={notify}
+        />
+      )}
       {detailSlide && (
         <SlideDetail
           slide={detailSlide}
@@ -775,6 +793,113 @@ export function Workspace({
     </div>
   );
 }
+function ExportDialog({
+  project,
+  busy,
+  hasDraft,
+  onClose,
+  notify,
+}: {
+  project: Project;
+  busy: boolean;
+  hasDraft: boolean;
+  onClose: () => void;
+  notify: (message: string) => void;
+}) {
+  const [exporting, setExporting] = useState(false);
+  const [error, setError] = useState("");
+  const missing = project.slides.flatMap((s, i) =>
+    !s.image && !s.scene ? [i + 1] : [],
+  );
+  const unsegmented = project.batches.filter((b) => !b.slideIds.length).length;
+  const stale = project.slides.filter((s) => s.stale).length;
+  const blocked =
+    busy || !!missing.length || !!unsegmented || !project.slides.length;
+  const download = async () => {
+    setExporting(true);
+    setError("");
+    try {
+      await downloadPresentation(project.id, project.revision, !!stale);
+      notify("PPT 已开始下载，每页图片和对应讲稿备注已包含。");
+      onClose();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setExporting(false);
+    }
+  };
+  return (
+    <Modal
+      title="导出 PPT"
+      subtitle="每页一张完整图片，逐字稿保存在对应页备注中。"
+      onClose={() => {
+        if (!exporting) onClose();
+      }}
+    >
+      <div className="ppt-export-summary">
+        <h3>{project.title}</h3>
+        <p>全部 {project.slides.length} 页 · 16:9 宽屏 · .pptx 文件</p>
+        <p>
+          图片按原比例完整放入页面，保留原图清晰度。备注使用每页最新保存的完整讲稿。
+        </p>
+      </div>
+      {busy && (
+        <p className="export-notice">页面正在制作中，完成或停止后即可导出。</p>
+      )}
+      {!!unsegmented && (
+        <p className="export-notice">
+          还有 {unsegmented} 段逐字稿未完成拆分，请先继续制作。
+        </p>
+      )}
+      {!!missing.length && (
+        <p className="export-notice">
+          还有 {missing.length} 页未完成（第 {missing.join("、")}{" "}
+          页），请先补齐图片后导出。
+        </p>
+      )}
+      {!!stale && (
+        <p className="export-notice">
+          有 {stale}{" "}
+          页讲稿已修改，图片尚未更新。本次将使用当前图片，备注采用最新讲稿。
+        </p>
+      )}
+      {hasDraft && (
+        <p className="detail-help">
+          输入框中尚未提交生成的草稿不包含在本次导出中。
+        </p>
+      )}
+      {project.proposal && (
+        <p className="detail-help">
+          合并或拆分方案尚未确认，本次导出当前页序。
+        </p>
+      )}
+      {error && (
+        <p className="error-text" role="alert">
+          {error}
+        </p>
+      )}
+      <div className="modal-actions">
+        <Button onClick={onClose} disabled={exporting}>
+          返回
+        </Button>
+        <Button
+          variant="primary"
+          onClick={download}
+          loading={exporting}
+          disabled={blocked}
+        >
+          {!exporting && <DownloadSimple size={18} />}
+          {exporting
+            ? "正在导出…"
+            : stale
+              ? "使用当前图片与最新备注下载"
+              : "下载 PPT"}
+        </Button>
+      </div>
+    </Modal>
+  );
+}
+
 function Rename({
   project,
   onClose,

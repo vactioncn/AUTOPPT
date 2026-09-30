@@ -9,9 +9,10 @@ import { once } from "node:events";
 import { DatabaseSync } from "node:sqlite";
 import sharp from "sharp";
 import { defaultSystem, composeScene, samplePlan } from "../shared/slides.mjs";
+import { inspectPresentation } from "./helpers/presentation.mjs";
 
 test(
-  "image workflow: full style grammar, text-only generation, append, retry, split/merge, history, disabled export",
+  "image workflow: full style grammar, text-only generation, append, retry, split/merge, history, image PPT with notes",
   { timeout: 120000 },
   async (t) => {
     const dir = mkdtempSync(path.join(tmpdir(), "autoppt-image-test-"));
@@ -464,6 +465,10 @@ test(
     );
     assert.equal((await poll(job)).status, "failed");
     assert((await read()).slides.at(-1).notes);
+    assert.match(
+      (await req(`/projects/${id}/export`, undefined, "GET", 400)).error,
+      /未完成/,
+    );
     await req(`/projects/${id}`, { styleId: "night" }, "PATCH");
     assert.equal(
       (await poll(await req(`/jobs/${job.id}/retry`, {}))).status,
@@ -480,6 +485,7 @@ test(
       202,
     );
     await until(() => held);
+    await req(`/projects/${id}/export`, undefined, "GET", 409);
     await req(`/jobs/${job.id}/cancel`, {});
     held();
     await until(
@@ -535,7 +541,20 @@ test(
       trial.id,
     );
     await req(`${route}/${trial.id}/inspect`, {}, "POST", 410);
-    await req(`/projects/${id}/export`, undefined, "GET", 410);
+    const exported = await fetch(base + `/projects/${id}/export`);
+    assert.equal(exported.status, 200);
+    assert.equal(
+      exported.headers.get("content-type"),
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    );
+    assert(
+      exported.headers.get("content-disposition").includes("filename*=UTF-8''"),
+    );
+    await inspectPresentation(
+      Buffer.from(await exported.arrayBuffer()),
+      (await read()).slides,
+    );
+    await req(`/projects/${id}/export?revision=-1`, undefined, "GET", 409);
     // Reject stale candidates instead of overwriting newer saved styles.
     await req(
       `/styles/${style.id}`,
@@ -602,6 +621,12 @@ test(
     await boot();
     project = await read();
     assert.equal(project.slides[0].image, "legacy.png");
+    const legacyExport = await fetch(base + `/projects/${id}/export`);
+    assert.equal(legacyExport.status, 200);
+    await inspectPresentation(
+      Buffer.from(await legacyExport.arrayBuffer()),
+      project.slides,
+    );
     job = await req(
       `/projects/${id}/render`,
       {
@@ -729,6 +754,16 @@ test(
       await expect(
         page.getByRole("heading", { name: "图片演讲验收", exact: true }),
       ).toBeVisible();
+      await page.getByRole("button", { name: "导出 PPT", exact: true }).click();
+      const initialDownload = page.waitForEvent("download");
+      await page.getByRole("button", { name: "下载 PPT", exact: true }).click();
+      const initialFile = await initialDownload;
+      assert.equal(initialFile.suggestedFilename(), "图片演讲验收.pptx");
+      assert.equal(await initialFile.failure(), null);
+      await inspectPresentation(
+        readFileSync(await initialFile.path()),
+        (await read()).slides,
+      );
       const first = page.locator(".slide-card").first();
       await first.locator(".slide-image").click();
       await expect(
@@ -736,7 +771,7 @@ test(
       ).toBeVisible();
       await expect(
         page.getByRole("button", { name: "导出 PPT", exact: true }),
-      ).toHaveCount(0);
+      ).toHaveCount(1);
       await expect(
         page.getByRole("button", { name: "编辑画面", exact: true }),
       ).toHaveCount(0);
@@ -749,6 +784,59 @@ test(
       ).toBeDisabled();
       await page.getByRole("button", { name: "关闭", exact: true }).click();
       mkdirSync(".impeccable/review", { recursive: true });
+      await req(`/projects/${id}/export`, undefined, "GET", 409);
+      await req(`/projects/${id}/export?allowStale=1`, undefined, "GET", 409);
+      await page.getByRole("button", { name: "导出 PPT", exact: true }).click();
+      await expect(
+        page.getByText(/图片尚未更新。本次将使用当前图片/),
+      ).toBeVisible();
+      // Failed downloads stay in the dialog with a recoverable error.
+      await page.route("**/api/projects/*/export?*", (route) =>
+        route.fulfill({
+          status: 500,
+          contentType: "application/json",
+          body: JSON.stringify({ error: "测试导出暂时失败" }),
+        }),
+      );
+      await page
+        .getByRole("button", {
+          name: "使用当前图片与最新备注下载",
+          exact: true,
+        })
+        .click();
+      await expect(page.getByRole("alert")).toHaveText("测试导出暂时失败");
+      await page.unroute("**/api/projects/*/export?*");
+      await page.screenshot({
+        path: ".impeccable/review/export-desktop.png",
+        fullPage: true,
+      });
+      await page.setViewportSize({ width: 390, height: 844 });
+      assert(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= window.innerWidth + 1,
+        ),
+      );
+      await page.screenshot({
+        path: ".impeccable/review/export-mobile.png",
+        fullPage: true,
+      });
+      const downloadEvent = page.waitForEvent("download");
+      await page
+        .getByRole("button", {
+          name: "使用当前图片与最新备注下载",
+          exact: true,
+        })
+        .click();
+      const downloaded = await downloadEvent;
+      assert.equal(downloaded.suggestedFilename(), "图片演讲验收.pptx");
+      assert.equal(await downloaded.failure(), null);
+      const current = await read();
+      await inspectPresentation(
+        readFileSync(await downloaded.path()),
+        current.slides,
+      );
+      await downloaded.saveAs(path.join(dir, "browser-export.pptx"));
+      await page.setViewportSize({ width: 1440, height: 1000 });
       await page.goto(base.replace("/api", "") + "/#styles");
       await page
         .getByRole("article")

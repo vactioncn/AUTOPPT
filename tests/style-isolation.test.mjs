@@ -1,21 +1,20 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { styleStamp, styleLanguageKey } from "../server/core.mjs";
-import { nearbyCompositions } from "../server/content-planning.mjs";
+import { styleStamp } from "../server/core.mjs";
 import { copyFixture, reviewFixture } from "./fixtures/screen-copy.mjs";
 
-test("selected style controls new pages; only an unchanged, known style can lock an approved page", async (t) => {
+test("raw style prompts stay exact and independent from reusable, source-bound screen copy", async (t) => {
   const dir = mkdtempSync(path.join(tmpdir(), "autoppt-style-isolation-"));
   process.env.AUTOPPT_DATA_DIR = dir;
   process.env.OPENAI_API_KEY = "local-fixture";
   process.env.OPENAI_BASE_URL = "http://127.0.0.1:1/v1";
   const originalFetch = globalThis.fetch;
-  const { design, styleLanguageFor, imagePrompt } =
+  const { design, imagePrompt, generateImage } =
     await import("../server/models.mjs");
-  const { db, get, put } = await import("../server/store.mjs");
+  const { db, put, get } = await import("../server/store.mjs");
   t.after(() => {
     globalThis.fetch = originalFetch;
     db.close();
@@ -24,213 +23,112 @@ test("selected style controls new pages; only an unchanged, known style can lock
   const minimal = {
     id: "minimal",
     name: "极简",
-    rules: "黑白底、荧光色块、无衬线字体、清晰端点、细线与准确留白。",
+    rules: "  黑白底、荧光色块。\n\n保持原来的标点和空白。\n",
     colors: ["#dfff00"],
+    referenceProfiles: [{ graphics: "UNWANTED_OLD_DIAGRAM" }],
   };
   const watercolor = {
     id: "watercolor",
     name: "水彩",
-    rules: "温暖桃色背景、中文衬线字体、纸张纹理、水彩笔触与丰富花卉装饰。",
+    rules: "\t温暖桃色背景、中文衬线字体、纸张纹理、水彩笔触与丰富花卉装饰。\n",
     colors: ["#edb1a0"],
   };
-  const language = (style) =>
-    Object.fromEntries(
-      [
-        "identity",
-        "typography",
-        "colorSystem",
-        "compositionPrinciples",
-        "graphicLanguage",
-        "detailLanguage",
-        "adaptationRules",
-        "avoid",
-      ].map((k) => [k, style.rules]),
-    );
-  const plan = (style) => ({
-    editScope: "composition",
-    detailText: ["补充说明"],
-    title: "一起参与",
-    displayText: ["一起参与"],
-    layout: style.rules + "标题居中、说明位于下方。",
-    visual: style.rules,
-    typography: style.rules,
-    visualForm: "typographic",
-    compositionKey: "centered",
-    selectionReason: "用邀请表达主题",
-    alternatives: [
-      { idea: "文字为主", reason: "突出邀请" },
-      { idea: "图像为主", reason: "强化氛围" },
-    ],
-    styleFeatures: ["当前字体", "当前配色", "当前材质"],
-    styleExecution: {
-      typeHierarchy: style.rules,
-      spatialRhythm: style.rules,
-      graphicHierarchy: style.rules,
-      microDetail: style.rules,
-    },
-  });
-  const brief = {
-    claim: "邀请",
-    relationship: "statement",
-    allowedForms: ["typographic"],
-    mustNotImply: [],
-  };
-  let output = plan(minimal),
-    lastRequest,
-    compilerCalls = 0;
+  const notes = "邀请一起参与。完整背景讲解留在口播。";
+  const brief = { claim: "邀请", relationship: "statement", mustNotImply: [] };
+  const calls = [];
   globalThis.fetch = async (url, options) => {
     assert.equal(url, "http://127.0.0.1:1/v1/chat/completions");
     const body = JSON.parse(options.body);
-    lastRequest = JSON.parse(body.messages[1].content[0].text);
-    assert.equal(body.messages[1].content.length, 1);
-    let response = output;
-    if (body.messages[0].content.includes("风格规范整理师")) {
-      compilerCalls++;
-      assert(!body.messages[0].content.includes("黑白与荧光强调"));
-      output = language(
-        lastRequest.name === minimal.name ? minimal : watercolor,
-      );
-      response = output;
-    } else if (body.messages[0].content.includes("演讲上屏文案编辑")) {
-      const editingCopy = lastRequest.feedback.includes("减少上屏文字");
-      response = copyFixture(
-        { ...lastRequest, previous: editingCopy ? null : lastRequest.previous },
-        ["一起参与"],
-      );
-      if (lastRequest.previous && !editingCopy)
-        response.entries.push({
-          text: "补充说明",
-          role: "support",
-          sourceQuote: lastRequest.notes,
-        });
-    } else if (body.messages[0].content.includes("演讲上屏文案复核编辑")) {
-      response = reviewFixture(lastRequest);
-    } else {
-      response = {
-        ...output,
-        displayText: lastRequest.screenCopy.displayText,
-        editScope: lastRequest.screenCopy.editScope,
-      };
-    }
-    return new Response(
-      JSON.stringify({
-        choices: [{ message: { content: JSON.stringify(response) } }],
-      }),
-      { status: 200 },
-    );
+    const data = JSON.parse(body.messages[1].content[0].text);
+    calls.push(data);
+    assert(!("style" in data));
+    assert(!("designLanguage" in data));
+    assert(!("savedObservations" in data));
+    assert(!options.body.includes("荧光"));
+    assert(!options.body.includes("水彩"));
+    assert(!options.body.includes("VISUAL_FEEDBACK"));
+    let response;
+    if (body.messages[0].content.includes("演讲上屏文案复核编辑"))
+      response = reviewFixture(data);
+    else if (body.messages[0].content.includes("演讲上屏文案编辑"))
+      response = copyFixture(data, [data.feedback ? "参与" : "一起参与"]);
+    else assert.fail("Style rewriting or visual planning must not be called");
+    return Response.json({
+      choices: [{ message: { content: JSON.stringify(response) } }],
+    });
   };
   put("style", minimal);
-  put("styleLanguage", {
-    id: "language-v3-" + styleStamp(watercolor).fingerprint,
-    language: language(minimal),
-  });
-  assert.deepEqual(await styleLanguageFor(minimal), language(minimal));
-  assert.deepEqual(await styleLanguageFor(watercolor), language(watercolor));
-  assert.equal(compilerCalls, 2);
-  await styleLanguageFor(minimal);
-  assert.equal(compilerCalls, 2);
-  assert.deepEqual(get("style", minimal.id), minimal);
-  assert(get("styleLanguage", styleLanguageKey(watercolor)));
-
   const render = (style, previous = null, extra = {}) =>
-    design(
-      "邀请一起参与",
-      style,
-      "测试",
-      "保留布局，只补细节",
-      previous,
-      undefined,
-      {
-        contentBrief: brief,
-        designLanguage: language(style),
-        notesUnchanged: true,
-        ...extra,
-      },
-    );
-  output = plan(minimal);
-  const approved = await render(minimal);
-  assert.equal(approved.visual, minimal.rules);
-  assert.equal(lastRequest.previous, null);
-  assert.deepEqual(approved.sourceStyle, styleStamp(minimal));
-  output = { ...plan(watercolor), editScope: "details" }; // Deliberately wrong model edit scope.
-  const refined = await render(minimal, approved);
-  assert.equal(refined.editScope, "details");
-  assert.equal(refined.visual, approved.visual);
-  assert.equal(refined.layout, approved.layout);
-  assert.equal(
-    refined.visualDirection.typography,
-    approved.visualDirection.typography,
-  );
-  assert.deepEqual(refined.displayText, ["一起参与", "补充说明"]);
-  const reduced = await design(
-    "邀请一起参与",
-    minimal,
-    "测试",
-    "保留风格，减少上屏文字",
-    refined,
-    undefined,
-    {
+    design(notes, style, "测试", "VISUAL_FEEDBACK", previous, undefined, {
       contentBrief: brief,
-      designLanguage: language(minimal),
-    },
+      ...extra,
+    });
+  const approved = await render(minimal);
+  assert.equal(calls.length, 2);
+  assert.deepEqual(approved.sourceStyle, styleStamp(minimal));
+  assert.equal(approved.styleRules, minimal.rules);
+  assert(
+    imagePrompt(approved).includes(
+      "【第一部分：设计风格提示词】\n" + minimal.rules + "\n\n【第二部分",
+    ),
   );
-  assert.equal(reduced.editScope, "composition");
-  assert.deepEqual(reduced.displayText, ["一起参与"]);
-  assert.equal(lastRequest.refinementAllowed, false);
+  assert(!imagePrompt(approved).includes("UNWANTED_OLD_DIAGRAM"));
+  assert(!imagePrompt(approved).includes("完整背景讲解留在口播"));
+  assert(imagePrompt(approved).includes("VISUAL_FEEDBACK"));
+  assert.deepEqual(get("style", minimal.id), minimal);
   for (const style of [watercolor, { ...minimal, rules: watercolor.rules }]) {
     const changed = await render(style, approved);
-    assert.equal(lastRequest.previous, null);
-    assert.equal(lastRequest.refinementAllowed, false);
-    assert.equal(changed.editScope, "composition");
-    assert.equal(changed.visual, watercolor.rules);
-    assert.equal(changed.visualDirection.typography, watercolor.rules);
+    assert.equal(
+      calls.length,
+      2,
+      "changing only style must not invoke content models",
+    );
+    assert(changed.copyReused);
+    assert.deepEqual(changed.displayText, approved.displayText);
+    assert.deepEqual(changed.screenCopy, approved.screenCopy);
     const prompt = imagePrompt(changed);
     assert(prompt.includes(watercolor.rules));
     assert(!prompt.includes("荧光"));
-    assert(!prompt.includes("Keep fine line hierarchy"));
-    assert(!prompt.includes("without mottling, paper texture"));
+    assert(!prompt.includes("RESOLVED STYLE EXECUTION"));
   }
-  const removedAttachment = await render(minimal, {
-    ...approved,
-    attachments: [{ id: "removed" }],
+  const edited = await render(watercolor, approved, {
+    copyFeedback: "只保留参与两个字",
   });
-  assert.equal(removedAttachment.editScope, "composition");
-  assert.equal(lastRequest.previous, null);
-  const legacy = { ...approved };
-  delete legacy.sourceStyle;
-  assert.equal((await render(minimal, legacy)).editScope, "composition");
-  assert.equal(
-    (await render(minimal, legacy, { previousStyle: styleStamp(minimal) }))
-      .editScope,
-    "details",
+  assert.equal(calls.length, 4);
+  assert.deepEqual(calls[2].currentCopy, approved.displayText);
+  assert.deepEqual(calls[3].currentCopy, approved.displayText);
+  assert.equal(calls[2].previous, null);
+  assert.deepEqual(edited.displayText, ["参与"]);
+  assert(!edited.copyReused);
+  const updated = await design(
+    notes + "补充条件。",
+    minimal,
+    "测试",
+    "",
+    approved,
+    undefined,
+    { contentBrief: brief },
   );
-  assert.equal(
-    (await render(minimal, approved, { notesUnchanged: false })).editScope,
-    "composition",
+  assert.equal(calls.length, 6);
+  assert.equal(calls[4].currentCopy, null);
+  assert(!updated.copyReused);
+  writeFileSync(path.join(dir, "assets", "chart.png"), Buffer.from("fixture"));
+  const withAttachment = await render(minimal, approved, {
+    attachments: [
+      { id: "chart", filename: "chart.png", width: 100, height: 100 },
+    ],
+  });
+  // A new attachment must require re-editing the copy, not borrow the old source key.
+  assert(!withAttachment.copyReused);
+  const legacy = {
+    ...approved,
+    screenCopy: { ...approved.screenCopy, version: 1 },
+  };
+  const migrated = await render(minimal, legacy);
+  assert(!migrated.copyReused);
+  assert.throws(
+    () => imagePrompt({ ...approved, displayText: ["偷偷增加文字"] }),
+    /排版改动/,
   );
-  assert.equal(
-    (
-      await design("邀请一起参与", minimal, "测试", "", approved, undefined, {
-        contentBrief: brief,
-        designLanguage: language(minimal),
-      })
-    ).editScope,
-    "composition",
-  );
-  const pages = [
-    { id: "a", plan: approved },
-    {
-      id: "b",
-      plan: { ...plan(watercolor), sourceStyle: styleStamp(watercolor) },
-    },
-    { id: "current" },
-    { id: "c", plan: legacy, planStyle: styleStamp(minimal) },
-    { id: "unknown", plan: legacy },
-  ];
-  assert.deepEqual(
-    nearbyCompositions(pages, "current", styleStamp(minimal).fingerprint).map(
-      (p) => p.id,
-    ),
-    ["a", "c"],
-  );
+  await assert.rejects(generateImage(approved, watercolor), /风格已变化/);
 });

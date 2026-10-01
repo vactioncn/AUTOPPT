@@ -13,12 +13,12 @@ import {
   analyzeStyle,
   generateImage,
   analyzePageContents,
-  styleLanguageFor,
 } from "./models.mjs";
-import { PLANNING_VERSION, nearbyCompositions } from "./content-planning.mjs";
+import { PLANNING_VERSION } from "./content-planning.mjs";
 import { snapshot, styleStamp } from "./core.mjs";
 import { MANUSCRIPT_VERSION, spokenManuscript } from "./manuscript.mjs";
 import { runTrial } from "./trials.mjs";
+import { reusableScreenCopy } from "./screen-copy.mjs";
 import { attachmentKey } from "./attachments.mjs";
 const controllers = new Map();
 let processing = false;
@@ -165,6 +165,16 @@ export function newSlide(
 }
 async function prepareContent(j, pages, contextText, signal) {
   j.payload.contentBriefs ||= {};
+  for (const page of pages) {
+    if (
+      page.plan?.contentBrief?.version === PLANNING_VERSION &&
+      reusableScreenCopy(page.plan.screenCopy, page.notes, page.attachments)
+    )
+      j.payload.contentBriefs[page.id] = {
+        notes: page.notes,
+        brief: page.plan.contentBrief,
+      };
+  }
   const missing = pages.filter((p) => {
     const saved = j.payload.contentBriefs[p.id];
     return (
@@ -176,11 +186,15 @@ async function prepareContent(j, pages, contextText, signal) {
   if (missing.length) {
     progress(
       j,
-      `正在梳理 ${missing.length} 页的内容关系，再构思画面`,
+      `正在梳理 ${missing.length} 页的内容重点，再提炼上屏文案`,
       0,
       pages.length,
     );
-    const briefs = await analyzePageContents(missing, contextText, signal);
+    const briefs = await analyzePageContents(
+      missing.map(({ id, notes }) => ({ id, notes })),
+      contextText,
+      signal,
+    );
     signal.throwIfAborted();
     for (const page of missing)
       j.payload.contentBriefs[page.id] = {
@@ -206,12 +220,15 @@ async function renderSlides(j, ids, signal, redesign = false) {
   if (!pending.length) return;
   const briefs = await prepareContent(
     j,
-    pending.map((s) => ({ id: s.id, notes: s.notes })),
+    pending.map((s) => ({
+      id: s.id,
+      notes: s.notes,
+      plan: s.pendingPlan || s.plan,
+      attachments: j.payload.attachmentSnapshots?.[s.id] ?? s.attachments ?? [],
+    })),
     context(initial, pending[0].id),
     signal,
   );
-  progress(j, "正在准备可延伸的风格规范", 0, pending.length);
-  const language = await styleLanguageFor(styleFor(initial, j), signal);
   for (const sid of ids) {
     signal.throwIfAborted();
     let p = projectOrThrow(j.projectId);
@@ -258,11 +275,11 @@ async function renderSlides(j, ids, signal, redesign = false) {
           style,
           context(p, s.id),
           j.payload.feedback || "",
-          redesign ? s.plan : null,
+          s.pendingPlan || s.plan,
           signal,
           {
             contentBrief: briefs[s.id],
-            designLanguage: language,
+            copyFeedback: j.payload.copyFeedback || "",
             onProgress: (stage) =>
               progress(
                 j,
@@ -270,10 +287,6 @@ async function renderSlides(j, ids, signal, redesign = false) {
                 completed,
                 ids.length,
               ),
-            // Changed source copy must be re-edited; never freeze an obsolete headline or number.
-            notesUnchanged: !s.stale,
-            previousStyle: s.planStyle,
-            nearbyPages: nearbyCompositions(p.slides, s.id, stamp.fingerprint),
             attachments,
           },
         );
@@ -433,7 +446,6 @@ async function run(j, signal) {
     const initialRevision = p.revision;
     const pages = j.payload.notes.map((notes, i) => ({ id: String(i), notes }));
     const briefs = await prepareContent(j, pages, context(p), signal);
-    const language = await styleLanguageFor(style, signal);
     for (let i = 0; i < j.payload.notes.length; i++) {
       progress(
         j,
@@ -451,13 +463,7 @@ async function run(j, signal) {
           signal,
           {
             contentBrief: briefs[String(i)],
-            designLanguage: language,
-            nearbyPages: plans.map((plan) => ({
-              title: plan.title,
-              visualForm: plan.visualForm,
-              compositionKey: plan.compositionKey,
-              visual: plan.visual,
-            })),
+            copyFeedback: j.payload.copyFeedback || "",
           },
         ),
       );

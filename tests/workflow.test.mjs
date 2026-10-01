@@ -13,7 +13,7 @@ import { inspectPresentation } from "./helpers/presentation.mjs";
 import { copyFixture, reviewFixture } from "./fixtures/screen-copy.mjs";
 
 test(
-  "image workflow: full style grammar, text-only generation, append, retry, split/merge, history, image PPT with notes",
+  "image workflow: verbatim styles, independent copy, append, retry, split/merge, history, image PPT with notes",
   { timeout: 120000 },
   async (t) => {
     const dir = mkdtempSync(path.join(tmpdir(), "autoppt-image-test-"));
@@ -24,11 +24,9 @@ test(
     const calls = [];
     const imageRequests = [];
     const editRequests = [];
-    let omitAttachment = false;
     let failImage = false;
     let transparentImage = false;
-    let rejectCopyReview = false,
-      changeDesignedCopy = false;
+    let rejectCopyReview = false;
     let imageCalls = 0,
       failDesign = false,
       failSegment = false,
@@ -96,23 +94,12 @@ test(
         (c) => c.type === "image_url",
       ).length;
       let output;
-      if (system.includes("风格规范整理师")) {
-        calls.push({ type: "language", refs, data: JSON.parse(user) });
-        output = Object.fromEntries(
-          [
-            "identity",
-            "typography",
-            "colorSystem",
-            "compositionPrinciples",
-            "graphicLanguage",
-            "detailLanguage",
-            "adaptationRules",
-            "avoid",
-          ].map((k) => [
-            k,
-            (k === "identity" ? "UNRESOLVED LIBRARY VARIANTS: " : "") +
-              "浅色底、蓝色细线、Regular 字体、克制标注和开放留白。随内容创作关系，不固定画面。",
-          ]),
+      if (
+        system.includes("风格规范整理师") ||
+        system.includes("演讲页面设计师")
+      ) {
+        assert.fail(
+          "Generation must not rewrite styles or call a visual planner",
         );
       } else if (system.includes("演讲内容关系分析师")) {
         const data = JSON.parse(user);
@@ -183,7 +170,27 @@ test(
         };
       } else if (system.includes("演讲上屏文案编辑")) {
         const data = JSON.parse(user);
-        calls.push({ type: "copy", refs, data });
+        calls.push({
+          type: "copy",
+          refs,
+          data,
+          imageInputs: input.messages[1].content
+            .filter((c) => c.type === "image_url")
+            .map((c) => Buffer.from(c.image_url.url.split(",")[1], "base64")),
+        });
+        assert(!("style" in data));
+        if (holdDesign) {
+          holdDesign = false;
+          await new Promise((r) => {
+            held = r;
+          });
+        }
+        if (failDesign) {
+          failDesign = false;
+          res.statusCode = 503;
+          res.end('{"error":{"message":"Test copy failure"}}');
+          return;
+        }
         output = copyFixture(data);
         if (output.editScope === "composition")
           output.entries.push({
@@ -203,73 +210,6 @@ test(
           rejectCopyReview = false;
           output.checks.readable = false;
           output.splitSuggestion = "建议把两个独立观点手动拆页";
-        }
-      } else if (system.includes("演讲页面设计师")) {
-        const data = JSON.parse(user);
-        calls.push({
-          type: "design",
-          refs,
-          data,
-          imageInputs: input.messages[1].content
-            .filter((c) => c.type === "image_url")
-            .map((c) => Buffer.from(c.image_url.url.split(",")[1], "base64")),
-        });
-        if (holdDesign) {
-          holdDesign = false;
-          await new Promise((r) => {
-            held = r;
-          });
-        }
-        if (failDesign) {
-          failDesign = false;
-          res.statusCode = 503;
-          res.end('{"error":{"message":"Test design failure"}}');
-          return;
-        }
-        output = {
-          editScope: data.screenCopy.editScope,
-          attachmentPlacements: omitAttachment
-            ? []
-            : (data.attachments || []).map((a, i) => ({
-                id: a.id,
-                role: "原始产品与图表材料",
-                placement: `材料 ${i + 1} 按比例排列，旁边保留讲述文字`,
-                preserve: "保留图表数值、原图文字和产品细节",
-              })),
-          detailText: [],
-          title: "LOCAL TEST FIXTURE",
-          displayText: data.screenCopy.displayText,
-          visualForm: data.contentBrief.allowedForms[0],
-          compositionKey: data.contentBrief.allowedForms[0] + "原创构图",
-          selectionReason: "基于本页关系决定表现，不从参考图匹配模板",
-          alternatives: [
-            { idea: "直接表达原文关系", reason: "能够看见本页的核心关系" },
-            { idea: "用装饰图形", reason: "不如直接表达清楚" },
-          ],
-          typography: "Regular 细字重，清楚区分主次层级",
-          styleExecution: {
-            typeHierarchy:
-              "大字采用 Regular 笔画，正文更小，微型标注保持明确的尺度反差。",
-            spatialRhythm:
-              "标题与说明共享左对齐轴，空场集中在图形周围，不平均摊开各元素。",
-            graphicHierarchy:
-              "主体关系用细线，辅助引导线更浅，以精确端点形成清楚的图形层级。",
-            microDetail:
-              "本地测试不编造辅助事实，短标签保留在上屏文案中并使用疏排小字。",
-          },
-          layout: "标题与图形按内容关系组织，留白充分",
-          visual: "轻细线条与标注，直接表达关系，不套原插画",
-          styleFeatures: [
-            "细线轮廓落在右侧",
-            "Regular 标题放左侧",
-            "微型标注对应内容",
-          ],
-          adaptations: "按讲稿重新构思表达",
-          rationale: "按讲稿设计概念图形",
-        };
-        if (changeDesignedCopy) {
-          changeDesignedCopy = false;
-          output.displayText = [...output.displayText, "排版重新加回的解释"];
         }
       } else {
         res.statusCode = 400;
@@ -434,6 +374,28 @@ test(
     assert.equal(project.slides[0].review, null);
     const frozenCalls = calls.filter((c) => c.type === "system").length;
     const sid = project.slides[0].id;
+    const contentCallsBeforeStyleChange = calls.length;
+    const stableCopy = project.slides[0].plan.screenCopy;
+    for (const nextStyle of ["night", style.id]) {
+      await req(`/projects/${id}`, { styleId: nextStyle }, "PATCH");
+      const changeStyleJob = await req(
+        `/projects/${id}/render`,
+        { slideIds: [sid], redesign: true },
+        "POST",
+        202,
+      );
+      assert.equal((await poll(changeStyleJob)).status, "completed");
+      const changed = (await read()).slides[0];
+      assert.equal(changed.imageStyle.id, nextStyle);
+      assert(changed.plan.copyReused);
+      assert.deepEqual(changed.plan.screenCopy, stableCopy);
+      assert.equal(
+        calls.length,
+        contentCallsBeforeStyleChange,
+        "style changes must not repeat content analysis or copy editing",
+      );
+    }
+    project = await read();
     const originalImage = project.slides[0].image;
     assert.equal(project.slides[0].plan.screenCopy.review.status, "reviewed");
     assert(
@@ -442,21 +404,20 @@ test(
     );
     assert(!imageRequests[0].prompt.includes(text));
     assert(
-      imageRequests[0].prompt.includes(
-        JSON.stringify(project.slides[0].plan.screenCopy.displayText),
+      project.slides[0].plan.screenCopy.displayText.every((text) =>
+        imageRequests[0].prompt.includes(text),
       ),
     );
     assert.equal(
       project.slides[0].plan.screenCopy.metrics.sourceCharacters,
       [...text].length,
     );
-    for (const kind of ["review", "layout"]) {
+    for (const kind of ["review"]) {
       const imageCount = imageCalls;
-      if (kind === "review") rejectCopyReview = true;
-      else changeDesignedCopy = true;
+      rejectCopyReview = true;
       const rejectedCopy = await req(
         `/projects/${id}/render`,
-        { slideIds: [sid], redesign: true },
+        { slideIds: [sid], redesign: true, copyFeedback: "重新提炼文字" },
         "POST",
         202,
       );
@@ -481,11 +442,11 @@ test(
     );
     assert.equal((await poll(job)).status, "failed");
     assert.equal((await read()).slides[0].image, originalImage);
-    const designCount = calls.filter((c) => c.type === "design").length;
+    const designCount = calls.filter((c) => c.type === "copy").length;
     const copyReviewCount = calls.filter((c) => c.type === "copyReview").length;
     assert((await read()).slides[0].pendingPlan);
     await poll(await req(`/jobs/${job.id}/retry`, {}));
-    assert.equal(calls.filter((c) => c.type === "design").length, designCount);
+    assert.equal(calls.filter((c) => c.type === "copy").length, designCount);
     assert.equal(
       calls.filter((c) => c.type === "copyReview").length,
       copyReviewCount,
@@ -508,13 +469,13 @@ test(
     assert.equal(rejected.status, "failed");
     assert.match((await read()).slides[0].error, /透明底/);
     assert.equal((await read()).slides[0].image, originalImage);
-    const beforeOpaqueRetry = calls.filter((c) => c.type === "design").length;
+    const beforeOpaqueRetry = calls.filter((c) => c.type === "copy").length;
     assert.equal(
       (await poll(await req(`/jobs/${transparentJob.id}/retry`, {}))).status,
       "completed",
     );
     assert.equal(
-      calls.filter((c) => c.type === "design").length,
+      calls.filter((c) => c.type === "copy").length,
       beforeOpaqueRetry,
     );
     const cuts = [5, 10, 15, 20]; // Explicit UTF-16 source offsets, preserving the original text.
@@ -645,10 +606,10 @@ test(
     trial = (await trials()).trials.find((t) => t.id === trial.id);
     assert(trial.image);
     assert.equal(trial.scene, null);
-    assert.equal(trial.plan.layoutId, "");
-    assert.equal(trial.plan.selectionMode, "content-first");
+    assert.equal(trial.plan.promptMode, "verbatim-style-v1");
+    assert.equal(trial.plan.styleRules, style.rules);
     assert.equal(trial.review, null);
-    assert.equal(trial.plan.visualDirection.graphics, trial.plan.visual);
+    assert(trial.plan.imageRequest.prompt.includes(style.rules));
     await req(`${route}/${trial.id}/apply`, {});
     style = (await req("/bootstrap")).styles.find((s) => s.id === style.id);
     assert.equal(style.appliedTrialId, trial.id);
@@ -666,7 +627,12 @@ test(
       202,
     );
     assert.equal((await poll({ id: refined.jobId })).status, "completed");
-    assert.equal(calls.filter((c) => c.type === "system").at(-1).refs, 0);
+    assert.equal(calls.filter((c) => c.type === "system").length, frozenCalls);
+    const refinedTrial = (await trials()).trials.find(
+      (t) => t.id === refined.id,
+    );
+    assert.equal(refinedTrial.styleSnapshot.rules, style.rules);
+    assert(refinedTrial.plan.copyReused);
     assert.equal(
       (await req("/bootstrap")).styles.find((s) => s.id === style.id)
         .appliedTrialId,
@@ -704,30 +670,16 @@ test(
       assert.equal((await poll(j)).status, "completed");
     }
     const newer = (await read()).slides.slice(-2);
-    assert.equal(newer[0].plan.visualForm, "position");
-    assert.equal(newer[1].plan.visualForm, "flow");
+    assert.equal(newer[0].plan.contentBrief.relationship, "positioning");
+    assert.equal(newer[1].plan.contentBrief.relationship, "causality");
     assert(
       calls
-        .filter((c) => c.type === "design")
-        .at(-1)
-        .data.nearbyPages.some((p) => p.visualForm === "position"),
+        .filter((c) => ["meaning", "copy", "copyReview"].includes(c.type))
+        .every((c) => !("style" in c.data)),
     );
-    assert(
-      calls
-        .filter((c) => c.type === "design")
-        .every(
-          (c) =>
-            !("visualDirections" in c.data.style) &&
-            !("requiredLayoutId" in c.data),
-        ),
-    );
-    assert(
-      calls
-        .filter((c) => c.type === "meaning")
-        .every((c) => !("style" in c.data) && c.refs === 0),
-    );
-    assert(
-      calls.filter((c) => c.type === "language").every((c) => c.refs === 0),
+    assert.equal(
+      calls.filter((c) => ["design", "language"].includes(c.type)).length,
+      0,
     );
     // Both old raster and old web pages survive the transition until explicitly regenerated.
     await shutdown();
@@ -780,10 +732,10 @@ test(
       202,
     );
     assert.equal((await poll(job)).status, "completed");
-    const legacyRequest = calls.filter((c) => c.type === "design").at(-1).data;
-    // The style rules changed since this legacy page was made.
-    assert.equal(legacyRequest.previous, null);
-    assert.equal(legacyRequest.feedback, "保留原有构图，只补对齐和说明细节");
+    assert(
+      imageRequests.at(-1).prompt.includes("保留原有构图，只补对齐和说明细节"),
+    );
+    assert(imageRequests.at(-1).prompt.includes(style.rules));
     project = await read();
     assert(project.slides[0].image);
     assert.equal(project.slides[0].versions.at(-1).image, "legacy.png");
@@ -796,10 +748,7 @@ test(
       202,
     );
     assert.equal((await poll(job)).status, "completed");
-    assert.equal(
-      calls.filter((c) => c.type === "design").at(-1).data.previous,
-      null,
-    );
+    assert.equal((await read()).slides[1].plan.promptMode, "verbatim-style-v1");
     project = await read();
     assert(project.slides[1].image);
     assert.equal(project.slides[1].scene, null);
@@ -823,7 +772,7 @@ test(
     );
     assert.equal((await poll(changedSourceJob)).status, "completed");
     const changedSourceRequest = calls
-      .filter((c) => c.type === "design")
+      .filter((c) => c.type === "copy")
       .at(-1).data;
     assert.equal(changedSourceRequest.previous, null);
     assert.equal(changedSourceRequest.notes, revisedNotes);
@@ -846,19 +795,16 @@ test(
       ),
     );
     assert(
-      imageRequests.some((r) =>
-        r.prompt.includes("轻细线条与标注，直接表达关系，不套原插画"),
+      imageRequests.every((r) =>
+        r.prompt.includes("【第一部分：设计风格提示词】"),
       ),
     );
-    assert(
-      imageRequests.every((r) => r.prompt.includes("RESOLVED STYLE EXECUTION")),
-    );
-    assert(imageRequests.every((r) => r.prompt.includes("DETAIL LABEL")));
     assert(
       imageRequests.every((r) =>
-        r.prompt.includes("正文更小，微型标注保持明确的尺度反差"),
+        r.prompt.includes("【第二部分：已提炼并复核的上屏内容】"),
       ),
     );
+    assert(imageRequests.every((r) => r.prompt.includes("DETAIL LABEL")));
     assert(imageRequests.every((r) => !r.prompt.includes("savedObservations")));
     assert(
       imageRequests.every(
@@ -917,21 +863,36 @@ test(
       await expect(
         page.getByRole("button", { name: "编辑画面", exact: true }),
       ).toHaveCount(0);
-      await page.getByRole("button", { name: "设计方案", exact: true }).click();
-      await page.locator(".copy-review summary").click();
-      await expect(page.locator(".copy-review")).toContainText(
-        "方案生成时的讲稿",
+      await page
+        .getByRole("button", { name: "上屏文案与风格", exact: true })
+        .click();
+      const copyReview = page.locator(".copy-review").filter({
+        has: page.locator("summary", { hasText: "文字取舍与密度" }),
+      });
+      await copyReview.locator("summary").click();
+      await expect(copyReview).toContainText("方案生成时的讲稿");
+      await expect(copyReview).toContainText("不含附件图片内的文字");
+      const rawStyle = page.locator(".copy-review").filter({
+        has: page.locator("summary", { hasText: "本次风格提示词原文" }),
+      });
+      await rawStyle.locator("summary").click();
+      await expect(rawStyle.locator(".rules-text")).toHaveText(style.rules);
+      const sentPrompt = page.locator(".copy-review").filter({
+        has: page.locator("summary", { hasText: "实际发送的出图提示词" }),
+      });
+      await sentPrompt.locator("summary").click();
+      await expect(sentPrompt.locator(".rules-text")).toContainText(
+        style.rules,
       );
-      await expect(page.locator(".copy-review")).toContainText(
-        "不含附件图片内的文字",
-      );
+      await sentPrompt.locator("summary").click();
+      await rawStyle.locator("summary").click();
       mkdirSync(".impeccable/review", { recursive: true });
       for (const [label, width, height] of [
         ["desktop", 1440, 1000],
         ["mobile", 390, 844],
       ]) {
         await page.setViewportSize({ width, height });
-        await page.locator(".copy-review").scrollIntoViewIfNeeded();
+        await copyReview.scrollIntoViewIfNeeded();
         await page.screenshot({
           path: `.impeccable/review/copy-density-${label}.png`,
         });
@@ -1053,7 +1014,16 @@ test(
       await expect(page.getByRole("button", { name: /复刻参考/ })).toHaveCount(
         0,
       );
-      await page.getByText("完整设计规范", { exact: true }).click();
+      await expect(
+        page.getByLabel("画面调整（可选）", { exact: true }),
+      ).toBeVisible();
+      await expect(
+        page.getByLabel("上屏文字调整（可选）", { exact: true }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: "调整规范并再试", exact: true }),
+      ).toHaveCount(0);
+      await page.getByText("设计提示词原文", { exact: true }).click();
       await page.evaluate(() => window.scrollTo(0, 0));
       await page.screenshot({
         path: ".impeccable/review/image-desktop.png",
@@ -1070,6 +1040,12 @@ test(
       await page.screenshot({
         path: ".impeccable/review/image-mobile.png",
         fullPage: true,
+      });
+      await page
+        .getByLabel("画面调整（可选）", { exact: true })
+        .scrollIntoViewIfNeeded();
+      await page.screenshot({
+        path: ".impeccable/review/direct-style-mobile.png",
       });
       assert(
         await page.evaluate(
@@ -1216,7 +1192,7 @@ test(
     assert.deepEqual(materialSlide.imageStyle.imageRefs, []);
     const priorVersion = materialSlide.versions.at(-1);
     assert.deepEqual(priorVersion.attachments, []);
-    const designInput = calls.filter((c) => c.type === "design").at(-1);
+    const designInput = calls.filter((c) => c.type === "copy").at(-1);
     const edit = editRequests.at(-1);
     assert.equal(designInput.refs, 4);
     for (const type of ["copy", "copyReview"]) {
@@ -1229,10 +1205,7 @@ test(
       );
     }
     assert.equal(edit.files.length, 4);
-    assert.match(
-      edit.prompt,
-      /required CONTENT MATERIALS, not style references/,
-    );
+    assert.match(edit.prompt, /内容素材，不是风格参考/);
     assert(!edit.prompt.includes("Text-only generation"));
     for (let i = 0; i < attachments.length; i++) {
       const original = readFileSync(
@@ -1242,12 +1215,11 @@ test(
       assert.deepEqual(edit.files[i], original);
       assert.notDeepEqual(original, image);
     }
-    // Missing placement fails before a paid image request and preserves the rendered page.
+    // Failed content review with new materials stops before image generation.
     const savedImage = materialSlide.image;
     const editsBeforeInvalid = editRequests.length;
-    omitAttachment = true;
+    rejectCopyReview = true;
     assert.equal((await rendered(attachmentIds.slice(0, 1))).status, "failed");
-    omitAttachment = false;
     assert.equal(editRequests.length, editsBeforeInvalid);
     assert.equal((await read()).slides[0].image, savedImage);
     assert.equal((await read()).slides[0].pendingAttachments.length, 1);
@@ -1257,14 +1229,14 @@ test(
     assert.equal(failedJob.status, "failed");
     assert.match((await read()).slides[0].error, /Images Edits/);
     assert.equal((await read()).slides[0].image, savedImage);
-    const plansBeforeRetry = calls.filter((c) => c.type === "design").length;
+    const plansBeforeRetry = calls.filter((c) => c.type === "copy").length;
     const textOnlyBeforeRetry = imageRequests.length;
     assert.equal(
       (await poll(await req(`/jobs/${failedJob.id}/retry`, {}))).status,
       "completed",
     );
     assert.equal(
-      calls.filter((c) => c.type === "design").length,
+      calls.filter((c) => c.type === "copy").length,
       plansBeforeRetry,
     );
     assert.equal(imageRequests.length, textOnlyBeforeRetry);
@@ -1277,7 +1249,8 @@ test(
     });
     assert.deepEqual((await read()).slides[0].attachments, []);
     assert.equal((await rendered([])).status, "completed");
-    assert.equal(calls.filter((c) => c.type === "design").at(-1).refs, 0);
+    assert.deepEqual((await read()).slides[0].plan.attachments, []);
+    assert((await read()).slides[0].plan.copyReused);
     assert.equal(
       (await read()).slides[0].plan.imageRequest.referenceMode,
       "rules-only",
@@ -1310,13 +1283,14 @@ test(
           r.background === "opaque",
       ),
     );
+    assert(imageRequests.some((r) => r.prompt.includes(style.rules)));
     assert(
-      imageRequests.some((r) =>
-        r.prompt.includes("轻细线条与标注，直接表达关系，不套原插画"),
+      imageRequests.every(
+        (r) => !r.prompt.includes("RESOLVED STYLE EXECUTION"),
       ),
     );
     console.log(
-      `Verified ${dir}; ${calls.filter((c) => c.type === "design").length} designs (style refs excluded); image requests=${imageCalls}`,
+      `Verified ${dir}; ${calls.filter((c) => c.type === "copy").length} designs (style refs excluded); image requests=${imageCalls}`,
     );
   },
 );

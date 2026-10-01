@@ -27,7 +27,6 @@ import {
   sentences,
   unitsFromEnds,
   styleStamp,
-  styleLanguageKey,
 } from "./core.mjs";
 import {
   enqueue,
@@ -114,7 +113,7 @@ const styleReady = (styleId) => {
 app.get("/api/health", (req, res) => res.json({ app: "AutoPPT", ok: true }));
 app.get("/api/bootstrap", (req, res) =>
   res.json({
-    features: { styleUrlImport: true },
+    features: { styleUrlImport: true, directStylePrompt: true },
     projects: all("project")
       .map((p) => ({
         id: p.id,
@@ -129,10 +128,7 @@ app.get("/api/bootstrap", (req, res) =>
         wordCount: p.slides.reduce((n, s) => n + s.notes.trim().length, 0),
       }))
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
-    styles: all("style").map((s) => ({
-      ...s,
-      designLanguage: get("styleLanguage", styleLanguageKey(s))?.language,
-    })),
+    styles: all("style"),
     settings: publicSettings(),
     jobs: all("job")
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
@@ -289,6 +285,7 @@ app.post("/api/projects/:id/render", (req, res) => {
       redesign:
         req.body.attachmentIds !== undefined || req.body.redesign !== false,
       feedback: String(req.body.feedback || "").slice(0, 10000),
+      copyFeedback: String(req.body.copyFeedback || "").slice(0, 10000),
       attachmentSnapshots,
     }),
   );

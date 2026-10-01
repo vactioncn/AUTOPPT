@@ -1,3 +1,4 @@
+import { RawPromptDetails } from "./RawPromptDetails";
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Plus,
@@ -996,6 +997,7 @@ function SlideDetail({
   const [tab, setTab] = useState("notes"),
     [notes, setNotes] = useState(slide.notes),
     [feedback, setFeedback] = useState(""),
+    [copyFeedback, setCopyFeedback] = useState(""),
     [loading, setLoading] = useState(false),
     [error, setError] = useState(""),
     [history, setHistory] = useState<string | null>(null);
@@ -1052,6 +1054,7 @@ function SlideDetail({
   useEffect(() => {
     setNotes(slide.notes);
     setFeedback("");
+    setCopyFeedback("");
     setHistory(null);
   }, [slide.id, slide.notes]);
   const dirty = notes !== slide.notes;
@@ -1086,6 +1089,7 @@ function SlideDetail({
         slideIds: [slide.id],
         redesign: true,
         feedback,
+        copyFeedback,
         attachmentIds: attachments.map((a) => a.id),
       });
       notify("正在换一个思路重新设计，旧版本会保留。");
@@ -1210,10 +1214,20 @@ function SlideDetail({
                 value={feedback}
                 onChange={(e) => setFeedback(e.target.value)}
                 placeholder={
-                  "例如：文字太多了，只保留核心数字，换成更有冲击力的排版。\n也可以不填，直接让它重新构思。"
+                  "画面调整：例如换一种构图、增加主体画面的比重。\n留空则按当前风格重新生成。"
                 }
                 disabled={busy}
               />
+              <textarea
+                aria-label="上屏文字调整"
+                value={copyFeedback}
+                onChange={(e) => setCopyFeedback(e.target.value)}
+                placeholder="上屏文字调整：例如只保留核心问题，解释留给口播。留空则复用已提炼文案。"
+                disabled={busy}
+              />
+              <p className="detail-help">
+                画面和文案分别调整，风格提示词保持原文。
+              </p>
               <div className="content-attachments">
                 <div className="content-attachments-heading">
                   <strong>
@@ -1323,7 +1337,7 @@ function SlideDetail({
                 className={tab === "plan" ? "active" : ""}
                 onClick={() => setTab("plan")}
               >
-                设计方案
+                上屏文案与风格
               </button>
               <button
                 className={tab === "versions" ? "active" : ""}
@@ -1378,8 +1392,9 @@ function SlideDetail({
                         <h4>这一页要表达什么</h4>
                         <p>{slide.plan.contentBrief.claim}</p>
                         <p>{slide.plan.contentBrief.visualTask}</p>
-                        <h4>为什么这样表现</h4>
-                        <p>{slide.plan.selectionReason}</p>
+                        {slide.plan.selectionReason && (
+                          <p>{slide.plan.selectionReason}</p>
+                        )}
                       </>
                     )}
                     <h4>画面文字</h4>
@@ -1392,6 +1407,7 @@ function SlideDetail({
                       copy={slide.plan.screenCopy}
                       stale={slide.stale}
                     />
+                    <RawPromptDetails plan={slide.plan} />
                     <h4>版面安排</h4>
                     <p>{slide.plan.layout}</p>
                     <h4>视觉表达</h4>

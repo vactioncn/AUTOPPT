@@ -1,4 +1,3 @@
-import { StyleLanguage } from "./StyleLanguage";
 import { useEffect, useState, useRef } from "react";
 import {
   Plus,
@@ -689,7 +688,11 @@ function StyleDetail({
           {error}
         </p>
       )}
-      {!!style.rules && <StyleLanguage style={style} />}
+      {!!style.rules && (
+        <p className="detail-help">
+          保存后的设计语言将原文用于出图；只有主动重新提炼才会改写。
+        </p>
+      )}
       <div className="modal-actions">
         <Button
           variant="ghost"

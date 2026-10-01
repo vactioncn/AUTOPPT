@@ -10,7 +10,7 @@ import type { Style, Trial, Project, ProjectSummary } from "./types";
 import { api, post, active, asset } from "./api";
 import { Button, Field, Status } from "./components";
 import { SceneView } from "./SceneView";
-import { StyleLanguage } from "./StyleLanguage";
+import { RawPromptDetails } from "./RawPromptDetails";
 import { CopyReview } from "./CopyReview";
 export function StyleStudio({
   style,
@@ -33,6 +33,9 @@ export function StyleStudio({
   });
   const [notes, setNotes] = useState<string>(initial.notes || ""),
     [feedback, setFeedback] = useState<string>(initial.feedback || ""),
+    [copyFeedback, setCopyFeedback] = useState<string>(
+      initial.copyFeedback || "",
+    ),
     [rules, setRules] = useState<string>(initial.rules || style.rules),
     [selectedId, setSelectedId] = useState<string>(initial.selectedId || ""),
     [trials, setTrials] = useState<Trial[]>([]),
@@ -79,14 +82,12 @@ export function StyleStudio({
   useEffect(() => {
     localStorage.setItem(
       key,
-      JSON.stringify({ notes, feedback, rules, selectedId }),
+      JSON.stringify({ notes, feedback, copyFeedback, rules, selectedId }),
     );
-  }, [key, notes, feedback, rules, selectedId]);
+  }, [key, notes, feedback, copyFeedback, rules, selectedId]);
   const selected = trials.find((t) => t.id === selectedId),
     running = trials.find((t) => active(t.status)),
     disabled = busy || !!running || loading;
-  const candidate =
-    selected?.engine === "image" ? selected.styleSnapshot : style;
   const edited =
     !!selected &&
     (selected.notes !== notes || selected.styleSnapshot.rules !== rules);
@@ -108,6 +109,7 @@ export function StyleStudio({
     setNotes(t.notes);
     setRules(t.styleSnapshot.rules);
     setFeedback("");
+    setCopyFeedback("");
   };
   const start = (mode: string) =>
     act(async () => {
@@ -115,6 +117,7 @@ export function StyleStudio({
         notes,
         rules,
         feedback,
+        copyFeedback,
         mode,
         parentId:
           selected?.engine === "image" && selected.status === "completed"
@@ -133,7 +136,7 @@ export function StyleStudio({
       <div className="page-heading studio-heading">
         <div>
           <h1>{style.name} · 风格试做</h1>
-          <p>给一段内容，生成一张延续此风格的图片。满意后再继续。</p>
+          <p>先提炼上屏文案，再使用原始风格提示词生成图片。</p>
         </div>
         <Button
           disabled={disabled}
@@ -141,6 +144,7 @@ export function StyleStudio({
             setSelectedId("");
             setRules(style.rules);
             setFeedback("");
+            setCopyFeedback("");
           }}
         >
           从正式风格重新开始
@@ -297,7 +301,7 @@ export function StyleStudio({
             />
           </Field>
           <p className="detail-help">
-            按这段内容构思画面，沿用「{style.name}」的设计风格。
+            讲稿先提炼并复核，出图时原文使用「{style.name}」的设计提示词。
           </p>
           <div className="web-studio-actions">
             <Button
@@ -312,7 +316,7 @@ export function StyleStudio({
         </section>
         <section>
           <h2>哪里还需要调整？</h2>
-          <Field label="试做调整意见">
+          <Field label="画面调整（可选）">
             <textarea
               value={feedback}
               onChange={(e) => setFeedback(e.target.value)}
@@ -320,27 +324,33 @@ export function StyleStudio({
               placeholder="例如：换成左右对比；标题更轻，解释文字放到右侧。"
             />
           </Field>
+          <Field label="上屏文字调整（可选）">
+            <textarea
+              value={copyFeedback}
+              onChange={(e) => setCopyFeedback(e.target.value)}
+              disabled={disabled}
+              placeholder="例如：只保留核心问题，背景说明留在口播。留空则复用已提炼文案。"
+            />
+          </Field>
           <div className="web-studio-actions">
             <Button
-              disabled={disabled || !notes.trim() || !feedback.trim()}
+              disabled={
+                disabled ||
+                !notes.trim() ||
+                (!feedback.trim() && !copyFeedback.trim())
+              }
               onClick={() => start("redesign")}
             >
               只调整这一页
             </Button>
-            <Button
-              disabled={disabled || !notes.trim() || !feedback.trim()}
-              onClick={() => start("refine")}
-            >
-              调整规范并再试
-            </Button>
           </div>
           <p className="detail-help">
-            单页调整沿用当前规范。调整规范会产生候选版本，保存为正式风格后才用于后续制作。
+            画面调整不改写风格提示词。需要修改风格时，在下方直接编辑原文，试做满意后再保存为正式风格。
           </p>
         </section>
       </div>
       <details className="studio-rules studio-rule-details">
-        <summary>完整设计规范</summary>
+        <summary>设计提示词原文</summary>
         <Field label="试做设计规范">
           <textarea
             className="rules-editor"
@@ -349,27 +359,25 @@ export function StyleStudio({
             disabled={disabled}
           />
         </Field>
-        <StyleLanguage
-          style={{
-            ...candidate,
-            designLanguage:
-              selected?.plan?.designLanguage || candidate.designLanguage,
-          }}
-        />
+        <p className="detail-help">
+          这里的文字将原样用于出图，不再自动整理或改写。
+        </p>
       </details>
       {selected?.plan && (
         <details className="studio-rules studio-rule-details">
-          <summary>查看这版设计方案</summary>
+          <summary>查看上屏文案与生成依据</summary>
           {selected.plan.contentBrief && (
             <>
               <h4>这一页要表达什么</h4>
               <p>{selected.plan.contentBrief.claim}</p>
               <p>{selected.plan.contentBrief.visualTask}</p>
-              <h4>为什么这样表现</h4>
-              <p>{selected.plan.selectionReason}</p>
+              {selected.plan.selectionReason && (
+                <p>{selected.plan.selectionReason}</p>
+              )}
             </>
           )}
-          <h4>构图与讲述意图</h4>
+          <RawPromptDetails plan={selected.plan} />
+          <h4>内容与表达</h4>
           <p>{selected.plan.layout}</p>
           <p>{selected.plan.rationale}</p>
           <h4>图形与风格细节</h4>

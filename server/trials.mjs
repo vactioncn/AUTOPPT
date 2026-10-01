@@ -1,6 +1,6 @@
 import { all, get, put, id, now, transaction } from "./store.mjs";
 import { styleStamp } from "./core.mjs";
-import { design, refineDesignSystem, generateImage } from "./models.mjs";
+import { design, generateImage } from "./models.mjs";
 import { PLANNING_VERSION } from "./content-planning.mjs";
 import { validateScene } from "../shared/slides.mjs";
 
@@ -74,8 +74,9 @@ export function registerTrials(app, { enqueue }) {
     const feedback = String(req.body.feedback || "")
       .trim()
       .slice(0, 10000);
-    if (mode === "refine" && !feedback)
-      throw new Error("请描述哪里不像参考图，或希望怎样调整。");
+    const copyFeedback = String(req.body.copyFeedback || "")
+      .trim()
+      .slice(0, 10000);
     const candidate = structuredClone(
       parent?.engine === "image" ? parent.styleSnapshot : style,
     );
@@ -95,11 +96,12 @@ export function registerTrials(app, { enqueue }) {
       parentId: parent?.id || null,
       notes,
       feedback,
+      copyFeedback,
       mode,
       purpose: "transfer",
       layoutId: "",
       engine: "image",
-      needsSystem: rules !== (parent?.styleSnapshot.rules || style.rules),
+      needsSystem: false,
       calibrationVersion: 1,
       primaryRef: "",
       styleSnapshot: candidate,
@@ -242,39 +244,25 @@ export async function runTrial(job, signal, progress) {
     t.status = "running";
     t.error = null;
     put("trial", t);
-    if (!t.refined && (t.mode === "refine" || t.needsSystem)) {
-      progress("正在按反馈调整候选风格规范");
-      Object.assign(
-        t.styleSnapshot,
-        await refineDesignSystem(
-          t.styleSnapshot,
-          t.feedback || "根据修订的规则同步更新设计风格规范",
-          signal,
-        ),
-      );
-      signal.throwIfAborted();
-      t.refined = true;
-      put("trial", t);
-    }
+    // A manual edit is already the user's chosen prompt. Historical refine
+    // requests now adjust this page only; they cannot rewrite saved style text.
+    t.needsSystem = false;
     if (
       !t.plan ||
       t.plan.engine !== "image" ||
       t.plan.planningVersion !== PLANNING_VERSION
     ) {
-      progress("正在按完整风格规范构思画面");
+      progress("正在提炼上屏文案，使用原始风格提示词");
       t.plan = await design(
         t.notes,
         t.styleSnapshot,
         "单页试做",
         t.feedback,
-        parent?.plan,
+        t.plan || parent?.plan,
         signal,
         {
           onProgress: progress,
-          notesUnchanged: t.notes === parent?.notes,
-          previousStyle:
-            parent?.imageStyle ||
-            (parent?.styleSnapshot ? styleStamp(parent.styleSnapshot) : null),
+          copyFeedback: t.copyFeedback || "",
         },
       );
       signal.throwIfAborted();

@@ -70,6 +70,10 @@ export type DesignLanguage = Record<
   string
 >;
 export type Plan = {
+  promptMode?: "verbatim-style-v1";
+  styleRules?: string;
+  copyReused?: boolean;
+  imageRequest?: { prompt: string; model: string };
   sourceStyle?: StyleStamp;
   attachments?: ContentAttachment[];
   attachmentPlacements?: {

@@ -70,8 +70,9 @@ export type DesignLanguage = Record<
   string
 >;
 export type Plan = {
-  promptMode?: "verbatim-style-v1" | "verbatim-style-v2";
+  promptMode?: "verbatim-style-v1" | "verbatim-style-v2" | "verbatim-style-v3";
   styleRules?: string;
+  contentPrompt?: string;
   copyReused?: boolean;
   imageRequest?: {
     prompt: string;
@@ -129,6 +130,7 @@ export type Plan = {
     };
     mustKeep: { text: string; sourceQuote: string; attachmentId?: string }[];
     spokenOnly: { sourceQuote: string; reason: string }[];
+    semanticSupport?: { sourceQuote: string; attachmentId?: string }[];
     rationale: string;
     review: {
       status: "reviewed";

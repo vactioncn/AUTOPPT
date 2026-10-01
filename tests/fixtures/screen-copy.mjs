@@ -12,6 +12,7 @@ export function copyFixture(
       sourceQuote: data.notes,
     })),
     mustKeep: [],
+    semanticSupport: [],
     spokenOnly: [
       { sourceQuote: data.notes, reason: "完整展开保留在口播，画面提炼重点" },
     ],
@@ -22,6 +23,7 @@ export function reviewFixture(data) {
   return {
     entries: data.candidate.entries,
     spokenOnly: data.candidate.spokenOnly,
+    semanticSupport: data.candidate.semanticSupport || [],
     rationale: data.candidate.rationale,
     checks: {
       faithful: true,

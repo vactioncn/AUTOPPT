@@ -606,12 +606,12 @@ test(
     trial = (await trials()).trials.find((t) => t.id === trial.id);
     assert(trial.image);
     assert.equal(trial.scene, null);
-    assert.equal(trial.plan.promptMode, "verbatim-style-v2");
+    assert.equal(trial.plan.promptMode, "verbatim-style-v3");
     assert.equal(trial.plan.styleRules, style.rules);
     assert.equal(trial.review, null);
     assert.equal(
       trial.plan.imageRequest.prompt,
-      style.rules + "\n\n" + trial.plan.displayText.join("\n\n"),
+      style.rules + "\n\n" + trial.plan.contentPrompt,
     );
     assert.equal(trial.plan.imageResponse.width, 1600);
     assert.equal(trial.plan.imageResponse.height, 900);
@@ -754,7 +754,7 @@ test(
       202,
     );
     assert.equal((await poll(job)).status, "completed");
-    assert.equal((await read()).slides[1].plan.promptMode, "verbatim-style-v2");
+    assert.equal((await read()).slides[1].plan.promptMode, "verbatim-style-v3");
     project = await read();
     assert(project.slides[1].image);
     assert.equal(project.slides[1].scene, null);
@@ -1033,6 +1033,10 @@ test(
           .toBe(expected);
       };
       await assertCopied("复制上屏文案", expectedCopy);
+      await assertCopied(
+        "复制内容部分（含辅助信息）",
+        browserTrial.plan.contentPrompt,
+      );
       await assertCopied("复制本次风格提示词", browserTrial.plan.styleRules);
       await assertCopied(
         "复制完整出图提示词",
@@ -1050,6 +1054,10 @@ test(
         .fill("新的讲稿尚未生成。");
       await expect(preview).toContainText("讲稿已修改");
       await assertCopied("复制上屏文案", expectedCopy);
+      await assertCopied(
+        "复制内容部分（含辅助信息）",
+        browserTrial.plan.contentPrompt,
+      );
       await page.getByText("设计提示词原文", { exact: true }).click();
       await page
         .getByLabel("试做设计规范", { exact: true })

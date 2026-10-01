@@ -1,4 +1,5 @@
 import type { Plan } from "./types";
+import { ContentPromptDetails } from "./ContentPromptDetails";
 
 export function RawPromptDetails({ plan }: { plan: Plan }) {
   if (!plan.promptMode?.startsWith("verbatim-style-")) return null;
@@ -14,6 +15,7 @@ export function RawPromptDetails({ plan }: { plan: Plan }) {
         <summary>本次风格提示词原文</summary>
         <div className="rules-text">{plan.styleRules}</div>
       </details>
+      <ContentPromptDetails plan={plan} />
       {plan.imageRequest?.prompt && (
         <details className="copy-review">
           <summary>实际发送的出图提示词</summary>

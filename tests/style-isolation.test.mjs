@@ -70,18 +70,20 @@ test("raw style prompts stay exact and independent from reusable, source-bound s
   assert.equal(approved.styleRules, minimal.rules);
   assert.equal(
     imagePrompt({ ...approved, imageFeedback: "" }),
-    minimal.rules + "\n\n" + approved.displayText.join("\n\n"),
+    minimal.rules + "\n\n" + approved.contentPrompt,
   );
-  assert.equal(approved.promptMode, "verbatim-style-v2");
+  assert.equal(approved.promptMode, "verbatim-style-v3");
   assert.equal(
     imagePrompt(approved),
     minimal.rules +
       "\n\n" +
-      approved.displayText.join("\n\n") +
+      approved.contentPrompt +
       "\n\n【本页画面调整要求】\nVISUAL_FEEDBACK",
   );
   assert(!imagePrompt(approved).includes("UNWANTED_OLD_DIAGRAM"));
   assert(!imagePrompt(approved).includes("完整背景讲解留在口播"));
+  assert.deepEqual(approved.screenCopy.semanticSupport, []);
+  assert.match(approved.contentPrompt, /未定义的概念保持未定义/);
   assert(imagePrompt(approved).includes("VISUAL_FEEDBACK"));
   assert.deepEqual(get("style", minimal.id), minimal);
   for (const style of [watercolor, { ...minimal, rules: watercolor.rules }]) {
@@ -137,6 +139,10 @@ test("raw style prompts stay exact and independent from reusable, source-bound s
   assert.throws(
     () => imagePrompt({ ...approved, displayText: ["偷偷增加文字"] }),
     /排版改动/,
+  );
+  assert.throws(
+    () => imagePrompt({ ...approved, contentPrompt: "偷偷替层级赋义" }),
+    /内容部分与/,
   );
   await assert.rejects(generateImage(approved, watercolor), /风格已变化/);
   const pixels = await sharp({

@@ -7,7 +7,9 @@ import {
   validateScreenCopy,
   prepareScreenCopy,
   assertDesignedCopy,
+  reusableScreenCopy,
 } from "../server/screen-copy.mjs";
+import { imageContentPrompt } from "../server/image-content.mjs";
 import { reviewFixture } from "./fixtures/screen-copy.mjs";
 
 const notes =
@@ -55,6 +57,86 @@ const reviewed = (data) => ({
     },
   ],
   changes: ["移去客服例子的完整解释，保留统计范围与指标"],
+});
+
+test("semantic context is sourced, independently reviewed and stays outside primary copy", async () => {
+  const source =
+    "第一层指个人赋能，第二层指进入业务流程。今天大多数团队在哪一层？";
+  const support = { sourceQuote: "第一层指个人赋能，第二层指进入业务流程。" };
+  const question = "今天大多数团队在哪一层？";
+  const setup = {
+    ...input,
+    notes: source,
+    brief: { relationship: "positioning" },
+  };
+  const candidate = {
+    editScope: "composition",
+    entries: [{ text: question, role: "main", sourceQuote: question }],
+    mustKeep: [],
+    spokenOnly: [],
+    semanticSupport: [support],
+    rationale: "保持设问，定义只辅助理解",
+  };
+  let calls = 0;
+  const final = await prepareScreenCopy(setup, async (system, user) => {
+    const data = JSON.parse(user);
+    if (!calls++) return candidate;
+    assert.deepEqual(data.candidate.semanticSupport, [support]);
+    assert.match(system, /疑问变结论/);
+    return reviewFixture(data);
+  });
+  assert.equal(calls, 2);
+  assert.deepEqual(final.displayText, [question]);
+  assert.equal(final.metrics.characters, characterCount(question));
+  assert.deepEqual(final.semanticSupport, [support]);
+  const prompt = imageContentPrompt(final);
+  assert.match(prompt, /可选语义辅助资料｜不作为主体/);
+  assert(prompt.indexOf(question) < prompt.indexOf(support.sourceQuote));
+  assert.match(prompt, /图形、箭头、标签和位置标记也不能暗示/);
+  assert(reusableScreenCopy(final, source));
+  assert.equal(reusableScreenCopy({ ...final, version: 2 }, source), null);
+  for (const semanticSupport of [
+    [{ sourceQuote: "第一层以拍照为中心" }],
+    [{ sourceQuote: question, attachmentId: "missing-chart" }],
+    [support, support],
+  ]) {
+    assert.throws(
+      () => validateScreenCopy({ ...candidate, semanticSupport }, setup),
+      /语义辅助/,
+    );
+  }
+  calls = 0;
+  await assert.rejects(
+    prepareScreenCopy(setup, async (_s, user) => {
+      if (!calls++) return candidate;
+      return {
+        ...reviewFixture(JSON.parse(user)),
+        semanticSupport: [{ sourceQuote: "第二层经营用户" }],
+      };
+    }),
+    /语义辅助/,
+  );
+});
+
+test("absent or removed context leaves undefined concepts undefined", async () => {
+  let calls = 0;
+  const result = await prepareScreenCopy(input, async (_s, user) => {
+    if (!calls++)
+      return {
+        ...draft(),
+        semanticSupport: [{ sourceQuote: "复杂问题仍由人工处理" }],
+      };
+    const review = reviewed(JSON.parse(user));
+    delete review.semanticSupport;
+    return review;
+  });
+  assert.deepEqual(result.semanticSupport, []);
+  const prompt = imageContentPrompt(result);
+  assert.match(prompt, /没有额外的、已确认的语义辅助资料/);
+  assert.match(prompt, /对应序号、准确短译/);
+  assert.match(prompt, /提问不能变成结论/);
+  assert.match(prompt, /不得引入主文案和辅助资料都没有的新话题/);
+  assert(!prompt.includes("复杂问题仍由人工处理"));
 });
 
 test("density is Unicode copy accounting with advisory task budgets, not source-length truncation", () => {

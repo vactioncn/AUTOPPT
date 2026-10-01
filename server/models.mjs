@@ -7,6 +7,7 @@ import { spokenManuscript } from "./manuscript.mjs";
 import { prepareScreenCopy, reusableScreenCopy } from "./screen-copy.mjs";
 import { DIRECT_PROMPT_MODE, directImagePrompt } from "./direct-image.mjs";
 import { PLANNING_VERSION, validateBriefs } from "./content-planning.mjs";
+import { imageContentPrompt } from "./image-content.mjs";
 
 export class ProviderError extends Error {}
 const safeError = (message) =>
@@ -208,6 +209,7 @@ export async function design(
     attachments,
     contentBrief: brief,
     screenCopy,
+    contentPrompt: imageContentPrompt(screenCopy),
     displayText: [...screenCopy.displayText],
     title: screenCopy.entries.find((entry) => entry.role === "main").text,
     rationale: screenCopy.rationale,

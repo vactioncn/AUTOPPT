@@ -1311,6 +1311,16 @@ test(
     }
     assert.equal(edit.files.length, 4);
     assert.match(edit.prompt, /内容素材，不是风格参考/);
+    // Multipart serializes text-field line endings as CRLF.
+    assert(
+      edit.prompt.replace(/\r\n/g, "\n").startsWith(
+        materialSlide.plan.styleRules.replace(/\r\n/g, "\n") + "\n\n",
+      ),
+    );
+    assert.match(edit.prompt, /先结合本页文案判断每张附件的作用/);
+    assert.match(edit.prompt, /照片或实物：/);
+    assert.match(edit.prompt, /图表、表格或界面截图：/);
+    assert.match(edit.prompt, /不能改数、删掉比较条件或重新编造界面/);
     assert(!edit.prompt.includes("Text-only generation"));
     for (let i = 0; i < attachments.length; i++) {
       const original = readFileSync(
@@ -1356,6 +1366,7 @@ test(
     assert.equal((await rendered([])).status, "completed");
     assert.deepEqual((await read()).slides[0].plan.attachments, []);
     assert((await read()).slides[0].plan.copyReused);
+    assert(!imageRequests.at(-1).prompt.includes("【内容附件：参与整页设计】"));
     assert.equal(
       (await read()).slides[0].plan.imageRequest.referenceMode,
       "rules-only",

@@ -486,7 +486,7 @@ test(
       copyReviewCount,
     );
     project = await read();
-    assert.equal(project.slides[0].plan.promptMode, "verbatim-style-v4");
+    assert.equal(project.slides[0].plan.promptMode, "verbatim-style-v5");
     assert.deepEqual(project.slides[0].plan.screenCopy, approvedPendingCopy);
     assert(
       !project.slides[0].plan.imageRequest.prompt.includes(
@@ -647,7 +647,7 @@ test(
     trial = (await trials()).trials.find((t) => t.id === trial.id);
     assert(trial.image);
     assert.equal(trial.scene, null);
-    assert.equal(trial.plan.promptMode, "verbatim-style-v4");
+    assert.equal(trial.plan.promptMode, "verbatim-style-v5");
     assert.equal(trial.plan.styleRules, style.rules);
     assert.equal(trial.review, null);
     assert.equal(
@@ -795,7 +795,7 @@ test(
       202,
     );
     assert.equal((await poll(job)).status, "completed");
-    assert.equal((await read()).slides[1].plan.promptMode, "verbatim-style-v4");
+    assert.equal((await read()).slides[1].plan.promptMode, "verbatim-style-v5");
     project = await read();
     assert(project.slides[1].image);
     assert.equal(project.slides[1].scene, null);

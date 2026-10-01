@@ -1,4 +1,5 @@
 import { validateScene, renderSceneSvg } from "../shared/slides.mjs";
+import { DEFAULT_STYLE_ID, defaultStyleId } from "../shared/styles.mjs";
 import express from "express";
 import multer from "multer";
 import sharp from "sharp";
@@ -128,7 +129,10 @@ app.get("/api/bootstrap", (req, res) =>
         wordCount: p.slides.reduce((n, s) => n + s.notes.trim().length, 0),
       }))
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
-    styles: all("style"),
+    styles: all("style").sort(
+      (a, b) =>
+        Number(b.id === DEFAULT_STYLE_ID) - Number(a.id === DEFAULT_STYLE_ID),
+    ),
     settings: publicSettings(),
     jobs: all("job")
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
@@ -147,11 +151,15 @@ app.post("/api/projects", (req, res) => {
   const title = String(req.body.title || "").trim();
   if (!title || title.length > 100)
     throw new Error("请输入 1–100 字的演讲主题。");
-  styleReady(req.body.styleId);
+  const styleId =
+    req.body.styleId === undefined
+      ? defaultStyleId(all("style"))
+      : req.body.styleId;
+  styleReady(styleId);
   const p = put("project", {
     id: id(),
     title,
-    styleId: req.body.styleId,
+    styleId,
     createdAt: now(),
     updatedAt: now(),
     revision: 0,

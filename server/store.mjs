@@ -9,6 +9,7 @@ import {
 } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import { DEFAULT_STYLE_ID } from "../shared/styles.mjs";
 
 export const dataDir = path.resolve(process.env.AUTOPPT_DATA_DIR || ".local");
 export const assetsDir = path.join(dataDir, "assets");
@@ -155,6 +156,25 @@ export function updateSettings(input) {
 
 const defaults = [
   {
+    id: DEFAULT_STYLE_ID,
+    name: "克制极简风格",
+    description: "黑白基底、荧光强调与鲜明的中文层次，按内容自由构图。",
+    colors: [
+      "#050505",
+      "#FCFCFA",
+      "#D7FF00",
+      "#F5F500",
+      "#0743D7",
+      "#777982",
+      "#CFD2DA",
+    ],
+    compositionMode: "direct",
+    rules: readFileSync(
+      new URL("./styles/restrained-minimal.txt", import.meta.url),
+      "utf8",
+    ),
+  },
+  {
     id: "editorial",
     name: "极简叙事",
     description: "让一个观点，成为画面的主角。",
@@ -179,13 +199,16 @@ const defaults = [
       "深蓝黑底，暖白大字，琥珀色极少量强调。舞台远距离可读，强烈明暗对比，一页一个重点。概念页用大型短句和精确抽象图形，故事页使用有意义的主体构图，数据页突出原稿中的真实数字。避免发光特效、细碎线条、过密信息与无意义装饰。",
   },
 ];
-for (const s of defaults)
-  if (!get("style", s.id))
-    put("style", {
-      ...s,
-      refs: [],
-      status: "ready",
-      builtin: true,
-      createdAt: now(),
-      updatedAt: now(),
-    });
+export function seedBuiltinStyles() {
+  for (const s of defaults)
+    if (!get("style", s.id))
+      put("style", {
+        ...s,
+        refs: [],
+        status: "ready",
+        builtin: true,
+        createdAt: now(),
+        updatedAt: now(),
+      });
+}
+seedBuiltinStyles();

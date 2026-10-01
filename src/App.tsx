@@ -21,6 +21,7 @@ import { Button, Modal, Field, StylePreview } from "./components";
 import { Workspace } from "./Workspace";
 import { StyleLibrary } from "./StyleLibrary";
 import { SettingsPage } from "./Settings";
+import { DEFAULT_STYLE_ID, defaultStyleId } from "../shared/styles.mjs";
 
 export default function App() {
   const [data, setData] = useState<Bootstrap | null>(null),
@@ -28,7 +29,7 @@ export default function App() {
     [error, setError] = useState(""),
     [toast, setToast] = useState(""),
     [creating, setCreating] = useState(false),
-    [initialStyle, setInitialStyle] = useState("editorial");
+    [initialStyle, setInitialStyle] = useState(DEFAULT_STYLE_ID);
   const refresh = useCallback(async () => {
     try {
       setData(await api("/bootstrap"));
@@ -56,12 +57,12 @@ export default function App() {
     location.hash = to;
     setRoute(to);
   };
-  const create = (styleId = "editorial") => {
+  const create = (styleId = DEFAULT_STYLE_ID) => {
     const available = data?.styles.filter((s) => !s.deletedAt && s.rules) || [];
     setInitialStyle(
       available.some((s) => s.id === styleId)
         ? styleId
-        : available[0]?.id || "",
+        : defaultStyleId(available),
     );
     setCreating(true);
   };
@@ -457,11 +458,13 @@ function NewProject({
                   type="button"
                   className={`style-choice ${styleId === s.id ? "chosen" : ""}`}
                   key={s.id}
+                  aria-pressed={styleId === s.id}
                   onClick={() => setStyleId(s.id)}
                 >
                   <StylePreview style={s} compact />
                   <span>
                     {s.name}
+                    {s.id === DEFAULT_STYLE_ID && " · 内置默认"}
                     {styleId === s.id && (
                       <CheckCircle weight="fill" size={17} />
                     )}

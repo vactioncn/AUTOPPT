@@ -313,6 +313,22 @@ test(
           j = js.find((x) => x.id === (job.id || job.jobId));
         return j && !["queued", "running"].includes(j.status) ? j : false;
       });
+    const defaultStyle = (await req("/bootstrap")).styles[0];
+    assert.equal(defaultStyle.id, "restrained-minimal");
+    assert.equal(defaultStyle.compositionMode, "direct");
+    const defaultProject = await req(
+      "/projects",
+      { title: "默认风格接口验收" },
+      "POST",
+      201,
+    );
+    assert.equal(defaultProject.styleId, defaultStyle.id);
+    await req(
+      "/projects",
+      { title: "无效选择不能静默替换", styleId: "not-a-style" },
+      "POST",
+      400,
+    );
     const image = await sharp(
       Buffer.from(
         '<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900"><rect width="1600" height="900" fill="#f7f7f3"/><text x="90" y="200" font-size="70">LOCAL TEST FIXTURE</text></svg>',
@@ -848,6 +864,53 @@ test(
       page.setDefaultTimeout(10000);
       const errors = [];
       page.on("pageerror", (e) => errors.push(e.message));
+      await page.goto(base.replace("/api", ""));
+      await page
+        .getByRole("complementary")
+        .getByRole("button", { name: "新建演讲项目", exact: true })
+        .click();
+      const newProjectDialog = page.getByRole("dialog");
+      await expect(
+        newProjectDialog.getByRole("button", {
+          name: /克制极简风格 · 内置默认/,
+        }),
+      ).toHaveAttribute("aria-pressed", "true");
+      mkdirSync(".impeccable/review", { recursive: true });
+      for (const [label, width, height] of [
+        ["desktop", 1440, 1000],
+        ["mobile", 390, 844],
+      ]) {
+        await page.setViewportSize({ width, height });
+        await page.screenshot({
+          path: `.impeccable/review/builtin-default-${label}.png`,
+        });
+        assert(
+          await page.evaluate(
+            () => document.documentElement.scrollWidth <= window.innerWidth + 1,
+          ),
+        );
+      }
+      await page.setViewportSize({ width: 1440, height: 1000 });
+      await newProjectDialog.getByRole("button", { name: /极简叙事/ }).click();
+      await expect(
+        newProjectDialog.getByRole("button", { name: /极简叙事/ }),
+      ).toHaveAttribute("aria-pressed", "true");
+      await newProjectDialog
+        .getByRole("button", { name: /克制极简风格 · 内置默认/ })
+        .click();
+      await newProjectDialog
+        .getByPlaceholder("例如：儿童摄影行业的下一步")
+        .fill("默认风格浏览器验收");
+      await newProjectDialog
+        .getByRole("button", { name: "创建项目", exact: true })
+        .click();
+      await expect(newProjectDialog).toHaveCount(0);
+      assert.equal(
+        (await req("/bootstrap")).projects.find(
+          (p) => p.title === "默认风格浏览器验收",
+        ).styleId,
+        "restrained-minimal",
+      );
       await page.goto(base.replace("/api", "") + "/#project/" + id);
       await page.waitForTimeout(500);
       // Route uses the app's actual project path; navigate from homepage if this version differs.

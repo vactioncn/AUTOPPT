@@ -18,6 +18,7 @@ import type { Style, Job } from "./types";
 import { api, post, patch, asset, active } from "./api";
 import { Button, Modal, Field, StylePreview, Status } from "./components";
 import { StyleStudio } from "./StyleStudio";
+import { DEFAULT_STYLE_ID } from "../shared/styles.mjs";
 export function StyleLibrary({
   urlImportAvailable,
   styles,
@@ -104,7 +105,11 @@ export function StyleLibrary({
               <div>
                 <h3>{s.name}</h3>
                 <span>
-                  {s.builtin ? "内置起始风格" : `${s.refs.length} 张参考图`}
+                  {s.builtin
+                    ? s.id === DEFAULT_STYLE_ID
+                      ? "内置默认风格"
+                      : "内置起始风格"
+                    : `${s.refs.length} 张参考图`}
                 </span>
               </div>
               <p>{s.description}</p>

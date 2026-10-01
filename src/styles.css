@@ -1882,6 +1882,7 @@ img {
 }
 .style-source-switch {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   padding: 4px;
   margin-bottom: 20px;
@@ -1889,7 +1890,8 @@ img {
   background: var(--canvas);
 }
 .style-source-switch button {
-  flex: 1;
+  flex: 1 0 120px;
+  white-space: nowrap;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3516,4 +3518,9 @@ textarea::placeholder {
   .report-pages button small {
     display: none;
   }
+}
+
+.create-rules-editor {
+  min-height: 220px;
+  height: min(340px, 40vh);
 }

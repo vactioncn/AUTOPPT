@@ -12,6 +12,7 @@ import {
   FloppyDisk,
   Trash,
   LinkSimple,
+  TextT,
   ArrowSquareOut,
 } from "@phosphor-icons/react";
 import type { Style, Job } from "./types";
@@ -56,7 +57,9 @@ export function StyleLibrary({
       <div className="page-heading">
         <div>
           <h1>把喜欢的，变成你的风格。</h1>
-          <p>从参考图片中提炼视觉语言，让不同内容拥有一致的表达。</p>
+          <p>
+            填写提示词，或从参考图中提炼视觉语言，让不同内容拥有一致的表达。
+          </p>
         </div>
         <Button variant="primary" onClick={() => setCreate(true)}>
           <Plus size={18} />
@@ -72,7 +75,7 @@ export function StyleLibrary({
           </div>
         </div>
         <div>
-          <h2>从图片或网址，建立自己的风格库</h2>
+          <h2>用提示词、图片或网址，建立自己的风格库</h2>
           <p>
             配色、字体、图形画法与留白，成为适用于不同内容的设计规范。
             <br />
@@ -81,7 +84,7 @@ export function StyleLibrary({
         </div>
         <Button onClick={() => setCreate(true)}>
           <UploadSimple size={17} />
-          添加参考风格
+          添加风格
         </Button>
       </div>
       <div className="section-heading">
@@ -110,7 +113,9 @@ export function StyleLibrary({
                     ? s.id === DEFAULT_STYLE_ID
                       ? "内置默认风格"
                       : "内置起始风格"
-                    : `${s.refs.length} 张参考图`}
+                    : s.refs.length
+                      ? `${s.refs.length} 张参考图`
+                      : "提示词风格"}
                 </span>
               </div>
               <p>{s.description}</p>
@@ -146,7 +151,11 @@ export function StyleLibrary({
             setCreate(false);
             await refresh();
             setDetail(s.id);
-            notify("参考图已保存，正在提炼视觉风格。");
+            notify(
+              s.status === "ready"
+                ? "风格提示词已原样保存，可以直接试做。"
+                : "参考图已保存，正在提炼视觉风格。",
+            );
           }}
         />
       )}
@@ -188,7 +197,8 @@ function CreateStyle({
   onDone: (s: Style) => Promise<void>;
 }) {
   const [name, setName] = useState(""),
-    [source, setSource] = useState<"upload" | "url">("upload"),
+    [source, setSource] = useState<"upload" | "url" | "prompt">("upload"),
+    [rules, setRules] = useState(""),
     [url, setUrl] = useState(""),
     [fetching, setFetching] = useState(false),
     [imported, setImported] = useState<{
@@ -236,7 +246,7 @@ function CreateStyle({
       }
     }
   };
-  const changeSource = (value: "upload" | "url") => {
+  const changeSource = (value: "upload" | "url" | "prompt") => {
     request.current?.abort();
     setFetching(false);
     setError("");
@@ -262,7 +272,9 @@ function CreateStyle({
     setError("");
     try {
       let data;
-      if (source === "url") {
+      if (source === "prompt") {
+        data = await post("/styles", { name, rules });
+      } else if (source === "url") {
         data = await post("/styles/from-url", {
           name,
           importId: imported?.id,
@@ -283,7 +295,7 @@ function CreateStyle({
   return (
     <Modal
       title="创建你的视觉风格"
-      subtitle="上传图片，或粘贴作品网址。选好参考图，再提炼共同的设计语言。"
+      subtitle="直接填写风格提示词，或选择参考图提炼。"
       onClose={() => {
         if (!busy) onClose();
       }}
@@ -297,7 +309,19 @@ function CreateStyle({
           placeholder="例如：克制的杂志感 / 大字与留白"
         />
       </Field>
-      <div className="style-source-switch" role="group" aria-label="参考图来源">
+      <div
+        className="style-source-switch"
+        role="group"
+        aria-label="风格创建方式"
+      >
+        <button
+          disabled={busy}
+          aria-pressed={source === "prompt"}
+          onClick={() => changeSource("prompt")}
+        >
+          <TextT size={17} />
+          手动填写
+        </button>
         <button
           disabled={busy}
           aria-pressed={source === "upload"}
@@ -320,7 +344,22 @@ function CreateStyle({
           网址导入需要更新本地服务后启用，当前生成任务不受影响。
         </p>
       )}
-      {source === "url" ? (
+      {source === "prompt" ? (
+        <Field
+          label="风格提示词"
+          hint="无需参考图。提示词原样保存，不会自动改写；保存后可直接试做，后续修改保留版本。"
+        >
+          <textarea
+            aria-label="风格提示词"
+            className="rules-editor create-rules-editor"
+            value={rules}
+            onChange={(e) => setRules(e.target.value)}
+            disabled={busy}
+            maxLength={30000}
+            placeholder="粘贴或填写你的完整风格提示词…"
+          />
+        </Field>
+      ) : source === "url" ? (
         <div className="url-import">
           <Field
             label="作品网址"
@@ -500,10 +539,14 @@ function CreateStyle({
           disabled={
             !name.trim() ||
             fetching ||
-            (source === "url" ? !imported || !selected.length : !files.length)
+            (source === "prompt"
+              ? !rules.trim()
+              : source === "url"
+                ? !imported || !selected.length
+                : !files.length)
           }
         >
-          保存并提炼风格
+          {source === "prompt" ? "保存风格" : "保存并提炼风格"}
           <ArrowRight size={17} />
         </Button>
       </div>
@@ -558,7 +601,9 @@ function StyleDetail({
       subtitle={
         style.builtin
           ? "内置起始规则，可以加入自己的参考图继续调试。"
-          : `${style.refs.length} 张参考图 · 可用于你的所有演讲项目`
+          : style.refs.length
+            ? `${style.refs.length} 张参考图 · 可用于你的所有演讲项目`
+            : "提示词风格 · 无需参考图，可直接试做或用于演讲"
       }
       onClose={onClose}
     >
@@ -631,10 +676,16 @@ function StyleDetail({
                 )
               }
               loading={busy || analyzing}
+              disabled={!style.refs.length}
             >
               <ArrowClockwise size={17} />
               {analyzing ? "正在提炼风格…" : "重新提炼风格"}
             </Button>
+            {!style.refs.length && (
+              <p className="detail-help">
+                可直接手动调整提示词。需要根据图片重新提炼时，再补充参考图片。
+              </p>
+            )}
           </div>
         </div>
         <div className="style-rules">
@@ -663,7 +714,7 @@ function StyleDetail({
             开启后，每页增加一次内容模型调用，比较不同表达并做五维构思自检；批量制作参考附近页面的构图描述。方案可查看，并包含在完整提示词中。关闭则直接使用风格原文与内容出图。
           </p>
           <div className="style-rules-heading">
-            <h3>提炼出的设计语言</h3>
+            <h3>{style.refs.length ? "提炼出的设计语言" : "风格提示词"}</h3>
             {!!style.rules && (
               <Button
                 variant="ghost"

@@ -536,8 +536,31 @@ const upload = multer({
 app.post("/api/styles", upload.array("images", 12), async (req, res) => {
   const name = String(req.body.name || "").trim();
   if (!name || name.length > 60) throw new Error("请输入 1–60 字的风格名称。");
+  if (req.body.rules !== undefined) {
+    const rules = req.body.rules;
+    if (typeof rules !== "string" || !rules.trim() || rules.length > 30000)
+      throw new Error("请填写风格提示词，最多 3 万字。");
+    if (req.files?.length)
+      throw new Error(
+        "请分别使用手动填写或参考图提炼；手动风格创建后可补充图片。",
+      );
+    const style = put("style", {
+      id: id(),
+      name,
+      rules,
+      refs: [],
+      colors: [],
+      description: "手动填写的风格提示词，可直接试做。",
+      compositionMode: "direct",
+      status: "ready",
+      builtin: false,
+      createdAt: now(),
+      updatedAt: now(),
+    });
+    return res.status(201).json({ style: withStyleVersion(style), job: null });
+  }
   if (!req.files?.length)
-    throw new Error("请上传 PNG、JPG 或 WebP 格式的参考图。");
+    throw new Error("请填写风格提示词，或上传 PNG、JPG、WebP 参考图。");
   const refs = [];
   for (const file of req.files) {
     const filename = id() + ".png";
@@ -629,6 +652,8 @@ app.delete("/api/styles/:id", (req, res) => {
 app.post("/api/styles/:id/analyze", (req, res) => {
   const s = get("style", req.params.id);
   if (!s || s.deletedAt) throw new Error("风格不存在或已删除");
+  if (!s.refs?.length)
+    throw new Error("重新提炼需要参考图；也可以直接手动修改提示词。");
   if (
     all("job").some(
       (j) =>

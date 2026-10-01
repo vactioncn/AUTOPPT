@@ -313,6 +313,47 @@ test(
           j = js.find((x) => x.id === (job.id || job.jobId));
         return j && !["queued", "running"].includes(j.status) ? j : false;
       });
+    const jobsBeforeManual = await req("/jobs");
+    const callsBeforeManual = calls.length;
+    const manualRules = "  手写风格\n\n保留原有空格与换行。\n";
+    for (const rules of ["", "  ", 12, "x".repeat(30001)])
+      await req("/styles", { name: "无效提示词", rules }, "POST", 400);
+    await req("/styles", { name: "空风格" }, "POST", 400);
+    const manualCreated = await req(
+      "/styles",
+      { name: "手写风格验收", rules: manualRules },
+      "POST",
+      201,
+    );
+    const manualStyle = manualCreated.style;
+    assert.equal(manualCreated.job, null);
+    assert.equal(manualStyle.rules, manualRules);
+    assert.deepEqual(manualStyle.refs, []);
+    assert.equal(manualStyle.status, "ready");
+    assert.equal(manualStyle.compositionMode, "direct");
+    await req(`/styles/${manualStyle.id}/analyze`, {}, "POST", 400);
+    assert.equal(calls.length, callsBeforeManual);
+    assert.deepEqual(await req("/jobs"), jobsBeforeManual);
+    const initialManualVersion = await req(
+      `/styles/${manualStyle.id}/versions`,
+    );
+    assert.equal(initialManualVersion.versions[0].rules, manualRules);
+    const editedManual = await req(
+      `/styles/${manualStyle.id}`,
+      {
+        rules: manualRules + "新版",
+        expectedVersion: manualStyle.versionToken,
+      },
+      "PATCH",
+    );
+    await req(
+      `/styles/${manualStyle.id}/versions/${(await req(`/styles/${manualStyle.id}/versions`)).versions[1].id}/restore`,
+      { expectedVersion: editedManual.versionToken },
+    );
+    assert.equal(
+      (await req(`/styles/${manualStyle.id}/versions`)).versions[0].rules,
+      manualRules,
+    );
     const defaultStyle = (await req("/bootstrap")).styles[0];
     assert.equal(defaultStyle.id, "restrained-minimal");
     assert.equal(defaultStyle.compositionMode, "direct");
@@ -1074,6 +1115,56 @@ test(
       await downloaded.saveAs(path.join(dir, "browser-export.pptx"));
       await page.setViewportSize({ width: 1440, height: 1000 });
       await page.goto(base.replace("/api", "") + "/#styles");
+      const modelsBeforeCreate = calls.length;
+      await page.getByRole("button", { name: "创建风格", exact: true }).click();
+      await page.getByRole("button", { name: "手动填写", exact: true }).click();
+      await page
+        .getByRole("textbox", { name: "风格名称", exact: true })
+        .fill("浏览器手写风格");
+      await expect(
+        page.getByRole("button", { name: "保存风格", exact: true }),
+      ).toBeDisabled();
+      await page
+        .getByRole("textbox", { name: "风格提示词", exact: true })
+        .fill(manualRules);
+      await page.getByRole("button", { name: "上传图片", exact: true }).click();
+      await expect(
+        page.getByRole("button", { name: "保存并提炼风格", exact: true }),
+      ).toBeDisabled();
+      await page.getByRole("button", { name: "手动填写", exact: true }).click();
+      await expect(
+        page.getByRole("textbox", { name: "风格提示词", exact: true }),
+      ).toHaveValue(manualRules);
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.screenshot({
+        path: path.join(dir, "manual-style-mobile.png"),
+        fullPage: true,
+      });
+      assert(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      );
+      await page.setViewportSize({ width: 1440, height: 1000 });
+      await page.getByRole("button", { name: "保存风格", exact: true }).click();
+      await expect(
+        page.getByRole("button", { name: "打开风格试做", exact: true }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: "重新提炼风格", exact: true }),
+      ).toBeDisabled();
+      await expect(page.locator(".rules-text")).toHaveText(manualRules);
+      const savedManual = (await req("/bootstrap")).styles.find(
+        (s) => s.name === "浏览器手写风格",
+      );
+      assert.equal(savedManual.rules, manualRules);
+      assert.equal(calls.length, modelsBeforeCreate);
+      await page.screenshot({
+        path: path.join(dir, "manual-style-desktop.png"),
+        fullPage: true,
+      });
+      await page.getByRole("button", { name: "关闭", exact: true }).click();
+
       await page
         .getByRole("article")
         .filter({
@@ -1649,6 +1740,20 @@ test(
       persistedVersions.versions[0].rules,
       currentStyle.rules + "\n版本试做规则",
     );
+    const manualTrial = await req(
+      `/styles/${manualStyle.id}/trials`,
+      { notes: text, rules: manualRules },
+      "POST",
+      202,
+    );
+    assert.equal((await poll({ id: manualTrial.jobId })).status, "completed");
+    const manualResult = (
+      await req(`/styles/${manualStyle.id}/trials`)
+    ).trials.find((t) => t.id === manualTrial.id);
+    assert(
+      manualResult.plan.imageRequest.prompt.startsWith(manualRules + "\n\n"),
+    );
+    assert.equal(manualResult.plan.styleRules, manualRules);
     await shutdown();
     await boot();
     assert.deepEqual(

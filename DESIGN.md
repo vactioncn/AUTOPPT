@@ -121,7 +121,7 @@ components:
 
 The interface is a warm, restrained working environment for a person developing an ongoing speech. Pale paper surfaces, olive supporting tones and a terracotta action color keep attention on the manuscript and the actual generated image. The style workbench leads with the complete image, followed by content and feedback; native disclosures reveal the detailed rules and design plan when needed.
 
-This records the implemented system in `src/styles.css`, `src/studio.css`, `src/scene.css`, the shared components and main views, refreshed on 2026-09-30. The selected style is a whole visual grammar: typography, palette, linework, details and whitespace. Content determines the original composition and expression; style determines how it is drawn. The application palette does not become the output style. This corrects the operating flow within the incumbent visual system. Product behavior remains documented in `PRODUCT.md`.
+This records the implemented system in `src/styles.css`, `src/studio.css`, `src/scene.css`, the shared components and main views, refreshed on 2026-10-01. The selected style is a whole visual grammar: typography, palette, linework, details and whitespace. Content determines the original composition and expression; style determines how it is drawn. The application palette does not become the output style. Content attachments and the production report extend the existing quiet working surfaces, shared buttons and modal conventions. Product behavior remains documented in `PRODUCT.md`.
 
 **Key Characteristics:**
 - Warm light canvas with white working surfaces and fine olive-gray borders.
@@ -160,6 +160,8 @@ The desktop shell uses a sticky full-height sidebar (222px) and a flexible main 
 Project and style libraries use three columns; page previews use two larger columns. The current-batch gallery, all-pages view and manuscript view share a segmented switch. The composer follows the gallery, while submitted source text is available in a disclosure. Page detail places the complete image and redesign controls beside tabbed notes, design and versions (1.65:1 columns with a 280px minimum information panel).
 
 The style workbench leads with a centered image (1040px maximum width, 24px vertical margin), shown at full width with its natural proportions. Manuscript and feedback occupy equal columns beneath it (30px gap). Native disclosures follow for full design rules, the whole style language and the selected design plan. The history strip scrolls horizontally with result cards (230px wide).
+
+Content attachments form a two-column grid beneath the page-redesign feedback, with complete thumbnails (110px high) and a visible filename and remove control. The production report uses the existing wide modal: four metrics across the top, followed by a comparison summary, any first difference and an expandable page list. At the mobile breakpoint (600px), metrics become two columns and page rows omit the secondary image-status label; attachment thumbnails remain in two columns.
 
 | Viewport | Implemented behavior |
 | --- | --- |
@@ -217,9 +219,23 @@ Page frames show the complete generated image, with historical web scenes preser
 
 The current workflow produces images and exposes single-image download and project PPTX export. The workspace header has an “导出 PPT” action. Its dialog explains that each page is one complete image with the latest saved manuscript in speaker notes, preserving page order and image proportions. Missing pages, unsegmented batches and active jobs block download with an explanation. Changed manuscripts show an explicit current-image/latest-notes download label. Historical scenes flatten into a single PNG for export. Element editing remains paused.
 
+### Content Attachments
+
+The page-redesign form places “内容附件” below feedback and above the primary redesign action. A quiet count (“0 / 4” through “4 / 4”), shared “添加图片” button and format hint support optional selection of 1–4 chart, product or screenshot images (PNG, JPG or WebP, at most 12 MB each). White bordered thumbnail surfaces use the existing control radius and `object-fit: contain`; filenames are numbered, truncate visually with the full name available on hover, and accompany a named remove button. Selecting a thumbnail opens the original material. Uploading and generation states disable conflicting actions; inline errors retain the selection for correction or retry.
+
+**The Content Attachment Rule.** Content images are materials to incorporate into the page, distinct from style references. The form states that clicking “重新设计这页” sends the selected actual images to both the design and image-generation steps. The design tab exposes each image’s intended role, placement and preservation requirements; generation uses multi-image editing. Without content attachments, generation remains text-only. Style-reference images never enter production requests. Leaving or changing pages with unsubmitted notes or attachment choices opens the shared React modal with “留在此页” and “放弃修改并离开”; selection alone does not apply changes to the page.
+
+### Production Report
+
+“报告” sits beside “导出 PPT” in the workspace header and opens “制作报告” in the shared wide modal. Four open metric columns lead with “原文”, “页面”, “页面备注” and “演说稿”; large tabular numerals (30px) are paired with small units and explanatory captions. The summary reuses the existing green ready and amber attention treatments, always with an explicit text result. Loading, read failure and “重新读取” are visible states.
+
+**The Report Integrity Rule.** Raw submitted text includes headings; the comparison separately identifies the spoken body after Markdown headings are removed. It checks actual body text against current page notes in page order, ignoring whitespace but preserving punctuation. Equal character counts alone do not mean the text matches. The report shows the first differing character and both contexts, with a page-jump action when that position maps to a page. Unsubmitted drafts, unsegmented batches and changed notes awaiting a new image remain explicit. The speech manuscript is assembled from those same notes, so their equal counts are not an independent completeness check.
+
+An expandable, scrollable page list shows page number, title, note count and image readiness; selecting a row opens the page. “下载报告” saves the displayed counts, comparison and page details as a text file. Interface evidence is recorded in `.impeccable/review/attachments-desktop.png`, `attachments-user.png`, `attachments-mobile.png`, `report-desktop.png`, `report-user.png` and `report-mobile.png`. Scope review passed the interface and integration; automated tests verify actual image-byte transfer and text comparison. Real paid-model attachment fusion quality remains unverified.
+
 ### Segmented Controls and Dialogs
 
-The gallery switch uses a pale olive track and a white active option. Detail tabs use an underline instead. Native dialogs open with `showModal()`, support Escape and a close button, and close when the user clicks outside their bounds; dirty manuscript edits prompt before closing. Split and merge proposals are visibly previewed before generation.
+The gallery switch uses a pale olive track and a white active option. Detail tabs use an underline instead. Native dialogs open with `showModal()`, support Escape and a close button, and close when the user clicks outside their bounds; dirty manuscript or attachment edits prompt through the shared modal before leaving. Split and merge proposals are visibly previewed before generation.
 
 ### Style Workbench
 
@@ -227,7 +243,7 @@ The style-detail action opens a full workspace within the existing shell. A sing
 
 Native disclosures keep the full candidate rules, whole style language and selected design plan available on demand. Candidate manuscript, feedback, rules and selected trial survive reopening. A separate promotion row saves the completed selected image trial’s style snapshot as the formal style. Promotion remains disabled while work is running, manuscript/rules differ from that trial, a completed image result is missing or the trial is already applied. Selecting a history card restores its manuscript and candidate snapshot without promoting it. Historical web trials retain the caption “历史网页”; another trial produces an image.
 
-**The Resolved Style Rule.** Source-image management remains in style creation and explicit re-extraction. After understanding content relationships, trial and production planning apply the full saved style to resolve each page’s `styleExecution`: `typeHierarchy` covers cross-scale typography, `spatialRhythm` organizes density and whitespace, `graphicHierarchy` establishes graphic and line hierarchy, and `microDetail` carries editorial microdetails. Style fidelity depends on these relationships, beyond color, large type and simple lines. Actual auxiliary microcopy must enter `displayText` and only summarize or translate the page’s content. Image requests receive only resolved page choices, without conflicting alternatives from the whole style library or original reference images. The workbench offers no reference comparison or automatic deviation review.
+**The Resolved Style Rule.** Style-reference image management remains in style creation and explicit re-extraction. After understanding content relationships, trial and production planning apply the full saved style to resolve each page’s `styleExecution`: `typeHierarchy` covers cross-scale typography, `spatialRhythm` organizes density and whitespace, `graphicHierarchy` establishes graphic and line hierarchy, and `microDetail` carries editorial microdetails. Style fidelity depends on these relationships, beyond color, large type and simple lines. Actual auxiliary microcopy must enter `displayText` and only summarize or translate the page’s content. Image requests receive resolved page choices and any explicitly selected content attachments, without conflicting alternatives from the whole style library or original style-reference images. The workbench offers no reference comparison or automatic deviation review.
 
 **The Candidate Boundary Rule.** Keep candidate and formal style rules visibly separate; only the explicit promotion action changes the style used for later production.
 
@@ -241,7 +257,7 @@ Within “完整设计规范”, `StyleLanguage` uses the native disclosure “�
 
 **The Details Refinement Rule.** The model declares `details` or `composition` mode. With an unchanged manuscript, `details` preserves the previous main copy, layout and visual, adding only short supporting annotations. A changed manuscript disables preservation of the old copy.
 
-**The Opaque Image Rule.** Image requests are text-only and require an opaque background. Unexpected transparent output is rejected while retaining the previous image and pending plan.
+**The Opaque Image Rule.** Image requests require an opaque background. Requests without content attachments are text-only; selected content attachments are actual inputs to the design and multi-image editing steps. Unexpected transparent output is rejected while retaining the previous image and pending plan.
 
 Style compiler v3 and planning v5 carry this correction; planning permits typographic expressions for more content relationships. Legacy raster plans without an engine declaration remain accepted. The original 示例演讲 source slides are untouched. This changes generated output behavior; the application palette and navigation remain unchanged. Existing interface evidence remains `.impeccable/review/content-first-desktop.png`, `.impeccable/review/content-first-user-1039.png`, `.impeccable/review/content-first-mobile.png` and `.impeccable/review/content-first-plan.png`.
 
@@ -262,6 +278,6 @@ Actual samples in test project `76279902-8efb-4e61-ade7-3595a836670e` are black 
 - **Don't** present missing results, failed pages or stale previews as newly completed output.
 - **Don't** let the application palette substitute for the user’s saved output style or let that style recolor application controls.
 - **Don't** reintroduce template or visual-direction pickers, generic layout galleries or element editing into the current image workflow. PPTX export must remain complete images with speaker notes.
-- **Don't** reintroduce source-image selection, reference comparison or automatic deviation review into the finalized trial and production flows.
+- **Don't** reintroduce style-reference image selection, reference comparison or automatic deviation review into the finalized trial and production flows; content attachments have their own explicit material input.
 - **Don't** treat choosing a history result as saving its candidate rules to the formal style.
 - **Don't** treat reviewed image samples or a successful interface review as a general guarantee of output quality or reference-style fidelity.

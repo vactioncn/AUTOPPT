@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { styleStamp } from "../server/core.mjs";
 import { copyFixture, reviewFixture } from "./fixtures/screen-copy.mjs";
+import sharp from "sharp";
 
 test("raw style prompts stay exact and independent from reusable, source-bound screen copy", async (t) => {
   const dir = mkdtempSync(path.join(tmpdir(), "autoppt-style-isolation-"));
@@ -67,10 +68,17 @@ test("raw style prompts stay exact and independent from reusable, source-bound s
   assert.equal(calls.length, 2);
   assert.deepEqual(approved.sourceStyle, styleStamp(minimal));
   assert.equal(approved.styleRules, minimal.rules);
-  assert(
-    imagePrompt(approved).includes(
-      "【第一部分：设计风格提示词】\n" + minimal.rules + "\n\n【第二部分",
-    ),
+  assert.equal(
+    imagePrompt({ ...approved, imageFeedback: "" }),
+    minimal.rules + "\n\n" + approved.displayText.join("\n\n"),
+  );
+  assert.equal(approved.promptMode, "verbatim-style-v2");
+  assert.equal(
+    imagePrompt(approved),
+    minimal.rules +
+      "\n\n" +
+      approved.displayText.join("\n\n") +
+      "\n\n【本页画面调整要求】\nVISUAL_FEEDBACK",
   );
   assert(!imagePrompt(approved).includes("UNWANTED_OLD_DIAGRAM"));
   assert(!imagePrompt(approved).includes("完整背景讲解留在口播"));
@@ -131,4 +139,37 @@ test("raw style prompts stay exact and independent from reusable, source-bound s
     /排版改动/,
   );
   await assert.rejects(generateImage(approved, watercolor), /风格已变化/);
+  const pixels = await sharp({
+    create: { width: 24, height: 16, channels: 3, background: "white" },
+  })
+    .png()
+    .toBuffer();
+  globalThis.fetch = async (url, options) => {
+    assert.equal(url, "http://127.0.0.1:1/v1/images/generations");
+    const body = JSON.parse(options.body);
+    assert.equal(body.prompt, imagePrompt(approved));
+    assert.equal(body.quality, approved.imageRequest.quality);
+    assert.equal(body.size, approved.imageRequest.size);
+    return Response.json({
+      model: "provider-reported-model",
+      size: "1536x1024",
+      quality: "low",
+      data: [
+        {
+          b64_json: pixels.toString("base64"),
+          revised_prompt: "provider rewrite",
+        },
+      ],
+    });
+  };
+  await generateImage(approved, minimal);
+  assert.equal(approved.imageRequest.providerOrigin, "http://127.0.0.1:1");
+  assert.deepEqual(approved.imageResponse, {
+    width: 24,
+    height: 16,
+    reportedModel: "provider-reported-model",
+    reportedSize: "1536x1024",
+    reportedQuality: "low",
+    revisedPrompt: "provider rewrite",
+  });
 });

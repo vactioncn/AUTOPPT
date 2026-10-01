@@ -285,10 +285,13 @@ export async function generateImage(plan, style, signal, attachments = []) {
     throw new Error("风格已变化，请用当前风格重新生成。");
   const prompt = imagePrompt(plan);
   plan.imageRequest = {
+    providerOrigin: new URL(config.baseUrl).origin,
     model: config.model,
     prompt,
     size: "1536x864",
+    quality: "high",
     background: "opaque",
+    n: 1,
     referenceMode: attachments.length ? "content-attachments" : "rules-only",
     attachmentIds: attachments.map((a) => a.id),
   };
@@ -344,6 +347,16 @@ export async function generateImage(plan, style, signal, attachments = []) {
     throw new ProviderError(
       "图片服务返回了透明底，未保存为成品。设计方案已保留，请重试生成完整背景的页面。",
     );
+  const { width, height } = await sharp(normalized).metadata();
+  plan.imageResponse = {
+    width,
+    height,
+    reportedModel: typeof result.model === "string" ? result.model : null,
+    reportedSize: typeof result.size === "string" ? result.size : null,
+    reportedQuality: typeof result.quality === "string" ? result.quality : null,
+    revisedPrompt:
+      typeof item.revised_prompt === "string" ? item.revised_prompt : null,
+  };
   const filename = id() + ".png";
   writeFileSync(assetPath(filename), normalized);
   return filename;

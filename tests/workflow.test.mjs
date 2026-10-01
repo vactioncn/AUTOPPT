@@ -606,10 +606,16 @@ test(
     trial = (await trials()).trials.find((t) => t.id === trial.id);
     assert(trial.image);
     assert.equal(trial.scene, null);
-    assert.equal(trial.plan.promptMode, "verbatim-style-v1");
+    assert.equal(trial.plan.promptMode, "verbatim-style-v2");
     assert.equal(trial.plan.styleRules, style.rules);
     assert.equal(trial.review, null);
-    assert(trial.plan.imageRequest.prompt.includes(style.rules));
+    assert.equal(
+      trial.plan.imageRequest.prompt,
+      style.rules + "\n\n" + trial.plan.displayText.join("\n\n"),
+    );
+    assert.equal(trial.plan.imageResponse.width, 1600);
+    assert.equal(trial.plan.imageResponse.height, 900);
+    assert.equal(trial.plan.imageResponse.reportedModel, null);
     await req(`${route}/${trial.id}/apply`, {});
     style = (await req("/bootstrap")).styles.find((s) => s.id === style.id);
     assert.equal(style.appliedTrialId, trial.id);
@@ -748,7 +754,7 @@ test(
       202,
     );
     assert.equal((await poll(job)).status, "completed");
-    assert.equal((await read()).slides[1].plan.promptMode, "verbatim-style-v1");
+    assert.equal((await read()).slides[1].plan.promptMode, "verbatim-style-v2");
     project = await read();
     assert(project.slides[1].image);
     assert.equal(project.slides[1].scene, null);
@@ -794,16 +800,8 @@ test(
           r.background === "opaque",
       ),
     );
-    assert(
-      imageRequests.every((r) =>
-        r.prompt.includes("【第一部分：设计风格提示词】"),
-      ),
-    );
-    assert(
-      imageRequests.every((r) =>
-        r.prompt.includes("【第二部分：已提炼并复核的上屏内容】"),
-      ),
-    );
+    assert(imageRequests.every((r) => !r.prompt.includes("不要自行补写")));
+    assert(imageRequests.every((r) => !r.prompt.includes("【输出规格】")));
     assert(imageRequests.every((r) => r.prompt.includes("DETAIL LABEL")));
     assert(imageRequests.every((r) => !r.prompt.includes("savedObservations")));
     assert(
@@ -1040,6 +1038,12 @@ test(
         "复制完整出图提示词",
         browserTrial.plan.imageRequest.prompt,
       );
+      await page.getByText("查看上屏文案与生成依据", { exact: true }).click();
+      await page.getByText("实际发送的出图提示词", { exact: true }).click();
+      await expect(page.getByText(/请求模型：test-image/)).toBeVisible();
+      await expect(page.getByText(/实际图片：1600×900/)).toBeVisible();
+      await expect(page.getByText(/服务未返回模型标识/)).toBeVisible();
+      await page.getByText("查看上屏文案与生成依据", { exact: true }).click();
       // Editing the draft must not change the input copied for the selected image.
       await page
         .getByLabel("试做讲稿", { exact: true })

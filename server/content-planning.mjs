@@ -1,5 +1,5 @@
 // Content structures constrain meaning, not style or fixed template geometry.
-export const PLANNING_VERSION = 8;
+export const PLANNING_VERSION = 9;
 
 // Refinement is additive. A model must not replace approved macro decisions with its new draft.
 export function preserveComposition(previous, proposed, language) {

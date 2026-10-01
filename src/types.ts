@@ -70,10 +70,24 @@ export type DesignLanguage = Record<
   string
 >;
 export type Plan = {
-  promptMode?: "verbatim-style-v1";
+  promptMode?: "verbatim-style-v1" | "verbatim-style-v2";
   styleRules?: string;
   copyReused?: boolean;
-  imageRequest?: { prompt: string; model: string };
+  imageRequest?: {
+    prompt: string;
+    model: string;
+    providerOrigin?: string;
+    size?: string;
+    quality?: string;
+  };
+  imageResponse?: {
+    width: number;
+    height: number;
+    reportedModel?: string | null;
+    reportedSize?: string | null;
+    reportedQuality?: string | null;
+    revisedPrompt?: string | null;
+  };
   sourceStyle?: StyleStamp;
   attachments?: ContentAttachment[];
   attachmentPlacements?: {

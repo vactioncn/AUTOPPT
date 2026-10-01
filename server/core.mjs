@@ -26,7 +26,7 @@ export function styleStamp(style, plan = null) {
     updatedAt: style.updatedAt,
     designRefs: [],
     renderer: "image-rules-v1",
-    // Reference images inform analysis; new image requests contain text only.
+    // Style reference images stay in analysis. Content attachments are tracked on the plan.
     imageRefs: [],
   };
 }
@@ -138,6 +138,7 @@ export function snapshot(slide) {
     id: crypto.randomUUID(),
     createdAt: new Date().toISOString(),
     notes: slide.notes,
+    attachments: slide.attachments || [],
     manuscriptVersion: slide.manuscriptVersion,
     plan: slide.plan,
     image: slide.image,

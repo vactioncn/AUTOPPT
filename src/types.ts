@@ -71,6 +71,13 @@ export type DesignLanguage = Record<
 >;
 export type Plan = {
   sourceStyle?: StyleStamp;
+  attachments?: ContentAttachment[];
+  attachmentPlacements?: {
+    id: string;
+    role: string;
+    placement: string;
+    preserve: string;
+  }[];
   planningVersion?: number;
   designLanguage?: DesignLanguage;
   styleExecution?: Record<
@@ -103,9 +110,17 @@ export type Plan = {
   adaptations?: string;
   referenceSpec?: ReferenceSpec;
   purpose?: "transfer" | "reconstruction";
-  referenceMode?: "with-reference" | "rules-only";
+  referenceMode?: "with-reference" | "rules-only" | "content-attachments";
+};
+export type ContentAttachment = {
+  id: string;
+  name: string;
+  filename: string;
+  width: number;
+  height: number;
 };
 export type Version = {
+  attachments?: ContentAttachment[];
   id: string;
   createdAt: string;
   notes: string;
@@ -120,6 +135,8 @@ export type Version = {
   stale: boolean;
 };
 export type Slide = {
+  attachments?: ContentAttachment[];
+  pendingAttachments?: ContentAttachment[];
   id: string;
   notes: string;
   batchIds: string[];

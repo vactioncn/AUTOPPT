@@ -19,6 +19,7 @@ import { PLANNING_VERSION, nearbyCompositions } from "./content-planning.mjs";
 import { snapshot, styleStamp } from "./core.mjs";
 import { MANUSCRIPT_VERSION, spokenManuscript } from "./manuscript.mjs";
 import { runTrial } from "./trials.mjs";
+import { attachmentKey } from "./attachments.mjs";
 const controllers = new Map();
 let processing = false;
 export function activeJob(projectId) {
@@ -229,10 +230,13 @@ async function renderSlides(j, ids, signal, redesign = false) {
       s.error = null;
       saveProject(p);
       const style = styleFor(p, j);
+      const attachments =
+        j.payload.attachmentSnapshots?.[sid] ?? s.attachments ?? [];
       let stamp = styleStamp(style);
       const reusablePending =
         s.pendingPlan?.planningVersion === PLANNING_VERSION &&
-        s.pendingPlanStyle?.fingerprint === stamp.fingerprint;
+        s.pendingPlanStyle?.fingerprint === stamp.fingerprint &&
+        attachmentKey(s.pendingPlan.attachments) === attachmentKey(attachments);
       let plan = reusablePending ? s.pendingPlan : s.plan;
       if (
         !reusablePending &&
@@ -263,6 +267,7 @@ async function renderSlides(j, ids, signal, redesign = false) {
             notesUnchanged: !s.stale,
             previousStyle: s.planStyle,
             nearbyPages: nearbyCompositions(p.slides, s.id, stamp.fingerprint),
+            attachments,
           },
         );
       }
@@ -284,7 +289,7 @@ async function renderSlides(j, ids, signal, redesign = false) {
         completed,
         ids.length,
       );
-      const image = await generateImage(plan, style, signal);
+      const image = await generateImage(plan, style, signal, attachments);
       signal.throwIfAborted();
       p = projectOrThrow(j.projectId);
       s = p.slides.find((x) => x.id === sid);
@@ -301,9 +306,11 @@ async function renderSlides(j, ids, signal, redesign = false) {
         imageStyle: stamp,
         review: null,
         reviewError: null,
+        attachments,
       });
       delete s.pendingPlan;
       delete s.pendingPlanStyle;
+      delete s.pendingAttachments;
       saveProject(p);
       j.payload.finishedIds = [...(j.payload.finishedIds || []), sid];
       completed++;

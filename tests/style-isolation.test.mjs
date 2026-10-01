@@ -152,6 +152,12 @@ test("selected style controls new pages; only an unchanged, known style can lock
     assert(!prompt.includes("Keep fine line hierarchy"));
     assert(!prompt.includes("without mottling, paper texture"));
   }
+  const removedAttachment = await render(minimal, {
+    ...approved,
+    attachments: [{ id: "removed" }],
+  });
+  assert.equal(removedAttachment.editScope, "composition");
+  assert.equal(lastRequest.previous, null);
   const legacy = { ...approved };
   delete legacy.sourceStyle;
   assert.equal((await render(minimal, legacy)).editScope, "composition");

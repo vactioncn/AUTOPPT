@@ -24,10 +24,20 @@ import {
   FloppyDisk,
   Stop,
   DownloadSimple,
+  Paperclip,
+  ChartBar,
 } from "@phosphor-icons/react";
 import { api, post, patch, asset, active, downloadPresentation } from "./api";
 import { SceneView } from "./SceneView";
-import type { Project, Style, Slide, Job, Settings } from "./types";
+import type {
+  Project,
+  Style,
+  Slide,
+  Job,
+  Settings,
+  ContentAttachment,
+} from "./types";
+import { ProjectReport } from "./ProjectReport";
 import { Button, Modal, Field, SlideImage, Status } from "./components";
 
 export function Workspace({
@@ -58,6 +68,7 @@ export function Workspace({
     [proposalOpen, setProposalOpen] = useState(false),
     [showScript, setShowScript] = useState(false),
     [exportOpen, setExportOpen] = useState(false),
+    [reportOpen, setReportOpen] = useState(false),
     [renaming, setRenaming] = useState(false);
   const initialized = useRef(false),
     draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null),
@@ -203,13 +214,19 @@ export function Workspace({
             字
           </p>
         </div>
-        <Button
-          onClick={() => setExportOpen(true)}
-          disabled={!project.slides.length && !project.batches.length}
-        >
-          <DownloadSimple size={18} />
-          导出 PPT
-        </Button>
+        <div className="project-output-actions">
+          <Button onClick={() => setReportOpen(true)}>
+            <ChartBar size={18} />
+            报告
+          </Button>
+          <Button
+            onClick={() => setExportOpen(true)}
+            disabled={!project.slides.length && !project.batches.length}
+          >
+            <DownloadSimple size={18} />
+            导出 PPT
+          </Button>
+        </div>
       </div>
       <div className="project-controls">
         <div className="project-style">
@@ -678,6 +695,18 @@ export function Workspace({
           notify={notify}
         />
       )}
+      {reportOpen && (
+        <ProjectReport
+          projectId={id}
+          revision={project.revision}
+          title={project.title}
+          onClose={() => setReportOpen(false)}
+          onOpenPage={(sid) => {
+            setReportOpen(false);
+            setDetail(sid);
+          }}
+        />
+      )}
       {detailSlide && (
         <SlideDetail
           slide={detailSlide}
@@ -968,6 +997,56 @@ function SlideDetail({
     [loading, setLoading] = useState(false),
     [error, setError] = useState(""),
     [history, setHistory] = useState<string | null>(null);
+  const [attachments, setAttachments] = useState<ContentAttachment[]>(
+    slide.pendingAttachments ?? slide.attachments ?? [],
+  );
+  const [uploading, setUploading] = useState(false);
+  const [leaveAction, setLeaveAction] = useState<number | "close" | null>(null);
+  const attachmentInput = useRef<HTMLInputElement>(null);
+  const savedAttachmentKey = (
+    slide.pendingAttachments ??
+    slide.attachments ??
+    []
+  )
+    .map((a) => a.id)
+    .join(",");
+  const attachmentsDirty =
+    attachments.map((a) => a.id).join(",") !== savedAttachmentKey;
+  useEffect(() => {
+    setAttachments(slide.pendingAttachments ?? slide.attachments ?? []);
+  }, [slide.id, savedAttachmentKey]);
+  const addAttachments = async (files: File[]) => {
+    if (!files.length) return;
+    setError("");
+    if (files.length + attachments.length > 4) {
+      setError("每页最多 4 张附件，请先移除不需要的图片。");
+      return;
+    }
+    if (
+      files.some(
+        (f) =>
+          !["image/png", "image/jpeg", "image/webp"].includes(f.type) ||
+          f.size > 12 * 1024 * 1024,
+      )
+    ) {
+      setError("附件支持 PNG、JPG、WebP，每张最多 12 MB。");
+      return;
+    }
+    setUploading(true);
+    try {
+      const form = new FormData();
+      files.forEach((f) => form.append("images", f));
+      const result = await api<{ attachments: ContentAttachment[] }>(
+        `/projects/${projectId}/slides/${slide.id}/attachments`,
+        { method: "POST", body: form },
+      );
+      setAttachments((current) => [...current, ...result.attachments]);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setUploading(false);
+    }
+  };
   useEffect(() => {
     setNotes(slide.notes);
     setFeedback("");
@@ -1005,17 +1084,21 @@ function SlideDetail({
         slideIds: [slide.id],
         redesign: true,
         feedback,
+        attachmentIds: attachments.map((a) => a.id),
       });
       notify("正在换一个思路重新设计，旧版本会保留。");
     });
-  const nav = (n: number) => {
-    if (dirty && !confirm("讲稿还未保存，确定离开这一页吗？")) return;
-    onNavigate(n);
+  const leave = (action: number | "close") => {
+    if (uploading || loading) return;
+    if (dirty || attachmentsDirty) {
+      setLeaveAction(action);
+      return;
+    }
+    if (action === "close") onClose();
+    else onNavigate(action);
   };
-  const close = () => {
-    if (dirty && !confirm("讲稿还未保存，确定关闭吗？")) return;
-    onClose();
-  };
+  const nav = (n: number) => leave(n);
+  const close = () => leave("close");
   const version = slide.versions.find((v) => v.id === history);
   const displayed = version || slide;
   const imageStyleName =
@@ -1023,284 +1106,406 @@ function SlideDetail({
     styles.find((s) => s.id === displayed.styleId)?.name ||
     "原风格";
   return (
-    <Modal
-      wide
-      title={`第 ${index + 1} 页 · ${slide.plan?.title || "页面详情"}`}
-      subtitle={`${index + 1} / ${total} · ${slide.notes.length} 字讲稿`}
-      onClose={close}
-    >
-      <div className="detail-layout">
-        <div className="detail-visual">
-          <SlideImage
-            slide={
-              version
-                ? {
-                    ...slide,
-                    image: version.image,
-                    scene: version.scene,
-                    plan: version.plan,
-                  }
-                : slide
-            }
-          />
-          {(displayed.image || displayed.scene) && (
-            <p className="image-style-meta">
-              画面风格：{imageStyleName}
-              {displayed.scene
-                ? " · 历史网页记录"
-                : displayed.imageStyle
-                  ? displayed.imageStyle.imageRefs.length
-                    ? ` · 出图时附有 ${displayed.imageStyle.imageRefs.length} 张参考图`
-                    : " · 仅按风格规则与设计方案出图"
-                  : " · 历史页面"}
-            </p>
-          )}
-          {version && (
-            <div className="version-viewing">
-              <Clock size={15} />
-              正在查看历史版本
-              <Button variant="ghost" onClick={() => setHistory(null)}>
-                返回当前版本
-              </Button>
-            </div>
-          )}
-          <div className="detail-toolbar">
-            <div>
-              <Button
-                variant="ghost"
-                onClick={() => nav(-1)}
-                disabled={index === 0}
-              >
-                <CaretLeft size={17} />
-                上一页
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={() => nav(1)}
-                disabled={index === total - 1}
-              >
-                下一页
-                <CaretRight size={17} />
-              </Button>
-            </div>
-            <Button
-              disabled={busy || loading || dirty}
-              onClick={onSplit}
-              title={dirty ? "请先保存讲稿" : "手动选择原文分界"}
-            >
-              <Scissors size={17} />
-              拆分这一页
-            </Button>
-          </div>
-          {displayed.image && (
-            <a
-              className="btn secondary"
-              href={asset(displayed.image)}
-              download={`第${index + 1}页.png`}
-            >
-              保存图片
-            </a>
-          )}
-          <div className="redesign-box">
-            <h3>换一个思路，再设计一次</h3>
-            <p className="generation-style-help">
-              将使用：
-              {currentStyle && !currentStyle.deletedAt
-                ? currentStyle.name
-                : "请先在项目中选择可用风格"}
-            </p>
-            <textarea
-              aria-label="重新设计要求"
-              value={feedback}
-              onChange={(e) => setFeedback(e.target.value)}
-              placeholder={
-                "例如：文字太多了，只保留核心数字，换成更有冲击力的排版。\n也可以不填，直接让它重新构思。"
+    <>
+      <Modal
+        wide
+        title={`第 ${index + 1} 页 · ${slide.plan?.title || "页面详情"}`}
+        subtitle={`${index + 1} / ${total} · ${slide.notes.length} 字讲稿`}
+        onClose={close}
+      >
+        <div className="detail-layout">
+          <div className="detail-visual">
+            <SlideImage
+              slide={
+                version
+                  ? {
+                      ...slide,
+                      image: version.image,
+                      scene: version.scene,
+                      plan: version.plan,
+                    }
+                  : slide
               }
-              disabled={busy}
             />
-            <Button
-              variant="primary"
-              onClick={redesign}
-              loading={loading}
-              disabled={
-                busy ||
-                !notes.trim() ||
-                !currentStyle ||
-                !!currentStyle.deletedAt
-              }
-            >
-              <ArrowsClockwise size={17} />
-              {busy
-                ? "正在制作中"
-                : slide.stale || dirty
-                  ? "按新稿重新设计"
-                  : "重新设计这页"}
-            </Button>
-          </div>
-        </div>
-        <div className="detail-info">
-          <div className="detail-tabs">
-            <button
-              className={tab === "notes" ? "active" : ""}
-              onClick={() => setTab("notes")}
-            >
-              逐字稿
-            </button>
-            <button
-              className={tab === "plan" ? "active" : ""}
-              onClick={() => setTab("plan")}
-            >
-              设计方案
-            </button>
-            <button
-              className={tab === "versions" ? "active" : ""}
-              onClick={() => setTab("versions")}
-            >
-              版本 {slide.versions.length + 1}
-            </button>
-          </div>
-          {tab === "notes" ? (
-            <>
-              <p className="detail-help">
-                这里是对应本页的演讲正文。保存时会自动去掉 Markdown 标题，保留正文段落。
+            {(displayed.image || displayed.scene) && (
+              <p className="image-style-meta">
+                画面风格：{imageStyleName}
+                {displayed.scene
+                  ? " · 历史网页记录"
+                  : displayed.imageStyle
+                    ? displayed.imageStyle.imageRefs.length
+                      ? ` · 出图时附有 ${displayed.imageStyle.imageRefs.length} 张参考图`
+                      : displayed.attachments?.length
+                        ? ` · 出图时使用 ${displayed.attachments.length} 张内容附件`
+                        : " · 仅按风格规则与设计方案出图"
+                    : " · 历史页面"}
               </p>
-              <textarea
-                className="notes-editor"
-                aria-label="本页逐字稿"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                disabled={busy}
-              />
-              <div className="notes-footer">
-                <span>
-                  {notes.length} 字
-                  {dirty
-                    ? " · 未保存"
-                    : slide.stale
-                      ? " · 画面待更新"
-                      : " · 已保存"}
-                </span>
-                <Button
-                  onClick={save}
-                  loading={loading}
-                  disabled={!dirty || busy || !notes.trim()}
-                >
-                  <FloppyDisk size={16} />
-                  保存讲稿
+            )}
+            {version && (
+              <div className="version-viewing">
+                <Clock size={15} />
+                正在查看历史版本
+                <Button variant="ghost" onClick={() => setHistory(null)}>
+                  返回当前版本
                 </Button>
               </div>
-              {slide.stale && (
-                <p className="small-notice">
-                  讲稿已经修改。确认内容后，可以按新稿重新设计画面。
-                </p>
-              )}
-            </>
-          ) : tab === "plan" ? (
-            <div className="plan-details">
-              {slide.plan ? (
-                <>
-                  {slide.plan.contentBrief && (
-                    <>
-                      <h4>这一页要表达什么</h4>
-                      <p>{slide.plan.contentBrief.claim}</p>
-                      <p>{slide.plan.contentBrief.visualTask}</p>
-                      <h4>为什么这样表现</h4>
-                      <p>{slide.plan.selectionReason}</p>
-                    </>
-                  )}
-                  <h4>画面文字</h4>
-                  {slide.plan.displayText.map((t, i) => (
-                    <p className="display-line" key={i}>
-                      {t}
-                    </p>
-                  ))}
-                  <h4>版面安排</h4>
-                  <p>{slide.plan.layout}</p>
-                  <h4>视觉表达</h4>
-                  <p>{slide.plan.visual}</p>
-                  <h4>讲述意图</h4>
-                  <p>{slide.plan.rationale}</p>
-                </>
-              ) : (
-                <p>画面方案将在制作时生成。</p>
-              )}
-            </div>
-          ) : (
-            <div className="versions-list">
-              <p className="detail-help">
-                可以先比较画面，再恢复。恢复会一并还原对应讲稿。
-              </p>
-              <button
-                className={!history ? "version-card current" : "version-card"}
-                onClick={() => setHistory(null)}
+            )}
+            <div className="detail-toolbar">
+              <div>
+                <Button
+                  variant="ghost"
+                  onClick={() => nav(-1)}
+                  disabled={index === 0 || uploading || loading}
+                >
+                  <CaretLeft size={17} />
+                  上一页
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => nav(1)}
+                  disabled={index === total - 1 || uploading || loading}
+                >
+                  下一页
+                  <CaretRight size={17} />
+                </Button>
+              </div>
+              <Button
+                disabled={
+                  busy || loading || uploading || dirty || attachmentsDirty
+                }
+                onClick={onSplit}
+                title={
+                  dirty
+                    ? "请先保存讲稿"
+                    : attachmentsDirty
+                      ? "请先提交或移除新增附件"
+                      : "手动选择原文分界"
+                }
               >
-                {slide.scene ? (
-                  <SceneView scene={slide.scene} label="当前版本" />
-                ) : (
-                  slide.image && <img src={asset(slide.image)} alt="当前版本" />
-                )}
-                <span>
-                  当前版本
-                  <CheckCircle size={16} />
-                </span>
-              </button>
-              {[...slide.versions].reverse().map((v, i) => (
-                <div key={v.id} className="version-item">
-                  <button
-                    className={
-                      history === v.id ? "version-card current" : "version-card"
-                    }
-                    onClick={() => setHistory(v.id)}
-                  >
-                    {v.scene ? (
-                      <SceneView scene={v.scene} label="历史版本" />
-                    ) : v.image ? (
-                      <img
-                        src={asset(v.image)}
-                        alt={`历史版本 ${slide.versions.length - i}`}
-                      />
-                    ) : (
-                      <span>尚未生成</span>
-                    )}
-                    <span>
-                      版本 {slide.versions.length - i}
-                      <small>
-                        {new Date(v.createdAt).toLocaleTimeString("zh-CN", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </small>
-                    </span>
-                  </button>
+                <Scissors size={17} />
+                拆分这一页
+              </Button>
+            </div>
+            {displayed.image && (
+              <a
+                className="btn secondary"
+                href={asset(displayed.image)}
+                download={`第${index + 1}页.png`}
+              >
+                保存图片
+              </a>
+            )}
+            <div className="redesign-box">
+              <h3>换一个思路，再设计一次</h3>
+              <p className="generation-style-help">
+                将使用：
+                {currentStyle && !currentStyle.deletedAt
+                  ? currentStyle.name
+                  : "请先在项目中选择可用风格"}
+              </p>
+              <textarea
+                aria-label="重新设计要求"
+                value={feedback}
+                onChange={(e) => setFeedback(e.target.value)}
+                placeholder={
+                  "例如：文字太多了，只保留核心数字，换成更有冲击力的排版。\n也可以不填，直接让它重新构思。"
+                }
+                disabled={busy}
+              />
+              <div className="content-attachments">
+                <div className="content-attachments-heading">
+                  <strong>
+                    内容附件 <span>{attachments.length} / 4</span>
+                  </strong>
                   <Button
-                    variant="ghost"
-                    disabled={busy || loading}
-                    onClick={() =>
-                      act(async () => {
-                        await post(
-                          `/projects/${projectId}/slides/${slide.id}/restore`,
-                          { versionId: v.id },
-                        );
-                        setHistory(null);
-                        notify("已恢复画面及对应讲稿。");
-                      })
-                    }
+                    onClick={() => attachmentInput.current?.click()}
+                    loading={uploading}
+                    disabled={busy || loading || attachments.length >= 4}
                   >
-                    恢复这个版本
-                    <ArrowCounterClockwise size={14} />
+                    <Paperclip size={16} />
+                    添加图片
                   </Button>
                 </div>
-              ))}
+                <p>
+                  添加图表、产品截图等材料，直接融入新页面。PNG、JPG、WebP，每张最多
+                  12 MB。
+                </p>
+                <input
+                  ref={attachmentInput}
+                  className="visually-hidden"
+                  type="file"
+                  aria-label="添加内容附件"
+                  accept="image/png,image/jpeg,image/webp"
+                  multiple
+                  disabled={
+                    busy || loading || uploading || attachments.length >= 4
+                  }
+                  onChange={(e) => {
+                    void addAttachments(Array.from(e.target.files || []));
+                    e.target.value = "";
+                  }}
+                />
+                {attachments.length > 0 && (
+                  <div className="content-attachment-grid">
+                    {attachments.map((a, i) => (
+                      <div key={a.id}>
+                        <a
+                          href={asset(a.filename)}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          <img
+                            src={asset(a.filename)}
+                            alt={`附件 ${i + 1}：${a.name}`}
+                          />
+                        </a>
+                        <span title={a.name}>
+                          {i + 1}. {a.name}
+                        </span>
+                        <button
+                          disabled={busy || loading || uploading}
+                          aria-label={`移除附件 ${i + 1}`}
+                          onClick={() =>
+                            setAttachments((items) =>
+                              items.filter((item) => item.id !== a.id),
+                            )
+                          }
+                        >
+                          <X size={15} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {!!attachments.length && (
+                  <p>
+                    点击“重新设计这页”时，这些附件会同时用于设计和图片生成。
+                  </p>
+                )}
+                {(error || (!busy && slide.error)) && (
+                  <p className="error-text" role="alert">
+                    {error || slide.error}
+                  </p>
+                )}
+              </div>
+              <Button
+                variant="primary"
+                onClick={redesign}
+                loading={loading}
+                disabled={
+                  busy ||
+                  uploading ||
+                  !notes.trim() ||
+                  !currentStyle ||
+                  !!currentStyle.deletedAt
+                }
+              >
+                <ArrowsClockwise size={17} />
+                {busy
+                  ? "正在制作中"
+                  : slide.stale || dirty
+                    ? "按新稿重新设计"
+                    : "重新设计这页"}
+              </Button>
             </div>
-          )}
+          </div>
+          <div className="detail-info">
+            <div className="detail-tabs">
+              <button
+                className={tab === "notes" ? "active" : ""}
+                onClick={() => setTab("notes")}
+              >
+                逐字稿
+              </button>
+              <button
+                className={tab === "plan" ? "active" : ""}
+                onClick={() => setTab("plan")}
+              >
+                设计方案
+              </button>
+              <button
+                className={tab === "versions" ? "active" : ""}
+                onClick={() => setTab("versions")}
+              >
+                版本 {slide.versions.length + 1}
+              </button>
+            </div>
+            {tab === "notes" ? (
+              <>
+                <p className="detail-help">
+                  这里是对应本页的演讲正文。保存时会自动去掉 Markdown
+                  标题，保留正文段落。
+                </p>
+                <textarea
+                  className="notes-editor"
+                  aria-label="本页逐字稿"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  disabled={busy}
+                />
+                <div className="notes-footer">
+                  <span>
+                    {notes.length} 字
+                    {dirty
+                      ? " · 未保存"
+                      : slide.stale
+                        ? " · 画面待更新"
+                        : " · 已保存"}
+                  </span>
+                  <Button
+                    onClick={save}
+                    loading={loading}
+                    disabled={!dirty || busy || !notes.trim()}
+                  >
+                    <FloppyDisk size={16} />
+                    保存讲稿
+                  </Button>
+                </div>
+                {slide.stale && (
+                  <p className="small-notice">
+                    讲稿已经修改。确认内容后，可以按新稿重新设计画面。
+                  </p>
+                )}
+              </>
+            ) : tab === "plan" ? (
+              <div className="plan-details">
+                {slide.plan ? (
+                  <>
+                    {slide.plan.contentBrief && (
+                      <>
+                        <h4>这一页要表达什么</h4>
+                        <p>{slide.plan.contentBrief.claim}</p>
+                        <p>{slide.plan.contentBrief.visualTask}</p>
+                        <h4>为什么这样表现</h4>
+                        <p>{slide.plan.selectionReason}</p>
+                      </>
+                    )}
+                    <h4>画面文字</h4>
+                    {slide.plan.displayText.map((t, i) => (
+                      <p className="display-line" key={i}>
+                        {t}
+                      </p>
+                    ))}
+                    <h4>版面安排</h4>
+                    <p>{slide.plan.layout}</p>
+                    <h4>视觉表达</h4>
+                    <p>{slide.plan.visual}</p>
+                    {!!slide.plan.attachmentPlacements?.length && (
+                      <>
+                        <h4>内容附件安排</h4>
+                        {slide.plan.attachmentPlacements.map((a, i) => (
+                          <p key={a.id}>
+                            附件 {i + 1}：{a.role}。{a.placement}。{a.preserve}
+                          </p>
+                        ))}
+                      </>
+                    )}
+                    <h4>讲述意图</h4>
+                    <p>{slide.plan.rationale}</p>
+                  </>
+                ) : (
+                  <p>画面方案将在制作时生成。</p>
+                )}
+              </div>
+            ) : (
+              <div className="versions-list">
+                <p className="detail-help">
+                  可以先比较画面，再恢复。恢复会一并还原对应讲稿与内容附件。
+                </p>
+                <button
+                  className={!history ? "version-card current" : "version-card"}
+                  onClick={() => setHistory(null)}
+                >
+                  {slide.scene ? (
+                    <SceneView scene={slide.scene} label="当前版本" />
+                  ) : (
+                    slide.image && (
+                      <img src={asset(slide.image)} alt="当前版本" />
+                    )
+                  )}
+                  <span>
+                    当前版本
+                    <CheckCircle size={16} />
+                  </span>
+                </button>
+                {[...slide.versions].reverse().map((v, i) => (
+                  <div key={v.id} className="version-item">
+                    <button
+                      className={
+                        history === v.id
+                          ? "version-card current"
+                          : "version-card"
+                      }
+                      onClick={() => setHistory(v.id)}
+                    >
+                      {v.scene ? (
+                        <SceneView scene={v.scene} label="历史版本" />
+                      ) : v.image ? (
+                        <img
+                          src={asset(v.image)}
+                          alt={`历史版本 ${slide.versions.length - i}`}
+                        />
+                      ) : (
+                        <span>尚未生成</span>
+                      )}
+                      <span>
+                        版本 {slide.versions.length - i}
+                        <small>
+                          {new Date(v.createdAt).toLocaleTimeString("zh-CN", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </small>
+                      </span>
+                    </button>
+                    <Button
+                      variant="ghost"
+                      disabled={
+                        busy || loading || uploading || attachmentsDirty
+                      }
+                      onClick={() =>
+                        act(async () => {
+                          await post(
+                            `/projects/${projectId}/slides/${slide.id}/restore`,
+                            { versionId: v.id },
+                          );
+                          setHistory(null);
+                          notify("已恢复画面及对应讲稿。");
+                        })
+                      }
+                    >
+                      恢复这个版本
+                      <ArrowCounterClockwise size={14} />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
-      {error && (
-        <p className="error-text" role="alert">
-          {error}
-        </p>
+      </Modal>
+      {leaveAction !== null && (
+        <Modal
+          title="有修改尚未提交"
+          subtitle="讲稿或附件选择尚未提交，离开后不会应用到页面。"
+          onClose={() => setLeaveAction(null)}
+        >
+          <div className="modal-actions">
+            <Button onClick={() => setLeaveAction(null)}>留在此页</Button>
+            <Button
+              onClick={() => {
+                const action = leaveAction;
+                setLeaveAction(null);
+                if (action === "close") onClose();
+                else onNavigate(action);
+              }}
+            >
+              放弃修改并离开
+            </Button>
+          </div>
+        </Modal>
       )}
-    </Modal>
+    </>
   );
 }
 function SplitDialog({

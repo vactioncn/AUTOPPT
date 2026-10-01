@@ -52,6 +52,8 @@ import {
 
 import { registerTrials } from "./trials.mjs";
 import { registerStyleImports } from "./style-import.mjs";
+import { registerAttachments, resolveAttachments } from "./attachments.mjs";
+import { projectReport } from "./report.mjs";
 
 const app = express();
 app.disable("x-powered-by");
@@ -141,6 +143,10 @@ app.get("/api/bootstrap", (req, res) =>
 app.get("/api/projects/:id", (req, res) =>
   res.json(projectOrThrow(req.params.id)),
 );
+app.get("/api/projects/:id/report", (req, res) =>
+  res.json(projectReport(projectOrThrow(req.params.id))),
+);
+registerAttachments(app, { assertIdle });
 app.post("/api/projects", (req, res) => {
   const title = String(req.body.title || "").trim();
   if (!title || title.length > 100)
@@ -255,17 +261,35 @@ app.post("/api/projects/:id/render", (req, res) => {
   )
     throw new Error("请选择需要制作的页面。");
   p.undo = null;
+  if (req.body.attachmentIds !== undefined && ids.length !== 1)
+    throw new Error("添加内容附件时，请单独重新设计这一页。");
+  const attachmentSnapshots = Object.fromEntries(
+    ids.map((sid) => {
+      const s = p.slides.find((s) => s.id === sid);
+      return [
+        sid,
+        resolveAttachments(
+          p.id,
+          req.body.attachmentIds ??
+            (s.pendingAttachments ?? s.attachments ?? []).map((a) => a.id),
+        ),
+      ];
+    }),
+  );
   for (const sid of ids) {
     const slide = p.slides.find((s) => s.id === sid);
     delete slide.pendingPlan;
     delete slide.pendingPlanStyle;
+    slide.pendingAttachments = attachmentSnapshots[sid];
   }
   saveProject(p);
   res.status(202).json(
     enqueue("render", p.id, {
       slideIds: ids,
-      redesign: req.body.redesign !== false,
+      redesign:
+        req.body.attachmentIds !== undefined || req.body.redesign !== false,
       feedback: String(req.body.feedback || "").slice(0, 10000),
+      attachmentSnapshots,
     }),
   );
 });
@@ -306,6 +330,7 @@ app.post("/api/projects/:id/slides/:sid/restore", (req, res) => {
   s.versions.push(snapshot(s));
   Object.assign(s, {
     notes: speakerNotes(v),
+    attachments: v.attachments || [],
     manuscriptVersion: MANUSCRIPT_VERSION,
     plan: v.plan,
     image: v.image,
@@ -321,6 +346,7 @@ app.post("/api/projects/:id/slides/:sid/restore", (req, res) => {
   });
   delete s.pendingPlan;
   delete s.pendingPlanStyle;
+  delete s.pendingAttachments;
   p.proposal = null;
   p.undo = null;
   saveProject(p);
@@ -459,8 +485,7 @@ app.get("/api/projects/:id/export", async (req, res) => {
     );
   const buffer = await exportPresentation(p, {
     allowStale:
-      req.query.allowStale === "1" &&
-      req.query.revision === String(p.revision),
+      req.query.allowStale === "1" && req.query.revision === String(p.revision),
   });
   res.attachment(exportFilename(p.title)).send(buffer);
 });

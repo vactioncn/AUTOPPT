@@ -22,6 +22,8 @@ test(
     });
     const calls = [];
     const imageRequests = [];
+    const editRequests = [];
+    let omitAttachment = false;
     let failImage = false;
     let transparentImage = false;
     let imageCalls = 0,
@@ -31,12 +33,28 @@ test(
       held,
       splitCount = 1;
     const provider = http.createServer(async (req, res) => {
-      let body = "";
-      for await (const p of req) body += p;
+      const chunks = [];
+      for await (const p of req) chunks.push(p);
+      const bytes = Buffer.concat(chunks),
+        body = bytes.toString();
       res.setHeader("Content-Type", "application/json");
       if (req.url.includes("/images/")) {
         imageCalls++;
-        imageRequests.push(JSON.parse(body));
+        if (req.url.endsWith("/images/edits")) {
+          const form = await new Response(bytes, {
+            headers: { "Content-Type": req.headers["content-type"] },
+          }).formData();
+          editRequests.push({
+            prompt: form.get("prompt"),
+            model: form.get("model"),
+            background: form.get("background"),
+            files: await Promise.all(
+              form
+                .getAll("image[]")
+                .map(async (file) => Buffer.from(await file.arrayBuffer())),
+            ),
+          });
+        } else imageRequests.push(JSON.parse(body));
         if (failImage) {
           failImage = false;
           res.statusCode = 503;
@@ -162,7 +180,14 @@ test(
         };
       } else if (system.includes("演讲页面设计师")) {
         const data = JSON.parse(user);
-        calls.push({ type: "design", refs, data });
+        calls.push({
+          type: "design",
+          refs,
+          data,
+          imageInputs: input.messages[1].content
+            .filter((c) => c.type === "image_url")
+            .map((c) => Buffer.from(c.image_url.url.split(",")[1], "base64")),
+        });
         if (holdDesign) {
           holdDesign = false;
           await new Promise((r) => {
@@ -177,6 +202,14 @@ test(
         }
         output = {
           editScope: data.previous && data.feedback ? "details" : "composition",
+          attachmentPlacements: omitAttachment
+            ? []
+            : (data.attachments || []).map((a, i) => ({
+                id: a.id,
+                role: "原始产品与图表材料",
+                placement: `材料 ${i + 1} 按比例排列，旁边保留讲述文字`,
+                preserve: "保留图表数值、原图文字和产品细节",
+              })),
           detailText: [],
           title: "LOCAL TEST FIXTURE",
           displayText: ["LOCAL TEST FIXTURE", "DETAIL LABEL"],
@@ -963,6 +996,204 @@ test(
       );
       await browser.close();
     }
+    // Content attachments are actual image inputs, independently of style references.
+    project = await read();
+    const attachmentSid = project.slides[0].id;
+    const attachmentRoute = `/projects/${id}/slides/${attachmentSid}/attachments`;
+    const uploadMaterials = async (count, type = "image/png", bytes) => {
+      const data = new FormData();
+      for (let i = 0; i < count; i++) {
+        const material =
+          bytes ||
+          (await sharp({
+            create: {
+              width: 240 + i,
+              height: 160,
+              channels: 3,
+              background: { r: 40 + i * 40, g: 100, b: 160 },
+            },
+          })
+            .png()
+            .toBuffer());
+        data.append(
+          "images",
+          new Blob([material], { type }),
+          `产品截图-${i + 1}.png`,
+        );
+      }
+      return fetch(base + attachmentRoute, { method: "POST", body: data });
+    };
+    assert.equal((await uploadMaterials(5)).status, 400);
+    assert.equal((await uploadMaterials(1, "image/svg+xml")).status, 400);
+    assert.equal(
+      (await uploadMaterials(1, "image/png", Buffer.from("not an image")))
+        .status,
+      400,
+    );
+    assert.equal(
+      (
+        await uploadMaterials(
+          1,
+          "image/png",
+          Buffer.alloc(12 * 1024 * 1024 + 1),
+        )
+      ).status,
+      400,
+    );
+    const materialsResponse = await uploadMaterials(4);
+    assert.equal(materialsResponse.status, 201);
+    const { attachments } = await materialsResponse.json();
+    const attachmentIds = attachments.map((a) => a.id);
+    assert.equal(attachments[0].name, "产品截图-1.png");
+    assert.equal(attachments[3].width, 243);
+    assert.equal((await read()).slides[0].attachments?.length || 0, 0);
+    const foreign = await req(
+      "/projects",
+      { title: "附件隔离验收", styleId: project.styleId },
+      "POST",
+      201,
+    );
+    // An existing attachment id from a different project must not be accepted.
+    await req(
+      `/projects/${id}/render`,
+      { slideIds: [attachmentSid], attachmentIds: ["missing"] },
+      "POST",
+      400,
+    );
+    await req(
+      `/projects/${id}/render`,
+      {
+        slideIds: [attachmentSid],
+        attachmentIds: [...attachmentIds, attachmentIds[0]],
+      },
+      "POST",
+      400,
+    );
+    // A foreign id is backed by a real record to cover ownership, not just missing input.
+    const fixtureDb = new DatabaseSync(path.join(dir, "autoppt.sqlite"));
+    fixtureDb
+      .prepare("INSERT INTO records(kind,id,data) VALUES(?,?,?)")
+      .run(
+        "attachment",
+        "foreign",
+        JSON.stringify({
+          ...attachments[0],
+          id: "foreign",
+          projectId: foreign.id,
+        }),
+      );
+    fixtureDb.close();
+    await req(
+      `/projects/${id}/render`,
+      { slideIds: [attachmentSid], attachmentIds: ["foreign"] },
+      "POST",
+      400,
+    );
+    const rendered = async (ids = attachmentIds) =>
+      poll(
+        await req(
+          `/projects/${id}/render`,
+          {
+            slideIds: [attachmentSid],
+            attachmentIds: ids,
+            redesign: false,
+            feedback: "将这些产品截图和图表直接放进画面，与文字一起重新设计。",
+          },
+          "POST",
+          202,
+        ),
+      );
+    assert.equal((await rendered()).status, "completed");
+    let materialSlide = (await read()).slides[0];
+    assert.deepEqual(
+      materialSlide.attachments.map((a) => a.id),
+      attachmentIds,
+    );
+    assert.equal(materialSlide.plan.editScope, "composition");
+    assert.equal(
+      materialSlide.plan.imageRequest.referenceMode,
+      "content-attachments",
+    );
+    assert.deepEqual(
+      materialSlide.plan.imageRequest.attachmentIds,
+      attachmentIds,
+    );
+    assert.deepEqual(materialSlide.imageStyle.imageRefs, []);
+    const priorVersion = materialSlide.versions.at(-1);
+    assert.deepEqual(priorVersion.attachments, []);
+    const designInput = calls.filter((c) => c.type === "design").at(-1);
+    const edit = editRequests.at(-1);
+    assert.equal(designInput.refs, 4);
+    assert.equal(edit.files.length, 4);
+    assert.match(
+      edit.prompt,
+      /required CONTENT MATERIALS, not style references/,
+    );
+    assert(!edit.prompt.includes("Text-only generation"));
+    for (let i = 0; i < attachments.length; i++) {
+      const original = readFileSync(
+        path.join(dir, "assets", attachments[i].filename),
+      );
+      assert.deepEqual(designInput.imageInputs[i], original);
+      assert.deepEqual(edit.files[i], original);
+      assert.notDeepEqual(original, image);
+    }
+    // Missing placement fails before a paid image request and preserves the rendered page.
+    const savedImage = materialSlide.image;
+    const editsBeforeInvalid = editRequests.length;
+    omitAttachment = true;
+    assert.equal((await rendered(attachmentIds.slice(0, 1))).status, "failed");
+    omitAttachment = false;
+    assert.equal(editRequests.length, editsBeforeInvalid);
+    assert.equal((await read()).slides[0].image, savedImage);
+    assert.equal((await read()).slides[0].pendingAttachments.length, 1);
+    // No silent fallback to text-only if the provider rejects image edits; retry keeps material bytes.
+    failImage = true;
+    const failedJob = await rendered(attachmentIds.slice(0, 2));
+    assert.equal(failedJob.status, "failed");
+    assert.match((await read()).slides[0].error, /Images Edits/);
+    assert.equal((await read()).slides[0].image, savedImage);
+    const plansBeforeRetry = calls.filter((c) => c.type === "design").length;
+    const textOnlyBeforeRetry = imageRequests.length;
+    assert.equal(
+      (await poll(await req(`/jobs/${failedJob.id}/retry`, {}))).status,
+      "completed",
+    );
+    assert.equal(
+      calls.filter((c) => c.type === "design").length,
+      plansBeforeRetry,
+    );
+    assert.equal(imageRequests.length, textOnlyBeforeRetry);
+    assert.equal(editRequests.at(-1).files.length, 2);
+    materialSlide = (await read()).slides[0];
+    assert.equal(materialSlide.attachments.length, 2);
+    assert.equal(materialSlide.pendingAttachments, undefined);
+    await req(`/projects/${id}/slides/${attachmentSid}/restore`, {
+      versionId: priorVersion.id,
+    });
+    assert.deepEqual((await read()).slides[0].attachments, []);
+    assert.equal((await rendered([])).status, "completed");
+    assert.equal(calls.filter((c) => c.type === "design").at(-1).refs, 0);
+    assert.equal(
+      (await read()).slides[0].plan.imageRequest.referenceMode,
+      "rules-only",
+    );
+    // Report is read-only, counts current notes and detects the changed source used above.
+    const beforeReport = await read();
+    const report = await req(`/projects/${id}/report`);
+    assert.equal(report.status, "different");
+    assert.equal(
+      report.notes,
+      Array.from(
+        beforeReport.slides
+          .map((s) => s.notes)
+          .join("")
+          .replace(/\s/gu, ""),
+      ).length,
+    );
+    assert.equal(report.speech, report.notes);
+    assert.equal(report.pages, beforeReport.slides.length);
+    assert.equal((await read()).revision, beforeReport.revision);
     await shutdown();
     await boot();
     assert((await read()).slides.every((s) => s.scene || s.image));
@@ -981,7 +1212,7 @@ test(
       ),
     );
     console.log(
-      `Verified ${dir}; ${calls.filter((c) => c.type === "design").length} text-only designs; image requests=${imageCalls}`,
+      `Verified ${dir}; ${calls.filter((c) => c.type === "design").length} designs (style refs excluded); image requests=${imageCalls}`,
     );
   },
 );

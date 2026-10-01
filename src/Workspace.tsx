@@ -38,6 +38,7 @@ import type {
   ContentAttachment,
 } from "./types";
 import { ProjectReport } from "./ProjectReport";
+import { CopyReview } from "./CopyReview";
 import { Button, Modal, Field, SlideImage, Status } from "./components";
 
 export function Workspace({
@@ -767,6 +768,7 @@ export function Workspace({
                   ))}
                 </div>
                 <p>{plan.layout}</p>
+                <CopyReview copy={plan.screenCopy} />
                 <details>
                   <summary>
                     对应逐字稿 · {project.proposal!.notes[i].length} 字
@@ -1386,6 +1388,10 @@ function SlideDetail({
                         {t}
                       </p>
                     ))}
+                    <CopyReview
+                      copy={slide.plan.screenCopy}
+                      stale={slide.stale}
+                    />
                     <h4>版面安排</h4>
                     <p>{slide.plan.layout}</p>
                     <h4>视觉表达</h4>

@@ -263,6 +263,13 @@ async function renderSlides(j, ids, signal, redesign = false) {
           {
             contentBrief: briefs[s.id],
             designLanguage: language,
+            onProgress: (stage) =>
+              progress(
+                j,
+                `${stage} · ${completed + 1} / ${ids.length}`,
+                completed,
+                ids.length,
+              ),
             // Changed source copy must be re-edited; never freeze an obsolete headline or number.
             notesUnchanged: !s.stale,
             previousStyle: s.planStyle,

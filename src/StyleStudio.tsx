@@ -11,6 +11,7 @@ import { api, post, active, asset } from "./api";
 import { Button, Field, Status } from "./components";
 import { SceneView } from "./SceneView";
 import { StyleLanguage } from "./StyleLanguage";
+import { CopyReview } from "./CopyReview";
 export function StyleStudio({
   style,
   onBack,
@@ -380,6 +381,7 @@ export function StyleStudio({
           {selected.plan.displayText.map((s, i) => (
             <p key={i}>{s}</p>
           ))}
+          <CopyReview copy={selected.plan.screenCopy} />
         </details>
       )}
       <div className="studio-save studio-promote">

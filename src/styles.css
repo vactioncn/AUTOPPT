@@ -3241,6 +3241,25 @@ textarea::placeholder {
   color: #69755f;
 }
 
+.copy-review {
+  margin: 16px 0;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+.copy-review summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.copy-review p {
+  font-size: 13px;
+  line-height: 1.7;
+}
+.copy-review .muted {
+  color: var(--muted);
+}
+
 /* Content materials and manuscript accounting extend the existing workspace. */
 .project-output-actions {
   display: flex;

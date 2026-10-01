@@ -100,6 +100,26 @@ export type Plan = {
   scene?: Scene;
   title: string;
   displayText: string[];
+  screenCopy?: {
+    version: number;
+    editScope: "composition" | "details";
+    metrics: {
+      sourceCharacters: number;
+      characters: number;
+      groups: number;
+      warnings: string[];
+    };
+    mustKeep: { text: string; sourceQuote: string; attachmentId?: string }[];
+    spokenOnly: { sourceQuote: string; reason: string }[];
+    rationale: string;
+    review: {
+      status: "reviewed";
+      draftCharacters: number;
+      reason: string;
+      changes: string[];
+      splitSuggestion: string;
+    };
+  };
   layout: string;
   visual: string;
   rationale: string;

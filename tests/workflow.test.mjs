@@ -10,6 +10,7 @@ import { DatabaseSync } from "node:sqlite";
 import sharp from "sharp";
 import { defaultSystem, composeScene, samplePlan } from "../shared/slides.mjs";
 import { inspectPresentation } from "./helpers/presentation.mjs";
+import { copyFixture, reviewFixture } from "./fixtures/screen-copy.mjs";
 
 test(
   "image workflow: full style grammar, text-only generation, append, retry, split/merge, history, image PPT with notes",
@@ -26,6 +27,8 @@ test(
     let omitAttachment = false;
     let failImage = false;
     let transparentImage = false;
+    let rejectCopyReview = false,
+      changeDesignedCopy = false;
     let imageCalls = 0,
       failDesign = false,
       failSegment = false,
@@ -178,6 +181,29 @@ test(
           ),
           imageRecipes: [],
         };
+      } else if (system.includes("演讲上屏文案编辑")) {
+        const data = JSON.parse(user);
+        calls.push({ type: "copy", refs, data });
+        output = copyFixture(data);
+        if (output.editScope === "composition")
+          output.entries.push({
+            text: data.notes,
+            role: "support",
+            sourceQuote: data.notes,
+          });
+      } else if (system.includes("演讲上屏文案复核编辑")) {
+        const data = JSON.parse(user);
+        calls.push({ type: "copyReview", refs, data });
+        output = reviewFixture(data);
+        if (data.candidate.editScope === "composition") {
+          output.entries = output.entries.slice(0, 2);
+          output.changes = ["移除重复展开的整段解释，保留讲稿全文供口播"];
+        }
+        if (rejectCopyReview) {
+          rejectCopyReview = false;
+          output.checks.readable = false;
+          output.splitSuggestion = "建议把两个独立观点手动拆页";
+        }
       } else if (system.includes("演讲页面设计师")) {
         const data = JSON.parse(user);
         calls.push({
@@ -201,7 +227,7 @@ test(
           return;
         }
         output = {
-          editScope: data.previous && data.feedback ? "details" : "composition",
+          editScope: data.screenCopy.editScope,
           attachmentPlacements: omitAttachment
             ? []
             : (data.attachments || []).map((a, i) => ({
@@ -212,7 +238,7 @@ test(
               })),
           detailText: [],
           title: "LOCAL TEST FIXTURE",
-          displayText: ["LOCAL TEST FIXTURE", "DETAIL LABEL"],
+          displayText: data.screenCopy.displayText,
           visualForm: data.contentBrief.allowedForms[0],
           compositionKey: data.contentBrief.allowedForms[0] + "原创构图",
           selectionReason: "基于本页关系决定表现，不从参考图匹配模板",
@@ -241,6 +267,10 @@ test(
           adaptations: "按讲稿重新构思表达",
           rationale: "按讲稿设计概念图形",
         };
+        if (changeDesignedCopy) {
+          changeDesignedCopy = false;
+          output.displayText = [...output.displayText, "排版重新加回的解释"];
+        }
       } else {
         res.statusCode = 400;
         res.end('{"error":{"message":"Unexpected model call"}}');
@@ -405,6 +435,42 @@ test(
     const frozenCalls = calls.filter((c) => c.type === "system").length;
     const sid = project.slides[0].id;
     const originalImage = project.slides[0].image;
+    assert.equal(project.slides[0].plan.screenCopy.review.status, "reviewed");
+    assert(
+      project.slides[0].plan.screenCopy.review.draftCharacters >
+        project.slides[0].plan.screenCopy.metrics.characters,
+    );
+    assert(!imageRequests[0].prompt.includes(text));
+    assert(
+      imageRequests[0].prompt.includes(
+        JSON.stringify(project.slides[0].plan.screenCopy.displayText),
+      ),
+    );
+    assert.equal(
+      project.slides[0].plan.screenCopy.metrics.sourceCharacters,
+      [...text].length,
+    );
+    for (const kind of ["review", "layout"]) {
+      const imageCount = imageCalls;
+      if (kind === "review") rejectCopyReview = true;
+      else changeDesignedCopy = true;
+      const rejectedCopy = await req(
+        `/projects/${id}/render`,
+        { slideIds: [sid], redesign: true },
+        "POST",
+        202,
+      );
+      assert.equal((await poll(rejectedCopy)).status, "failed");
+      const preserved = await read();
+      assert.equal(imageCalls, imageCount);
+      assert.equal(preserved.slides[0].notes, text);
+      assert.equal(preserved.slides[0].image, originalImage);
+      assert.equal(preserved.slides.length, 1);
+      assert.match(
+        preserved.slides[0].error,
+        kind === "review" ? /文案复核.*未开始出图/ : /排版改动/,
+      );
+    }
     // A failed image keeps the previous picture and the paid-for plan; retry reuses that plan.
     failImage = true;
     job = await req(
@@ -416,9 +482,14 @@ test(
     assert.equal((await poll(job)).status, "failed");
     assert.equal((await read()).slides[0].image, originalImage);
     const designCount = calls.filter((c) => c.type === "design").length;
+    const copyReviewCount = calls.filter((c) => c.type === "copyReview").length;
     assert((await read()).slides[0].pendingPlan);
     await poll(await req(`/jobs/${job.id}/retry`, {}));
     assert.equal(calls.filter((c) => c.type === "design").length, designCount);
+    assert.equal(
+      calls.filter((c) => c.type === "copyReview").length,
+      copyReviewCount,
+    );
     project = await read();
     assert.equal(project.slides[0].versions.at(-1).image, originalImage);
     await req(`/projects/${id}/slides/${sid}/restore`, {
@@ -846,6 +917,32 @@ test(
       await expect(
         page.getByRole("button", { name: "编辑画面", exact: true }),
       ).toHaveCount(0);
+      await page.getByRole("button", { name: "设计方案", exact: true }).click();
+      await page.locator(".copy-review summary").click();
+      await expect(page.locator(".copy-review")).toContainText(
+        "方案生成时的讲稿",
+      );
+      await expect(page.locator(".copy-review")).toContainText(
+        "不含附件图片内的文字",
+      );
+      mkdirSync(".impeccable/review", { recursive: true });
+      for (const [label, width, height] of [
+        ["desktop", 1440, 1000],
+        ["mobile", 390, 844],
+      ]) {
+        await page.setViewportSize({ width, height });
+        await page.locator(".copy-review").scrollIntoViewIfNeeded();
+        await page.screenshot({
+          path: `.impeccable/review/copy-density-${label}.png`,
+        });
+        assert(
+          await page.evaluate(
+            () => document.documentElement.scrollWidth <= window.innerWidth + 1,
+          ),
+        );
+      }
+      await page.setViewportSize({ width: 1440, height: 1000 });
+      await page.getByRole("button", { name: "逐字稿", exact: true }).click();
       await page
         .getByLabel("本页逐字稿", { exact: true })
         .fill("## 撰写用标题\n\n浏览器修改后的原稿。");
@@ -1071,17 +1168,15 @@ test(
     );
     // A foreign id is backed by a real record to cover ownership, not just missing input.
     const fixtureDb = new DatabaseSync(path.join(dir, "autoppt.sqlite"));
-    fixtureDb
-      .prepare("INSERT INTO records(kind,id,data) VALUES(?,?,?)")
-      .run(
-        "attachment",
-        "foreign",
-        JSON.stringify({
-          ...attachments[0],
-          id: "foreign",
-          projectId: foreign.id,
-        }),
-      );
+    fixtureDb.prepare("INSERT INTO records(kind,id,data) VALUES(?,?,?)").run(
+      "attachment",
+      "foreign",
+      JSON.stringify({
+        ...attachments[0],
+        id: "foreign",
+        projectId: foreign.id,
+      }),
+    );
     fixtureDb.close();
     await req(
       `/projects/${id}/render`,
@@ -1124,6 +1219,15 @@ test(
     const designInput = calls.filter((c) => c.type === "design").at(-1);
     const edit = editRequests.at(-1);
     assert.equal(designInput.refs, 4);
+    for (const type of ["copy", "copyReview"]) {
+      const editorial = calls.filter((c) => c.type === type).at(-1);
+      assert.equal(editorial.refs, 4);
+      assert.equal(editorial.data.profile.kind, "attachment");
+      assert.deepEqual(
+        editorial.data.attachments.map((a) => a.id),
+        attachmentIds,
+      );
+    }
     assert.equal(edit.files.length, 4);
     assert.match(
       edit.prompt,

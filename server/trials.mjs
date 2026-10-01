@@ -270,6 +270,7 @@ export async function runTrial(job, signal, progress) {
         parent?.plan,
         signal,
         {
+          onProgress: progress,
           notesUnchanged: t.notes === parent?.notes,
           previousStyle:
             parent?.imageStyle ||

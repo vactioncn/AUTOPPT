@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { styleStamp, styleLanguageKey } from "../server/core.mjs";
 import { nearbyCompositions } from "../server/content-planning.mjs";
+import { copyFixture, reviewFixture } from "./fixtures/screen-copy.mjs";
 
 test("selected style controls new pages; only an unchanged, known style can lock an approved page", async (t) => {
   const dir = mkdtempSync(path.join(tmpdir(), "autoppt-style-isolation-"));
@@ -82,16 +83,38 @@ test("selected style controls new pages; only an unchanged, known style can lock
     const body = JSON.parse(options.body);
     lastRequest = JSON.parse(body.messages[1].content[0].text);
     assert.equal(body.messages[1].content.length, 1);
+    let response = output;
     if (body.messages[0].content.includes("风格规范整理师")) {
       compilerCalls++;
       assert(!body.messages[0].content.includes("黑白与荧光强调"));
       output = language(
         lastRequest.name === minimal.name ? minimal : watercolor,
       );
+      response = output;
+    } else if (body.messages[0].content.includes("演讲上屏文案编辑")) {
+      const editingCopy = lastRequest.feedback.includes("减少上屏文字");
+      response = copyFixture(
+        { ...lastRequest, previous: editingCopy ? null : lastRequest.previous },
+        ["一起参与"],
+      );
+      if (lastRequest.previous && !editingCopy)
+        response.entries.push({
+          text: "补充说明",
+          role: "support",
+          sourceQuote: lastRequest.notes,
+        });
+    } else if (body.messages[0].content.includes("演讲上屏文案复核编辑")) {
+      response = reviewFixture(lastRequest);
+    } else {
+      response = {
+        ...output,
+        displayText: lastRequest.screenCopy.displayText,
+        editScope: lastRequest.screenCopy.editScope,
+      };
     }
     return new Response(
       JSON.stringify({
-        choices: [{ message: { content: JSON.stringify(output) } }],
+        choices: [{ message: { content: JSON.stringify(response) } }],
       }),
       { status: 200 },
     );
@@ -139,6 +162,21 @@ test("selected style controls new pages; only an unchanged, known style can lock
     approved.visualDirection.typography,
   );
   assert.deepEqual(refined.displayText, ["一起参与", "补充说明"]);
+  const reduced = await design(
+    "邀请一起参与",
+    minimal,
+    "测试",
+    "保留风格，减少上屏文字",
+    refined,
+    undefined,
+    {
+      contentBrief: brief,
+      designLanguage: language(minimal),
+    },
+  );
+  assert.equal(reduced.editScope, "composition");
+  assert.deepEqual(reduced.displayText, ["一起参与"]);
+  assert.equal(lastRequest.refinementAllowed, false);
   for (const style of [watercolor, { ...minimal, rules: watercolor.rules }]) {
     const changed = await render(style, approved);
     assert.equal(lastRequest.previous, null);

@@ -213,6 +213,7 @@ export type Slide = {
   createdAt: string;
 };
 export type Style = {
+  versionToken?: string;
   compositionMode?: "direct" | "content-led";
   source?: {
     url: string;

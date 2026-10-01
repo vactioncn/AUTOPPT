@@ -22,6 +22,7 @@ import { MANUSCRIPT_VERSION, spokenManuscript } from "./manuscript.mjs";
 import { runTrial } from "./trials.mjs";
 import { reusableScreenCopy } from "./screen-copy.mjs";
 import { attachmentKey } from "./attachments.mjs";
+import { saveStyleVersion } from "./style-versions.mjs";
 const controllers = new Map();
 let processing = false;
 export function activeJob(projectId) {
@@ -379,28 +380,20 @@ async function run(j, signal) {
         (stage) => progress(j, stage),
       );
       signal.throwIfAborted();
-      style.history = [
-        ...(style.history || []),
-        {
-          rules: style.rules,
-          description: style.description,
-          colors: style.colors,
-          referenceProfiles: style.referenceProfiles,
-          designSystem: style.designSystem,
-          imageRecipes: style.imageRecipes,
-          updatedAt: style.updatedAt,
-        },
-      ].filter((x) => x.rules);
+      const before = structuredClone(style);
       Object.assign(style, extracted, {
         status: "ready",
         error: null,
         updatedAt: now(),
       });
-      put("style", style);
+      saveStyleVersion(before, style, "extraction");
     } catch (e) {
-      style.status = style.rules ? "ready" : "error";
-      style.error = e.message;
-      put("style", style);
+      const current = get("style", style.id);
+      if (current && !current.deletedAt) {
+        current.status = current.rules ? "ready" : "error";
+        current.error = e.message;
+        put("style", current);
+      }
       throw e;
     }
     return;

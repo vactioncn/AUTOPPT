@@ -18,6 +18,7 @@ import type { Style, Job } from "./types";
 import { api, post, patch, asset, active } from "./api";
 import { Button, Modal, Field, StylePreview, Status } from "./components";
 import { StyleStudio } from "./StyleStudio";
+import { StyleVersions } from "./StyleVersions";
 import { DEFAULT_STYLE_ID } from "../shared/styles.mjs";
 export function StyleLibrary({
   urlImportAvailable,
@@ -531,6 +532,7 @@ function StyleDetail({
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [editing, setEditing] = useState(false),
+    [editBase, setEditBase] = useState(style.versionToken),
     [confirmDelete, setConfirmDelete] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -640,13 +642,17 @@ function StyleDetail({
             <input
               type="checkbox"
               checked={style.compositionMode === "content-led"}
-              disabled={busy || analyzing}
+              disabled={busy || analyzing || editing}
               onChange={(event) => {
                 const compositionMode = event.target.checked
                   ? "content-led"
                   : "direct";
                 void act(
-                  () => patch("/styles/" + style.id, { compositionMode }),
+                  () =>
+                    patch("/styles/" + style.id, {
+                      compositionMode,
+                      expectedVersion: style.versionToken,
+                    }),
                   "当前风格的构图方式已保存，下次制作时使用。",
                 );
               }}
@@ -661,8 +667,11 @@ function StyleDetail({
             {!!style.rules && (
               <Button
                 variant="ghost"
-                onClick={() => setEditing(!editing)}
-                disabled={analyzing}
+                onClick={() => {
+                  if (!editing) setEditBase(style.versionToken);
+                  setEditing(!editing);
+                }}
+                disabled={analyzing || busy}
               >
                 {editing ? "取消编辑" : "手动调整"}
               </Button>
@@ -684,12 +693,36 @@ function StyleDetail({
                 value={rules}
                 onChange={(e) => setRules(e.target.value)}
               />
+              {editBase !== style.versionToken && (
+                <div>
+                  <p className="error-text">
+                    正式提示词已有更新，你的输入仍保留。请在下方版本记录中比较，再确认继续编辑。
+                  </p>
+                  <Button
+                    disabled={busy}
+                    onClick={() => {
+                      setEditBase(style.versionToken);
+                      setError("");
+                    }}
+                  >
+                    已比较，继续编辑
+                  </Button>
+                </div>
+              )}
               <Button
                 onClick={() =>
                   act(async () => {
-                    await patch("/styles/" + style.id, { rules });
+                    try {
+                      await patch("/styles/" + style.id, {
+                        rules,
+                        expectedVersion: editBase,
+                      });
+                    } catch (error) {
+                      await refresh();
+                      throw error;
+                    }
                     setEditing(false);
-                  }, "风格规则已保存。")
+                  }, "风格规则已保存，上一版可在提示词版本中恢复。")
                 }
                 loading={busy}
               >
@@ -706,6 +739,21 @@ function StyleDetail({
               </p>
             )
           )}
+          <StyleVersions
+            style={style}
+            disabled={editing || busy || analyzing}
+            blockedReason={
+              editing ? "先保存或取消当前编辑，再恢复历史版本。" : undefined
+            }
+            onRestored={async (_saved, changed) => {
+              await refresh();
+              notify(
+                changed
+                  ? "已恢复并保存为新版本。"
+                  : "当前内容已一致，无需恢复。",
+              );
+            }}
+          />
         </div>
       </div>
       {error && (

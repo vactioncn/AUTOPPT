@@ -347,6 +347,10 @@ test(
       (s) => s.id === upload.style.id,
     );
     assert.equal(style.referenceProfiles.length, 1);
+    assert.equal(
+      (await req(`/styles/${style.id}/versions`)).versions[0].source,
+      "extraction",
+    );
     assert.equal(calls.find((c) => c.type === "system").refs, 1);
     await req(`/styles/${style.id}/layouts`, undefined, "GET", 410);
     let project = await req(
@@ -707,6 +711,10 @@ test(
       "PATCH",
     );
     await req(`${route}/${refined.id}/apply`, {}, "POST", 409);
+    assert.equal(
+      (await req(`/styles/${style.id}/versions`)).versions[0].source,
+      "manual",
+    );
     style = (await req("/bootstrap")).styles.find((s) => s.id === style.id);
     const contrastNotes = [
       "有了这张地图，我们在哪个层级？目前是个人赋能。",
@@ -1076,6 +1084,80 @@ test(
       await expect(
         page.getByRole("region", { name: "风格版式库" }),
       ).toHaveCount(0);
+      const originalRules = (await req("/bootstrap")).styles.find(
+        (s) => s.id === style.id,
+      ).rules;
+      const beforeVersions = (await req(`/styles/${style.id}/versions`))
+        .versions;
+      await page.getByRole("button", { name: "手动调整", exact: true }).click();
+      await page
+        .getByRole("textbox", { name: "风格设计规则" })
+        .fill(originalRules + "\n浏览器版本验证");
+      await page.getByRole("button", { name: "保存规则", exact: true }).click();
+      await expect(
+        page.getByRole("button", { name: "手动调整", exact: true }),
+      ).toBeVisible();
+      // An external save while a draft is open must not discard either side.
+      await page.getByRole("button", { name: "手动调整", exact: true }).click();
+      const browserDraft = originalRules + "\n浏览器版本验证";
+      await page
+        .getByRole("textbox", { name: "风格设计规则" })
+        .fill(browserDraft);
+      await req(
+        `/styles/${style.id}`,
+        { rules: originalRules + "\n另一窗口" },
+        "PATCH",
+      );
+      await page.getByRole("button", { name: "保存规则", exact: true }).click();
+      await expect(
+        page.getByRole("button", { name: "已比较，继续编辑", exact: true }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole("textbox", { name: "风格设计规则" }),
+      ).toHaveValue(browserDraft);
+      await page
+        .getByRole("button", { name: "已比较，继续编辑", exact: true })
+        .click();
+      await page.getByRole("button", { name: "保存规则", exact: true }).click();
+      await expect(
+        page.getByRole("button", { name: "手动调整", exact: true }),
+      ).toBeVisible();
+      await page.locator(".style-versions > summary").click();
+      await page
+        .getByLabel("选择提示词版本")
+        .selectOption(beforeVersions[0].id);
+      await expect(page.getByLabel("所选版本提示词")).toHaveText(originalRules);
+      await page.getByText("与当前版本比较", { exact: true }).click();
+      await expect(page.getByLabel("提示词差异")).toContainText(
+        "浏览器版本验证",
+      );
+      await page
+        .getByRole("button", { name: "恢复此版本", exact: true })
+        .click();
+      await expect(page.locator(".rules-text")).toHaveText(originalRules);
+      const afterVersions = (await req(`/styles/${style.id}/versions`))
+        .versions;
+      assert.equal(afterVersions.length, beforeVersions.length + 4);
+      assert.equal(afterVersions[0].source, "restore");
+      assert.equal(afterVersions[1].rules, originalRules + "\n浏览器版本验证");
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page
+        .getByRole("button", { name: "恢复此版本", exact: true })
+        .scrollIntoViewIfNeeded();
+      await page.screenshot({
+        path: path.join(dir, "style-versions-mobile.png"),
+        fullPage: true,
+      });
+      assert(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= window.innerWidth,
+        ),
+      );
+      await page.setViewportSize({ width: 1440, height: 1000 });
+      await page.screenshot({
+        path: path.join(dir, "style-versions-desktop.png"),
+        fullPage: true,
+      });
       await page
         .getByRole("checkbox", { name: "按内容构思（仅当前风格）" })
         .click();
@@ -1550,8 +1632,29 @@ test(
     assert.equal(report.speech, report.notes);
     assert.equal(report.pages, beforeReport.slides.length);
     assert.equal((await read()).revision, beforeReport.revision);
+    const currentStyle = (await req("/bootstrap")).styles.find(
+      (s) => s.id === style.id,
+    );
+    const versionTrial = await req(
+      route,
+      { notes: text, rules: currentStyle.rules + "\n版本试做规则" },
+      "POST",
+      202,
+    );
+    assert.equal((await poll({ id: versionTrial.jobId })).status, "completed");
+    await req(`${route}/${versionTrial.id}/apply`, {});
+    const persistedVersions = await req(`/styles/${style.id}/versions`);
+    assert.equal(persistedVersions.versions[0].source, "trial");
+    assert.equal(
+      persistedVersions.versions[0].rules,
+      currentStyle.rules + "\n版本试做规则",
+    );
     await shutdown();
     await boot();
+    assert.deepEqual(
+      await req(`/styles/${style.id}/versions`),
+      persistedVersions,
+    );
     assert((await read()).slides.every((s) => s.scene || s.image));
     assert(imageCalls > 0);
     assert(

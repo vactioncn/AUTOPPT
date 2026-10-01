@@ -4,6 +4,7 @@ import { design, generateImage } from "./models.mjs";
 import { PLANNING_VERSION } from "./content-planning.mjs";
 import { DIRECT_PROMPT_MODE } from "./direct-image.mjs";
 import { validateScene } from "../shared/slides.mjs";
+import { saveStyleVersion } from "./style-versions.mjs";
 
 function availableStyle(key) {
   const style = get("style", key);
@@ -193,19 +194,7 @@ export function registerTrials(app, { enqueue }) {
         ),
         { status: 409 },
       );
-    style.history = [
-      ...(style.history || []),
-      {
-        rules: style.rules,
-        description: style.description,
-        colors: style.colors,
-        referenceProfiles: style.referenceProfiles,
-        imageRecipes: style.imageRecipes,
-        designSystem: style.designSystem,
-        compositionMode: style.compositionMode,
-        updatedAt: style.updatedAt,
-      },
-    ];
+    const before = structuredClone(style);
     for (const key of [
       "rules",
       "description",
@@ -223,11 +212,10 @@ export function registerTrials(app, { enqueue }) {
     });
     t.appliedAt = now();
     t.appliedFingerprint = styleStamp(style).fingerprint;
-    transaction(() => {
-      put("style", style);
+    const saved = saveStyleVersion(before, style, "trial", null, () => {
       put("trial", t);
     });
-    res.json(style);
+    res.json(saved.style);
   });
 }
 

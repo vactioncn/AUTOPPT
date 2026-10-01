@@ -13,6 +13,7 @@ import { SceneView } from "./SceneView";
 import { RawPromptDetails } from "./RawPromptDetails";
 import { CopyReview } from "./CopyReview";
 import { TrialCopyPreview } from "./TrialCopyPreview";
+import { StyleVersions } from "./StyleVersions";
 export function StyleStudio({
   style,
   onBack,
@@ -371,6 +372,23 @@ export function StyleStudio({
           这里的文字将原样用于出图，不再自动整理或改写。
         </p>
       </details>
+      <StyleVersions
+        style={style}
+        disabled={disabled || rules !== style.rules}
+        blockedReason={
+          rules !== style.rules
+            ? "试做区有不同的提示词。先保存为正式风格，或从正式风格重新开始，再恢复历史版本。"
+            : undefined
+        }
+        onRestored={async (saved, changed) => {
+          setRules(saved.rules);
+          setSelectedId("");
+          await refreshStyles();
+          notify(
+            changed ? "已恢复并保存为新版本。" : "当前内容已一致，无需恢复。",
+          );
+        }}
+      />
       {selected?.plan && (
         <details className="studio-rules studio-rule-details">
           <summary>查看上屏文案与生成依据</summary>

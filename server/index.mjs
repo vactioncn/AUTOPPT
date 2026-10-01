@@ -51,6 +51,12 @@ import {
 } from "./manuscript-migration.mjs";
 
 import { registerTrials } from "./trials.mjs";
+import {
+  registerStyleVersions,
+  saveStyleVersion,
+  assertStyleVersion,
+  withStyleVersion,
+} from "./style-versions.mjs";
 import { registerStyleImports } from "./style-import.mjs";
 import { registerAttachments, resolveAttachments } from "./attachments.mjs";
 import { projectReport } from "./report.mjs";
@@ -129,10 +135,12 @@ app.get("/api/bootstrap", (req, res) =>
         wordCount: p.slides.reduce((n, s) => n + s.notes.trim().length, 0),
       }))
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
-    styles: all("style").sort(
-      (a, b) =>
-        Number(b.id === DEFAULT_STYLE_ID) - Number(a.id === DEFAULT_STYLE_ID),
-    ),
+    styles: all("style")
+      .map(withStyleVersion)
+      .sort(
+        (a, b) =>
+          Number(b.id === DEFAULT_STYLE_ID) - Number(a.id === DEFAULT_STYLE_ID),
+      ),
     settings: publicSettings(),
     jobs: all("job")
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
@@ -516,6 +524,7 @@ app.post("/api/jobs/:id/cancel", (req, res) =>
   res.json(safeJob(cancel(req.params.id))),
 );
 registerTrials(app, { enqueue });
+registerStyleVersions(app);
 registerStyleImports(app, { dataDir, assetPath, put, id, now, enqueue });
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -577,6 +586,8 @@ app.patch("/api/styles/:id", async (req, res) => {
   )
     throw new Error("风格正在提炼，请稍后修改。");
   const previousUpdatedAt = s.updatedAt;
+  assertStyleVersion(s, req.body.expectedVersion);
+  const before = structuredClone(s);
   for (const k of ["name", "rules", "description"])
     if (typeof req.body[k] === "string") s[k] = req.body[k];
   if (req.body.compositionMode !== undefined) {
@@ -592,8 +603,7 @@ app.patch("/api/styles/:id", async (req, res) => {
       status: 409,
     });
   s.updatedAt = now();
-  put("style", s);
-  res.json(s);
+  res.json(saveStyleVersion(before, s, "manual").style);
 });
 app.delete("/api/styles/:id", (req, res) => {
   const s = get("style", req.params.id);

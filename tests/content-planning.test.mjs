@@ -125,7 +125,7 @@ test("derived language has a compiler revision and changes with the user's rules
     rules: "approved rules",
     colors: [],
   };
-  assert.match(styleLanguageKey(style), /^language-v3-/);
+  assert.match(styleLanguageKey(style), /^language-v4-/);
   assert.notEqual(
     styleLanguageKey(style),
     styleLanguageKey({ ...style, rules: "revised rules" }),

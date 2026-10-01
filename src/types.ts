@@ -70,6 +70,7 @@ export type DesignLanguage = Record<
   string
 >;
 export type Plan = {
+  sourceStyle?: StyleStamp;
   planningVersion?: number;
   designLanguage?: DesignLanguage;
   styleExecution?: Record<

@@ -1,5 +1,5 @@
 // Content structures constrain meaning, not style or fixed template geometry.
-export const PLANNING_VERSION = 5;
+export const PLANNING_VERSION = 6;
 
 // Refinement is additive. A model must not replace approved macro decisions with its new draft.
 export function preserveComposition(previous, proposed, language) {
@@ -141,11 +141,18 @@ export function validateLanguage(raw) {
     throw new Error("风格规范缺少可执行的视觉特征，请重新整理。");
   return Object.fromEntries(keys.map((k) => [k, raw[k]]));
 }
-export function nearbyCompositions(slides, currentId) {
+export function nearbyCompositions(slides, currentId, styleFingerprint) {
   const at = slides.findIndex((s) => s.id === currentId);
   return slides
     .slice(Math.max(0, at - 4), at + 3)
-    .filter((s) => s.id !== currentId && s.plan)
+    .filter(
+      (s) =>
+        s.id !== currentId &&
+        s.plan &&
+        (!styleFingerprint ||
+          (s.plan.sourceStyle || s.planStyle)?.fingerprint ===
+            styleFingerprint),
+    )
     .map((s) => ({
       id: s.id,
       position: slides.indexOf(s) < at ? "before" : "after",

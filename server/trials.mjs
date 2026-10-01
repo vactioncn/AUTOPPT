@@ -269,7 +269,12 @@ export async function runTrial(job, signal, progress) {
         t.feedback,
         parent?.plan,
         signal,
-        { notesUnchanged: t.notes === parent?.notes },
+        {
+          notesUnchanged: t.notes === parent?.notes,
+          previousStyle:
+            parent?.imageStyle ||
+            (parent?.styleSnapshot ? styleStamp(parent.styleSnapshot) : null),
+        },
       );
       signal.throwIfAborted();
       put("trial", t);

@@ -677,8 +677,8 @@ test(
     );
     assert.equal((await poll(job)).status, "completed");
     const legacyRequest = calls.filter((c) => c.type === "design").at(-1).data;
-    assert.equal(legacyRequest.previous.layout, old.plan.layout);
-    assert.deepEqual(legacyRequest.previous.displayText, old.plan.displayText);
+    // The style rules changed since this legacy page was made.
+    assert.equal(legacyRequest.previous, null);
     assert.equal(legacyRequest.feedback, "保留原有构图，只补对齐和说明细节");
     project = await read();
     assert(project.slides[0].image);

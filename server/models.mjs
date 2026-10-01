@@ -5,6 +5,7 @@ import {
   unitsFromEnds,
   checkPlan,
   styleLanguageKey,
+  styleStamp,
 } from "./core.mjs";
 import sharp from "sharp";
 import { spokenManuscript } from "./manuscript.mjs";
@@ -171,11 +172,11 @@ export async function styleLanguageFor(style, signal) {
   if (saved) return validateLanguage(saved.language);
   const out = await jsonModel(
     `你是风格规范整理师。依据已保存的文字整理可延伸的设计语言；不读取参考图片。
-优先级：用户当前rules中的明确取舍 > savedObservations中的历史观察。观察只用于补充未规定的细节，不能把已确定的粗黑体改成细字、把黑白与荧光强调改成其他配色。不要平均不同参考的特征，也不要把历史变体全部混进默认风格。
-先保住宏观辨识度：字体性格与字重、主次字号反差、配色组合、视觉焦点、强调手法、疏密与留白。再说明细节：边距、对齐、断行、色块内边距、连接线端点、辅助文字的可读性。大字与粗字都可以是风格的核心；精细不等于纤细，细节不能压过主表达。
+优先级：用户当前rules中的明确取舍 > savedObservations中的历史观察。观察只用于补充未规定的细节，准确保留本风格已确定的字体、配色、材质、图形画法与装饰密度，不加入其他风格的审美偏好。不要平均不同参考的特征，也不要把历史变体全部混进默认风格。
+先保住宏观辨识度：字体性格与字重、主次字号反差、配色组合、视觉焦点、强调手法、疏密与留白。再说明细节：边距、对齐、断行、色块内边距、连接线端点、辅助文字的可读性。辨识特征完全来自当前规范；字号反差、字重、线条精度、留白量和装饰程度均按本风格描述，不设统一默认值。
 把固定对象与风格语法分开：地图、曲线、三个节点、左文右图只是某页的内容表达，不能成为所有页面的模板。新内容可以用大字问答、主次数字、非对称对照、关系图等不同形式；只采用符合内容和本风格的表现，不固定数量和位置。
 微观细节按需出现：有信息需要解释才补短注释、单位、关系标签；纯文字页可以只精修字距、断行、边距和强调边界。不要要求每页必须有英文、页码、装饰网格或多级辅助线。全部事实、数字与名称必须来自逐字稿。
-返回完整可执行的八项文字，不输出模板目录：{"identity":"独特辨识特征及优先级","typography":"字体性格、明确字重、主次尺度","colorSystem":"默认配色与允许变化的边界","compositionPrinciples":"焦点、对齐、疏密和留白，不锁版面","graphicLanguage":"与风格一致的图形、线条和节点画法","detailLanguage":"克制且不损害主表达的细节精度","adaptationRules":"同一风格如何根据内容创作不同表现","avoid":"破坏本风格的做法"}。`,
+返回完整可执行的八项文字，不输出模板目录：{"identity":"独特辨识特征及优先级","typography":"字体性格、明确字重、主次尺度","colorSystem":"默认配色与允许变化的边界","compositionPrinciples":"焦点、对齐、疏密和留白，不锁版面","graphicLanguage":"与风格一致的图形、线条和节点画法","detailLanguage":"符合本风格的材质、装饰与细节处理","adaptationRules":"同一风格如何根据内容创作不同表现","avoid":"破坏本风格的做法"}。`,
     JSON.stringify({
       name: style.name,
       rules: style.rules,
@@ -209,13 +210,26 @@ export async function design(
     (await analyzePageContents([{ id: "page", notes }], context, signal)).page;
   const language =
     options.designLanguage || (await styleLanguageFor(style, signal));
+  const sourceStyle = styleStamp(style);
+  // Older plans keep their provenance on the slide/trial; new plans carry it too.
+  const previousStyle = previous?.sourceStyle || options.previousStyle;
+  const compatiblePrevious =
+    previousStyle?.fingerprint === sourceStyle.fingerprint &&
+    options.notesUnchanged !== false &&
+    previous &&
+    (!previous.engine || previous.engine === "image") &&
+    Array.isArray(previous.displayText) &&
+    typeof previous.layout === "string" &&
+    !previous.scene
+      ? previous
+      : null;
   let out = await jsonModel(
     `你是演讲页面设计师与视觉艺术总监。把内容和当前风格结合，构思一张16:9演讲画面。不读参考图片，不从模板库选版式。
-先理解contentBrief的核心观点与观众需要看懂的关系，再比较两种表现思路，选择最直接、有表现力的一种。文字本身也能承担表达：问答可用巨大回答与小问题形成停顿，数字可用主次尺度，转折可用非对称对照，多个业务关系可用明确的连接图。不要把所有页都变成解释性节点图，也不要只换文字反复使用同一构图。
-字体字重、配色、强调手法及整体气质服从style.designLanguage。若本风格以强势黑体和巨大字号反差为核心，就明确保留；若规定轻字重就使用轻字重。精细线条不等于细字体。明暗变化与内容情绪、叙述任务相适应，不按页码机械轮换。
-先完成主表达，再补细节。保持一个明确视觉焦点、清楚的阅读顺序和有意安排的空白。辅助说明补充原文中的限定词、时间、单位、解释或关系，不挤占主角。不要为了极简删除必要的细节文字，也不要为了“专业”添加无用英文、边框、页脚、坐标或装饰线。
-微观精度落在：文字块的对齐和断行、主次字距行距、强调色块边界与内边距、线条层级、端点连接、标签间距。纯文字页无需额外图形；复杂关系页可以保留丰富图形，但每条连线和每个标签必须能解释本页内容。
-必须返回editScope：新页或换思路用composition；已有方案且反馈仅要求保留构图、微调或补细节时用details。details时程序会锁定previous的原标题、上屏主文案、layout和visual，禁止重写它们。仅用detailText列出0—4条必要的短注释（每条最多40字），并在microDetail里明确其位置和从属字号；不增加新主标题、不扩大客户/数字等焦点、不删除原图标、不把强调色改掉。新主张或大段说明不属于微观精修。
+先理解contentBrief的核心观点与观众需要看懂的关系，再比较两种表现思路，选择最直接、有表现力的一种。文字、图像及其组合都可以承担表达，具体表现与信息密度由内容和当前风格共同决定。不要把所有页都变成解释性节点图，也不要只换文字反复使用同一构图。
+字体、字重、配色、材质、图形画法、装饰密度、强调手法及整体气质服从style.designLanguage。不得将任一特定风格的审美作为通用要求。明暗变化与内容情绪、叙述任务相适应，不按页码机械轮换。
+先完成主表达，再补细节。保持清楚的阅读顺序，视觉焦点、疏密和空白量按当前风格组织。辅助说明补充原文中的限定词、时间、单位、解释或关系，不挤占主角。必要内容应完整可读；英文、边框、页脚和装饰的使用由本风格与本页方案决定，不能借装饰编造事实或额外文案。
+细节落实当前风格要求的排版、边缘、笔触、材质和装饰。使用线条、色块、图像或纹理时写明实际画法，不能一律转换成精细矢量线条或纯色块。内容图形应准确表达关系；风格所需装饰可以保留，不能伪装成数据或事实。
+必须返回editScope：新页、切换风格、修改风格规范、风格来源不明或换思路用composition；只有previous非空才允许details。已有方案且反馈仅要求保留构图、微调或补细节时用details。details时程序会锁定previous的原标题、上屏主文案、layout和visual，禁止重写它们。仅用detailText列出0—4条必要的短注释（每条最多40字），并在microDetail里明确其位置和从属字号；不增加新主标题、不扩大客户/数字等焦点、不删除原图标、不把强调色改掉。新主张或大段说明不属于微观精修。
 previous是上一版的真实文字方案（包括早期格式）。反馈要求保留布局、只补细节时，将其作为已认可的构图基准：保留主体区域、阅读顺序、视觉重心、主字权重、主配色和主图形，只修反馈提到的细节；不能借精修重新构图。反馈要求换思路/重做或没有反馈时才重新构思；用户明确修改风格时服从新风格。不要机械沿用上一页的内容对象。
 visualForm必须属于contentBrief.allowedForms，它只是表达分类而非模板。typographic允许文字直接表达内容关系。地图仅用于真实空间关系；不因口播提到“地图、孤岛、蓝海”就反复画岛屿。服从mustNotImply，不能捏造事实、阶段、数据或已实现的结果。
 参考nearbyPages的实际构图。关系不同应有合适的表现差异，关系相同的连续讲述可以延续，不为凑多样性乱换风格。repeatReason说明内容上的衔接。
@@ -226,24 +240,19 @@ styleExecution四项必须具体且相互一致：typeHierarchy指定字重/主�
       notes,
       context,
       feedback,
-      previous:
-        previous &&
-        options.notesUnchanged !== false &&
-        (!previous.engine || previous.engine === "image") &&
-        Array.isArray(previous.displayText) &&
-        typeof previous.layout === "string" &&
-        !previous.scene
-          ? {
-              title: previous.title,
-              displayText: previous.displayText,
-              layout: previous.layout,
-              visual: previous.visual,
-              styleFeatures: previous.styleFeatures,
-              adaptations: previous.adaptations,
-              typography: previous.visualDirection?.typography,
-              styleExecution: previous.styleExecution,
-            }
-          : null,
+      previous: compatiblePrevious
+        ? {
+            title: compatiblePrevious.title,
+            displayText: compatiblePrevious.displayText,
+            layout: compatiblePrevious.layout,
+            visual: compatiblePrevious.visual,
+            styleFeatures: compatiblePrevious.styleFeatures,
+            adaptations: compatiblePrevious.adaptations,
+            typography: compatiblePrevious.visualDirection?.typography,
+            styleExecution: compatiblePrevious.styleExecution,
+          }
+        : null,
+      refinementAllowed: !!compatiblePrevious && !!feedback.trim(),
       contentBrief: brief,
       nearbyPages: options.nearbyPages || [],
       style: {
@@ -261,13 +270,9 @@ styleExecution四项必须具体且相互一致：typeHierarchy指定字重/主�
   )
     throw new Error("模型未明确区分精修与重新构图，请重试。");
   const isRefinement =
-    out.editScope === "details" &&
-    previous &&
-    options.notesUnchanged !== false &&
-    (!previous.engine || previous.engine === "image") &&
-    Array.isArray(previous.displayText) &&
-    typeof previous.layout === "string";
-  if (isRefinement) out = preserveComposition(previous, out, language);
+    out.editScope === "details" && !!compatiblePrevious && !!feedback.trim();
+  if (isRefinement)
+    out = preserveComposition(compatiblePrevious, out, language);
   const base = checkPlan(out);
   validateComposition(out, brief);
   const styleExecution = validateStyleExecution(out.styleExecution);
@@ -283,6 +288,7 @@ styleExecution四项必须具体且相互一致：typeHierarchy指定字重/主�
     ...base,
     engine: "image",
     planningVersion: PLANNING_VERSION,
+    sourceStyle,
     editScope: isRefinement ? "details" : "composition",
     styleExecution,
     contentBrief: brief,
@@ -311,7 +317,7 @@ styleExecution四项必须具体且相互一致：typeHierarchy指定字重/主�
   };
 }
 
-const analysisInstructions = `提炼真正可延伸的设计风格。不要只记录单个元素，必须观察元素之间的尺度差、字形性格、疏密节奏、共享对齐轴、线宽层级和微观排版。若参考中有极小标签、页边细线、局部精密图形，记录它们的作用和尺度，把它们保留为可延伸的编辑语言；不要当作无关装饰丢弃。新内容可用本页的短译或定位词替换标注，但不得抄年份、坐标或捏造统计。大标题的笔画粗细和字腔不能只用“无衬线”概括。rules写字体性格、字重/字号比例、色彩组合、线条与图形画法、强调、信息层级、对齐、留白节奏和微观细节；区分共同规则与允许变体。不要写固定模板选择规则，不将地图/岛屿/台阶/3个节点或某些区域坐标当成每页必须的风格特征。原图题材只是风格的示例，允许为不同内容发明新构图，不能只有换色排版。逐图referenceProfiles仅作观察档案，按输入顺序返回{name:"短名",role:"原图表达的内容",layout:"观察到的构图，不作为锁定规则",typography:"字体细节",graphics:"原图图形与画法",avoid:"哪些做法破坏这套语言"}。不复制原图文案。返回{description:"一句话特点",rules:"完整可执行风格规范及延伸原则",colors:["#RRGGBB"],referenceProfiles:[],imageRecipes:[]}。`;
+const analysisInstructions = `提炼真正可延伸的设计风格。不要只记录单个元素，应按参考实际特征观察字体、配色、绘画或摄影方式、材质纹理、装饰密度、元素尺度、疏密节奏与排版。不要预设极简、粗体、细线、纯色、留白量或装饰程度；把特定审美要求写入当前风格自己的rules。若参考中有极小标签、页边细线、局部精密图形，记录它们的作用和尺度，把它们保留为可延伸的编辑语言；不要当作无关装饰丢弃。新内容可用本页的短译或定位词替换标注，但不得抄年份、坐标或捏造统计。大标题的笔画粗细和字腔不能只用“无衬线”概括。rules写字体性格、字重/字号比例、色彩组合、材质纹理、装饰密度、线条与图形画法、强调、信息层级、对齐、留白节奏和微观细节；区分共同规则与允许变体。不要写固定模板选择规则，不将地图/岛屿/台阶/3个节点或某些区域坐标当成每页必须的风格特征。原图题材只是风格的示例，允许为不同内容发明新构图，不能只有换色排版。逐图referenceProfiles仅作观察档案，按输入顺序返回{name:"短名",role:"原图表达的内容",layout:"观察到的构图，不作为锁定规则",typography:"字体细节",graphics:"原图图形与画法",avoid:"哪些做法破坏这套语言"}。不复制原图文案。返回{description:"一句话特点",rules:"完整可执行风格规范及延伸原则",colors:["#RRGGBB"],referenceProfiles:[],imageRecipes:[]}。`;
 
 function checkedAnalysis(out, style) {
   if (typeof out.rules !== "string" || out.rules.length < 40)
@@ -390,9 +396,9 @@ PAGE COMPOSITION: ${plan.layout}
 GRAPHIC ART DIRECTION: ${plan.visual}
 RESOLVED STYLE EXECUTION: ${JSON.stringify(plan.styleExecution || plan.visualDirection)}
 TYPOGRAPHY: ${plan.visualDirection?.typography || "Follow the page specification"}
-Follow the page's explicitly chosen type weight and scale. Bold/black typography must remain strong, with substantial strokes; regular/light typography must remain light when that is the specified style. Fine graphic lines never imply thinning the headline. Preserve the chosen hierarchy, visual center, background, accent color and composition. Micro-level precision means careful alignment, spacing, highlight padding and clean connections, not a new visual style. Supporting text stays readable and subordinate.
+Follow the page's explicitly chosen font character, weight and scale; never substitute a default typographic aesthetic. Preserve the chosen hierarchy, visual center, background, accent color and composition. Micro-level precision means careful alignment, spacing, highlight padding and clean connections, not a new visual style. Supporting text stays readable and subordinate.
 EXACT VISIBLE COPY (includes all authored micro-labels): ${JSON.stringify(plan.displayText)}
-Use only these entries as text, in the prescribed roles and positions, with exact Chinese characters. In a relationship diagram, an entry such as A → B may be distributed across its two labeled nodes with a drawn connector; do not additionally print the whole relation as a competing heading. Preserve deliberate line breaks, short lines and tracking. Include the supporting copy and graphic details explicitly specified above. Supporting annotations must fit around the established diagram without shifting its starting points, shortening its span, or breaking shared node alignment. Do not invent micro-labels, guide marks or extra decoration for a page that does not ask for them. Keep fine line hierarchy, dash rhythm, aligned endpoints and carefully organized negative space. Where solid-color ink and fills are specified, render them uniform and crisp, without mottling, paper texture, gradients or faux ink bleed. Do not add extra dates, coordinates, numbers, claims, watermarks, mockups, UI, or text copied from instructions. Deliver the finished slide itself.`;
+Use only these entries as text, in the prescribed roles and positions, with exact Chinese characters. In a relationship diagram, an entry such as A → B may be distributed across its two labeled nodes with a drawn connector; do not additionally print the whole relation as a competing heading. Preserve deliberate line breaks, short lines and tracking. Include the supporting copy and graphic details explicitly specified above. Supporting annotations must fit around the established diagram without shifting its starting points, shortening its span, or breaking shared node alignment. Do not invent micro-labels, guide marks or extra decoration for a page that does not ask for them. Use the rendering medium, surface texture, edge treatment, line quality, decorative density and spacing prescribed by this page. Preserve those choices faithfully, whether the specified surfaces are uniform or textured; do not introduce an aesthetic from another style. Do not add extra dates, coordinates, numbers, claims, watermarks, mockups, UI, or text copied from instructions. Deliver the finished slide itself.`;
 }
 export async function generateImage(plan, style, signal) {
   const config = settings().image;

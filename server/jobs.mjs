@@ -261,7 +261,8 @@ async function renderSlides(j, ids, signal, redesign = false) {
             designLanguage: language,
             // Changed source copy must be re-edited; never freeze an obsolete headline or number.
             notesUnchanged: !s.stale,
-            nearbyPages: nearbyCompositions(p.slides, s.id),
+            previousStyle: s.planStyle,
+            nearbyPages: nearbyCompositions(p.slides, s.id, stamp.fingerprint),
           },
         );
       }

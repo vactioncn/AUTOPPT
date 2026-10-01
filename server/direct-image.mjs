@@ -1,5 +1,6 @@
 import { assertDesignedCopy } from "./screen-copy.mjs";
 import { imageContentPrompt } from "./image-content.mjs";
+import { compositionPrompt } from "./composition.mjs";
 
 export const DIRECT_PROMPT_MODE = "verbatim-style-v3";
 
@@ -27,5 +28,5 @@ export function directImagePrompt(plan) {
   const feedback = plan.imageFeedback
     ? `\n\n【本页画面调整要求】\n${plan.imageFeedback}`
     : "";
-  return `${plan.styleRules}\n\n${plan.contentPrompt}${materials}${feedback}`;
+  return `${plan.styleRules}\n\n${plan.contentPrompt}${materials}${compositionPrompt(plan)}${feedback}`;
 }

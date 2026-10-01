@@ -10,6 +10,7 @@ import { DatabaseSync } from "node:sqlite";
 import sharp from "sharp";
 import { defaultSystem, composeScene, samplePlan } from "../shared/slides.mjs";
 import { inspectPresentation } from "./helpers/presentation.mjs";
+import { compositionFixture } from "./fixtures/composition.mjs";
 import { copyFixture, reviewFixture } from "./fixtures/screen-copy.mjs";
 
 test(
@@ -101,6 +102,10 @@ test(
         assert.fail(
           "Generation must not rewrite styles or call a visual planner",
         );
+      } else if (system.includes("本阶段只负责本页构图")) {
+        const data = JSON.parse(user);
+        calls.push({ type: "composition", refs, data });
+        output = compositionFixture();
       } else if (system.includes("演讲内容关系分析师")) {
         const data = JSON.parse(user);
         calls.push({ type: "meaning", refs, data });
@@ -989,6 +994,12 @@ test(
         page.getByRole("region", { name: "风格版式库" }),
       ).toHaveCount(0);
       await page
+        .getByRole("checkbox", { name: "按内容构思（仅当前风格）" })
+        .click();
+      await expect(
+        page.getByRole("checkbox", { name: "按内容构思（仅当前风格）" }),
+      ).toBeChecked();
+      await page
         .getByRole("button", { name: "打开风格试做", exact: true })
         .click();
       await page
@@ -1014,6 +1025,12 @@ test(
       const browserTrial = (await trials()).trials.find(
         (t) => t.notes === "这是浏览器图片试做。" && t.status === "completed",
       );
+      assert(browserTrial.plan.compositionPlan);
+      await preview
+        .getByText("本页构图与五维构思自检", { exact: true })
+        .click();
+      await expect(preview).toContainText("COMPOSITION_MARKER");
+      await expect(preview).toContainText("不是对实际成图的验收");
       const expectedCopy = browserTrial.plan.displayText.join("\n\n");
       await expect(
         preview.getByLabel("本次上屏文案", { exact: true }),
@@ -1173,6 +1190,7 @@ test(
         "这是浏览器图片试做。",
       );
       await browser.close();
+      await req(`/styles/${style.id}`, { compositionMode: "direct" }, "PATCH");
     }
     // Content attachments are actual image inputs, independently of style references.
     project = await read();
@@ -1313,9 +1331,11 @@ test(
     assert.match(edit.prompt, /内容素材，不是风格参考/);
     // Multipart serializes text-field line endings as CRLF.
     assert(
-      edit.prompt.replace(/\r\n/g, "\n").startsWith(
-        materialSlide.plan.styleRules.replace(/\r\n/g, "\n") + "\n\n",
-      ),
+      edit.prompt
+        .replace(/\r\n/g, "\n")
+        .startsWith(
+          materialSlide.plan.styleRules.replace(/\r\n/g, "\n") + "\n\n",
+        ),
     );
     assert.match(edit.prompt, /先结合本页文案判断每张附件的作用/);
     assert.match(edit.prompt, /照片或实物：/);
@@ -1371,6 +1391,66 @@ test(
       (await read()).slides[0].plan.imageRequest.referenceMode,
       "rules-only",
     );
+    // Opt-in scope, persisted directions, failure retry, and nearby-page context.
+    const originalOtherStyles = (await req("/bootstrap")).styles.filter(
+      (s) => s.id !== style.id,
+    );
+    await req(
+      `/styles/${style.id}`,
+      { compositionMode: "invalid" },
+      "PATCH",
+      400,
+    );
+    await req(
+      `/styles/${style.id}`,
+      { compositionMode: "content-led" },
+      "PATCH",
+    );
+    const directionIds = (await read()).slides.slice(0, 2).map((s) => s.id);
+    const callCount = () =>
+      calls.filter((c) => c.type === "composition").length;
+    const countBefore = callCount();
+    const directionJob = await req(
+      `/projects/${id}/render`,
+      { slideIds: directionIds, redesign: true },
+      "POST",
+      202,
+    );
+    assert.equal((await poll(directionJob)).status, "completed");
+    assert.equal(callCount(), countBefore + directionIds.length);
+    if (directionIds.length > 1)
+      assert(
+        calls.filter((c) => c.type === "composition").at(-1).data.recent
+          .length > 0,
+      );
+    failImage = true;
+    const retryDirectionJob = await req(
+      `/projects/${id}/render`,
+      { slideIds: [directionIds[0]], redesign: true },
+      "POST",
+      202,
+    );
+    assert.equal((await poll(retryDirectionJob)).status, "failed");
+    const countBeforeRetry = callCount();
+    await req(`/jobs/${retryDirectionJob.id}/retry`, {});
+    assert.equal((await poll(retryDirectionJob)).status, "completed");
+    assert.equal(
+      callCount(),
+      countBeforeRetry,
+      "Retry reuses persisted art direction",
+    );
+    assert.deepEqual(
+      (await req("/bootstrap")).styles.filter((s) => s.id !== style.id),
+      originalOtherStyles,
+    );
+    assert(
+      (await read()).slides
+        .filter((s) => directionIds.includes(s.id))
+        .every((s) =>
+          s.plan.imageRequest.prompt.includes("COMPOSITION_MARKER"),
+        ),
+    );
+    await req(`/styles/${style.id}`, { compositionMode: "direct" }, "PATCH");
     // Report is read-only, counts current notes and detects the changed source used above.
     const beforeReport = await read();
     const report = await req(`/projects/${id}/report`);

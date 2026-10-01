@@ -20,6 +20,9 @@ export function styleStamp(style, plan = null) {
           style.rules,
           style.colors,
           styleRecipes(style),
+          ...(style.compositionMode === "content-led"
+            ? ["content-led-v1"]
+            : []),
         ]),
       )
       .digest("hex"),

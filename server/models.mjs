@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { settings, assetPath, id } from "./store.mjs";
 import { sentences, unitsFromEnds, styleStamp } from "./core.mjs";
+import { composePage, usesComposition } from "./composition.mjs";
 import sharp from "sharp";
 import { attachmentKey } from "./attachments.mjs";
 import { spokenManuscript } from "./manuscript.mjs";
@@ -199,6 +200,24 @@ export async function design(
           jsonModel,
         );
   signal?.throwIfAborted();
+  const contentPrompt = imageContentPrompt(screenCopy);
+  let compositionPlan;
+  if (usesComposition(style)) {
+    options.onProgress?.("正在按内容构思并复核排版、留白与视觉层次");
+    compositionPlan = await composePage(
+      {
+        style,
+        contentPrompt,
+        attachments,
+        recent: options.recentCompositions || [],
+        feedback,
+        previous,
+        signal,
+      },
+      jsonModel,
+    );
+    signal?.throwIfAborted();
+  }
   return {
     engine: "image",
     promptMode: DIRECT_PROMPT_MODE,
@@ -209,11 +228,14 @@ export async function design(
     attachments,
     contentBrief: brief,
     screenCopy,
-    contentPrompt: imageContentPrompt(screenCopy),
+    contentPrompt,
+    ...(compositionPlan ? { compositionPlan } : {}),
     displayText: [...screenCopy.displayText],
     title: screenCopy.entries.find((entry) => entry.role === "main").text,
     rationale: screenCopy.rationale,
-    layout: "构图由图片模型依据原始风格提示词与上屏文案完成。",
+    layout:
+      compositionPlan?.direction ||
+      "构图由图片模型依据原始风格提示词与上屏文案完成。",
     visual: "使用本次所选风格的原始提示词，不叠加其他风格或预设版式。",
     imageFeedback: String(feedback || "").trim(),
     copyFeedback,
@@ -286,6 +308,8 @@ export async function generateImage(plan, style, signal, attachments = []) {
   )
     throw new Error("风格已变化，请用当前风格重新生成。");
   const prompt = imagePrompt(plan);
+  if (usesComposition(style) !== !!plan.compositionPlan)
+    throw new Error("构图方式已变化，请用当前风格重新构思。");
   plan.imageRequest = {
     providerOrigin: new URL(config.baseUrl).origin,
     model: config.model,

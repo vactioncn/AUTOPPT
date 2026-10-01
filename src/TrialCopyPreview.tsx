@@ -3,6 +3,7 @@ import { Copy } from "@phosphor-icons/react";
 import type { Trial } from "./types";
 import { Button } from "./components";
 import { ContentPromptDetails } from "./ContentPromptDetails";
+import { CompositionDetails } from "./CompositionDetails";
 
 export function TrialCopyPreview({
   trial,
@@ -51,6 +52,7 @@ export function TrialCopyPreview({
           )}
           <textarea aria-label="本次上屏文案" value={text} readOnly rows={5} />
           <ContentPromptDetails plan={plan!} />
+          <CompositionDetails plan={plan!} />
           <div className="web-studio-actions">
             <Button onClick={() => copy(text, "上屏文案")}>
               <Copy size={16} />
@@ -78,9 +80,11 @@ export function TrialCopyPreview({
             </Button>
           </div>
           <p className="detail-help">
-            对照测试时，可将完整出图提示词直接粘贴到
-            ChatGPT；分开复制时，使用“本次风格提示词”和“内容部分（含辅助信息）”。
-            后者包含主文案、可选辅助资料和语义边界。只有主文案不包含这些依据。
+            对照测试时，可将完整出图提示词直接粘贴到 ChatGPT；
+            {plan?.compositionPlan
+              ? "本次开启了按内容构思，对照时请复制完整提示词，以包含本页构图方案。"
+              : "分开复制时，使用“本次风格提示词”和“内容部分（含辅助信息）”。"}
+            内容部分包含主文案、可选辅助资料和语义边界。只复制主文案会遗漏这些依据。
             {!plan?.contentPrompt && "此历史记录未保存独立的内容部分。"}
             {!prompt && "本次尚无已保存的出图请求，完整提示词暂不可复制。"}
           </p>

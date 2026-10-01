@@ -631,6 +631,26 @@ function StyleDetail({
           </div>
         </div>
         <div className="style-rules">
+          <label className="detail-help">
+            <input
+              type="checkbox"
+              checked={style.compositionMode === "content-led"}
+              disabled={busy || analyzing}
+              onChange={(event) => {
+                const compositionMode = event.target.checked
+                  ? "content-led"
+                  : "direct";
+                void act(
+                  () => patch("/styles/" + style.id, { compositionMode }),
+                  "当前风格的构图方式已保存，下次制作时使用。",
+                );
+              }}
+            />
+            按内容构思（仅当前风格）
+          </label>
+          <p className="detail-help">
+            开启后，每页增加一次内容模型调用，比较不同表达并做五维构思自检；批量制作参考附近页面的构图描述。方案可查看，并包含在完整提示词中。关闭则直接使用风格原文与内容出图。
+          </p>
           <div className="style-rules-heading">
             <h3>提炼出的设计语言</h3>
             {!!style.rules && (
@@ -702,12 +722,12 @@ function StyleDetail({
           <Trash size={17} />
           删除风格
         </Button>
-        <Button disabled={!style.rules || analyzing} onClick={onUse}>
+        <Button disabled={!style.rules || analyzing || busy} onClick={onUse}>
           用此风格新建项目
         </Button>
         <Button
           variant="primary"
-          disabled={!style.rules || analyzing}
+          disabled={!style.rules || analyzing || busy}
           onClick={onTest}
         >
           打开风格试做

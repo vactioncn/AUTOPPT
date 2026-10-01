@@ -70,6 +70,18 @@ export type DesignLanguage = Record<
   string
 >;
 export type Plan = {
+  compositionPlan?: {
+    version: number;
+    alternatives: { concept: string; reason: string }[];
+    reason: string;
+    direction: string;
+    signature: string;
+    review: Record<
+      "layout" | "whitespace" | "hierarchy" | "color" | "originality",
+      string
+    >;
+    recent: { pageId: string; signature: string }[];
+  };
   promptMode?: "verbatim-style-v1" | "verbatim-style-v2" | "verbatim-style-v3";
   styleRules?: string;
   contentPrompt?: string;
@@ -197,6 +209,7 @@ export type Slide = {
   createdAt: string;
 };
 export type Style = {
+  compositionMode?: "direct" | "content-led";
   source?: {
     url: string;
     title: string;

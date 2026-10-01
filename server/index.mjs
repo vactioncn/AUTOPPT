@@ -571,6 +571,11 @@ app.patch("/api/styles/:id", async (req, res) => {
   const previousUpdatedAt = s.updatedAt;
   for (const k of ["name", "rules", "description"])
     if (typeof req.body[k] === "string") s[k] = req.body[k];
+  if (req.body.compositionMode !== undefined) {
+    if (!["direct", "content-led"].includes(req.body.compositionMode))
+      throw new Error("构图方式无效。");
+    s.compositionMode = req.body.compositionMode;
+  }
   if (!s.name.trim() || !s.rules.trim())
     throw new Error("风格名称和规则不能为空。");
   const current = get("style", s.id);

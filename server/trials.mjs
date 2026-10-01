@@ -201,6 +201,7 @@ export function registerTrials(app, { enqueue }) {
         referenceProfiles: style.referenceProfiles,
         imageRecipes: style.imageRecipes,
         designSystem: style.designSystem,
+        compositionMode: style.compositionMode,
         updatedAt: style.updatedAt,
       },
     ];
@@ -210,6 +211,7 @@ export function registerTrials(app, { enqueue }) {
       "colors",
       "referenceProfiles",
       "imageRecipes",
+      "compositionMode",
     ])
       style[key] = t.styleSnapshot[key];
     Object.assign(style, {

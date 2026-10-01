@@ -12,6 +12,7 @@ import { Button, Field, Status } from "./components";
 import { SceneView } from "./SceneView";
 import { RawPromptDetails } from "./RawPromptDetails";
 import { CopyReview } from "./CopyReview";
+import { TrialCopyPreview } from "./TrialCopyPreview";
 export function StyleStudio({
   style,
   onBack,
@@ -303,6 +304,13 @@ export function StyleStudio({
           <p className="detail-help">
             讲稿先提炼并复核，出图时原文使用「{style.name}」的设计提示词。
           </p>
+          <TrialCopyPreview
+            key={selected?.id || "empty"}
+            trial={selected}
+            notes={notes}
+            rules={rules}
+            notify={notify}
+          />
           <div className="web-studio-actions">
             <Button
               variant="primary"

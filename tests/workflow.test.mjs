@@ -999,6 +999,11 @@ test(
       await page
         .getByLabel("试做讲稿", { exact: true })
         .fill("这是浏览器图片试做。");
+      const preview = page.getByRole("region", {
+        name: "本次提炼的上屏内容",
+        exact: true,
+      });
+      await expect(preview).toContainText("生成试做后");
       await expect(
         page.getByLabel("风格中的视觉方向", { exact: true }),
       ).toHaveCount(0);
@@ -1008,6 +1013,94 @@ test(
       await expect(
         page.getByRole("img", { name: "本次风格试做图片", exact: true }),
       ).toBeVisible({ timeout: 15000 });
+      const browserTrial = (await trials()).trials.find(
+        (t) => t.notes === "这是浏览器图片试做。" && t.status === "completed",
+      );
+      const expectedCopy = browserTrial.plan.displayText.join("\n\n");
+      await expect(
+        preview.getByLabel("本次上屏文案", { exact: true }),
+      ).toHaveValue(expectedCopy);
+      const callsBeforeCopy = [calls.length, imageCalls];
+      await page
+        .context()
+        .grantPermissions(["clipboard-read", "clipboard-write"], {
+          origin: new URL(base).origin,
+        });
+      const assertCopied = async (button, expected) => {
+        await preview
+          .getByRole("button", { name: button, exact: true })
+          .click();
+        await expect
+          .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+          .toBe(expected);
+      };
+      await assertCopied("复制上屏文案", expectedCopy);
+      await assertCopied("复制本次风格提示词", browserTrial.plan.styleRules);
+      await assertCopied(
+        "复制完整出图提示词",
+        browserTrial.plan.imageRequest.prompt,
+      );
+      // Editing the draft must not change the input copied for the selected image.
+      await page
+        .getByLabel("试做讲稿", { exact: true })
+        .fill("新的讲稿尚未生成。");
+      await expect(preview).toContainText("讲稿已修改");
+      await assertCopied("复制上屏文案", expectedCopy);
+      await page.getByText("设计提示词原文", { exact: true }).click();
+      await page
+        .getByLabel("试做设计规范", { exact: true })
+        .fill("新的风格尚未生成");
+      await expect(preview).toContainText("风格提示词已修改");
+      await assertCopied("复制本次风格提示词", browserTrial.plan.styleRules);
+      await assertCopied(
+        "复制完整出图提示词",
+        browserTrial.plan.imageRequest.prompt,
+      );
+      await page
+        .getByLabel("试做讲稿", { exact: true })
+        .fill(browserTrial.notes);
+      await page
+        .getByLabel("试做设计规范", { exact: true })
+        .fill(browserTrial.styleSnapshot.rules);
+      await page.getByText("设计提示词原文", { exact: true }).click();
+      await page.evaluate(() => {
+        const write = navigator.clipboard.writeText.bind(navigator.clipboard);
+        navigator.clipboard.writeText = async () => {
+          navigator.clipboard.writeText = write;
+          throw new Error("Clipboard denied for test");
+        };
+      });
+      await preview
+        .getByRole("button", { name: "复制完整出图提示词", exact: true })
+        .click();
+      await expect(
+        preview.getByLabel("待手动复制的内容", { exact: true }),
+      ).toHaveValue(browserTrial.plan.imageRequest.prompt);
+      await assertCopied(
+        "复制完整出图提示词",
+        browserTrial.plan.imageRequest.prompt,
+      );
+      assert.deepEqual(
+        [calls.length, imageCalls],
+        callsBeforeCopy,
+        "Viewing and copying must not call a model",
+      );
+      for (const [label, width, height] of [
+        ["desktop", 1440, 1000],
+        ["mobile", 390, 844],
+      ]) {
+        await page.setViewportSize({ width, height });
+        await preview.scrollIntoViewIfNeeded();
+        await page.screenshot({
+          path: `.impeccable/review/trial-copy-${label}.png`,
+        });
+        assert(
+          await page.evaluate(
+            () => document.documentElement.scrollWidth <= window.innerWidth + 1,
+          ),
+        );
+      }
+      await page.setViewportSize({ width: 1440, height: 1000 });
       await expect(page.getByText("画面偏差检查", { exact: true })).toHaveCount(
         0,
       );

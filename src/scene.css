@@ -109,6 +109,23 @@
   flex-wrap: wrap;
   margin-top: 16px;
 }
+.trial-copy-preview {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+.trial-copy-preview h3 {
+  margin: 0;
+  font-size: 16px;
+}
+.trial-copy-preview textarea {
+  width: 100%;
+  line-height: 1.8;
+}
+.trial-copy-preview .web-studio-actions {
+  gap: 8px;
+  margin-top: 12px;
+}
 .web-studio-history {
   display: flex;
   gap: 18px;

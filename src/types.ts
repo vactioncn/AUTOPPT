@@ -82,7 +82,11 @@ export type Plan = {
     >;
     recent: { pageId: string; signature: string }[];
   };
-  promptMode?: "verbatim-style-v1" | "verbatim-style-v2" | "verbatim-style-v3";
+  promptMode?:
+    | "verbatim-style-v1"
+    | "verbatim-style-v2"
+    | "verbatim-style-v3"
+    | "verbatim-style-v4";
   styleRules?: string;
   contentPrompt?: string;
   copyReused?: boolean;

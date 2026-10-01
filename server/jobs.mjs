@@ -15,6 +15,7 @@ import {
   analyzePageContents,
 } from "./models.mjs";
 import { PLANNING_VERSION } from "./content-planning.mjs";
+import { DIRECT_PROMPT_MODE } from "./direct-image.mjs";
 import { snapshot, styleStamp } from "./core.mjs";
 import { nearbyDirections } from "./composition.mjs";
 import { MANUSCRIPT_VERSION, spokenManuscript } from "./manuscript.mjs";
@@ -253,6 +254,7 @@ async function renderSlides(j, ids, signal, redesign = false) {
       let stamp = styleStamp(style);
       const reusablePending =
         s.pendingPlan?.planningVersion === PLANNING_VERSION &&
+        s.pendingPlan?.promptMode === DIRECT_PROMPT_MODE &&
         s.pendingPlanStyle?.fingerprint === stamp.fingerprint &&
         attachmentKey(s.pendingPlan.attachments) === attachmentKey(attachments);
       let plan = reusablePending ? s.pendingPlan : s.plan;
@@ -261,6 +263,7 @@ async function renderSlides(j, ids, signal, redesign = false) {
         (!plan ||
           plan.engine !== "image" ||
           plan.planningVersion !== PLANNING_VERSION ||
+          plan.promptMode !== DIRECT_PROMPT_MODE ||
           redesign ||
           s.stale ||
           s.planStyle?.fingerprint !== stamp.fingerprint)

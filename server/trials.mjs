@@ -2,6 +2,7 @@ import { all, get, put, id, now, transaction } from "./store.mjs";
 import { styleStamp } from "./core.mjs";
 import { design, generateImage } from "./models.mjs";
 import { PLANNING_VERSION } from "./content-planning.mjs";
+import { DIRECT_PROMPT_MODE } from "./direct-image.mjs";
 import { validateScene } from "../shared/slides.mjs";
 
 function availableStyle(key) {
@@ -252,7 +253,8 @@ export async function runTrial(job, signal, progress) {
     if (
       !t.plan ||
       t.plan.engine !== "image" ||
-      t.plan.planningVersion !== PLANNING_VERSION
+      t.plan.planningVersion !== PLANNING_VERSION ||
+      t.plan.promptMode !== DIRECT_PROMPT_MODE
     ) {
       progress("正在提炼上屏文案，使用原始风格提示词");
       t.plan = await design(

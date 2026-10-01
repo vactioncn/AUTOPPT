@@ -92,7 +92,7 @@ test("semantic context is sourced, independently reviewed and stays outside prim
   const prompt = imageContentPrompt(final);
   assert.match(prompt, /可选语义辅助资料｜不作为主体/);
   assert(prompt.indexOf(question) < prompt.indexOf(support.sourceQuote));
-  assert.match(prompt, /图形、箭头、标签和位置标记也不能暗示/);
+  assert.match(prompt, /辅助文字、英文、图像与图形关系/);
   assert(reusableScreenCopy(final, source));
   assert.equal(reusableScreenCopy({ ...final, version: 2 }, source), null);
   for (const semanticSupport of [
@@ -118,7 +118,7 @@ test("semantic context is sourced, independently reviewed and stays outside prim
   );
 });
 
-test("absent or removed context leaves undefined concepts undefined", async () => {
+test("removed excerpts stay removed while neutral optional expression preserves meaning", async () => {
   let calls = 0;
   const result = await prepareScreenCopy(input, async (_s, user) => {
     if (!calls++)
@@ -132,10 +132,10 @@ test("absent or removed context leaves undefined concepts undefined", async () =
   });
   assert.deepEqual(result.semanticSupport, []);
   const prompt = imageContentPrompt(result);
-  assert.match(prompt, /没有额外的、已确认的语义辅助资料/);
-  assert.match(prompt, /对应序号、准确短译/);
-  assert.match(prompt, /提问不能变成结论/);
-  assert.match(prompt, /不得引入主文案和辅助资料都没有的新话题/);
+  assert(!prompt.includes("可选语义辅助资料"));
+  assert.match(prompt, /保持原意和表达程度/);
+  assert.match(prompt, /少量、轻微、中性/);
+  assert.match(prompt, /不能有指向性或引导性/);
   assert(!prompt.includes("复杂问题仍由人工处理"));
 });
 

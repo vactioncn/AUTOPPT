@@ -450,6 +450,19 @@ test(
     const designCount = calls.filter((c) => c.type === "copy").length;
     const copyReviewCount = calls.filter((c) => c.type === "copyReview").length;
     assert((await read()).slides[0].pendingPlan);
+    // An old semantic prompt must be rebuilt without re-extracting approved copy.
+    const pendingDb = new DatabaseSync(path.join(dir, "autoppt.sqlite"));
+    const oldPendingProject = await read();
+    const approvedPendingCopy = structuredClone(
+      oldPendingProject.slides[0].pendingPlan.screenCopy,
+    );
+    oldPendingProject.slides[0].pendingPlan.promptMode = "verbatim-style-v3";
+    oldPendingProject.slides[0].pendingPlan.contentPrompt =
+      "OLD_SEMANTIC_BOUNDARY";
+    pendingDb
+      .prepare("UPDATE records SET data=? WHERE kind='project' AND id=?")
+      .run(JSON.stringify(oldPendingProject), id);
+    pendingDb.close();
     await poll(await req(`/jobs/${job.id}/retry`, {}));
     assert.equal(calls.filter((c) => c.type === "copy").length, designCount);
     assert.equal(
@@ -457,6 +470,13 @@ test(
       copyReviewCount,
     );
     project = await read();
+    assert.equal(project.slides[0].plan.promptMode, "verbatim-style-v4");
+    assert.deepEqual(project.slides[0].plan.screenCopy, approvedPendingCopy);
+    assert(
+      !project.slides[0].plan.imageRequest.prompt.includes(
+        "OLD_SEMANTIC_BOUNDARY",
+      ),
+    );
     assert.equal(project.slides[0].versions.at(-1).image, originalImage);
     await req(`/projects/${id}/slides/${sid}/restore`, {
       versionId: project.slides[0].versions.at(-1).id,
@@ -611,7 +631,7 @@ test(
     trial = (await trials()).trials.find((t) => t.id === trial.id);
     assert(trial.image);
     assert.equal(trial.scene, null);
-    assert.equal(trial.plan.promptMode, "verbatim-style-v3");
+    assert.equal(trial.plan.promptMode, "verbatim-style-v4");
     assert.equal(trial.plan.styleRules, style.rules);
     assert.equal(trial.review, null);
     assert.equal(
@@ -759,7 +779,7 @@ test(
       202,
     );
     assert.equal((await poll(job)).status, "completed");
-    assert.equal((await read()).slides[1].plan.promptMode, "verbatim-style-v3");
+    assert.equal((await read()).slides[1].plan.promptMode, "verbatim-style-v4");
     project = await read();
     assert(project.slides[1].image);
     assert.equal(project.slides[1].scene, null);

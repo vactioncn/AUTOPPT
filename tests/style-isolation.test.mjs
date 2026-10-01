@@ -72,7 +72,7 @@ test("raw style prompts stay exact and independent from reusable, source-bound s
     imagePrompt({ ...approved, imageFeedback: "" }),
     minimal.rules + "\n\n" + approved.contentPrompt,
   );
-  assert.equal(approved.promptMode, "verbatim-style-v3");
+  assert.equal(approved.promptMode, "verbatim-style-v4");
   assert.equal(
     imagePrompt(approved),
     minimal.rules +
@@ -83,7 +83,12 @@ test("raw style prompts stay exact and independent from reusable, source-bound s
   assert(!imagePrompt(approved).includes("UNWANTED_OLD_DIAGRAM"));
   assert(!imagePrompt(approved).includes("完整背景讲解留在口播"));
   assert.deepEqual(approved.screenCopy.semanticSupport, []);
-  assert.match(approved.contentPrompt, /未定义的概念保持未定义/);
+  assert.match(approved.contentPrompt, /保持原意和表达程度/);
+  assert.match(approved.contentPrompt, /少量、轻微、中性/);
+  assert(!approved.contentPrompt.includes("可选语义辅助资料"));
+  assert.equal(approved.compositionPlan, undefined);
+  const oldPromptPlan = { ...approved, promptMode: "verbatim-style-v3" };
+  assert.throws(() => imagePrompt(oldPromptPlan), /当前流程/);
   assert(imagePrompt(approved).includes("VISUAL_FEEDBACK"));
   assert.deepEqual(get("style", minimal.id), minimal);
   for (const style of [watercolor, { ...minimal, rules: watercolor.rules }]) {
@@ -169,6 +174,31 @@ test("raw style prompts stay exact and independent from reusable, source-bound s
     });
   };
   await generateImage(approved, minimal);
+  // Trial retries upgrade the boundary while keeping style, content and history.
+  const { runTrial } = await import("../server/trials.mjs");
+  put("trial", {
+    id: "old-trial",
+    styleId: minimal.id,
+    styleSnapshot: minimal,
+    notes,
+    feedback: "VISUAL_FEEDBACK",
+    engine: "image",
+    plan: { ...oldPromptPlan, contentPrompt: "OLD_SEMANTIC_BOUNDARY" },
+    status: "failed",
+    image: null,
+  });
+  const beforeTrialCalls = calls.length;
+  await runTrial(
+    { payload: { styleId: minimal.id, trialId: "old-trial" } },
+    new AbortController().signal,
+    () => {},
+  );
+  const resumed = get("trial", "old-trial");
+  assert.equal(resumed.status, "completed");
+  assert.equal(resumed.plan.promptMode, "verbatim-style-v4");
+  assert.deepEqual(resumed.plan.screenCopy, approved.screenCopy);
+  assert.equal(resumed.plan.styleRules, minimal.rules);
+  assert.equal(calls.length, beforeTrialCalls);
   assert.equal(approved.imageRequest.providerOrigin, "http://127.0.0.1:1");
   assert.deepEqual(approved.imageResponse, {
     width: 24,

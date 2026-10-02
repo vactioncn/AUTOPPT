@@ -102,7 +102,7 @@ test(
         assert.fail(
           "Generation must not rewrite styles or call a visual planner",
         );
-      } else if (system.includes("演讲受众语境编辑")) {
+      } else if (system.includes("演讲的受众与行业语境编辑")) {
         const data = JSON.parse(user);
         calls.push({ type: "audience", data });
         output = {

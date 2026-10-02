@@ -156,7 +156,7 @@ export function DesignOptionsEditor({
           </p>
           <Field label="受众与行业语境（可编辑）">
             <textarea
-              rows={4}
+              rows={12}
               maxLength={10000}
               disabled={locked}
               value={value.audience.brief}

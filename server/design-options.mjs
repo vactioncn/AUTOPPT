@@ -1,3 +1,4 @@
+import { AUDIENCE_BRIEF_PROMPT } from "./audience-brief.mjs";
 // Project/trial choices are independent of the shared visual style.
 const text = (value, label, max, required = false) => {
   if (
@@ -66,9 +67,7 @@ ${palette.colors.length ? `色板：${palette.colors.join("、")}。` : ""}
 export async function expandAudience(description, model, signal) {
   text(description, "受众简述", 2000, true);
   const out = await model(
-    `你是演讲受众语境编辑。根据用户简述生成可编辑的“受众与行业语境”说明，返回 {brief:"完整说明"}。
-适用于任何行业、活动和受众，不预设儿童摄影或商业演讲。按“受众与语境、适合的场景与表达、应避免的偏离、使用边界”组织清晰短段落。具体场景仅列为可选联想，不能冒充用户提供的事实。简述不明确时保持宽泛，不擅自确定年龄、角色、活动规则、经营目标、立场或结果。
-只限定内容理解、视觉转译的适切性，不规定颜色、版式、字体、材质或审美。行业语境服务内容，不强制每页加入行业符号。忠实上屏文案的原意与表达程度，必要辅助联想须少量、微弱、中性，不引导读出原文没有的判断或倾向。不添加业务结论、案例事实或数字。不要输出演讲正文或宣传口号。`,
+    AUDIENCE_BRIEF_PROMPT,
     JSON.stringify({ description }),
     [],
     signal,

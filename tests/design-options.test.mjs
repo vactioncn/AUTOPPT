@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { AUDIENCE_BRIEF_EXAMPLE } from "../server/audience-brief.mjs";
 import {
   designOptions,
   designOptionsKey,
@@ -39,10 +40,17 @@ test("audience expansion generalizes across audiences and returns a reviewable d
     "婚纱摄影客户",
     "自行车赛参赛者",
     "运动会志愿者",
+    "面向公众，其他信息尚未确定",
   ]) {
     const result = await expandAudience(description, async (system, user) => {
       assert.match(system, /不预设儿童摄影/);
       assert.match(system, /不规定颜色/);
+      assert(system.includes(AUDIENCE_BRIEF_EXAMPLE));
+      assert.match(system, /不只替换行业名称/);
+      assert.match(system, /不把可能的角色写成已确定受众/);
+      assert.match(system, /不能套用老板的经营立场/);
+      assert.match(system, /每项独占一行/);
+      assert.match(system, /最终目标是/);
       assert.equal(JSON.parse(user).description, description);
       return { brief: `受众：${description}。可选场景需服务内容。` };
     });

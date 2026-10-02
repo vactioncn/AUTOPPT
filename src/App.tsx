@@ -1,3 +1,4 @@
+import { DeleteItem } from "./DeleteItem";
 import {
   DesignOptionsEditor,
   emptyDesignOptions,
@@ -6,6 +7,7 @@ import {
 import { SceneView } from "./SceneView";
 import { useState, useEffect, useCallback } from "react";
 import {
+  Trash,
   SquaresFour,
   Palette,
   SlidersHorizontal,
@@ -211,6 +213,7 @@ export default function App() {
           />
         ) : (
           <ProjectHome
+            refresh={refresh}
             projects={data.projects}
             styles={data.styles}
             onCreate={() => create()}
@@ -242,20 +245,32 @@ export default function App() {
   );
 }
 function ProjectHome({
+  refresh,
   projects,
   styles,
   onCreate,
   onOpen,
   onStyles,
 }: {
+  refresh: () => Promise<void>;
   projects: ProjectSummary[];
   styles: Style[];
   onCreate: () => void;
   onOpen: (id: string) => void;
   onStyles: () => void;
 }) {
+  const [deleting, setDeleting] = useState<ProjectSummary | null>(null);
   return (
     <div className="page home">
+      {deleting && (
+        <DeleteItem
+          kind="project"
+          id={deleting.id}
+          name={deleting.title}
+          onClose={() => setDeleting(null)}
+          onDeleted={refresh}
+        />
+      )}
       <section className="home-intro">
         <div>
           <h1>
@@ -310,37 +325,43 @@ function ProjectHome({
         {projects.length ? (
           <div className="project-grid">
             {projects.map((p) => (
-              <button
-                className="project-card"
-                key={p.id}
-                onClick={() => onOpen(p.id)}
-              >
-                <div className="project-cover">
-                  {p.coverScene ? (
-                    <SceneView scene={p.coverScene} label={p.title} />
-                  ) : p.cover ? (
-                    <img src={asset(p.cover)} alt={p.title} />
-                  ) : (
-                    <StylePreview
-                      style={
-                        styles.find((s) => s.id === p.styleId) || styles[0]
-                      }
-                      compact
-                    />
-                  )}
-                  <span className="project-open">
-                    <ArrowUpRight size={20} />
-                  </span>
-                </div>
-                <div className="project-card-content">
-                  <h3>{p.title}</h3>
-                  <p>
-                    {p.pageCount} 页画面<span>·</span>
-                    {p.batchCount} 段讲稿<span>·</span>
-                    {formatDate(p.updatedAt)}
-                  </p>
-                </div>
-              </button>
+              <article className="project-card-wrap" key={p.id}>
+                <button className="project-card" onClick={() => onOpen(p.id)}>
+                  <div className="project-cover">
+                    {p.coverScene ? (
+                      <SceneView scene={p.coverScene} label={p.title} />
+                    ) : p.cover ? (
+                      <img src={asset(p.cover)} alt={p.title} />
+                    ) : (
+                      <StylePreview
+                        style={
+                          styles.find((s) => s.id === p.styleId) || styles[0]
+                        }
+                        compact
+                      />
+                    )}
+                    <span className="project-open">
+                      <ArrowUpRight size={20} />
+                    </span>
+                  </div>
+                  <div className="project-card-content">
+                    <h3>{p.title}</h3>
+                    <p>
+                      {p.pageCount} 页画面<span>·</span>
+                      {p.batchCount} 段讲稿<span>·</span>
+                      {formatDate(p.updatedAt)}
+                    </p>
+                  </div>
+                </button>
+                <button
+                  className="card-delete"
+                  aria-label={`删除项目：${p.title}`}
+                  onClick={() => setDeleting(p)}
+                >
+                  <Trash size={16} />
+                  删除
+                </button>
+              </article>
             ))}
             <button className="project-add" onClick={onCreate}>
               <Plus size={26} weight="light" />

@@ -131,6 +131,7 @@ app.get("/api/bootstrap", (req, res) =>
       designOptions: true,
     },
     projects: all("project")
+      .filter((p) => !p.deletedAt)
       .map((p) => ({
         id: p.id,
         title: p.title,
@@ -204,6 +205,14 @@ app.post("/api/projects", (req, res) => {
     undo: null,
   });
   res.status(201).json(p);
+});
+app.delete("/api/projects/:id", (req, res) => {
+  const p = projectOrThrow(req.params.id);
+  assertIdle(p.id);
+  // Keep source/assets/history; deletion only removes access and discovery.
+  p.deletedAt = now();
+  saveProject(p);
+  res.json({ deleted: true });
 });
 app.patch("/api/projects/:id", (req, res) => {
   const p = projectOrThrow(req.params.id);

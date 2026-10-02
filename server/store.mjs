@@ -52,7 +52,8 @@ export function transaction(fn) {
 }
 export function projectOrThrow(key) {
   const p = get("project", key);
-  if (!p) throw Object.assign(new Error("这个项目不存在。"), { status: 404 });
+  if (!p || p.deletedAt)
+    throw Object.assign(new Error("这个项目不存在或已删除。"), { status: 404 });
   return p;
 }
 export function saveProject(p) {

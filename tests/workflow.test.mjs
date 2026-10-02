@@ -777,6 +777,7 @@ test(
       202,
     );
     await until(() => held);
+    await req(`/projects/${id}`, undefined, "DELETE", 409);
     await req(`/projects/${id}`, { designOptions: options }, "PATCH", 409);
     await req(`/projects/${id}/export`, undefined, "GET", 409);
     await req(`/jobs/${job.id}/cancel`, {});
@@ -1074,31 +1075,27 @@ test(
       await newProjectDialog
         .getByPlaceholder("例如：儿童摄影行业的下一步")
         .fill("默认风格浏览器验收");
-      await newProjectDialog
-        .locator("summary")
-        .filter({ hasText: "内容倾向" })
-        .click();
-      await newProjectDialog
-        .getByRole("checkbox", { name: "启用受众与行业语境" })
-        .check();
-      await newProjectDialog
-        .getByLabel("简单描述受众与场景", { exact: true })
-        .fill("面向自行车比赛参赛者");
-      await newProjectDialog
-        .getByRole("button", { name: "生成内容倾向说明", exact: true })
-        .click();
+      const optionCallsBefore = calls.filter(
+        (c) => c.type === "audience" || c.type === "palette",
+      ).length;
       await expect(
-        newProjectDialog.getByLabel("受众与行业语境（可编辑）", {
+        newProjectDialog.getByRole("button", {
+          name: "默认 · 沿用风格",
           exact: true,
         }),
-      ).toHaveValue(/自行车/);
+      ).toHaveAttribute("aria-pressed", "true");
       await newProjectDialog
-        .locator("summary")
-        .filter({ hasText: "配色方案" })
+        .getByLabel("内容倾向（可选）", { exact: true })
+        .fill("面向自行车比赛参赛者");
+      await newProjectDialog
+        .getByRole("button", { name: "暖白 · 深蓝", exact: true })
         .click();
-      await newProjectDialog
-        .getByLabel("配色预设")
-        .selectOption({ label: "暖白 · 深蓝" });
+      assert.equal(
+        calls.filter((c) => c.type === "audience" || c.type === "palette")
+          .length,
+        optionCallsBefore,
+        "simple edits and color selection never call a model",
+      );
       await page.screenshot({
         path: ".impeccable/review/design-options-create.png",
       });
@@ -1117,16 +1114,50 @@ test(
       );
       const savedOptions = (await req(`/projects/${createdWithOptions.id}`))
         .designOptions;
-      assert.match(savedOptions.audience.brief, /自行车/);
+      assert.match(savedOptions.audience.description, /自行车/);
+      assert.equal(savedOptions.audience.brief, "");
       assert.equal(savedOptions.palette.name, "暖白 · 深蓝");
       await page
         .getByRole("button", { name: "内容倾向与配色", exact: true })
         .click();
       const optionsDialog = page.getByRole("dialog");
       await expect(
-        optionsDialog.getByLabel("受众与行业语境（可编辑）", { exact: true }),
-      ).toHaveValue(savedOptions.audience.brief);
-      await optionsDialog.getByLabel("配色预设").selectOption("original");
+        optionsDialog.getByLabel("内容倾向（可选）", { exact: true }),
+      ).toHaveValue(savedOptions.audience.description);
+      await optionsDialog
+        .getByRole("button", { name: "保存设置", exact: true })
+        .click();
+      await expect(optionsDialog).toHaveCount(0);
+      assert.deepEqual(
+        (await req(`/projects/${createdWithOptions.id}`)).designOptions,
+        savedOptions,
+        "opening and saving without editing preserves settings",
+      );
+      await page
+        .getByRole("button", { name: "内容倾向与配色", exact: true })
+        .click();
+      await optionsDialog
+        .getByRole("button", { name: "自定义", exact: true })
+        .click();
+      await optionsDialog.getByLabel("强调色", { exact: true }).fill("#cc5522");
+      await optionsDialog
+        .getByRole("button", { name: "保存设置", exact: true })
+        .click();
+      await expect(optionsDialog).toHaveCount(0);
+      assert.equal(
+        (await req(`/projects/${createdWithOptions.id}`)).designOptions.palette
+          .colors[2],
+        "#cc5522",
+      );
+      await page
+        .getByRole("button", { name: "内容倾向与配色", exact: true })
+        .click();
+      await optionsDialog
+        .getByRole("button", { name: "默认 · 沿用风格", exact: true })
+        .click();
+      await optionsDialog
+        .getByLabel("内容倾向（可选）", { exact: true })
+        .fill("");
       await page.setViewportSize({ width: 390, height: 844 });
       await page.screenshot({
         path: ".impeccable/review/design-options-mobile.png",
@@ -1961,6 +1992,138 @@ test(
         (r) => !r.prompt.includes("RESOLVED STYLE EXECUTION"),
       ),
     );
+    // Deletion is explicit, blocked during jobs, durable, and leaves shared assets/history intact.
+    const beforeDelete = await read();
+    await req(`/projects/${id}`, undefined, "DELETE");
+    assert(!(await req("/bootstrap")).projects.some((p) => p.id === id));
+    await req(`/projects/${id}`, undefined, "GET", 404);
+    await req(`/projects/${id}`, { title: "不能修改已删除项目" }, "PATCH", 404);
+    await req(`/projects/${id}/render`, {}, "POST", 404);
+    const deletedDb = new DatabaseSync(path.join(dir, "autoppt.sqlite"));
+    const deletedProject = JSON.parse(
+      deletedDb
+        .prepare("SELECT data FROM records WHERE kind='project' AND id=?")
+        .get(id).data,
+    );
+    deletedDb.close();
+    assert(deletedProject.deletedAt);
+    assert.deepEqual(deletedProject.slides, beforeDelete.slides);
+    assert.deepEqual(deletedProject.batches, beforeDelete.batches);
+    for (const slide of beforeDelete.slides)
+      if (slide.image)
+        assert(readFileSync(path.join(dir, "assets", slide.image)).length);
+    const disposableStyle = (
+      await req(
+        "/styles",
+        { name: "删除风格浏览器验收", rules: "临时风格，仅供删除测试。" },
+        "POST",
+        201,
+      )
+    ).style;
+    const disposableProject = await req(
+      "/projects",
+      { title: "删除项目浏览器验收", styleId: disposableStyle.id },
+      "POST",
+      201,
+    );
+    if (process.env.BROWSER_TEST) {
+      const { chromium, expect } = await import("@playwright/test");
+      const browser = await chromium.launch({
+        headless: true,
+        executablePath: process.env.CHROMIUM_EXECUTABLE,
+      });
+      try {
+        const page = await browser.newPage({
+          viewport: { width: 1440, height: 1000 },
+        });
+        await page.goto(base.replace("/api", ""));
+        await page
+          .getByRole("button", {
+            name: "删除项目：删除项目浏览器验收",
+            exact: true,
+          })
+          .click();
+        await page
+          .getByRole("dialog")
+          .getByRole("button", { name: "取消", exact: true })
+          .click();
+        assert(
+          (await req("/bootstrap")).projects.some(
+            (p) => p.id === disposableProject.id,
+          ),
+        );
+        await page
+          .getByRole("button", {
+            name: "删除项目：删除项目浏览器验收",
+            exact: true,
+          })
+          .click();
+        await page.screenshot({
+          path: ".impeccable/review/delete-project.png",
+        });
+        await page
+          .getByRole("dialog")
+          .getByRole("button", { name: "确认删除项目", exact: true })
+          .click();
+        await expect(page.getByRole("dialog")).toHaveCount(0);
+        await expect(
+          page.getByRole("button", {
+            name: "删除项目：删除项目浏览器验收",
+            exact: true,
+          }),
+        ).toHaveCount(0);
+        await page.goto(base.replace("/api", "") + "/#styles");
+        await page
+          .getByRole("button", {
+            name: "删除风格：删除风格浏览器验收",
+            exact: true,
+          })
+          .click();
+        await page
+          .getByRole("dialog")
+          .getByRole("button", { name: "取消", exact: true })
+          .click();
+        assert(
+          !(await req("/bootstrap")).styles.find(
+            (s) => s.id === disposableStyle.id,
+          ).deletedAt,
+        );
+        await page
+          .getByRole("button", {
+            name: "删除风格：删除风格浏览器验收",
+            exact: true,
+          })
+          .click();
+        await page
+          .getByRole("dialog")
+          .getByRole("button", { name: "确认删除风格", exact: true })
+          .click();
+        await expect(page.getByRole("dialog")).toHaveCount(0);
+        await expect(
+          page.getByRole("button", {
+            name: "删除风格：删除风格浏览器验收",
+            exact: true,
+          }),
+        ).toHaveCount(0);
+      } finally {
+        await browser.close();
+      }
+    } else {
+      await req(`/projects/${disposableProject.id}`, undefined, "DELETE");
+      await req(`/styles/${disposableStyle.id}`, undefined, "DELETE");
+    }
+    await shutdown();
+    await boot();
+    const afterDeletion = await req("/bootstrap");
+    assert(
+      !afterDeletion.projects.some(
+        (p) => p.id === id || p.id === disposableProject.id,
+      ),
+    );
+    assert(
+      afterDeletion.styles.find((s) => s.id === disposableStyle.id).deletedAt,
+    );
+    assert(!afterDeletion.styles.find((s) => s.id === style.id).deletedAt);
     console.log(
       `Verified ${dir}; ${calls.filter((c) => c.type === "copy").length} designs (style refs excluded); image requests=${imageCalls}`,
     );

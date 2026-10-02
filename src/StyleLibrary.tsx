@@ -1,3 +1,4 @@
+import { DeleteItem } from "./DeleteItem";
 import { useEffect, useState, useRef } from "react";
 import {
   Plus,
@@ -36,6 +37,7 @@ export function StyleLibrary({
   notify: (s: string) => void;
   onUse: (id: string) => void;
 }) {
+  const [deleting, setDeleting] = useState<Style | null>(null);
   const [create, setCreate] = useState(false),
     [studio, setStudio] = useState<string | null>(null),
     [detail, setDetail] = useState<string | null>(null);
@@ -54,6 +56,15 @@ export function StyleLibrary({
     );
   return (
     <div className="page styles-page">
+      {deleting && (
+        <DeleteItem
+          kind="style"
+          id={deleting.id}
+          name={deleting.name}
+          onClose={() => setDeleting(null)}
+          onDeleted={refresh}
+        />
+      )}
       <div className="page-heading">
         <div>
           <h1>把喜欢的，变成你的风格。</h1>
@@ -99,6 +110,14 @@ export function StyleLibrary({
       <div className="style-library-grid">
         {visibleStyles.map((s) => (
           <article className="style-card" key={s.id}>
+            <button
+              className="card-delete"
+              aria-label={`删除风格：${s.name}`}
+              onClick={() => setDeleting(s)}
+            >
+              <Trash size={16} />
+              删除
+            </button>
             <button
               className="style-cover-button"
               onClick={() => setDetail(s.id)}

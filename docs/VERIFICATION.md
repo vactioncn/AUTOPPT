@@ -6,7 +6,7 @@
 - 构建成功，66 项自动测试通过；Chrome 隔离浏览器工作流通过。覆盖语境生成的多行业输入、提取依据、非法字段、取消设置、共享风格隔离、文案复用、失败重试更新配置、拆分方案传递、试做设置隔离及运行中拒绝改设置。界面验证创建时生成/编辑语境和选色、保存后的设置回读、恢复原配色，以及桌面和 390px 手机无横向溢出。
 - README、同事说明和 Word 已同步；`scripts/build-guide.py --check` 通过，Word 10 页全部渲染并检查，未发现文字遮挡、缺字或分页溢出。
 - 测试使用隔离数据与模拟模型，没有调用收费模型，不能代表真实生成的语境质量、配色准确性或成图审美已验收。换色属于重新生成，可能改变构图；提示词要求保留附件事实性颜色，真实成图仍需人工核对。
-- 遵循本次项目规则，未为发布重启正式服务，未修改正式业务数据。正式服务仍运行旧后端，本次新能力尚未激活，下次正常启动新代码后使用。前端检查服务能力标记，旧服务下显示未加载提示而不开放新设置。正式地址只读浏览器验证识别到旧服务，无写请求或页面错误。
+- 首次发布未自动重启正式服务，前端通过能力标记显示未加载提示。2026-10-02 用户明确要求重启后，确认全部任务无 queued/running，先做 SQLite 备份，再核对进程与工作目录并重启。新服务健康检查通过，`features.designOptions=true`；重启前后 206 条记录逐条 SHA-256 一致。正式地址只读浏览器检查确认内容倾向和配色控件可见、旧提示消失，无写请求或页面错误。备份及激活记录位于 `.local/backups/design-options-activation-20261002-140558/` 与 `.local/verification/design-options-activation.json`。
 - 本地证据：`.local/verification/design-options-{tests-final,browser-final,build-final}.log`、`design-options-live-check.json`、`design-options-guide/`；界面截图位于 `.impeccable/review/design-options-*.png`。这些测试数据和预览不提交。
 
 ---

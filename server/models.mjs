@@ -309,6 +309,7 @@ export async function analyzeStyle(
 }
 export const imagePrompt = directImagePrompt;
 
+const IMAGE_OUTPUT_SIZE = "2560x1440";
 export async function generateImage(plan, style, signal, attachments = []) {
   const config = settings().image;
   if (plan.engine !== "image") throw new Error("请先按图片模式重新设计此页。");
@@ -326,7 +327,7 @@ export async function generateImage(plan, style, signal, attachments = []) {
     providerOrigin: new URL(config.baseUrl).origin,
     model: config.model,
     prompt,
-    size: "1536x864",
+    size: IMAGE_OUTPUT_SIZE,
     quality: "high",
     background: "opaque",
     n: 1,
@@ -336,7 +337,7 @@ export async function generateImage(plan, style, signal, attachments = []) {
   const body = {
     model: config.model,
     prompt,
-    size: "1536x864",
+    size: IMAGE_OUTPUT_SIZE,
     quality: "high",
     background: "opaque",
     n: 1,

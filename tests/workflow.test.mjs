@@ -50,6 +50,7 @@ test(
             prompt: form.get("prompt"),
             model: form.get("model"),
             background: form.get("background"),
+            size: form.get("size"),
             files: await Promise.all(
               form
                 .getAll("image[]")
@@ -815,6 +816,7 @@ test(
       style.rules + "\n\n" + trial.plan.contentPrompt,
     );
     assert.equal(trial.plan.imageResponse.width, 1600);
+    assert.equal(trial.plan.imageRequest.size, "2560x1440");
     assert.equal(trial.plan.imageResponse.height, 900);
     assert.equal(trial.plan.imageResponse.reportedModel, null);
     await req(`${route}/${trial.id}/apply`, {});
@@ -1789,6 +1791,8 @@ test(
     assert.deepEqual(priorVersion.attachments, []);
     const designInput = calls.filter((c) => c.type === "copy").at(-1);
     const edit = editRequests.at(-1);
+    assert.equal(edit.size, "2560x1440");
+    assert.equal(materialSlide.plan.imageRequest.size, "2560x1440");
     assert.equal(designInput.refs, 4);
     for (const type of ["copy", "copyReview"]) {
       const editorial = calls.filter((c) => c.type === type).at(-1);
@@ -1987,6 +1991,8 @@ test(
       ),
     );
     assert(imageRequests.some((r) => r.prompt.includes(style.rules)));
+    assert(imageRequests.every((r) => r.size === "2560x1440"));
+    assert(editRequests.every((r) => r.size === "2560x1440"));
     assert(
       imageRequests.every(
         (r) => !r.prompt.includes("RESOLVED STYLE EXECUTION"),

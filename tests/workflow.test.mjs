@@ -102,6 +102,25 @@ test(
         assert.fail(
           "Generation must not rewrite styles or call a visual planner",
         );
+      } else if (system.includes("演讲受众语境编辑")) {
+        const data = JSON.parse(user);
+        calls.push({ type: "audience", data });
+        output = {
+          brief: `受众与语境：${data.description}。场景仅为可选联想，内容适合时使用，不增加原稿没有的判断。`,
+        };
+      } else if (system.includes("风格配色提取器")) {
+        const data = JSON.parse(user);
+        calls.push({ type: "palette", data });
+        output = data.rules.includes("#112233")
+          ? {
+              palette: {
+                name: "原文蓝",
+                instructions: "强调色 #112233。",
+                colors: ["#112233"],
+              },
+              evidence: ["#112233"],
+            }
+          : { palette: null, evidence: [] };
       } else if (system.includes("本阶段只负责本页构图")) {
         const data = JSON.parse(user);
         calls.push({ type: "composition", refs, data });
@@ -461,6 +480,90 @@ test(
         "style changes must not repeat content analysis or copy editing",
       );
     }
+    const options = {
+      audience: {
+        description: "儿童摄影影楼管理者",
+        brief: "按内容选择场景，不添加结论。",
+      },
+      palette: {
+        name: "独立蓝",
+        instructions: "白底、深蓝文字、蓝色强调。",
+        colors: ["#FFFFFF", "#112233"],
+      },
+    };
+    const beforeOptions = await read();
+    const originalRules = (await req("/bootstrap")).styles.find(
+      (s) => s.id === style.id,
+    ).rules;
+    for (const designOptions of [options, { audience: null, palette: null }]) {
+      await req(`/projects/${id}`, { designOptions }, "PATCH");
+      assert.deepEqual(
+        (await read()).slides,
+        beforeOptions.slides,
+        "saving choices must not rewrite existing slides",
+      );
+      const optionsJob = await req(
+        `/projects/${id}/render`,
+        { slideIds: [sid], redesign: true },
+        "POST",
+        202,
+      );
+      assert.equal((await poll(optionsJob)).status, "completed");
+      const result = (await read()).slides[0].plan;
+      assert.deepEqual(result.screenCopy, stableCopy);
+      assert.deepEqual(result.designOptions, designOptions);
+      assert.equal(
+        calls.length,
+        contentCallsBeforeStyleChange,
+        "recoloring cannot re-extract copy",
+      );
+      assert.equal(
+        imageRequests.at(-1).prompt.includes("独立配色方案"),
+        !!designOptions.palette,
+      );
+      beforeOptions.slides = (await read()).slides;
+    }
+    assert.equal(
+      (await req("/bootstrap")).styles.find((s) => s.id === style.id).rules,
+      originalRules,
+    );
+    const draftAudience = await req("/design-options/audience", {
+      description: "自行车比赛参赛者",
+    });
+    assert.match(draftAudience.brief, /自行车比赛参赛者/);
+    const extracted = await req("/design-options/palette", {
+      styleId: style.id,
+      rules: "强调色 #112233",
+    });
+    assert.deepEqual(extracted.palette.colors, ["#112233"]);
+    assert.equal(
+      (
+        await req("/design-options/palette", {
+          styleId: style.id,
+          rules: "柔和纸张质感",
+        })
+      ).palette,
+      null,
+    );
+    await req("/design-options/audience", { description: " " }, "POST", 400);
+    await req(
+      `/projects/${id}`,
+      {
+        designOptions: {
+          palette: {
+            name: "bad",
+            instructions: "test",
+            colors: ["not-a-color"],
+          },
+        },
+      },
+      "PATCH",
+      400,
+    );
+    assert.deepEqual((await read()).designOptions, {
+      audience: null,
+      palette: null,
+    });
     project = await read();
     const originalImage = project.slides[0].image;
     assert.equal(project.slides[0].plan.screenCopy.review.status, "reviewed");
@@ -556,6 +659,7 @@ test(
     assert.match((await read()).slides[0].error, /透明底/);
     assert.equal((await read()).slides[0].image, originalImage);
     const beforeOpaqueRetry = calls.filter((c) => c.type === "copy").length;
+    await req(`/projects/${id}`, { designOptions: options }, "PATCH");
     assert.equal(
       (await poll(await req(`/jobs/${transparentJob.id}/retry`, {}))).status,
       "completed",
@@ -563,6 +667,12 @@ test(
     assert.equal(
       calls.filter((c) => c.type === "copy").length,
       beforeOpaqueRetry,
+    );
+    assert.deepEqual((await read()).slides[0].plan.designOptions, options);
+    assert.match(imageRequests.at(-1).prompt, /独立配色方案/);
+    assert.deepEqual(
+      (await read()).slides[0].plan.screenCopy,
+      approvedPendingCopy,
     );
     const cuts = [5, 10, 15, 20]; // Explicit UTF-16 source offsets, preserving the original text.
     job = await req(
@@ -574,6 +684,8 @@ test(
     assert.equal((await poll(job)).status, "completed");
     project = await read();
     assert.equal(project.proposal.plans.length, 5);
+    for (const plan of project.proposal.plans)
+      assert.deepEqual(plan.designOptions, options);
     assert(project.proposal.plans.every((p) => p.engine === "image"));
     job = await req(
       `/projects/${id}/proposal/commit`,
@@ -588,6 +700,7 @@ test(
     assert(project.slides.every((s) => s.image));
     await req(`/projects/${id}/undo`, {});
     assert.equal((await read()).slides.length, 1);
+    await req(`/projects/${id}`, { designOptions: null }, "PATCH");
     // Repeat with three source units, then merge adjacent units and restore the structure.
     job = await req(
       `/projects/${id}/proposal`,
@@ -664,6 +777,7 @@ test(
       202,
     );
     await until(() => held);
+    await req(`/projects/${id}`, { designOptions: options }, "PATCH", 409);
     await req(`/projects/${id}/export`, undefined, "GET", 409);
     await req(`/jobs/${job.id}/cancel`, {});
     held();
@@ -712,6 +826,7 @@ test(
         notes: text,
         rules: style.rules,
         mode: "refine",
+        designOptions: options,
         parentId: trial.id,
         feedback: "微型标注更轻",
       },
@@ -725,6 +840,15 @@ test(
     );
     assert.equal(refinedTrial.styleSnapshot.rules, style.rules);
     assert(refinedTrial.plan.copyReused);
+    assert.deepEqual(refinedTrial.plan.designOptions, options);
+    assert.deepEqual(refinedTrial.plan.screenCopy, trial.plan.screenCopy);
+    assert.match(refinedTrial.plan.imageRequest.prompt, /儿童摄影影楼管理者/);
+    assert.match(refinedTrial.plan.imageRequest.prompt, /独立配色方案/);
+    assert.equal(
+      style.designOptions,
+      undefined,
+      "trial settings cannot leak into the shared style",
+    );
     assert.equal(
       (await req("/bootstrap")).styles.find((s) => s.id === style.id)
         .appliedTrialId,
@@ -951,6 +1075,34 @@ test(
         .getByPlaceholder("例如：儿童摄影行业的下一步")
         .fill("默认风格浏览器验收");
       await newProjectDialog
+        .locator("summary")
+        .filter({ hasText: "内容倾向" })
+        .click();
+      await newProjectDialog
+        .getByRole("checkbox", { name: "启用受众与行业语境" })
+        .check();
+      await newProjectDialog
+        .getByLabel("简单描述受众与场景", { exact: true })
+        .fill("面向自行车比赛参赛者");
+      await newProjectDialog
+        .getByRole("button", { name: "生成内容倾向说明", exact: true })
+        .click();
+      await expect(
+        newProjectDialog.getByLabel("受众与行业语境（可编辑）", {
+          exact: true,
+        }),
+      ).toHaveValue(/自行车/);
+      await newProjectDialog
+        .locator("summary")
+        .filter({ hasText: "配色方案" })
+        .click();
+      await newProjectDialog
+        .getByLabel("配色预设")
+        .selectOption({ label: "暖白 · 深蓝" });
+      await page.screenshot({
+        path: ".impeccable/review/design-options-create.png",
+      });
+      await newProjectDialog
         .getByRole("button", { name: "创建项目", exact: true })
         .click();
       await expect(newProjectDialog).toHaveCount(0);
@@ -960,6 +1112,39 @@ test(
         ).styleId,
         "restrained-minimal",
       );
+      const createdWithOptions = (await req("/bootstrap")).projects.find(
+        (p) => p.title === "默认风格浏览器验收",
+      );
+      const savedOptions = (await req(`/projects/${createdWithOptions.id}`))
+        .designOptions;
+      assert.match(savedOptions.audience.brief, /自行车/);
+      assert.equal(savedOptions.palette.name, "暖白 · 深蓝");
+      await page
+        .getByRole("button", { name: "内容倾向与配色", exact: true })
+        .click();
+      const optionsDialog = page.getByRole("dialog");
+      await expect(
+        optionsDialog.getByLabel("受众与行业语境（可编辑）", { exact: true }),
+      ).toHaveValue(savedOptions.audience.brief);
+      await optionsDialog.getByLabel("配色预设").selectOption("original");
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.screenshot({
+        path: ".impeccable/review/design-options-mobile.png",
+      });
+      assert(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= window.innerWidth + 1,
+        ),
+      );
+      await optionsDialog
+        .getByRole("button", { name: "保存设置", exact: true })
+        .click();
+      await expect(optionsDialog).toHaveCount(0);
+      assert.equal(
+        (await req(`/projects/${createdWithOptions.id}`)).designOptions.palette,
+        null,
+      );
+      await page.setViewportSize({ width: 1440, height: 1000 });
       await page.goto(base.replace("/api", "") + "/#project/" + id);
       await page.waitForTimeout(500);
       // Route uses the app's actual project path; navigate from homepage if this version differs.

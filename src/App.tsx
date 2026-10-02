@@ -1,3 +1,8 @@
+import {
+  DesignOptionsEditor,
+  emptyDesignOptions,
+  validDesignOptions,
+} from "./DesignOptionsEditor";
 import { SceneView } from "./SceneView";
 import { useState, useEffect, useCallback } from "react";
 import {
@@ -416,16 +421,21 @@ function NewProject({
   onClose: () => void;
   onCreated: (p: Project) => void;
 }) {
+  const [choices, setChoices] = useState(emptyDesignOptions);
+  const [optionsBusy, setOptionsBusy] = useState(false);
   const [title, setTitle] = useState(""),
     [styleId, setStyleId] = useState(initialStyle),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (optionsBusy || !validDesignOptions(choices)) return;
     setBusy(true);
     setError("");
     try {
-      onCreated(await post("/projects", { title, styleId }));
+      onCreated(
+        await post("/projects", { title, styleId, designOptions: choices }),
+      );
     } catch (e) {
       setError((e as Error).message);
       setBusy(false);
@@ -478,6 +488,13 @@ function NewProject({
               : "风格库暂时没有可用风格，请先上传参考图创建风格。"}
           </small>
         </div>
+        <DesignOptionsEditor
+          value={choices}
+          onChange={setChoices}
+          styleId={styleId}
+          disabled={busy}
+          onBusyChange={setOptionsBusy}
+        />
         {error && (
           <p className="error-text" role="alert">
             {error}
@@ -492,6 +509,8 @@ function NewProject({
             variant="primary"
             loading={busy}
             disabled={
+              optionsBusy ||
+              !validDesignOptions(choices) ||
               !title.trim() ||
               !styles.some((s) => s.id === styleId && s.rules && !s.deletedAt)
             }

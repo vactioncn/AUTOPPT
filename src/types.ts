@@ -1,3 +1,7 @@
+export type DesignOptions = {
+  audience: { description: string; brief: string } | null;
+  palette: { name: string; instructions: string; colors: string[] } | null;
+};
 export type SceneElement = {
   id: string;
   type: "text" | "rect" | "ellipse" | "line" | "chart";
@@ -70,6 +74,7 @@ export type DesignLanguage = Record<
   string
 >;
 export type Plan = {
+  designOptions?: DesignOptions;
   compositionPlan?: {
     version: number;
     alternatives: { concept: string; reason: string }[];
@@ -298,6 +303,7 @@ export type ImageReview = {
   }[];
 };
 export type Trial = {
+  designOptions?: DesignOptions;
   id: string;
   styleId: string;
   parentId: string | null;
@@ -346,6 +352,7 @@ export type Proposal = {
   plans: Plan[];
 };
 export type Project = {
+  designOptions?: DesignOptions;
   id: string;
   title: string;
   styleId: string;

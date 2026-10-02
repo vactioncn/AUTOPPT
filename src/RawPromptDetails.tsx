@@ -18,6 +18,24 @@ export function RawPromptDetails({ plan }: { plan: Plan }) {
         <summary>本次风格提示词原文</summary>
         <div className="rules-text">{plan.styleRules}</div>
       </details>
+      {plan.designOptions?.audience && (
+        <details className="copy-review">
+          <summary>本次内容倾向</summary>
+          <div className="rules-text">
+            {plan.designOptions.audience.description}
+            {"\n\n"}
+            {plan.designOptions.audience.brief}
+          </div>
+        </details>
+      )}
+      {plan.designOptions?.palette && (
+        <details className="copy-review">
+          <summary>本次独立配色 · {plan.designOptions.palette.name}</summary>
+          <div className="rules-text">
+            {plan.designOptions.palette.instructions}
+          </div>
+        </details>
+      )}
       <ContentPromptDetails plan={plan} />
       <CompositionDetails plan={plan} />
       {plan.imageRequest?.prompt && (

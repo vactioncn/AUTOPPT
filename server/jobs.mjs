@@ -1,4 +1,9 @@
 import {
+  designOptions,
+  designOptionsKey,
+  audiencePrompt,
+} from "./design-options.mjs";
+import {
   all,
   get,
   put,
@@ -52,7 +57,10 @@ export function enqueue(type, projectId, payload = {}) {
   if (projectId) {
     assertIdle(projectId);
     const p = projectOrThrow(projectId);
-    if (type !== "inspect") payload.styleSnapshot = selectedStyle(p);
+    if (type !== "inspect") {
+      payload.styleSnapshot = selectedStyle(p);
+      payload.designOptions = designOptions(p.designOptions);
+    }
   }
   const j = put("job", {
     id: id(),
@@ -90,8 +98,11 @@ export function retry(jobId) {
   if (j.projectId) {
     assertIdle(j.projectId);
     // A retry is a new attempt under the user's current choice, not the original job's style.
-    if (j.type !== "inspect")
-      j.payload.styleSnapshot = selectedStyle(projectOrThrow(j.projectId));
+    if (j.type !== "inspect") {
+      const p = projectOrThrow(j.projectId);
+      j.payload.styleSnapshot = selectedStyle(p);
+      j.payload.designOptions = designOptions(p.designOptions);
+    }
     delete j.payload.styleSnapshots;
   } else if (["style", "trial"].includes(j.type)) {
     const style = get("style", j.payload.styleId);
@@ -195,7 +206,7 @@ async function prepareContent(j, pages, contextText, signal) {
     );
     const briefs = await analyzePageContents(
       missing.map(({ id, notes }) => ({ id, notes })),
-      contextText,
+      contextText + audiencePrompt(j.payload.designOptions),
       signal,
     );
     signal.throwIfAborted();
@@ -252,11 +263,14 @@ async function renderSlides(j, ids, signal, redesign = false) {
       const style = styleFor(p, j);
       const attachments =
         j.payload.attachmentSnapshots?.[sid] ?? s.attachments ?? [];
+      const choices = j.payload.designOptions ?? designOptions(p.designOptions);
       let stamp = styleStamp(style);
       const reusablePending =
         s.pendingPlan?.planningVersion === PLANNING_VERSION &&
         s.pendingPlan?.promptMode === DIRECT_PROMPT_MODE &&
         s.pendingPlanStyle?.fingerprint === stamp.fingerprint &&
+        designOptionsKey(s.pendingPlan.designOptions) ===
+          designOptionsKey(choices) &&
         attachmentKey(s.pendingPlan.attachments) === attachmentKey(attachments);
       let plan = reusablePending ? s.pendingPlan : s.plan;
       if (
@@ -267,7 +281,8 @@ async function renderSlides(j, ids, signal, redesign = false) {
           plan.promptMode !== DIRECT_PROMPT_MODE ||
           redesign ||
           s.stale ||
-          s.planStyle?.fingerprint !== stamp.fingerprint)
+          s.planStyle?.fingerprint !== stamp.fingerprint ||
+          designOptionsKey(plan.designOptions) !== designOptionsKey(choices))
       ) {
         progress(
           j,
@@ -283,6 +298,7 @@ async function renderSlides(j, ids, signal, redesign = false) {
           s.pendingPlan || s.plan,
           signal,
           {
+            designOptions: choices,
             contentBrief: briefs[s.id],
             copyFeedback: j.payload.copyFeedback || "",
             onProgress: (stage) =>
@@ -460,6 +476,7 @@ async function run(j, signal) {
           null,
           signal,
           {
+            designOptions: j.payload.designOptions ?? p.designOptions,
             contentBrief: briefs[String(i)],
             copyFeedback: j.payload.copyFeedback || "",
             recentCompositions: plans

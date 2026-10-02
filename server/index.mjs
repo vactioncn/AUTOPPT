@@ -1,3 +1,8 @@
+import {
+  designOptions,
+  expandAudience,
+  extractPalette,
+} from "./design-options.mjs";
 import { validateScene, renderSceneSvg } from "../shared/slides.mjs";
 import { DEFAULT_STYLE_ID, defaultStyleId } from "../shared/styles.mjs";
 import express from "express";
@@ -120,7 +125,11 @@ const styleReady = (styleId) => {
 app.get("/api/health", (req, res) => res.json({ app: "AutoPPT", ok: true }));
 app.get("/api/bootstrap", (req, res) =>
   res.json({
-    features: { styleUrlImport: true, directStylePrompt: true },
+    features: {
+      styleUrlImport: true,
+      directStylePrompt: true,
+      designOptions: true,
+    },
     projects: all("project")
       .map((p) => ({
         id: p.id,
@@ -155,6 +164,22 @@ app.get("/api/projects/:id/report", (req, res) =>
   res.json(projectReport(projectOrThrow(req.params.id))),
 );
 registerAttachments(app, { assertIdle });
+// Draft helpers never mutate a style or project; the user reviews and saves the result.
+app.post("/api/design-options/audience", async (req, res) => {
+  const controller = new AbortController();
+  res.on("close", () => controller.abort());
+  res.json(
+    await expandAudience(req.body.description, jsonModel, controller.signal),
+  );
+});
+app.post("/api/design-options/palette", async (req, res) => {
+  const controller = new AbortController();
+  res.on("close", () => controller.abort());
+  const style = styleReady(req.body.styleId);
+  // Trial editors may extract from their unsaved prompt without changing the library.
+  const rules = req.body.rules === undefined ? style.rules : req.body.rules;
+  res.json(await extractPalette(rules, jsonModel, controller.signal));
+});
 app.post("/api/projects", (req, res) => {
   const title = String(req.body.title || "").trim();
   if (!title || title.length > 100)
@@ -168,6 +193,7 @@ app.post("/api/projects", (req, res) => {
     id: id(),
     title,
     styleId,
+    designOptions: designOptions(req.body.designOptions),
     createdAt: now(),
     updatedAt: now(),
     revision: 0,
@@ -196,6 +222,11 @@ app.patch("/api/projects/:id", (req, res) => {
     assertIdle(p.id);
     styleReady(req.body.styleId);
     p.styleId = req.body.styleId;
+    p.proposal = null;
+  }
+  if ("designOptions" in req.body) {
+    assertIdle(p.id);
+    p.designOptions = designOptions(req.body.designOptions);
     p.proposal = null;
   }
   // Draft autosave is independent from generation and must not invalidate a pending proposal.

@@ -1,3 +1,4 @@
+import { designOptions, audiencePrompt } from "./design-options.mjs";
 import { readFileSync, writeFileSync } from "node:fs";
 import { settings, assetPath, id } from "./store.mjs";
 import { sentences, unitsFromEnds, styleStamp } from "./core.mjs";
@@ -168,6 +169,8 @@ export async function design(
 ) {
   if (typeof style.rules !== "string" || !style.rules.trim())
     throw new Error("请先保存这个风格的设计提示词。");
+  const choices = designOptions(options.designOptions);
+  const audienceContext = audiencePrompt(choices);
   const attachments = options.attachments || [];
   const savedCopy = reusableScreenCopy(
     previous?.screenCopy,
@@ -177,7 +180,13 @@ export async function design(
   const brief =
     options.contentBrief ||
     (savedCopy && previous.contentBrief) ||
-    (await analyzePageContents([{ id: "page", notes }], context, signal)).page;
+    (
+      await analyzePageContents(
+        [{ id: "page", notes }],
+        context + audienceContext,
+        signal,
+      )
+    ).page;
   const copyFeedback = String(options.copyFeedback || "").trim();
   options.onProgress?.(
     savedCopy && !copyFeedback
@@ -190,6 +199,7 @@ export async function design(
       : await prepareScreenCopy(
           {
             notes,
+            audienceContext,
             brief,
             feedback: copyFeedback,
             currentCopy: savedCopy?.displayText || null,
@@ -207,6 +217,7 @@ export async function design(
     compositionPlan = await composePage(
       {
         style,
+        designOptions: choices,
         contentPrompt,
         attachments,
         recent: options.recentCompositions || [],
@@ -224,6 +235,7 @@ export async function design(
     planningVersion: PLANNING_VERSION,
     sourceStyle: styleStamp(style),
     styleRules: style.rules,
+    designOptions: choices,
     recipeName: style.name,
     attachments,
     contentBrief: brief,

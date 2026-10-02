@@ -1,3 +1,4 @@
+import { audiencePrompt, palettePrompt } from "./design-options.mjs";
 import { assertDesignedCopy } from "./screen-copy.mjs";
 import { imageContentPrompt } from "./image-content.mjs";
 import { compositionPrompt } from "./composition.mjs";
@@ -28,5 +29,5 @@ export function directImagePrompt(plan) {
   const feedback = plan.imageFeedback
     ? `\n\n【本页画面调整要求】\n${plan.imageFeedback}`
     : "";
-  return `${plan.styleRules}\n\n${plan.contentPrompt}${materials}${compositionPrompt(plan)}${feedback}`;
+  return `${plan.styleRules}\n\n${plan.contentPrompt}${materials}${compositionPrompt(plan)}${feedback}${audiencePrompt(plan.designOptions)}${palettePrompt(plan.designOptions)}`;
 }

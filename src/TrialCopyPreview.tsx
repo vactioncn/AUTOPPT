@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Copy } from "@phosphor-icons/react";
-import type { Trial } from "./types";
+import type { Trial, DesignOptions } from "./types";
 import { Button } from "./components";
 import { ContentPromptDetails } from "./ContentPromptDetails";
 import { CompositionDetails } from "./CompositionDetails";
@@ -10,8 +10,10 @@ export function TrialCopyPreview({
   notes,
   rules,
   notify,
+  designOptions,
 }: {
   trial?: Trial;
+  designOptions?: DesignOptions;
   notes: string;
   rules: string;
   notify: (message: string) => void;
@@ -50,6 +52,16 @@ export function TrialCopyPreview({
               风格提示词已修改，复制的仍是本次试做实际使用的版本。
             </p>
           )}
+          {JSON.stringify(
+            trial!.designOptions || { audience: null, palette: null },
+          ) !==
+            JSON.stringify(
+              designOptions || { audience: null, palette: null },
+            ) && (
+            <p className="small-notice">
+              内容倾向或配色已修改，复制的仍是当前成图实际使用的设置。
+            </p>
+          )}
           <textarea aria-label="本次上屏文案" value={text} readOnly rows={5} />
           <ContentPromptDetails plan={plan!} />
           <CompositionDetails plan={plan!} />
@@ -81,8 +93,10 @@ export function TrialCopyPreview({
           </div>
           <p className="detail-help">
             对照测试时，可将完整出图提示词直接粘贴到 ChatGPT；
-            {plan?.compositionPlan
-              ? "本次开启了按内容构思，对照时请复制完整提示词，以包含本页构图方案。"
+            {plan?.compositionPlan ||
+            plan?.designOptions?.audience ||
+            plan?.designOptions?.palette
+              ? "本次有独立设置或构图要求，对照时请复制完整提示词，以包含这些要求。"
               : "分开复制时，使用“本次风格提示词”和“内容部分（含辅助信息）”。"}
             内容部分包含主文案、可选辅助资料和语义边界。只复制主文案会遗漏这些依据。
             {!plan?.contentPrompt && "此历史记录未保存独立的内容部分。"}

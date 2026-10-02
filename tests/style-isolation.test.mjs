@@ -106,6 +106,35 @@ test("raw style prompts stay exact and independent from reusable, source-bound s
     assert(!prompt.includes("荧光"));
     assert(!prompt.includes("RESOLVED STYLE EXECUTION"));
   }
+  const choices = {
+    audience: {
+      description: "自行车赛参赛者",
+      brief: "相关场景仅为可选联想，不添加赛制或成绩。",
+    },
+    palette: {
+      name: "蓝白",
+      instructions: "白底、深蓝文字、蓝色强调。",
+      colors: ["#FFFFFF", "#17324D"],
+    },
+  };
+  const recolored = await render(minimal, approved, { designOptions: choices });
+  assert.equal(
+    calls.length,
+    2,
+    "a palette/context change must reuse approved copy",
+  );
+  assert.deepEqual(recolored.screenCopy, approved.screenCopy);
+  assert.equal(recolored.styleRules, minimal.rules);
+  assert.deepEqual(recolored.designOptions, choices);
+  assert.match(imagePrompt(recolored), /自行车赛参赛者/);
+  assert.match(imagePrompt(recolored), /仅替换风格原文中冲突的颜色要求/);
+  assert.deepEqual(get("style", minimal.id), minimal);
+  assert(
+    !imagePrompt(await render(minimal, recolored)).includes("自行车赛参赛者"),
+  );
+  assert(
+    !imagePrompt(await render(minimal, recolored)).includes("独立配色方案"),
+  );
   const edited = await render(watercolor, approved, {
     copyFeedback: "只保留参与两个字",
   });
@@ -122,9 +151,12 @@ test("raw style prompts stay exact and independent from reusable, source-bound s
     "",
     approved,
     undefined,
-    { contentBrief: brief },
+    { contentBrief: brief, designOptions: choices },
   );
   assert.equal(calls.length, 6);
+  assert.match(calls[4].audienceContext, /自行车赛参赛者/);
+  assert.match(calls[5].audienceContext, /不是本页事实/);
+  assert(!JSON.stringify(calls[4]).includes("#17324D"));
   assert.equal(calls[4].currentCopy, null);
   assert(!updated.copyReused);
   writeFileSync(path.join(dir, "assets", "chart.png"), Buffer.from("fixture"));

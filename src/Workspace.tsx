@@ -1,3 +1,9 @@
+import {
+  DesignOptionsEditor,
+  emptyDesignOptions,
+  validDesignOptions,
+} from "./DesignOptionsEditor";
+import type { DesignOptions } from "./types";
 import { RawPromptDetails } from "./RawPromptDetails";
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
@@ -57,6 +63,10 @@ export function Workspace({
   onRefresh: () => Promise<void>;
   onSettings: () => void;
 }) {
+  const [editingOptions, setEditingOptions] = useState<DesignOptions | null>(
+    null,
+  );
+  const [optionsBusy, setOptionsBusy] = useState(false);
   const [project, setProject] = useState<Project | null>(null),
     [jobs, setJobs] = useState<Job[]>([]),
     [draft, setDraft] = useState(""),
@@ -259,13 +269,25 @@ export function Workspace({
               ))}
           </select>
         </div>
+        <Button
+          disabled={!!busy || submitting}
+          onClick={() =>
+            setEditingOptions(
+              structuredClone(project.designOptions || emptyDesignOptions),
+            )
+          }
+        >
+          内容倾向与配色
+        </Button>
         <div className="quiet-meta">
           <span>16:9 宽屏</span>
           <span>逐页保留完整讲稿</span>
         </div>
       </div>
       <p className="generation-style-help">
-        继续制作、补齐页面和重新设计均使用当前风格。已生成的画面可选中后批量重做。
+        内容倾向：{project.designOptions?.audience?.description || "未限定"} ·
+        配色：{project.designOptions?.palette?.name || "沿用风格"}。
+        继续制作和重新设计使用当前设置，已有画面保持原样；可选中页面批量重做。只换配色会复用已确认文案。
       </p>
       {style?.deletedAt && (
         <div className="inline-notice warm">
@@ -696,6 +718,48 @@ export function Workspace({
           onClose={() => setExportOpen(false)}
           notify={notify}
         />
+      )}
+      {editingOptions && (
+        <Modal
+          title="内容倾向与配色"
+          subtitle="仅用于这个项目，不改变风格库或其他项目。"
+          onClose={() => {
+            if (!submitting) setEditingOptions(null);
+          }}
+        >
+          <DesignOptionsEditor
+            value={editingOptions}
+            onChange={setEditingOptions}
+            styleId={project.styleId}
+            disabled={!!busy || submitting}
+            onBusyChange={setOptionsBusy}
+          />
+          <div className="modal-actions">
+            <Button
+              disabled={submitting}
+              onClick={() => setEditingOptions(null)}
+            >
+              取消
+            </Button>
+            <Button
+              variant="primary"
+              loading={submitting}
+              disabled={
+                !!busy || optionsBusy || !validDesignOptions(editingOptions)
+              }
+              onClick={() =>
+                run(async () => {
+                  await patch("/projects/" + id, {
+                    designOptions: editingOptions,
+                  });
+                  setEditingOptions(null);
+                }, "内容倾向与配色已保存。已有画面保持原样，选中页面重新设计即可应用。")
+              }
+            >
+              保存设置
+            </Button>
+          </div>
+        </Modal>
       )}
       {reportOpen && (
         <ProjectReport

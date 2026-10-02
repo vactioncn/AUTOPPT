@@ -1,3 +1,4 @@
+import { designOptions, designOptionsKey } from "./design-options.mjs";
 import { all, get, put, id, now, transaction } from "./store.mjs";
 import { styleStamp } from "./core.mjs";
 import { design, generateImage } from "./models.mjs";
@@ -107,6 +108,11 @@ export function registerTrials(app, { enqueue }) {
       calibrationVersion: 1,
       primaryRef: "",
       styleSnapshot: candidate,
+      designOptions: designOptions(
+        req.body.designOptions === undefined
+          ? parent?.designOptions
+          : req.body.designOptions,
+      ),
       baseFingerprint: styleStamp(style).fingerprint,
       plan: null,
       image: null,
@@ -242,7 +248,9 @@ export async function runTrial(job, signal, progress) {
       !t.plan ||
       t.plan.engine !== "image" ||
       t.plan.planningVersion !== PLANNING_VERSION ||
-      t.plan.promptMode !== DIRECT_PROMPT_MODE
+      t.plan.promptMode !== DIRECT_PROMPT_MODE ||
+      designOptionsKey(t.plan.designOptions) !==
+        designOptionsKey(t.designOptions)
     ) {
       progress("正在提炼上屏文案，使用原始风格提示词");
       t.plan = await design(
@@ -253,6 +261,7 @@ export async function runTrial(job, signal, progress) {
         t.plan || parent?.plan,
         signal,
         {
+          designOptions: t.designOptions,
           onProgress: progress,
           copyFeedback: t.copyFeedback || "",
         },

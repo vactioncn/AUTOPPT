@@ -131,6 +131,17 @@ test("opt-in art direction preserves raw style and frozen copy, passes real mate
   const prior = structuredClone(direct);
   const plan = await design(notes, enabled, "", "本页反馈", direct, undefined, {
     ...opts,
+    designOptions: {
+      audience: {
+        description: "运动会志愿者",
+        brief: "可选联想，不补写赛制。",
+      },
+      palette: {
+        name: "蓝白",
+        instructions: "白底蓝色强调。",
+        colors: ["#FFFFFF"],
+      },
+    },
     recentCompositions: [{ pageId: "neighbor", signature: "上文结构" }],
   });
   assert.equal(calls.length, 3);
@@ -149,7 +160,10 @@ test("opt-in art direction preserves raw style and frozen copy, passes real mate
   assert(prompt.startsWith(style.rules + "\n\n" + direct.contentPrompt));
   assert(prompt.includes("COMPOSITION_MARKER"));
   assert(!prompt.includes("上文结构"));
-  assert(prompt.endsWith("本页反馈"));
+  assert(prompt.includes("本页反馈"));
+  assert.match(calls[2].data.independentOptions, /运动会志愿者/);
+  assert.match(calls[2].data.independentOptions, /独立配色方案/);
+  assert.match(prompt, /独立配色方案/);
   await generateImage(plan, enabled, undefined, [attachment]);
   assert.equal(actualImagePrompt, prompt);
   assert.equal(plan.imageRequest.prompt, prompt);

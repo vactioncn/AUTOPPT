@@ -1,3 +1,9 @@
+import {
+  DesignOptionsEditor,
+  emptyDesignOptions,
+  validDesignOptions,
+} from "./DesignOptionsEditor";
+import type { DesignOptions } from "./types";
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   ArrowLeft,
@@ -33,6 +39,10 @@ export function StyleStudio({
       return {};
     }
   });
+  const [choices, setChoices] = useState<DesignOptions>(
+    initial.designOptions || emptyDesignOptions,
+  );
+  const [optionsBusy, setOptionsBusy] = useState(false);
   const [notes, setNotes] = useState<string>(initial.notes || ""),
     [feedback, setFeedback] = useState<string>(initial.feedback || ""),
     [copyFeedback, setCopyFeedback] = useState<string>(
@@ -63,6 +73,7 @@ export function StyleStudio({
         const t = d.trials.find((t) => t.engine === "image") || d.trials[0];
         setSelectedId(t.id);
         setNotes(t.notes);
+        setChoices(t.designOptions || emptyDesignOptions);
         setRules(t.styleSnapshot.rules);
       }
     }
@@ -84,15 +95,25 @@ export function StyleStudio({
   useEffect(() => {
     localStorage.setItem(
       key,
-      JSON.stringify({ notes, feedback, copyFeedback, rules, selectedId }),
+      JSON.stringify({
+        notes,
+        feedback,
+        copyFeedback,
+        rules,
+        selectedId,
+        designOptions: choices,
+      }),
     );
-  }, [key, notes, feedback, copyFeedback, rules, selectedId]);
+  }, [key, notes, feedback, copyFeedback, rules, selectedId, choices]);
   const selected = trials.find((t) => t.id === selectedId),
     running = trials.find((t) => active(t.status)),
-    disabled = busy || !!running || loading;
+    disabled = busy || optionsBusy || !!running || loading;
   const edited =
     !!selected &&
-    (selected.notes !== notes || selected.styleSnapshot.rules !== rules);
+    (selected.notes !== notes ||
+      selected.styleSnapshot.rules !== rules ||
+      JSON.stringify(selected.designOptions || emptyDesignOptions) !==
+        JSON.stringify(choices));
   const act = async (fn: () => Promise<void>, propagate = false) => {
     setBusy(true);
     setError("");
@@ -109,14 +130,18 @@ export function StyleStudio({
   const choose = (t: Trial) => {
     setSelectedId(t.id);
     setNotes(t.notes);
+    setChoices(t.designOptions || emptyDesignOptions);
     setRules(t.styleSnapshot.rules);
     setFeedback("");
     setCopyFeedback("");
   };
   const start = (mode: string) =>
     act(async () => {
+      if (!validDesignOptions(choices))
+        throw new Error("请填写有效的内容倾向与配色说明。");
       const t = await post<Trial>(`/styles/${style.id}/trials`, {
         notes,
+        designOptions: choices,
         rules,
         feedback,
         copyFeedback,
@@ -286,6 +311,7 @@ export function StyleStudio({
                   key={s.id}
                   onClick={() => {
                     setNotes(s.notes);
+                    setChoices(source.designOptions || emptyDesignOptions);
                     setProjects(null);
                   }}
                 >
@@ -305,9 +331,18 @@ export function StyleStudio({
           <p className="detail-help">
             讲稿先提炼并复核，出图时原文使用「{style.name}」的设计提示词。
           </p>
+          <DesignOptionsEditor
+            value={choices}
+            onChange={setChoices}
+            styleId={style.id}
+            rules={rules}
+            disabled={disabled}
+            onBusyChange={setOptionsBusy}
+          />
           <TrialCopyPreview
             key={selected?.id || "empty"}
             trial={selected}
+            designOptions={choices}
             notes={notes}
             rules={rules}
             notify={notify}
@@ -315,7 +350,13 @@ export function StyleStudio({
           <div className="web-studio-actions">
             <Button
               variant="primary"
-              disabled={disabled || !notes.trim() || !rules.trim()}
+              disabled={
+                disabled ||
+                optionsBusy ||
+                !validDesignOptions(choices) ||
+                !notes.trim() ||
+                !rules.trim()
+              }
               onClick={() => start("baseline")}
             >
               生成图片试做

@@ -1482,6 +1482,12 @@ test(
     assert.deepEqual(
       (await req(`/jobs?projectId=${concurrentProject.id}`)).find(
         (j) => j.id === twoPageJob.id,
+      ).targetSlideIds,
+      [concurrentSlides[3].id, concurrentSlides[4].id],
+    );
+    assert.deepEqual(
+      (await req(`/jobs?projectId=${concurrentProject.id}`)).find(
+        (j) => j.id === twoPageJob.id,
       ).slideIds,
       [concurrentSlides[4].id],
     );
@@ -1499,6 +1505,14 @@ test(
     holdImages = false;
     imageGates[releaseStart + 1]();
     assert.equal((await poll(twoPageJob)).status, "completed");
+    const completedProduction = (
+      await req(`/jobs?projectId=${concurrentProject.id}`)
+    ).find((j) => j.id === twoPageJob.id);
+    assert.deepEqual(completedProduction.slideIds, []);
+    assert.deepEqual(completedProduction.targetSlideIds, [
+      concurrentSlides[3].id,
+      concurrentSlides[4].id,
+    ]);
     assert.equal(
       (await req(cp)).slides[3].notes,
       "这页已完成，不等整批完成也能修改。",

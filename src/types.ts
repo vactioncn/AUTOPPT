@@ -378,12 +378,15 @@ export type ProjectSummary = {
 };
 export type Job = {
   slideIds?: string[] | null;
+  targetSlideIds?: string[];
+  batchId?: string;
   id: string;
   type: string;
   projectId: string | null;
   styleId?: string;
   status: string;
   stage: string;
+  updatedAt?: string;
   done: number;
   total: number;
   error?: string;

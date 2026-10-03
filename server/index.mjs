@@ -5,6 +5,7 @@ import {
 } from "./design-options.mjs";
 import { validateScene, renderSceneSvg } from "../shared/slides.mjs";
 import { DEFAULT_STYLE_ID, defaultStyleId } from "../shared/styles.mjs";
+import { productionTargetIds } from "../shared/production.mjs";
 import express from "express";
 import multer from "multer";
 import sharp from "sharp";
@@ -121,6 +122,11 @@ const safeJob = (j) => ({
   ...j,
   styleId: j.payload.styleId || j.payload.styleSnapshot?.id,
   slideIds: jobSlideIds(j),
+  targetSlideIds: productionTargetIds(
+    j,
+    j.type === "append" && j.projectId ? get("project", j.projectId) : null,
+  ),
+  batchId: j.type === "append" ? j.payload.batchId : undefined,
   payload: undefined,
 });
 const styleReady = (styleId) => {
@@ -161,7 +167,9 @@ app.get("/api/bootstrap", (req, res) =>
       ),
     settings: publicSettings(),
     jobs: all("job")
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .sort((a, b) =>
+        (b.updatedAt || b.createdAt).localeCompare(a.updatedAt || a.createdAt),
+      )
       .slice(0, 50)
       .map(safeJob),
   }),
@@ -688,7 +696,9 @@ app.get("/api/jobs", (req, res) =>
       .filter(
         (j) => !req.query.projectId || j.projectId === req.query.projectId,
       )
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .sort((a, b) =>
+        (b.updatedAt || b.createdAt).localeCompare(a.updatedAt || a.createdAt),
+      )
       .filter(
         (j, index) => index < 30 || ["queued", "running"].includes(j.status),
       )
@@ -934,8 +944,13 @@ if (process.env.NODE_ENV === "production") {
   });
   app.use(vite.middlewares);
 }
-recoverJobs();
-migrateManuscripts();
-app.listen(port, "127.0.0.1", () =>
-  console.log(`AutoPPT → http://127.0.0.1:${port} · data: ${dataDir}`),
-);
+app.listen(port, "127.0.0.1", (error) => {
+  if (error) {
+    console.error(`AutoPPT 启动失败：${error.message}`);
+    process.exit(1);
+  }
+  // A second process must never mark the real server's jobs as interrupted.
+  recoverJobs();
+  migrateManuscripts();
+  console.log(`AutoPPT → http://127.0.0.1:${port} · data: ${dataDir}`);
+});

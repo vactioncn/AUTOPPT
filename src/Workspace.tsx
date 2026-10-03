@@ -5,6 +5,7 @@ import {
 } from "./DesignOptionsEditor";
 import type { DesignOptions } from "./types";
 import { RawPromptDetails } from "./RawPromptDetails";
+import { currentProduction } from "../shared/production.mjs";
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Plus,
@@ -215,21 +216,24 @@ export function Workspace({
     }
   };
   const lastJob = jobs[0];
+  const production = currentProduction(project, jobs);
   const currentBatch = project.batches.at(-1);
   const sourceBatch =
-    filter === "latest" || filter === "all"
-      ? currentBatch
-      : project.batches.find((b) => b.id === filter);
+    filter === "latest"
+      ? production.batchIds.length === 1
+        ? project.batches.find((b) => b.id === production.batchIds[0])
+        : undefined
+      : filter === "all"
+        ? currentBatch
+        : project.batches.find((b) => b.id === filter);
   const incomplete = project.batches.filter((b) => !b.slideIds.length);
   const style = styles.find((s) => s.id === project.styleId);
   const shown =
     filter === "all"
       ? project.slides
-      : project.slides.filter((s) =>
-          s.batchIds.includes(
-            filter === "latest" ? currentBatch?.id || "" : filter,
-          ),
-        );
+      : filter === "latest"
+        ? production.slides
+        : project.slides.filter((s) => s.batchIds.includes(filter));
   const detailSlide = project.slides.find((s) => s.id === detail);
   const splitSlide = project.slides.find((s) => s.id === split);
   const selectedPages = project.slides.filter((s) => selected.includes(s.id));
@@ -487,14 +491,7 @@ export function Workspace({
                   setSelected([]);
                 }}
               >
-                本次制作{" "}
-                <span>
-                  {
-                    project.slides.filter((s) =>
-                      s.batchIds.includes(currentBatch?.id || ""),
-                    ).length
-                  }
-                </span>
+                {production.label} <span>{production.slides.length} 页</span>
               </button>
               <button
                 className={filter === "all" && !showScript ? "active" : ""}
@@ -562,7 +559,7 @@ export function Workspace({
                   value={filter}
                   onChange={(e) => setFilter(e.target.value)}
                 >
-                  <option value="latest">最近一段</option>
+                  <option value="latest">{production.label}</option>
                   <option value="all">全部段落</option>
                   {project.batches.map((b, i) => (
                     <option value={b.id} key={b.id}>
@@ -573,6 +570,9 @@ export function Workspace({
               )}
             </div>
           </div>
+          {filter === "latest" && !showScript && (
+            <p className="workspace-hint">{production.description}</p>
+          )}
           {insertExportAvailable && (
             <Button
               className="insert-first"

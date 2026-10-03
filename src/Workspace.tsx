@@ -171,9 +171,7 @@ export function Workspace({
   const activeJobs = jobs.filter((j) => active(j.status));
   const busy = activeJobs[0];
   const pageBusy = (sid: string) =>
-    activeJobs.some(
-      (j) => j.type !== "render" || !j.slideIds || j.slideIds.includes(sid),
-    );
+    activeJobs.some((j) => !j.slideIds || j.slideIds.includes(sid));
   const lastJob = jobs[0];
   const currentBatch = project.batches.at(-1);
   const sourceBatch =
@@ -556,7 +554,7 @@ export function Workspace({
                   </button>
                   <button
                     className={`slide-checkbox ${selected.includes(s.id) ? "checked" : ""}`}
-                    disabled={!!busy}
+                    disabled={pageBusy(s.id)}
                     onClick={() => select(s.id)}
                     aria-label={`选择第 ${project.slides.indexOf(s) + 1} 页`}
                   >
@@ -613,7 +611,7 @@ export function Workspace({
             {selectedPages.map((s) => project.slides.indexOf(s) + 1).join("、")}
           </span>
           <Button
-            disabled={!!busy || !style || !!style.deletedAt}
+            disabled={selected.some(pageBusy) || !style || !!style.deletedAt}
             onClick={() =>
               run(async () => {
                 await post("/projects/" + id + "/render", {
@@ -629,7 +627,11 @@ export function Workspace({
           </Button>
           <Button
             variant="primary"
-            disabled={selected.length < 2 || !!busy}
+            disabled={
+              selected.length < 2 ||
+              selected.some(pageBusy) ||
+              activeJobs.some((j) => j.type === "proposal")
+            }
             onClick={merge}
           >
             <Unite size={17} />
@@ -690,12 +692,7 @@ export function Workspace({
           }
           maxLength={200000}
           onKeyDown={(e) => {
-            if (
-              (e.metaKey || e.ctrlKey) &&
-              e.key === "Enter" &&
-              !busy &&
-              !submitting
-            ) {
+            if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && !submitting) {
               e.preventDefault();
               add();
             }
@@ -710,14 +707,11 @@ export function Workspace({
             variant="primary"
             onClick={add}
             disabled={
-              !draft.trim() ||
-              !!busy ||
-              !settings.text.hasKey ||
-              !settings.image.hasKey
+              !draft.trim() || !settings.text.hasKey || !settings.image.hasKey
             }
             loading={submitting}
           >
-            {busy ? "正在制作上一段" : "生成这一段"}
+            {busy ? "提交下一段" : "生成这一段"}
             <ArrowUp size={17} />
           </Button>
         </div>
@@ -800,7 +794,10 @@ export function Workspace({
           styles={styles}
           currentStyle={style}
           busy={pageBusy(detailSlide.id)}
-          projectBusy={!!busy}
+          projectBusy={
+            pageBusy(detailSlide.id) ||
+            activeJobs.some((j) => j.type === "proposal")
+          }
           onClose={() => setDetail(null)}
           onNavigate={(offset) =>
             setDetail(
@@ -1182,7 +1179,7 @@ function SlideDetail({
     });
   const leave = (action: number | "close") => {
     if (uploading || loading) return;
-    if (dirty || attachmentsDirty) {
+    if (dirty || attachmentsDirty || feedback.trim() || copyFeedback.trim()) {
       setLeaveAction(action);
       return;
     }
@@ -1306,17 +1303,19 @@ function SlideDetail({
                 placeholder={
                   "画面调整：例如换一种构图、增加主体画面的比重。\n留空则按当前风格重新生成。"
                 }
-                disabled={busy}
+                disabled={loading}
               />
               <textarea
                 aria-label="上屏文字调整"
                 value={copyFeedback}
                 onChange={(e) => setCopyFeedback(e.target.value)}
                 placeholder="上屏文字调整：例如只保留核心问题，解释留给口播。留空则复用已提炼文案。"
-                disabled={busy}
+                disabled={loading}
               />
               <p className="detail-help">
-                画面和文案分别调整，风格提示词保持原文。
+                {busy
+                  ? "本页任务正在排队或制作，可以先写修改草稿，完成后再提交。"
+                  : "画面和文案分别调整，风格提示词保持原文。"}
               </p>
               <div className="content-attachments">
                 <div className="content-attachments-heading">
@@ -1447,7 +1446,7 @@ function SlideDetail({
                   aria-label="本页逐字稿"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  disabled={busy}
+                  disabled={loading}
                 />
                 <div className="notes-footer">
                   <span>
@@ -1599,7 +1598,7 @@ function SlideDetail({
       {leaveAction !== null && (
         <Modal
           title="有修改尚未提交"
-          subtitle="讲稿或附件选择尚未提交，离开后不会应用到页面。"
+          subtitle="讲稿、修改要求或附件选择尚未提交，离开后不会应用到页面。"
           onClose={() => setLeaveAction(null)}
         >
           <div className="modal-actions">

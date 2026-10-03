@@ -377,7 +377,7 @@ export type ProjectSummary = {
   coverScene?: Scene;
 };
 export type Job = {
-  slideIds?: string[];
+  slideIds?: string[] | null;
   id: string;
   type: string;
   projectId: string | null;

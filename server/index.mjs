@@ -38,6 +38,7 @@ import {
   enqueue,
   assertIdle,
   activeJob,
+  jobSlideIds,
   retry,
   cancel,
   recoverJobs,
@@ -114,7 +115,7 @@ app.use("/api", (req, res, next) => {
 const safeJob = (j) => ({
   ...j,
   styleId: j.payload.styleId || j.payload.styleSnapshot?.id,
-  slideIds: j.type === "render" ? j.payload.slideIds : undefined,
+  slideIds: jobSlideIds(j),
   payload: undefined,
 });
 const styleReady = (styleId) => {
@@ -248,7 +249,6 @@ app.patch("/api/projects/:id", (req, res) => {
 });
 app.post("/api/projects/:id/batches", (req, res) => {
   const p = projectOrThrow(req.params.id);
-  assertIdle(p.id);
   styleReady(p.styleId);
   const text = req.body.text;
   if (typeof text !== "string" || !text.trim())
@@ -268,7 +268,6 @@ app.post("/api/projects/:id/batches", (req, res) => {
   transaction(() => {
     p.batches.push(batch);
     p.draft = "";
-    p.proposal = null;
     p.undo = null;
     saveProject(p);
     j = enqueue("append", p.id, { batchId: batch.id });
@@ -296,7 +295,7 @@ app.patch("/api/projects/:id/slides/:sid", (req, res) => {
     s.stale = true;
     delete s.pendingPlan;
     delete s.pendingPlanStyle;
-    p.proposal = null;
+    if (p.proposal?.sourceIds.includes(s.id)) p.proposal = null;
     p.undo = null;
     saveProject(p);
   }
@@ -371,7 +370,7 @@ app.patch("/api/projects/:id/slides/:sid/scene", (req, res) => {
       .map((e) => e.text),
   };
   p.undo = null;
-  p.proposal = null;
+  if (p.proposal?.sourceIds.includes(s.id)) p.proposal = null;
   saveProject(p);
   res.json(p);
 });
@@ -401,7 +400,7 @@ app.post("/api/projects/:id/slides/:sid/restore", (req, res) => {
   delete s.pendingPlan;
   delete s.pendingPlanStyle;
   delete s.pendingAttachments;
-  p.proposal = null;
+  if (p.proposal?.sourceIds.includes(s.id)) p.proposal = null;
   p.undo = null;
   saveProject(p);
   res.json(p);
@@ -422,7 +421,6 @@ app.post("/api/projects/:id/suggest-split", async (req, res) => {
 });
 app.post("/api/projects/:id/proposal", (req, res) => {
   const p = projectOrThrow(req.params.id);
-  assertIdle(p.id);
   let notes, sourceIds;
   if (req.body.type === "merge") {
     const selected = orderedSelection(p.slides, req.body.slideIds);

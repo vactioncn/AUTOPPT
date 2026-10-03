@@ -36,7 +36,66 @@ export function activeJob(projectId) {
       j.projectId === projectId && ["queued", "running"].includes(j.status),
   );
 }
-// Render jobs own only their selected pages. Structural jobs own the project.
+// Publish the same page ownership to API consumers and mutation guards.
+export function jobSlideIds(j) {
+  if (j.type === "render")
+    return j.payload.slideIds.filter(
+      (id) => !j.payload.finishedIds?.includes(id),
+    );
+  if (j.type === "proposal") return j.payload.sourceIds;
+  if (j.type === "append")
+    return (
+      get("project", j.projectId)?.batches.find(
+        (b) => b.id === j.payload.batchId,
+      )?.slideIds || []
+    ).filter((id) => !j.payload.finishedIds?.includes(id));
+  return null;
+}
+function assertSubmission(type, projectId, payload, exceptJobId = null) {
+  if (type === "append") {
+    // New batches own no pages; retries must still protect their unfinished pages.
+    const ids =
+      get("project", projectId)?.batches.find((b) => b.id === payload.batchId)
+        ?.slideIds || [];
+    assertIdle(
+      projectId,
+      ids.filter((id) => !payload.finishedIds?.includes(id)),
+      exceptJobId,
+    );
+    return;
+  }
+  if (
+    type === "proposal" &&
+    all("job").some(
+      (j) =>
+        j.id !== exceptJobId &&
+        j.projectId === projectId &&
+        j.type === "proposal" &&
+        (["queued", "running"].includes(j.status) || controllers.has(j.id)),
+    )
+  )
+    throw Object.assign(
+      new Error("已有拆分或合并方案正在准备，请完成后再创建另一份方案。"),
+      { status: 409 },
+    );
+  assertIdle(
+    projectId,
+    type === "render"
+      ? payload.slideIds.filter((id) => !payload.finishedIds?.includes(id))
+      : type === "proposal"
+        ? payload.sourceIds
+        : null,
+    exceptJobId,
+  );
+}
+function sourceKey(p, ids) {
+  return JSON.stringify(
+    ids.map((id) => {
+      const s = p.slides.find((s) => s.id === id);
+      return s ? [s.id, s.notes, s.batchIds] : null;
+    }),
+  );
+}
 export function assertIdle(projectId, slideIds = null, exceptJobId = null) {
   const conflict = all("job").some(
     (j) =>
@@ -44,8 +103,8 @@ export function assertIdle(projectId, slideIds = null, exceptJobId = null) {
       j.projectId === projectId &&
       (["queued", "running"].includes(j.status) || controllers.has(j.id)) &&
       (!slideIds ||
-        j.type !== "render" ||
-        j.payload.slideIds.some((sid) => slideIds.includes(sid))),
+        jobSlideIds(j) === null ||
+        jobSlideIds(j).some((sid) => slideIds.includes(sid))),
   );
   if (conflict)
     throw Object.assign(
@@ -67,7 +126,7 @@ export function enqueue(type, projectId, payload = {}) {
   )
     throw new Error("上一项风格任务还在结束，请稍后再试。");
   if (projectId) {
-    assertIdle(projectId, type === "render" ? payload.slideIds : null);
+    assertSubmission(type, projectId, payload);
     const p = projectOrThrow(projectId);
     if (type !== "inspect") {
       payload.styleSnapshot = selectedStyle(p);
@@ -108,11 +167,7 @@ export function retry(jobId) {
   if (controllers.has(jobId))
     throw new Error("正在停止上一次制作，请稍后继续。");
   if (j.projectId) {
-    assertIdle(
-      j.projectId,
-      j.type === "render" ? j.payload.slideIds : null,
-      j.id,
-    );
+    assertSubmission(j.type, j.projectId, j.payload, j.id);
     // A retry is a new attempt under the user's current choice, not the original job's style.
     if (j.type !== "inspect") {
       const p = projectOrThrow(j.projectId);
@@ -475,7 +530,7 @@ async function run(j, signal) {
     }
     const plans = [];
     const style = styleFor(p, j);
-    const initialRevision = p.revision;
+    const initialSource = sourceKey(p, j.payload.sourceIds);
     const pages = j.payload.notes.map((notes, i) => ({ id: String(i), notes }));
     const briefs = await prepareContent(j, pages, context(p), signal);
     for (let i = 0; i < j.payload.notes.length; i++) {
@@ -510,7 +565,7 @@ async function run(j, signal) {
     }
     signal.throwIfAborted();
     p = projectOrThrow(j.projectId);
-    if (p.revision !== initialRevision)
+    if (sourceKey(p, j.payload.sourceIds) !== initialSource)
       throw new Error("项目已发生变化，请重新预览调整方案。");
     p.proposal = {
       id: id(),
@@ -531,6 +586,17 @@ function pump() {
   while (controllers.size < MAX_CONCURRENT_JOBS) {
     const j = all("job")
       .filter((x) => x.status === "queued" && !controllers.has(x.id))
+      // Segment consecutive batches in order, while unrelated pages remain usable.
+      .filter(
+        (x) =>
+          x.type !== "append" ||
+          ![...controllers.keys()].some((id) => {
+            const running = get("job", id);
+            return (
+              running?.type === "append" && running.projectId === x.projectId
+            );
+          }),
+      )
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0];
     if (!j) break;
     const controller = new AbortController();
@@ -561,7 +627,7 @@ async function execute(j, controller) {
         for (const s of p.slides)
           if (
             s.status === "generating" &&
-            (j.type !== "render" || j.payload.slideIds.includes(s.id))
+            (jobSlideIds(j) || []).includes(s.id)
           ) {
             s.status = s.image || s.scene ? "ready" : "pending";
             dirty = true;

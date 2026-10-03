@@ -1158,6 +1158,128 @@ test(
       (await poll(await req(`/jobs/${concurrentJobs[3].id}/retry`, {}))).status,
       "completed",
     );
+    // A split preview must not lock unrelated pages or newly submitted manuscript batches.
+    held = null;
+    holdDesign = true;
+    const proposalJob = await req(
+      cp + "/proposal",
+      {
+        type: "split",
+        slideId: concurrentSlides[0].id,
+        cuts: [3],
+      },
+      "POST",
+      202,
+    );
+    await until(() => held);
+    const proposalState = (
+      await req(`/jobs?projectId=${concurrentProject.id}`)
+    ).find((j) => j.id === proposalJob.id);
+    assert.deepEqual(proposalState.slideIds, [concurrentSlides[0].id]);
+    await req(
+      cp + `/slides/${concurrentSlides[0].id}`,
+      { notes: "blocked source edit" },
+      "PATCH",
+      409,
+    );
+    await req(
+      cp + `/slides/${concurrentSlides[6].id}`,
+      { notes: "拆分期间继续改其他页。" },
+      "PATCH",
+    );
+    holdImages = true;
+    const gateStart = imageGates.length;
+    const unrelatedRender = await req(
+      cp + "/render",
+      { slideIds: [concurrentSlides[1].id] },
+      "POST",
+      202,
+    );
+    const appendA = await req(
+      cp + "/batches",
+      { text: "并行追加第一段。完整保留。" },
+      "POST",
+      202,
+    );
+    const appendB = await req(
+      cp + "/batches",
+      { text: "并行追加第二段。完整保留。" },
+      "POST",
+      202,
+    );
+    await until(() => imageGates.length === gateStart + 2);
+    const mixedJobs = await req(`/jobs?projectId=${concurrentProject.id}`);
+    assert.equal(mixedJobs.find((j) => j.id === appendB.id).status, "queued");
+    assert.equal(
+      mixedJobs.filter((j) => j.type === "append" && j.status === "running")
+        .length,
+      1,
+    );
+    held();
+    assert.equal(
+      (await poll(proposalJob)).status,
+      "completed",
+      "other pages and batches do not invalidate a split preview",
+    );
+    assert.equal(
+      (await req(cp)).slides[1].status,
+      "generating",
+      "finishing proposal must not reset unrelated image job",
+    );
+    const savedProposalId = (await req(cp)).proposal.id;
+    await req(
+      cp + `/slides/${concurrentSlides[6].id}`,
+      { notes: "方案完成后继续改其他页。" },
+      "PATCH",
+    );
+    assert.equal((await req(cp)).proposal.id, savedProposalId);
+    holdImages = false;
+    imageGates.slice(gateStart).forEach((release) => release());
+    for (const j of [unrelatedRender, appendA, appendB])
+      assert.equal((await poll(j)).status, "completed");
+    const mixedFinished = await req(cp);
+    assert.equal(mixedFinished.proposal.id, savedProposalId);
+    assert.equal(mixedFinished.slides[6].notes, "方案完成后继续改其他页。");
+    assert.deepEqual(
+      mixedFinished.batches.slice(-2).map((b) => b.text),
+      ["并行追加第一段。完整保留。", "并行追加第二段。完整保留。"],
+    );
+    // A finished page in a still-running batch is safe to edit immediately.
+    holdImages = true;
+    const releaseStart = imageGates.length;
+    const twoPageJob = await req(
+      cp + "/render",
+      { slideIds: [concurrentSlides[3].id, concurrentSlides[4].id] },
+      "POST",
+      202,
+    );
+    await until(() => imageGates.length === releaseStart + 1);
+    imageGates[releaseStart]();
+    await until(() => imageGates.length === releaseStart + 2);
+    assert.deepEqual(
+      (await req(`/jobs?projectId=${concurrentProject.id}`)).find(
+        (j) => j.id === twoPageJob.id,
+      ).slideIds,
+      [concurrentSlides[4].id],
+    );
+    await req(
+      cp + `/slides/${concurrentSlides[3].id}`,
+      { notes: "这页已完成，不等整批完成也能修改。" },
+      "PATCH",
+    );
+    await req(
+      cp + `/slides/${concurrentSlides[4].id}`,
+      { notes: "仍在制作的页面" },
+      "PATCH",
+      409,
+    );
+    holdImages = false;
+    imageGates[releaseStart + 1]();
+    assert.equal((await poll(twoPageJob)).status, "completed");
+    assert.equal(
+      (await req(cp)).slides[3].notes,
+      "这页已完成，不等整批完成也能修改。",
+    );
     if (process.env.BROWSER_TEST) {
       const { chromium, expect } = await import("@playwright/test");
       const browser = await chromium.launch({
@@ -1177,6 +1299,7 @@ test(
       await page.goto(
         base.replace("/api", "") + "/#project/" + concurrentProject.id,
       );
+      await page.getByLabel("查看段落").selectOption("all");
       await page.getByRole("button", { name: /^打开第 1 页/ }).click();
       await page
         .getByLabel("重新设计要求", { exact: true })
@@ -1208,13 +1331,68 @@ test(
       ).toBeEnabled();
       await expect(
         page.getByRole("button", { name: "拆分这一页", exact: true }),
-      ).toBeDisabled();
+      ).toBeEnabled();
       mkdirSync(".impeccable/review", { recursive: true });
       await page.screenshot({
         path: ".impeccable/review/concurrent-edit-next-page.png",
       });
       holdImages = false;
       imageGates.slice(uiGateStart).forEach((release) => release());
+      await until(
+        async () =>
+          !(await req(`/jobs?projectId=${concurrentProject.id}`)).some((j) =>
+            ["queued", "running"].includes(j.status),
+          ),
+      );
+      held = null;
+      holdDesign = true;
+      const uiProposal = await req(
+        cp + "/proposal",
+        { type: "split", slideId: concurrentSlides[0].id, cuts: [3] },
+        "POST",
+        202,
+      );
+      await until(() => held);
+      // Third page is unrelated to the split and remains editable.
+      await expect(
+        page.getByRole("button", { name: "重新设计这页", exact: true }),
+      ).toBeEnabled();
+      await page.getByRole("button", { name: "上一页", exact: true }).click();
+      await page.getByRole("button", { name: "上一页", exact: true }).click();
+      await expect(
+        page.getByRole("button", { name: "正在制作中", exact: true }),
+      ).toBeDisabled();
+      await expect(
+        page.getByLabel("本页逐字稿", { exact: true }),
+      ).toBeEnabled();
+      await page
+        .getByLabel("重新设计要求", { exact: true })
+        .fill("正在制作时也可以起草下次修改");
+      await page.getByRole("button", { name: "下一页", exact: true }).click();
+      await expect(
+        page.getByText("有修改尚未提交", { exact: true }),
+      ).toBeVisible();
+      await page
+        .getByRole("button", { name: "放弃修改并离开", exact: true })
+        .click();
+      await expect(
+        page.getByRole("button", { name: "重新设计这页", exact: true }),
+      ).toBeEnabled();
+      await page.getByRole("button", { name: "关闭", exact: true }).click();
+      await page
+        .getByLabel("添加逐字稿", { exact: true })
+        .fill("浏览器在拆分任务期间提交新的段落。");
+      await expect(
+        page.getByRole("button", { name: "提交下一段", exact: false }),
+      ).toBeEnabled();
+      await page
+        .getByRole("button", { name: "提交下一段", exact: false })
+        .click();
+      await expect(page.getByLabel("添加逐字稿", { exact: true })).toHaveValue(
+        "",
+      );
+      held();
+      assert.equal((await poll(uiProposal)).status, "completed");
       await until(
         async () =>
           !(await req(`/jobs?projectId=${concurrentProject.id}`)).some((j) =>

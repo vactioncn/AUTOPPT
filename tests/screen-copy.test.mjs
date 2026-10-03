@@ -212,6 +212,85 @@ test("review cannot approve lost qualifiers, invented source evidence or repeate
   }
 });
 
+test("literal protection failures recover with cited original wording after one model repair", async () => {
+  for (const [source, paraphrase, protectedText] of [
+    [
+      "哪些过去每天都在发生、但我们看不见的关键过程，今天值得被留下来？",
+      "哪些过去每天都在发生、但我们看不见的关键过程，今天值得留下来？",
+      "今天值得被留下来？",
+    ],
+    [
+      "把人的一部分专业经验，逐步变成系统能够使用的判断标准。",
+      "把人的一部分专业经验，逐步转为系统可理解、可调用的判断标准。",
+      "系统能够使用的判断标准",
+    ],
+    [
+      "当问题能够被越来越早地发现，管理方式会不会也变化？",
+      "问题若能越来越早被发现，管理方式会不会也变化？",
+      "当问题能够",
+    ],
+    [
+      "仅试点门店的响应时间缩短20%。",
+      "所有门店的销售额增长120%。",
+      "仅试点门店的响应时间缩短20%",
+    ],
+  ]) {
+    const candidate = {
+      editScope: "composition",
+      entries: [{ text: source, role: "main", sourceQuote: source }],
+      mustKeep: [{ text: protectedText, sourceQuote: source }],
+      spokenOnly: [],
+      rationale: "保留条件和提问",
+    };
+    let calls = 0;
+    const copy = await prepareScreenCopy(
+      { ...input, notes: source },
+      async (_s, user) => {
+        calls++;
+        if (calls === 1) return candidate;
+        const review = reviewFixture(JSON.parse(user));
+        return {
+          ...review,
+          entries: [{ ...candidate.entries[0], text: paraphrase }],
+        };
+      },
+    );
+    assert.equal(calls, 3, "does not add another model request");
+    assert.deepEqual(
+      copy.displayText,
+      [source],
+      "never releases the mismatched or altered claim",
+    );
+    assert.equal(copy.review.repairAttempts, 1);
+    assert(copy.review.changes.some((x) => x.includes("自动恢复对应原稿表达")));
+    assert(reusableScreenCopy(copy, source));
+  }
+});
+
+test("source restoration cannot bypass a failed fidelity review", async () => {
+  const source = "今天值得被留下来？";
+  const candidate = {
+    editScope: "composition",
+    entries: [{ text: source, role: "main", sourceQuote: source }],
+    mustKeep: [{ text: source, sourceQuote: source }],
+    spokenOnly: [],
+    rationale: "保留提问",
+  };
+  let calls = 0;
+  await assert.rejects(
+    prepareScreenCopy({ ...input, notes: source }, async (_s, user) => {
+      if (!calls++) return candidate;
+      const review = reviewFixture(JSON.parse(user));
+      return {
+        ...review,
+        entries: [{ ...candidate.entries[0], text: "今天值得留下来？" }],
+        checks: { ...review.checks, faithful: false },
+      };
+    }),
+    /复核未通过/,
+  );
+});
+
 test("failed readability or fidelity review stops before layout and suggests manual splitting", async () => {
   let n = 0;
   await assert.rejects(

@@ -77,6 +77,7 @@ class CopyValidationError extends Error {
       message,
       protectedText: item?.text || "",
       sourceQuote: item?.sourceQuote || "",
+      attachmentId: item?.attachmentId || "",
       candidateText: (raw?.entries || []).map((entry) => entry?.text || ""),
     };
   }
@@ -84,6 +85,31 @@ class CopyValidationError extends Error {
 
 function protectedPresent(text, required) {
   return containsProtectedText(protectedForm(text), protectedForm(required));
+}
+
+// When paraphrasing keeps tripping the literal guard, restore an already cited
+// source sentence instead of dropping its protection or inventing a synonym.
+function restoreProtectedSource(raw, issue) {
+  if (issue?.code !== "missing-protection" || !Array.isArray(raw?.entries))
+    return null;
+  const choices = raw.entries
+    .map((entry, index) => ({ entry, index }))
+    .filter(
+      ({ entry }) =>
+        nonempty(entry?.sourceQuote) &&
+        (entry.attachmentId || "") === issue.attachmentId &&
+        normalized(entry.sourceQuote).includes(normalized(issue.sourceQuote)) &&
+        protectedPresent(entry.sourceQuote, issue.protectedText) &&
+        entry.text !== entry.sourceQuote,
+    );
+  choices.sort(
+    (a, b) => a.entry.sourceQuote.length - b.entry.sourceQuote.length,
+  );
+  if (!choices.length) return null;
+  const copy = structuredClone(raw);
+  const { index } = choices[0];
+  copy.entries[index].text = copy.entries[index].sourceQuote;
+  return copy;
 }
 
 // Removing an entire optional claim can release its protection; retaining any
@@ -367,6 +393,7 @@ export async function prepareScreenCopy(input, model) {
   };
   const refs = attachments.map((a) => a.filename);
   let repaired = false;
+  const sourceRestorations = [];
   const validateOrRepair = async (
     raw,
     stage,
@@ -394,6 +421,22 @@ export async function prepareScreenCopy(input, model) {
           return { raw, value: validate(raw) };
         } catch (retryError) {
           error = retryError;
+        }
+      }
+      // Revalidate the complete result after every restoration. Invalid sources,
+      // frozen copy and missing evidence still fail; no protection is waived.
+      for (let i = 0; i < (raw?.entries?.length || 0); i++) {
+        const restored = restoreProtectedSource(raw, error.issue);
+        if (!restored) break;
+        signal?.throwIfAborted();
+        sourceRestorations.push(
+          `为保留必要信息“${error.issue.protectedText}”，自动恢复对应原稿表达。`,
+        );
+        raw = restored;
+        try {
+          return { raw, value: validate(raw) };
+        } catch (restoreError) {
+          error = restoreError;
         }
       }
       const issue = error.issue || {
@@ -507,7 +550,7 @@ export async function prepareScreenCopy(input, model) {
       repairAttempts: repaired ? 1 : 0,
       draftCharacters: before.characters,
       reason: raw.densityReason,
-      changes: raw.changes,
+      changes: [...raw.changes, ...sourceRestorations],
       splitSuggestion: raw.splitSuggestion,
     },
   };

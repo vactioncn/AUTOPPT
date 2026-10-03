@@ -79,7 +79,7 @@ test("a review missing a qualifier gets one targeted repair and still needs revi
   assert.match(result.displayText[0], /最高/);
 });
 
-test("failed repair preserves stage, original quote and candidate in the persisted error message", async () => {
+test("unrecoverable repair preserves stage, original quote and candidate in the persisted error message", async () => {
   let calls = 0;
   await assert.rejects(
     prepareScreenCopy(input, async (_system, user) => {
@@ -87,6 +87,7 @@ test("failed repair preserves stage, original quote and candidate in the persist
       if (calls === 1) return draft();
       const review = reviewFixture(JSON.parse(user));
       review.entries[0].text = "门店效率提升20%";
+      review.entries[0].sourceQuote = "今天讲五个话题。";
       return review;
     }),
     (error) => {
@@ -101,17 +102,17 @@ test("failed repair preserves stage, original quote and candidate in the persist
 
 test("initial repair cannot bypass a valid protection by clearing the list", async () => {
   let calls = 0;
-  await assert.rejects(
-    prepareScreenCopy(input, async () => {
-      calls++;
-      const raw = draft();
-      raw.entries[0].text = "门店效率提升20%";
-      if (calls === 2) raw.mustKeep = [];
-      return raw;
-    }),
-    /文案提炼未通过.*已自动修正一次/s,
-  );
-  assert.equal(calls, 2);
+  const result = await prepareScreenCopy(input, async (_s, user) => {
+    calls++;
+    if (calls > 2) return reviewFixture(JSON.parse(user));
+    const raw = draft();
+    raw.entries[0].text = "门店效率提升20%";
+    if (calls === 2) raw.mustKeep = [];
+    return raw;
+  });
+  assert.equal(calls, 3);
+  assert.deepEqual(result.mustKeep, draft().mustKeep);
+  assert.deepEqual(result.displayText, [draft().entries[0].sourceQuote]);
 });
 
 test("source mismatch is distinct from missing copy and can be repaired", async () => {
@@ -151,39 +152,36 @@ test("optional claim moved entirely to speech releases its own protection, but a
   );
   assert(!result.mustKeep.some((item) => item.text === "五个"));
   calls = 0;
-  await assert.rejects(
-    prepareScreenCopy(input, async (_system, user) => {
-      if (!calls++) return candidate;
-      const data = JSON.parse(user),
-        review = getReview(data);
-      review.entries.push({
-        text: "今天讲几个话题",
-        role: "support",
-        sourceQuote: quote,
-      });
-      return review;
-    }),
-    /五个/,
-  );
+  const retained = await prepareScreenCopy(input, async (_system, user) => {
+    if (!calls++) return candidate;
+    const data = JSON.parse(user),
+      review = getReview(data);
+    review.entries.push({
+      text: "今天讲几个话题",
+      role: "support",
+      sourceQuote: quote,
+    });
+    return review;
+  });
+  assert(retained.mustKeep.some((item) => item.text === "五个"));
+  assert.equal(retained.displayText[1], quote);
 });
 
 test("one repair budget is shared by both stages and abort does not trigger repair", async () => {
   let calls = 0;
-  await assert.rejects(
-    prepareScreenCopy(input, async (_s, user) => {
-      calls++;
-      if (calls === 1) {
-        const raw = draft();
-        raw.entries[0].text = "门店效率提升20%";
-        return raw;
-      }
-      if (calls === 2) return draft();
-      const review = reviewFixture(JSON.parse(user));
-      review.entries[0].text = "门店效率提升20%";
-      return review;
-    }),
-    /文案复核未通过/,
-  );
+  const recovered = await prepareScreenCopy(input, async (_s, user) => {
+    calls++;
+    if (calls === 1) {
+      const raw = draft();
+      raw.entries[0].text = "门店效率提升20%";
+      return raw;
+    }
+    if (calls === 2) return draft();
+    const review = reviewFixture(JSON.parse(user));
+    review.entries[0].text = "门店效率提升20%";
+    return review;
+  });
+  assert.deepEqual(recovered.displayText, [draft().entries[0].sourceQuote]);
   assert.equal(calls, 3);
   const controller = new AbortController();
   calls = 0;
@@ -242,18 +240,17 @@ test("a repaired draft is rejected when independent review still finds it unfait
 
 test("claim omission cannot release the main claim or hide an unqualified result in auxiliary excerpts", async () => {
   let calls = 0;
-  await assert.rejects(
-    prepareScreenCopy(input, async (_system, user) => {
-      if (!calls++) return draft();
-      const result = reviewFixture(JSON.parse(user)),
-        sourceQuote = draft().entries[0].sourceQuote;
-      result.entries[0].text = "效率提升20%";
-      result.omittedClaims = [{ sourceQuote, reason: "移到口播" }];
-      result.spokenOnly = [{ sourceQuote, reason: "移到口播" }];
-      return result;
-    }),
-    /部分/,
-  );
+  const restored = await prepareScreenCopy(input, async (_system, user) => {
+    if (!calls++) return draft();
+    const result = reviewFixture(JSON.parse(user)),
+      sourceQuote = draft().entries[0].sourceQuote;
+    result.entries[0].text = "效率提升20%";
+    result.omittedClaims = [{ sourceQuote, reason: "移到口播" }];
+    result.spokenOnly = [{ sourceQuote, reason: "移到口播" }];
+    return result;
+  });
+  assert.deepEqual(restored.displayText, [draft().entries[0].sourceQuote]);
+  assert.deepEqual(restored.mustKeep, draft().mustKeep);
   const raw = draft();
   raw.entries = [
     { ...raw.entries[0], text: "部分试点门店效率最" },

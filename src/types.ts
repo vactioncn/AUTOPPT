@@ -363,7 +363,7 @@ export type Project = {
   slides: Slide[];
   draft: string;
   proposal: Proposal | null;
-  undo: { label: string } | null;
+  undo: { label: string; replacementIds?: string[] } | null;
 };
 export type ProjectSummary = {
   id: string;

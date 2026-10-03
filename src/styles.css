@@ -1596,6 +1596,24 @@ img {
   grid-template-columns: 1fr 1fr;
   gap: 26px;
 }
+.split-original {
+  margin: 0 0 16px;
+}
+.split-original img {
+  display: block;
+  width: 100%;
+  max-height: 180px;
+  object-fit: contain;
+  border-radius: 8px;
+}
+.split-original + .split-source {
+  height: 220px;
+}
+.split-original figcaption {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
 .split-source {
   width: 100%;
   height: 290px;

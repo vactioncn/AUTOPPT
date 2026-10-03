@@ -490,7 +490,11 @@ export function Workspace({
               {project.undo && (
                 <Button
                   variant="ghost"
-                  disabled={!!busy}
+                  disabled={
+                    project.undo.replacementIds
+                      ? project.undo.replacementIds.some(pageBusy)
+                      : !!busy
+                  }
                   onClick={() =>
                     run(
                       () => post("/projects/" + id + "/undo"),
@@ -794,10 +798,7 @@ export function Workspace({
           styles={styles}
           currentStyle={style}
           busy={pageBusy(detailSlide.id)}
-          projectBusy={
-            pageBusy(detailSlide.id) ||
-            activeJobs.some((j) => j.type === "proposal")
-          }
+          projectBusy={pageBusy(detailSlide.id)}
           onClose={() => setDetail(null)}
           onNavigate={(offset) =>
             setDetail(
@@ -821,10 +822,14 @@ export function Workspace({
           slide={splitSlide}
           projectId={id}
           onClose={() => setSplit(null)}
-          onDone={async () => {
+          onDone={async (generating) => {
             setSplit(null);
             await refresh();
-            notify("正在准备拆分后的画面方案。");
+            notify(
+              generating
+                ? "已拆分，图片正在后台制作，可以继续编辑其他空闲页。"
+                : "已拆分，可继续修改新页面，准备好后再生成图片。",
+            );
           }}
         />
       )}
@@ -1628,12 +1633,13 @@ function SplitDialog({
   slide: Slide;
   projectId: string;
   onClose: () => void;
-  onDone: () => Promise<void>;
+  onDone: (generating: boolean) => Promise<void>;
 }) {
   const [cuts, setCuts] = useState<number[]>([]),
     [cursor, setCursor] = useState(0),
     [suggestions, setSuggestions] = useState<number[]>([]),
     [busy, setBusy] = useState(false),
+    [generate, setGenerate] = useState(true),
     [error, setError] = useState("");
   const textarea = useRef<HTMLTextAreaElement>(null);
   const add = (n: number) => {
@@ -1664,12 +1670,12 @@ function SplitDialog({
     setBusy(true);
     setError("");
     try {
-      await post("/projects/" + projectId + "/proposal", {
-        type: "split",
-        slideId: slide.id,
+      await post("/projects/" + projectId + "/slides/" + slide.id + "/split", {
+        expectedNotes: slide.notes,
         cuts,
+        generate,
       });
-      await onDone();
+      await onDone(generate);
     } catch (e) {
       setError((e as Error).message);
       setBusy(false);
@@ -1685,6 +1691,12 @@ function SplitDialog({
     >
       <div className="split-layout">
         <div>
+          {slide.image && (
+            <figure className="split-original">
+              <img src={asset(slide.image)} alt="拆分前的原画面" />
+              <figcaption>原画面参考；新页面将按各自讲稿重新生成。</figcaption>
+            </figure>
+          )}
           <textarea
             ref={textarea}
             className="split-source"
@@ -1753,6 +1765,15 @@ function SplitDialog({
           ))}
         </div>
       </div>
+      <label className="checkbox-label">
+        <input
+          type="checkbox"
+          checked={generate}
+          disabled={busy}
+          onChange={(e) => setGenerate(e.target.checked)}
+        />
+        拆分后在后台生成图片（关闭后可先改稿）
+      </label>
       {error && (
         <p className="error-text" role="alert">
           {error}
@@ -1766,7 +1787,7 @@ function SplitDialog({
           disabled={!cuts.length}
           onClick={submit}
         >
-          预览 {cuts.length + 1} 页新方案
+          拆分为 {cuts.length + 1} 页
           <ArrowRight size={17} />
         </Button>
       </div>

@@ -693,6 +693,48 @@ test(
       (await read()).slides[0].plan.screenCopy,
       approvedPendingCopy,
     );
+    // Manual split persists immediately, without any model call or proposal phase.
+    const originalBeforeSplit = (await read()).slides[0];
+    const splitUrl = `/projects/${id}/slides/${sid}/split`;
+    const splitModelCalls = [calls.length, imageCalls];
+    await req(splitUrl, { cuts: [5], expectedNotes: "outdated" }, "POST", 409);
+    await req(
+      splitUrl,
+      { cuts: [0], expectedNotes: originalBeforeSplit.notes },
+      "POST",
+      400,
+    );
+    assert.deepEqual((await read()).slides[0], originalBeforeSplit);
+    const instant = await req(splitUrl, {
+      cuts: [5],
+      expectedNotes: originalBeforeSplit.notes,
+      generate: false,
+    });
+    assert.deepEqual([calls.length, imageCalls], splitModelCalls);
+    assert.deepEqual(instant.jobs, []);
+    assert.equal(instant.project.slides.length, 2);
+    assert.equal(
+      instant.project.slides.map((s) => s.notes).join(""),
+      originalBeforeSplit.notes,
+    );
+    assert.equal(instant.project.proposal, null);
+    for (const s of instant.project.slides) {
+      assert.equal(s.image, null);
+      assert.equal(s.plan, null);
+      assert.deepEqual(s.attachments, originalBeforeSplit.attachments ?? []);
+    }
+    assert.deepEqual(
+      instant.project.batches[0].slideIds,
+      instant.project.slides.map((s) => s.id),
+    );
+    await req(
+      splitUrl,
+      { cuts: [5], expectedNotes: originalBeforeSplit.notes },
+      "POST",
+      400,
+    );
+    await req(`/projects/${id}/undo`, {});
+    assert.deepEqual((await read()).slides[0], originalBeforeSplit);
     const cuts = [5, 10, 15, 20]; // Explicit UTF-16 source offsets, preserving the original text.
     job = await req(
       `/projects/${id}/proposal`,
@@ -1280,6 +1322,82 @@ test(
       (await req(cp)).slides[3].notes,
       "这页已完成，不等整批完成也能修改。",
     );
+    // Splitting an idle page while another renders creates two independent jobs.
+    holdImages = true;
+    const instantGateStart = imageGates.length;
+    const parallelRender = await req(
+      cp + "/render",
+      {
+        slideIds: [concurrentSlides[2].id],
+      },
+      "POST",
+      202,
+    );
+    await until(() => imageGates.length === instantGateStart + 1);
+    const beforeInstant = await req(cp);
+    const instantSource = beforeInstant.slides[0];
+    const concurrentSplit = await req(
+      cp + `/slides/${instantSource.id}/split`,
+      {
+        expectedNotes: instantSource.notes,
+        cuts: [3],
+      },
+    );
+    assert.equal(concurrentSplit.jobs.length, 2);
+    assert.equal(
+      concurrentSplit.project.slides.length,
+      beforeInstant.slides.length + 1,
+    );
+    assert.equal(
+      concurrentSplit.project.slides.map((s) => s.notes).join(""),
+      beforeInstant.slides.map((s) => s.notes).join(""),
+    );
+    assert(
+      concurrentSplit.jobs.every(
+        (j) => j.type === "render" && j.slideIds.length === 1,
+      ),
+    );
+    await until(() => imageGates.length === instantGateStart + 3);
+    await req(cp + "/undo", {}, "POST", 409);
+    // An unrelated completion must survive undo of the split.
+    imageGates[instantGateStart]();
+    await poll(parallelRender);
+    const completedOther = (await req(cp)).slides.find(
+      (s) => s.id === concurrentSlides[2].id,
+    );
+    imageGates[instantGateStart + 1]();
+    imageGates[instantGateStart + 2]();
+    for (const j of concurrentSplit.jobs)
+      assert.equal((await poll(j)).status, "completed");
+    await req(cp + "/undo", {});
+    const restoredInstant = await req(cp);
+    assert.deepEqual(restoredInstant.slides[0], instantSource);
+    assert.deepEqual(
+      restoredInstant.slides.find((s) => s.id === completedOther.id),
+      completedOther,
+    );
+    // Split and undo without rendering also work while an unrelated page is busy.
+    const backgroundOther = await req(
+      cp + "/render",
+      { slideIds: [concurrentSlides[2].id] },
+      "POST",
+      202,
+    );
+    await until(() => imageGates.length === instantGateStart + 4);
+    await req(cp + `/slides/${instantSource.id}/split`, {
+      expectedNotes: instantSource.notes,
+      cuts: [3],
+      generate: false,
+    });
+    await req(cp + "/undo", {});
+    await req(
+      cp + `/slides/${concurrentSlides[6].id}`,
+      { notes: "拆分后仍可编辑其他空闲页。" },
+      "PATCH",
+    );
+    holdImages = false;
+    imageGates[instantGateStart + 3]();
+    assert.equal((await poll(backgroundOther)).status, "completed");
     if (process.env.BROWSER_TEST) {
       const { chromium, expect } = await import("@playwright/test");
       const browser = await chromium.launch({
@@ -1294,6 +1412,86 @@ test(
       page.setDefaultTimeout(10000);
       const errors = [];
       page.on("pageerror", (e) => errors.push(e.message));
+      // The manual split UI remains usable during another page's image request.
+      holdImages = true;
+      const splitUiGate = imageGates.length;
+      const splitUiOther = await req(
+        cp + "/render",
+        {
+          slideIds: [concurrentSlides[6].id],
+        },
+        "POST",
+        202,
+      );
+      await until(() => imageGates.length === splitUiGate + 1);
+      await page.goto(
+        base.replace("/api", "") + "/#project/" + concurrentProject.id,
+      );
+      await page.getByLabel("查看段落").selectOption("all");
+      const splitUiCount = (await req(cp)).slides.length;
+      await page.getByRole("button", { name: /^打开第 1 页/ }).click();
+      await page
+        .getByRole("button", { name: "拆分这一页", exact: true })
+        .click();
+      await expect(page.getByAltText("拆分前的原画面")).toBeVisible();
+      await expect
+        .poll(() =>
+          page
+            .getByAltText("拆分前的原画面")
+            .evaluate((img) => img.naturalWidth),
+        )
+        .toBeGreaterThan(0);
+      await page.getByLabel("选择逐字稿分界位置").evaluate((el) => {
+        el.focus();
+        el.setSelectionRange(3, 3);
+          el.dispatchEvent(new Event("select", { bubbles: true }));
+        });
+      await page.getByLabel("选择逐字稿分界位置").press("ArrowRight");
+      await page
+        .getByRole("button", { name: "在这里插入分界", exact: true })
+        .click();
+      await expect(page.locator(".split-unit")).toHaveCount(2);
+      await page
+        .getByRole("checkbox", { name: /拆分后在后台生成图片/ })
+        .uncheck();
+      mkdirSync(".local/verification/instant-split", { recursive: true });
+      for (const [label, width, height] of [
+        ["desktop", 1440, 1000],
+        ["mobile", 390, 844],
+      ]) {
+        await page.setViewportSize({ width, height });
+        await page.waitForTimeout(100);
+        await page.screenshot({
+          path: `.local/verification/instant-split/${label}.png`,
+        });
+        assert(
+          await page.evaluate(
+            () => document.documentElement.scrollWidth <= innerWidth + 1,
+          ),
+        );
+      }
+      await page.setViewportSize({ width: 1440, height: 1000 });
+      const splitUiCalls = [calls.length, imageCalls];
+      await page
+        .getByRole("button", { name: "拆分为 2 页", exact: true })
+        .click();
+      await expect(
+        page.getByRole("heading", { name: "你来决定，在哪里翻页" }),
+      ).toHaveCount(0);
+      await expect(page.locator(".slide-card")).toHaveCount(splitUiCount + 1);
+      assert.deepEqual([calls.length, imageCalls], splitUiCalls);
+      await page.getByRole("button", { name: /^打开第 1 页/ }).click();
+      await expect(
+        page.getByLabel("本页逐字稿", { exact: true }),
+      ).toBeEnabled();
+      await page.keyboard.press("Escape");
+      await page
+        .getByRole("button", { name: "撤销拆分页面", exact: true })
+        .click();
+      await expect(page.locator(".slide-card")).toHaveCount(splitUiCount);
+      holdImages = false;
+      imageGates[splitUiGate]();
+      assert.equal((await poll(splitUiOther)).status, "completed");
       holdImages = true;
       const uiGateStart = imageGates.length;
       await page.goto(

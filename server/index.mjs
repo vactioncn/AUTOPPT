@@ -419,6 +419,48 @@ app.post("/api/projects/:id/suggest-split", async (req, res) => {
   let n = 0;
   res.json({ cuts: units.slice(0, -1).map((u) => (n += u.length)) });
 });
+// Manual boundaries are already a complete structural decision: persist first,
+// then let independent render jobs prepare copy and images in the background.
+app.post("/api/projects/:id/slides/:sid/split", (req, res) => {
+  const p = projectOrThrow(req.params.id);
+  assertIdle(p.id, [req.params.sid]);
+  const index = p.slides.findIndex((s) => s.id === req.params.sid);
+  const source = p.slides[index];
+  if (!source) throw new Error("页面不存在");
+  if (req.body.expectedNotes !== source.notes)
+    throw Object.assign(new Error("原文已变化，请重新打开拆分窗口。"), {
+      status: 409,
+    });
+  const parts = splitAt(source.notes, req.body.cuts);
+  const slides = parts.map((notes) => ({
+    ...newSlide(notes, [...source.batchIds], p.styleId),
+    attachments: structuredClone(
+      source.pendingAttachments ?? source.attachments ?? [],
+    ),
+  }));
+  const jobs = [];
+  transaction(() => {
+    p.slides.splice(index, 1, ...slides);
+    for (const b of p.batches)
+      b.slideIds = p.slides
+        .filter((s) => s.batchIds.includes(b.id))
+        .map((s) => s.id);
+    p.undo = {
+      label: "拆分页面",
+      sourceSlides: [structuredClone(source)],
+      replacementIds: slides.map((s) => s.id),
+      createdAt: now(),
+    };
+    if (p.proposal?.sourceIds.includes(source.id)) p.proposal = null;
+    saveProject(p);
+    if (req.body.generate !== false)
+      for (const s of slides)
+        jobs.push(
+          enqueue("render", p.id, { slideIds: [s.id], redesign: false }),
+        );
+  });
+  res.json({ project: p, jobs: jobs.map(safeJob) });
+});
 app.post("/api/projects/:id/proposal", (req, res) => {
   const p = projectOrThrow(req.params.id);
   let notes, sourceIds;
@@ -511,11 +553,21 @@ app.post("/api/projects/:id/proposal/commit", (req, res) => {
 });
 app.post("/api/projects/:id/undo", (req, res) => {
   const p = projectOrThrow(req.params.id);
-  assertIdle(p.id);
   if (!p.undo) throw new Error("当前没有可撤销的结构调整。");
-  p.slides = p.undo.slides;
+  assertIdle(p.id, p.undo.replacementIds ?? null);
+  if (p.undo.replacementIds) {
+    const ids = p.undo.replacementIds;
+    const first = p.slides.findIndex((s) => s.id === ids[0]);
+    if (first < 0 || ids.some((id, i) => p.slides[first + i]?.id !== id))
+      throw new Error("拆分后的页面已变化，无法撤销这次调整。");
+    // Restore only this split; keep images/notes completed on unrelated pages.
+    p.slides.splice(first, ids.length, ...p.undo.sourceSlides);
+    if (p.proposal?.sourceIds.some((id) => ids.includes(id))) p.proposal = null;
+  } else {
+    p.slides = p.undo.slides;
+    p.proposal = null;
+  }
   p.undo = null;
-  p.proposal = null;
   cleanProjectManuscripts(p);
   for (const b of p.batches)
     b.slideIds = p.slides

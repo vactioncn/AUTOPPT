@@ -1286,6 +1286,46 @@ test(
       mixedFinished.batches.slice(-2).map((b) => b.text),
       ["并行追加第一段。完整保留。", "并行追加第二段。完整保留。"],
     );
+    // Confirm a legacy proposal while another page renders; undo must keep its result.
+    holdImages = true;
+    const legacyGate = imageGates.length;
+    const legacyOther = await req(
+      cp + "/render",
+      {
+        slideIds: [concurrentSlides[2].id],
+      },
+      "POST",
+      202,
+    );
+    await until(() => imageGates.length === legacyGate + 1);
+    const legacySource = (await req(cp)).slides[0];
+    const legacyCommit = await req(
+      cp + "/proposal/commit",
+      {
+        proposalId: savedProposalId,
+      },
+      "POST",
+      202,
+    );
+    await until(() => imageGates.length === legacyGate + 2);
+    assert.equal(
+      (await req(cp)).slides.length,
+      mixedFinished.slides.length + 1,
+    );
+    imageGates[legacyGate]();
+    await poll(legacyOther);
+    const legacyOtherResult = (await req(cp)).slides.find(
+      (s) => s.id === concurrentSlides[2].id,
+    );
+    holdImages = false;
+    imageGates[legacyGate + 1]();
+    assert.equal((await poll(legacyCommit)).status, "completed");
+    await req(cp + "/undo", {});
+    assert.deepEqual((await req(cp)).slides[0], legacySource);
+    assert.deepEqual(
+      (await req(cp)).slides.find((s) => s.id === legacyOtherResult.id),
+      legacyOtherResult,
+    );
     // A finished page in a still-running batch is safe to edit immediately.
     holdImages = true;
     const releaseStart = imageGates.length;
@@ -1412,6 +1452,73 @@ test(
       page.setDefaultTimeout(10000);
       const errors = [];
       page.on("pageerror", (e) => errors.push(e.message));
+      // Reproduce the disabled confirmation reported for an already prepared split.
+      await poll(
+        await req(
+          cp + "/proposal",
+          {
+            type: "split",
+            slideId: concurrentSlides[0].id,
+            cuts: [3],
+          },
+          "POST",
+          202,
+        ),
+      );
+      holdImages = true;
+      const confirmGate = imageGates.length;
+      const confirmOther = await req(
+        cp + "/render",
+        {
+          slideIds: [concurrentSlides[6].id],
+        },
+        "POST",
+        202,
+      );
+      await until(() => imageGates.length === confirmGate + 1);
+      await page.goto(
+        base.replace("/api", "") + "/#project/" + concurrentProject.id,
+      );
+      await page.getByLabel("查看段落").selectOption("all");
+      await page
+        .getByRole("button", { name: "查看新方案", exact: true })
+        .click();
+      await expect(
+        page.getByRole("button", { name: "确认并生成页面", exact: true }),
+      ).toBeEnabled();
+      // Failed confirmations are visible inside the modal, rather than behind it.
+      await page.route("**/proposal/commit", (route) =>
+        route.fulfill({
+          status: 409,
+          contentType: "application/json",
+          body: JSON.stringify({ error: "测试确认冲突" }),
+        }),
+      );
+      await page
+        .getByRole("button", { name: "确认并生成页面", exact: true })
+        .click();
+      await expect(page.getByRole("dialog").getByRole("alert")).toHaveText(
+        "测试确认冲突",
+      );
+      await page.unroute("**/proposal/commit");
+      await page
+        .getByRole("button", { name: "确认并生成页面", exact: true })
+        .click();
+      await expect(
+        page.getByRole("heading", { name: "预览拆分方案", exact: true }),
+      ).toHaveCount(0);
+      await until(() => imageGates.length === confirmGate + 2);
+      holdImages = false;
+      imageGates.slice(confirmGate).forEach((release) => release());
+      await poll(confirmOther);
+      const confirmJobs = await req(`/jobs?projectId=${concurrentProject.id}`);
+      await Promise.all(
+        confirmJobs
+          .filter((j) => ["queued", "running"].includes(j.status))
+          .map(poll),
+      );
+      await req(cp + "/undo", {});
+      await page.reload();
       // The manual split UI remains usable during another page's image request.
       holdImages = true;
       const splitUiGate = imageGates.length;
@@ -1444,8 +1551,8 @@ test(
       await page.getByLabel("选择逐字稿分界位置").evaluate((el) => {
         el.focus();
         el.setSelectionRange(3, 3);
-          el.dispatchEvent(new Event("select", { bubbles: true }));
-        });
+        el.dispatchEvent(new Event("select", { bubbles: true }));
+      });
       await page.getByLabel("选择逐字稿分界位置").press("ArrowRight");
       await page
         .getByRole("button", { name: "在这里插入分界", exact: true })

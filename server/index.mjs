@@ -501,25 +501,26 @@ app.post("/api/projects/:id/proposal", (req, res) => {
 });
 app.delete("/api/projects/:id/proposal", (req, res) => {
   const p = projectOrThrow(req.params.id);
-  assertIdle(p.id);
+  if (p.proposal) assertIdle(p.id, p.proposal.sourceIds);
   p.proposal = null;
   saveProject(p);
   res.json(p);
 });
 app.post("/api/projects/:id/proposal/commit", (req, res) => {
   const p = projectOrThrow(req.params.id);
-  assertIdle(p.id);
   const proposal = p.proposal;
   if (!proposal || proposal.id !== req.body.proposalId)
     throw new Error("方案已经变更，请重新查看。");
+  assertIdle(p.id, proposal.sourceIds);
   const style = styleReady(p.styleId);
   if (proposal.planStyle?.fingerprint !== styleStamp(style).fingerprint)
     throw new Error("风格已变化，请重新预览调整方案后再生成。");
-  const before = structuredClone(p.slides);
   const selected = p.slides.filter((s) => proposal.sourceIds.includes(s.id));
   if (selected.length !== proposal.sourceIds.length)
     throw new Error("原始页面已变化，请重新预览。");
   const first = p.slides.findIndex((s) => s.id === proposal.sourceIds[0]);
+  if (proposal.sourceIds.some((sid, i) => p.slides[first + i]?.id !== sid))
+    throw new Error("原始页面的顺序已变化，请重新预览。");
   const batchIds = [...new Set(selected.flatMap((s) => s.batchIds))];
   const slides = proposal.notes.map((n, i) =>
     newSlide(
@@ -539,7 +540,8 @@ app.post("/api/projects/:id/proposal/commit", (req, res) => {
         .map((s) => s.id);
     p.undo = {
       label: proposal.type === "merge" ? "合并页面" : "拆分页面",
-      slides: before,
+      sourceSlides: structuredClone(selected),
+      replacementIds: slides.map((s) => s.id),
       createdAt: now(),
     };
     p.proposal = null;
@@ -559,7 +561,7 @@ app.post("/api/projects/:id/undo", (req, res) => {
     const ids = p.undo.replacementIds;
     const first = p.slides.findIndex((s) => s.id === ids[0]);
     if (first < 0 || ids.some((id, i) => p.slides[first + i]?.id !== id))
-      throw new Error("拆分后的页面已变化，无法撤销这次调整。");
+      throw new Error("调整后的页面已变化，无法撤销这次调整。");
     // Restore only this split; keep images/notes completed on unrelated pages.
     p.slides.splice(first, ids.length, ...p.undo.sourceSlides);
     if (p.proposal?.sourceIds.some((id) => ids.includes(id))) p.proposal = null;

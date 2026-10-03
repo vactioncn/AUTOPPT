@@ -172,6 +172,7 @@ export function Workspace({
   const busy = activeJobs[0];
   const pageBusy = (sid: string) =>
     activeJobs.some((j) => !j.slideIds || j.slideIds.includes(sid));
+  const proposalBusy = project.proposal?.sourceIds.some(pageBusy) ?? false;
   const lastJob = jobs[0];
   const currentBatch = project.batches.at(-1);
   const sourceBatch =
@@ -863,8 +864,19 @@ export function Workspace({
               </div>
             ))}
           </div>
+          {proposalBusy && (
+            <p className="generation-style-help" role="status">
+              本次调整的原页面仍在制作，请完成或停止该页任务后确认；其他页的任务不影响确认。
+            </p>
+          )}
+          {error && (
+            <p className="error-text" role="alert">
+              {error}
+            </p>
+          )}
           <div className="modal-actions">
             <Button
+              disabled={proposalBusy}
               onClick={() =>
                 run(async () => {
                   await api("/projects/" + id + "/proposal", {
@@ -878,7 +890,7 @@ export function Workspace({
             </Button>
             <Button
               variant="primary"
-              disabled={!!busy}
+              disabled={proposalBusy}
               onClick={() =>
                 run(async () => {
                   await post("/projects/" + id + "/proposal/commit", {

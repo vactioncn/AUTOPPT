@@ -788,7 +788,7 @@ h3 {
     gap: 18px;
     font-size: 11px;
   }
-  .site-header nav a:first-child {
+  .site-header nav a:last-child {
     display: none;
   }
   .nav-download {
@@ -1028,4 +1028,100 @@ h3 {
 }
 .start-section .extra-shot {
   color: var(--lime);
+}
+
+/* Two product workflows; each keeps its own detail tabs. */
+.module-overview {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  margin: 48px 0;
+}
+.module-card {
+  display: flex;
+  flex-direction: column;
+  padding: 32px;
+  border: 1px solid var(--line);
+  background: #eeeee6;
+  color: inherit;
+  text-decoration: none;
+  transition: background 0.2s;
+}
+.module-card:hover {
+  background: #e6e9d9;
+}
+.module-card:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 4px;
+}
+.module-number {
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  color: #657347;
+}
+.module-card h3 {
+  font-size: 30px;
+  margin: 24px 0 14px;
+  display: flex;
+  justify-content: space-between;
+}
+.module-card p {
+  font-size: 16px;
+  line-height: 1.8;
+  margin: 0 0 30px;
+  max-width: 32em;
+}
+.module-sequence {
+  display: block;
+  margin-top: auto;
+  padding-top: 18px;
+  border-top: 1px solid #d3d6c9;
+  font-size: 13px;
+  line-height: 1.8;
+}
+.product-module {
+  scroll-margin-top: 100px;
+}
+.product-module + .product-module {
+  margin-top: 100px;
+  padding-top: 90px;
+  border-top: 1px solid #c8cebd;
+}
+.product-module .section-heading h2 {
+  text-wrap: balance;
+  max-width: 11em;
+}
+.product-module .section-heading > p {
+  max-width: 29em;
+}
+.module-path {
+  margin: 0 0 26px;
+  color: #566244;
+  font-size: 14px;
+  line-height: 1.8;
+}
+@media (max-width: 760px) {
+  .module-overview {
+    grid-template-columns: 1fr;
+    gap: 16px;
+    margin: 30px 0;
+  }
+  .module-card {
+    padding: 24px;
+  }
+  .module-card h3 {
+    font-size: 26px;
+    margin-top: 18px;
+  }
+  .module-card p {
+    font-size: 15px;
+    margin-bottom: 20px;
+  }
+  .product-module + .product-module {
+    margin-top: 60px;
+    padding-top: 54px;
+  }
+  .module-path {
+    font-size: 12px;
+  }
 }

@@ -2,7 +2,10 @@ const tabs = [...document.querySelectorAll('[role="tab"]')];
 function selectFeature(id, focus = false) {
   const selected = tabs.find((t) => t.dataset.feature === id);
   if (!selected) return;
-  for (const tab of tabs) {
+  const siblings = [
+    ...selected.closest('[role="tablist"]').querySelectorAll('[role="tab"]'),
+  ];
+  for (const tab of siblings) {
     const active = tab === selected;
     tab.setAttribute("aria-selected", String(active));
     tab.tabIndex = active ? 0 : -1;
@@ -10,17 +13,22 @@ function selectFeature(id, focus = false) {
   }
   if (focus) selected.focus();
 }
-for (const [i, tab] of tabs.entries()) {
+for (const tab of tabs) {
+  const siblings = [
+    ...tab.closest('[role="tablist"]').querySelectorAll('[role="tab"]'),
+  ];
+  const i = siblings.indexOf(tab);
   tab.addEventListener("click", () => selectFeature(tab.dataset.feature));
   tab.addEventListener("keydown", (e) => {
     let next;
-    if (e.key === "ArrowRight") next = (i + 1) % tabs.length;
-    if (e.key === "ArrowLeft") next = (i - 1 + tabs.length) % tabs.length;
+    if (e.key === "ArrowRight") next = (i + 1) % siblings.length;
+    if (e.key === "ArrowLeft")
+      next = (i - 1 + siblings.length) % siblings.length;
     if (e.key === "Home") next = 0;
-    if (e.key === "End") next = tabs.length - 1;
+    if (e.key === "End") next = siblings.length - 1;
     if (next !== undefined) {
       e.preventDefault();
-      selectFeature(tabs[next].dataset.feature, true);
+      selectFeature(siblings[next].dataset.feature, true);
     }
   });
 }

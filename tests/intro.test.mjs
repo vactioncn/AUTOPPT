@@ -11,6 +11,15 @@ test("product introduction covers real workflows and ships reproducible demo scr
   const html = readFileSync("dist/intro/index.html", "utf8");
   const guide = readFileSync("dist/intro/guide.md", "utf8");
   assert(!html.includes("{{"));
+  assert.equal(product.modules.length, 2);
+  assert.deepEqual(
+    product.modules.flatMap((m) => m.featureIds).sort(),
+    product.features.map((f) => f.id).sort(),
+  );
+  for (const module of product.modules) {
+    assert(html.includes(`id="${module.id}"`));
+    assert(guide.includes(`## ${module.label}`));
+  }
   for (const f of product.features) {
     assert(html.includes(`panel-${f.id}`));
     assert(guide.includes(f.label));
@@ -100,7 +109,9 @@ test(
           fullPage: true,
         });
       }
-      await page.getByRole("tab", { name: "讲稿与文案", exact: true }).focus();
+      await page
+        .getByRole("tab", { name: "拆稿与自动生成", exact: true })
+        .focus();
       await page.keyboard.press("End");
       assert.equal(
         await page
@@ -111,7 +122,27 @@ test(
       await page.keyboard.press("Home");
       assert.equal(
         await page
-          .getByRole("tab", { name: "讲稿与文案", exact: true })
+          .getByRole("tab", { name: "拆稿与自动生成", exact: true })
+          .getAttribute("aria-selected"),
+        "true",
+      );
+      assert.equal(
+        await page.locator('[role="tab"][aria-selected="true"]').count(),
+        2,
+      );
+      await page
+        .getByRole("tab", { name: "提取、设置与调试", exact: true })
+        .focus();
+      await page.keyboard.press("End");
+      assert.equal(
+        await page
+          .getByRole("tab", { name: "内容倾向与配色", exact: true })
+          .getAttribute("aria-selected"),
+        "true",
+      );
+      assert.equal(
+        await page
+          .getByRole("tab", { name: "拆稿与自动生成", exact: true })
           .getAttribute("aria-selected"),
         "true",
       );

@@ -15,18 +15,11 @@ const extraShot = (s) =>
   s
     ? `<button class="extra-shot" type="button" data-zoom="screenshots/${s.name}.webp" data-caption="${esc(s.caption)}">${esc(s.label)} ↗</button>`
     : "";
-const tabs = (features) =>
-  features
-    .map(
-      (f, i) =>
-        `<button id="tab-${f.id}" type="button" role="tab" data-feature="${f.id}" aria-selected="${i === 0}" aria-controls="panel-${f.id}" tabindex="${i === 0 ? 0 : -1}">${f.label}</button>`,
-    )
-    .join("");
 const panels = (features) =>
   features
     .map(
-      (f, i) =>
-        `<section class="feature-panel" id="panel-${f.id}" role="tabpanel" aria-labelledby="tab-${f.id}" ${i ? "hidden" : ""}><div class="feature-main"><div class="feature-copy"><h3>${esc(f.title)}</h3><p>${esc(f.description)}</p><ul class="capabilities">${f.capabilities.map((c) => `<li>${esc(c)}</li>`).join("")}</ul><p class="feature-note">${esc(f.note)}</p>${extraShot(f.extraShot)}</div><figure class="feature-visual"><button class="shot-button" data-zoom="screenshots/${f.shot}.webp" data-caption="${esc(f.alt)}" aria-label="放大${f.label}截图"><img src="screenshots/${f.shot}.webp" alt="${esc(f.alt)}" loading="lazy" width="1440" height="1040"></button><figcaption><span>实际界面 · 演示资料</span><span>点击放大 ↗</span></figcaption></figure></div><details class="how-to"><summary>具体怎么用？展开操作步骤</summary><ol>${f.steps.map((s) => `<li>${esc(s)}</li>`).join("")}</ol></details></section>`,
+      (f) =>
+        `<section class="feature-panel" id="panel-${f.id}" aria-labelledby="feature-${f.id}"><p class="feature-label" id="feature-${f.id}">${esc(f.label)}</p><div class="feature-main"><div class="feature-copy"><h3>${esc(f.title)}</h3><p>${esc(f.description)}</p><ul class="capabilities">${f.capabilities.map((c) => `<li>${esc(c)}</li>`).join("")}</ul><p class="feature-note">${esc(f.note)}</p>${extraShot(f.extraShot)}</div><figure class="feature-visual"><button class="shot-button" data-zoom="screenshots/${f.shot}.webp" data-caption="${esc(f.alt)}" aria-label="放大${f.label}截图"><img src="screenshots/${f.shot}.webp" alt="${esc(f.alt)}" loading="lazy" width="1440" height="1040"></button><figcaption><span>实际界面 · 演示资料</span><span>点击放大 ↗</span></figcaption></figure></div><div class="how-to"><h4>具体怎么用</h4><ol>${f.steps.map((s) => `<li>${esc(s)}</li>`).join("")}</ol></div></section>`,
     )
     .join("");
 const overview = product.modules
@@ -40,7 +33,7 @@ const features = product.modules
     const items = m.featureIds.map((id) =>
       product.features.find((f) => f.id === id),
     );
-    return `<section class="product-module" id="${m.id}" aria-labelledby="heading-${m.id}"><div class="section-heading"><div><p class="eyebrow">0${i + 1} / ${esc(m.label)}</p><h2 id="heading-${m.id}">${esc(m.title)}</h2></div><p>${esc(m.description)}</p></div><p class="module-path">${esc(m.sequence)}</p><div class="feature-tabs" role="tablist" aria-label="${esc(m.label)}功能">${tabs(items)}</div>${panels(items)}</section>`;
+    return `<section class="product-module" id="${m.id}" aria-labelledby="heading-${m.id}"><div class="section-heading"><div><p class="eyebrow">0${i + 1} / ${esc(m.label)}</p><h2 id="heading-${m.id}">${esc(m.title)}</h2></div><p>${esc(m.description)}</p></div><p class="module-path">${esc(m.sequence)}</p>${panels(items)}</section>`;
   })
   .join("");
 const setup = product.setup
@@ -50,10 +43,7 @@ const setup = product.setup
   )
   .join("");
 const faq = product.faqs
-  .map(
-    ([q, a]) =>
-      `<details><summary>${esc(q)}</summary><p>${esc(a)}</p></details>`,
-  )
+  .map(([q, a]) => `<article><h3>${esc(q)}</h3><p>${esc(a)}</p></article>`)
   .join("");
 let html = readFileSync(
   path.join(root, "site/intro/index.template.html"),

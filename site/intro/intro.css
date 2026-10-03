@@ -403,34 +403,20 @@ h3 {
   background: #eaece3;
   border-block: 1px solid #dcdfd4;
 }
-.feature-tabs {
-  display: flex;
-  gap: 6px;
-  border-bottom: 1px solid #b8c0ac;
-  margin-bottom: 40px;
-  overflow-x: auto;
-  padding: 0 0 14px;
+.feature-panel {
+  margin-top: 52px;
+  scroll-margin-top: 100px;
 }
-.feature-tabs button {
-  background: none;
-  border: 0;
-  padding: 13px 22px;
-  white-space: nowrap;
-  font-size: 14px;
-  border-radius: 3px;
+.feature-panel + .feature-panel {
+  margin-top: 76px;
+  padding-top: 64px;
+  border-top: 1px solid #b8c0ac;
 }
-.feature-tabs button[aria-selected="true"] {
-  background: var(--ink);
-  color: var(--white);
-}
-.feature-tabs button:hover {
-  background: #d9dfcd;
-}
-.feature-tabs button[aria-selected="true"]:hover {
-  background: #363c2e;
-}
-.feature-panel[hidden] {
-  display: none;
+.feature-label {
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  color: #52633d;
+  margin: 0 0 22px;
 }
 .feature-main {
   display: grid;
@@ -495,21 +481,10 @@ h3 {
   border-block: 1px solid #c4ccbb;
   padding: 20px 0;
 }
-.how-to summary {
-  cursor: pointer;
+.how-to h4 {
   font-size: 14px;
-  display: flex;
-  justify-content: space-between;
-  list-style: none;
-}
-.how-to summary::-webkit-details-marker {
-  display: none;
-}
-.how-to summary:after {
-  content: "＋";
-}
-.how-to[open] summary:after {
-  content: "−";
+  margin: 0;
+  font-weight: 600;
 }
 .how-to ol {
   display: grid;
@@ -651,30 +626,20 @@ h3 {
 .faq-section h2 {
   font-size: 35px;
 }
-.faq-list details {
+.faq-list article {
   border-top: 1px solid var(--line);
   padding: 23px 0;
 }
-.faq-list details:last-child {
+.faq-list article:last-child {
   border-bottom: 1px solid var(--line);
 }
-.faq-list summary {
-  cursor: pointer;
+.faq-list h3 {
+  margin: 0;
   font-size: 15px;
   list-style: none;
   display: flex;
   justify-content: space-between;
   gap: 25px;
-}
-.faq-list summary:after {
-  content: "＋";
-  color: #718447;
-}
-.faq-list summary::-webkit-details-marker {
-  display: none;
-}
-.faq-list details[open] summary:after {
-  content: "−";
 }
 .faq-list p {
   font-size: 13px;
@@ -899,13 +864,12 @@ h3 {
     margin-top: 5px;
     font-size: 9px;
   }
-  .feature-tabs {
-    gap: 0;
-    margin-bottom: 30px;
+  .feature-panel {
+    margin-top: 34px;
   }
-  .feature-tabs button {
-    padding: 12px 15px;
-    font-size: 12px;
+  .feature-panel + .feature-panel {
+    margin-top: 42px;
+    padding-top: 38px;
   }
   .feature-main {
     grid-template-columns: 1fr;
@@ -986,7 +950,7 @@ h3 {
   .faq-section h2 {
     font-size: 30px;
   }
-  .faq-list summary {
+  .faq-list h3 {
     font-size: 14px;
   }
   .site-footer {
@@ -1030,7 +994,7 @@ h3 {
   color: var(--lime);
 }
 
-/* Two product workflows; each keeps its own detail tabs. */
+/* Two product workflows, with every feature visible in reading order. */
 .module-overview {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

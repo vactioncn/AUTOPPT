@@ -35,7 +35,7 @@ test("product introduction covers real workflows and ships reproducible demo scr
 });
 
 test(
-  "standalone intro: mobile/desktop, feature navigation, zoom, guide and local entry",
+  "standalone intro: mobile/desktop, continuous feature flow, zoom, guide and local entry",
   { skip: !process.env.INTRO_BROWSER_TEST, timeout: 60000 },
   async () => {
     const app = express();
@@ -75,19 +75,41 @@ test(
         await page.screenshot({
           path: `.local/verification/intro/${label}-top.png`,
         });
-        for (const f of product.features) {
-          const tab = page.getByRole("tab", { name: f.label, exact: true });
-          await tab.click();
-          assert.equal(await tab.getAttribute("aria-selected"), "true");
+        assert.equal(await page.getByRole("tab").count(), 0);
+        assert.equal(
+          await page
+            .locator(".feature-panel[hidden], .feature-panel details")
+            .count(),
+          0,
+        );
+        let previousBottom = 0;
+        for (const id of product.modules.flatMap((m) => m.featureIds)) {
+          const f = product.features.find((f) => f.id === id);
           const panel = page.locator("#panel-" + f.id);
+          assert(await panel.isVisible());
+          await panel.evaluate((el) =>
+            el.scrollIntoView({ behavior: "instant", block: "start" }),
+          );
           await panel.locator("img").evaluate((i) => i.decode());
-          await panel.locator("summary").click();
-          assert((await panel.locator("li").count()) >= f.steps.length);
+          const bounds = await panel.evaluate((el) => {
+            const r = el.getBoundingClientRect();
+            return { top: r.top + scrollY, bottom: r.bottom + scrollY };
+          });
+          assert(bounds.top >= previousBottom);
+          previousBottom = bounds.bottom;
+          assert.equal(
+            await panel.locator(".how-to li").count(),
+            f.steps.length,
+          );
+          assert(await panel.locator(".how-to li").first().isVisible());
           assert(
             await page.evaluate(
               () => document.documentElement.scrollWidth <= innerWidth + 1,
             ),
           );
+          await page.screenshot({
+            path: `.local/verification/intro/${label}-${id}-scroll.png`,
+          });
         }
         await page.screenshot({
           path: `.local/verification/intro/${label}-features.png`,
@@ -97,55 +119,16 @@ test(
         await page.getByRole("button", { name: "关闭截图" }).click();
         assert(!(await page.getByRole("dialog").isVisible()));
         await page.locator("#faq").scrollIntoViewIfNeeded();
-        await page.locator(".faq-list summary").first().click();
-        assert(
-          (await page
-            .locator(".faq-list details")
-            .first()
-            .getAttribute("open")) !== null,
+        assert.equal(
+          await page.locator(".faq-list article").count(),
+          product.faqs.length,
         );
+        assert(await page.locator(".faq-list article p").first().isVisible());
         await page.screenshot({
           path: `.local/verification/intro/${label}-full.png`,
           fullPage: true,
         });
       }
-      await page
-        .getByRole("tab", { name: "拆稿与自动生成", exact: true })
-        .focus();
-      await page.keyboard.press("End");
-      assert.equal(
-        await page
-          .getByRole("tab", { name: "导出与保存", exact: true })
-          .getAttribute("aria-selected"),
-        "true",
-      );
-      await page.keyboard.press("Home");
-      assert.equal(
-        await page
-          .getByRole("tab", { name: "拆稿与自动生成", exact: true })
-          .getAttribute("aria-selected"),
-        "true",
-      );
-      assert.equal(
-        await page.locator('[role="tab"][aria-selected="true"]').count(),
-        2,
-      );
-      await page
-        .getByRole("tab", { name: "提取、设置与调试", exact: true })
-        .focus();
-      await page.keyboard.press("End");
-      assert.equal(
-        await page
-          .getByRole("tab", { name: "内容倾向与配色", exact: true })
-          .getAttribute("aria-selected"),
-        "true",
-      );
-      assert.equal(
-        await page
-          .getByRole("tab", { name: "拆稿与自动生成", exact: true })
-          .getAttribute("aria-selected"),
-        "true",
-      );
       const response = await page.request.get(base + "/intro/guide.md");
       assert(response.ok());
       assert((await response.text()).includes("逐字稿"));

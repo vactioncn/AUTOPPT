@@ -503,11 +503,17 @@ async function run(j, signal) {
       p = projectOrThrow(j.projectId);
       const slides = units.map((n) => newSlide(n, [batch.id], p.styleId));
       const batchIndex = p.batches.findIndex((b) => b.id === batch.id);
-      const insertAt = p.slides.findIndex((s) =>
-        s.batchIds.every(
-          (bid) => p.batches.findIndex((b) => b.id === bid) > batchIndex,
-        ),
-      );
+      const insertAt = p.slides.findIndex((s) => {
+        // Manually inserted pages live at their chosen position, regardless of
+        // when their source record was added. They are not append-order anchors.
+        const sources = s.batchIds
+          .map((bid) => p.batches.find((b) => b.id === bid))
+          .filter((b) => b && !b.insertion);
+        return (
+          sources.length > 0 &&
+          sources.every((b) => p.batches.indexOf(b) > batchIndex)
+        );
+      });
       p.slides.splice(insertAt < 0 ? p.slides.length : insertAt, 0, ...slides);
       p.batches.find((b) => b.id === batch.id).slideIds = slides.map(
         (s) => s.id,

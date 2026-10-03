@@ -188,6 +188,7 @@ export default function App() {
         )}
         {currentId ? (
           <Workspace
+            insertExportAvailable={!!data.features?.insertAndManuscriptExport}
             key={currentId}
             id={currentId}
             styles={data.styles}

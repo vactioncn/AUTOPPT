@@ -45,7 +45,12 @@ import {
   newSlide,
 } from "./jobs.mjs";
 import { jsonModel } from "./models.mjs";
-import { exportPresentation, exportFilename } from "./export.mjs";
+import {
+  exportPresentation,
+  exportFilename,
+  exportBundle,
+  exportManuscript,
+} from "./export.mjs";
 import {
   spokenManuscript,
   speakerNotes,
@@ -131,6 +136,7 @@ app.get("/api/bootstrap", (req, res) =>
       styleUrlImport: true,
       directStylePrompt: true,
       designOptions: true,
+      insertAndManuscriptExport: true,
     },
     projects: all("project")
       .filter((p) => !p.deletedAt)
@@ -275,6 +281,64 @@ app.post("/api/projects/:id/batches", (req, res) => {
     put("project", p);
   });
   res.status(202).json(j);
+});
+// Anchor by stable page ID, never by an index that can shift during generation.
+app.post("/api/projects/:id/slides", (req, res) => {
+  const p = projectOrThrow(req.params.id);
+  const { afterSlideId, requestId, generate = true } = req.body;
+  if (typeof requestId !== "string" || !/^[\w-]{16,80}$/.test(requestId))
+    throw new Error("插页请求无效，请重新打开窗口。");
+  if (
+    typeof req.body.notes !== "string" ||
+    !req.body.notes.trim() ||
+    req.body.notes.length > 200000
+  )
+    throw new Error("请填写新页面的逐字稿，最多 20 万字。");
+  const notes = spokenManuscript(req.body.notes);
+  if (!notes.trim())
+    throw new Error("去掉 Markdown 标题后没有正文，请补充需要讲述的内容。");
+  const existing = p.batches.find((b) => b.insertion?.requestId === requestId);
+  if (existing) {
+    if (
+      existing.text !== req.body.notes ||
+      existing.insertion.afterSlideId !== afterSlideId
+    )
+      throw Object.assign(new Error("这次插页已提交，请关闭窗口查看新页面。"), {
+        status: 409,
+      });
+    return res.json({ project: p, slideId: existing.slideIds[0] });
+  }
+  const anchor =
+    afterSlideId === null
+      ? -1
+      : p.slides.findIndex((s) => s.id === afterSlideId);
+  if (afterSlideId !== null && anchor < 0)
+    throw Object.assign(
+      new Error("插入位置的页面已变化，请关闭窗口后重新选择位置。"),
+      { status: 409 },
+    );
+  // New pages do not modify or lock their neighbours.
+  assertIdle(p.id, []);
+  if (generate) styleReady(p.styleId);
+  const batch = {
+    id: id(),
+    text: req.body.notes,
+    label: "插入页面",
+    createdAt: now(),
+    slideIds: [],
+    insertion: { requestId, afterSlideId },
+  };
+  const slide = newSlide(notes, [batch.id], p.styleId);
+  batch.slideIds = [slide.id];
+  transaction(() => {
+    p.slides.splice(anchor + 1, 0, slide);
+    p.batches.push(batch);
+    p.undo = null;
+    saveProject(p);
+    if (generate)
+      enqueue("render", p.id, { slideIds: [slide.id], redesign: false });
+  });
+  res.status(201).json({ project: p, slideId: slide.id });
 });
 app.patch("/api/projects/:id/slides/:sid", (req, res) => {
   const p = projectOrThrow(req.params.id);
@@ -589,14 +653,33 @@ app.get("/api/projects/:id/export", async (req, res) => {
       new Error("项目内容已更新，请关闭导出窗口后重新导出。"),
       { status: 409 },
     );
-  const buffer = await exportPresentation(p, {
+  const bundle = req.query.bundle === "1";
+  const buffer = await (bundle ? exportBundle : exportPresentation)(p, {
     allowStale:
       req.query.allowStale === "1" && req.query.revision === String(p.revision),
   });
-  res.attachment(exportFilename(p.title)).send(buffer);
+  res
+    .attachment(
+      bundle
+        ? exportFilename(p.title).replace(/\.pptx$/, `-v${p.revision}.zip`)
+        : exportFilename(p.title),
+    )
+    .send(buffer);
 });
 app.get("/api/projects/:id/manuscript", (req, res) => {
   const p = projectOrThrow(req.params.id);
+  if (req.query.download === "1") {
+    if (req.query.revision !== String(p.revision))
+      throw Object.assign(new Error("项目内容已更新，请重新打开导出窗口。"), {
+        status: 409,
+      });
+    return res
+      .attachment(
+        exportFilename(p.title).replace(/\.pptx$/, `-逐字稿-v${p.revision}.md`),
+      )
+      .type("text/markdown; charset=utf-8")
+      .send(exportManuscript(p));
+  }
   res.type("text/plain").send(p.slides.map(speakerNotes).join(""));
 });
 app.get("/api/jobs", (req, res) =>

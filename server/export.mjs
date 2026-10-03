@@ -1,9 +1,10 @@
 import pptxgen from "pptxgenjs";
+import JSZip from "jszip";
 import sharp from "sharp";
 import { readFile } from "node:fs/promises";
 import { assetPath } from "./store.mjs";
 import { renderSceneSvg } from "../shared/slides.mjs";
-import { speakerNotes } from "./manuscript.mjs";
+import { speakerNotes, exportManuscript } from "./manuscript.mjs";
 
 const WIDTH = 40 / 3;
 const HEIGHT = 7.5;
@@ -15,6 +16,20 @@ export function exportFilename(title) {
     .trim()
     .slice(0, 100);
   return `${name || "演讲"}.pptx`;
+}
+
+export { exportManuscript } from "./manuscript.mjs";
+
+export async function exportBundle(project, options) {
+  const ppt = await exportPresentation(project, options);
+  const zip = new JSZip();
+  const stem = exportFilename(project.title).slice(0, -5);
+  zip.file(`${stem}.pptx`, ppt, { compression: "STORE" });
+  zip.file(
+    `${stem}-逐字稿-v${project.revision ?? 0}.md`,
+    exportManuscript(project),
+  );
+  return zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
 }
 
 async function pageImage(page) {

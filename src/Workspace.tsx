@@ -34,7 +34,15 @@ import {
   Paperclip,
   ChartBar,
 } from "@phosphor-icons/react";
-import { api, post, patch, asset, active, downloadPresentation } from "./api";
+import {
+  api,
+  post,
+  patch,
+  asset,
+  active,
+  downloadPresentation,
+  downloadManuscript,
+} from "./api";
 import { SceneView } from "./SceneView";
 import type {
   Project,
@@ -49,6 +57,7 @@ import { CopyReview } from "./CopyReview";
 import { Button, Modal, Field, SlideImage, Status } from "./components";
 
 export function Workspace({
+  insertExportAvailable,
   id,
   styles,
   settings,
@@ -57,6 +66,7 @@ export function Workspace({
   onSettings,
 }: {
   id: string;
+  insertExportAvailable: boolean;
   styles: Style[];
   settings: Settings;
   notify: (s: string) => void;
@@ -67,6 +77,10 @@ export function Workspace({
     null,
   );
   const [optionsBusy, setOptionsBusy] = useState(false);
+  const [scriptExporting, setScriptExporting] = useState(false);
+  const [insertion, setInsertion] = useState<{
+    afterSlideId: string | null;
+  } | null>(null);
   const [project, setProject] = useState<Project | null>(null),
     [jobs, setJobs] = useState<Job[]>([]),
     [draft, setDraft] = useState(""),
@@ -559,22 +573,60 @@ export function Workspace({
               )}
             </div>
           </div>
+          {insertExportAvailable && (
+            <Button
+              className="insert-first"
+              onClick={() => setInsertion({ afterSlideId: null })}
+            >
+              <Plus size={15} /> 在第一页前插入
+            </Button>
+          )}
           {showScript ? (
             <div className="manuscript-list">
               <div className="manuscript-intro">
                 <h2>你的完整演说稿</h2>
                 <p>按照页面顺序排列。点击任意一段，修改对应页面的讲稿。</p>
+                <Button
+                  loading={scriptExporting}
+                  disabled={!!incomplete.length}
+                  onClick={async () => {
+                    setScriptExporting(true);
+                    try {
+                      await run(
+                        () => downloadManuscript(project.id, project.revision),
+                        "演说稿 Markdown 已开始下载。",
+                      );
+                    } finally {
+                      setScriptExporting(false);
+                    }
+                  }}
+                >
+                  <DownloadSimple size={16} /> 导出演说稿（Markdown）
+                </Button>
               </div>
               {project.slides.map((s, i) => (
-                <button
-                  key={s.id}
-                  className="manuscript-row"
-                  onClick={() => setDetail(s.id)}
-                >
-                  <span>{String(i + 1).padStart(2, "0")}</span>
-                  <p>{s.notes}</p>
-                  <PencilSimple size={16} />
-                </button>
+                <div key={s.id}>
+                  <button
+                    key={s.id}
+                    className="manuscript-row"
+                    onClick={() => setDetail(s.id)}
+                  >
+                    <span>{String(i + 1).padStart(2, "0")}</span>
+                    <p>{s.notes}</p>
+                    <PencilSimple size={16} />
+                  </button>
+                  {insertExportAvailable && (
+                    <button
+                      className="insert-page"
+                      onClick={() => setInsertion({ afterSlideId: s.id })}
+                    >
+                      <Plus size={15} />{" "}
+                      {i === project.slides.length - 1
+                        ? "在末尾插入一页"
+                        : `在第 ${i + 1}、${i + 2} 页之间插入`}
+                    </button>
+                  )}
+                </div>
               ))}
             </div>
           ) : (
@@ -637,6 +689,17 @@ export function Workspace({
                     )}
                   </div>
                   {s.error && <p className="card-error">{s.error}</p>}
+                  {insertExportAvailable && (
+                    <button
+                      className="insert-page"
+                      onClick={() => setInsertion({ afterSlideId: s.id })}
+                    >
+                      <Plus size={15} />{" "}
+                      {project.slides.indexOf(s) === project.slides.length - 1
+                        ? "在末尾插入一页"
+                        : `在第 ${project.slides.indexOf(s) + 1}、${project.slides.indexOf(s) + 2} 页之间插入`}
+                    </button>
+                  )}
                 </article>
               ))}
             </div>
@@ -760,8 +823,28 @@ export function Workspace({
           逐字稿与图片自动关联 · 逐段制作，随时调整 · 所有内容保存在本机
         </p>
       )}
+      {insertion && (
+        <InsertPageDialog
+          project={project}
+          afterSlideId={insertion.afterSlideId}
+          onClose={() => setInsertion(null)}
+          onInserted={(p, generated) => {
+            setProject(p);
+            setInsertion(null);
+            setFilter("all");
+            notify(
+              generated
+                ? "新页面已插入，正在后台生成。可以继续编辑其他页面。"
+                : "新页面已插入，可继续修改讲稿或生成图片。",
+            );
+            refresh().catch(() => {});
+            onRefresh().catch(() => {});
+          }}
+        />
+      )}
       {exportOpen && (
         <ExportDialog
+          bundleAvailable={insertExportAvailable}
           project={project}
           busy={!!busy}
           hasDraft={!!draft.trim()}
@@ -942,7 +1025,96 @@ export function Workspace({
     </div>
   );
 }
+function InsertPageDialog({
+  project,
+  afterSlideId,
+  onClose,
+  onInserted,
+}: {
+  project: Project;
+  afterSlideId: string | null;
+  onClose: () => void;
+  onInserted: (project: Project, generated: boolean) => void;
+}) {
+  const [notes, setNotes] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const requestId = useRef(crypto.randomUUID());
+  const index = project.slides.findIndex((s) => s.id === afterSlideId);
+  const submit = async (generate: boolean) => {
+    if (busy || !notes.trim()) return;
+    setBusy(true);
+    setError("");
+    try {
+      const result = await post<{ project: Project; slideId: string }>(
+        `/projects/${project.id}/slides`,
+        {
+          afterSlideId,
+          notes,
+          generate,
+          requestId: requestId.current,
+        },
+      );
+      onInserted(result.project, generate);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal
+      title="插入一页"
+      subtitle={
+        afterSlideId === null
+          ? "插入到第一页之前。"
+          : `插入到第 ${index + 1} 页之后，后续页码自动顺延。`
+      }
+      onClose={() => {
+        if (!busy) onClose();
+      }}
+    >
+      <Field label="新页面逐字稿">
+        <textarea
+          autoFocus
+          aria-label="新页面逐字稿"
+          rows={9}
+          value={notes}
+          disabled={busy}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="填写这一页要讲的完整内容…"
+        />
+      </Field>
+      <p className="detail-help">
+        固定新增一页，沿用项目当前风格、内容倾向和配色。系统会提炼上屏文案，完整讲稿保留在备注和逐字稿导出中。
+      </p>
+      {error && (
+        <p className="error-text" role="alert">
+          {error}
+        </p>
+      )}
+      <div className="modal-actions">
+        <Button onClick={onClose} disabled={busy}>
+          取消
+        </Button>
+        <Button disabled={busy || !notes.trim()} onClick={() => submit(false)}>
+          仅插入，稍后生成
+        </Button>
+        <Button
+          variant="primary"
+          disabled={!notes.trim()}
+          loading={busy}
+          onClick={() => submit(true)}
+        >
+          插入并生成
+        </Button>
+      </div>
+    </Modal>
+  );
+}
+
 function ExportDialog({
+  bundleAvailable,
   project,
   busy,
   hasDraft,
@@ -952,6 +1124,7 @@ function ExportDialog({
   project: Project;
   busy: boolean;
   hasDraft: boolean;
+  bundleAvailable: boolean;
   onClose: () => void;
   notify: (message: string) => void;
 }) {
@@ -964,12 +1137,26 @@ function ExportDialog({
   const stale = project.slides.filter((s) => s.stale).length;
   const blocked =
     busy || !!missing.length || !!unsegmented || !project.slides.length;
-  const download = async () => {
+  const download = async (manuscriptOnly = false) => {
     setExporting(true);
     setError("");
     try {
-      await downloadPresentation(project.id, project.revision, !!stale);
-      notify("PPT 已开始下载，每页图片和对应讲稿备注已包含。");
+      if (manuscriptOnly)
+        await downloadManuscript(project.id, project.revision);
+      else
+        await downloadPresentation(
+          project.id,
+          project.revision,
+          !!stale,
+          bundleAvailable,
+        );
+      notify(
+        manuscriptOnly
+          ? "最新逐字稿已开始下载。"
+          : bundleAvailable
+            ? "导出包已开始下载，包含 PPT 和独立的最新逐字稿。"
+            : "PPT 已开始下载，包含逐页讲稿备注。",
+      );
       onClose();
     } catch (e) {
       setError((e as Error).message);
@@ -980,17 +1167,29 @@ function ExportDialog({
   return (
     <Modal
       title="导出 PPT"
-      subtitle="每页一张完整图片，逐字稿保存在对应页备注中。"
+      subtitle={
+        bundleAvailable
+          ? "一起导出 PPT 和独立逐字稿，保存这次演讲的最新版本。"
+          : "导出图片与逐页讲稿备注。"
+      }
       onClose={() => {
         if (!exporting) onClose();
       }}
     >
       <div className="ppt-export-summary">
         <h3>{project.title}</h3>
-        <p>全部 {project.slides.length} 页 · 16:9 宽屏 · .pptx 文件</p>
+        <p>
+          全部 {project.slides.length} 页 · 16:9 宽屏 ·{" "}
+          {bundleAvailable ? "ZIP 内含 PPTX 与逐字稿 Markdown" : "PPTX 文件"}
+        </p>
         <p>
           图片按原比例完整放入页面，保留原图清晰度。备注使用每页最新保存的完整讲稿。
         </p>
+        {bundleAvailable && (
+          <p>
+            独立逐字稿按当前页序导出，包含插页及改稿，以版本号命名，不使用提炼后的上屏文案。
+          </p>
+        )}
       </div>
       {busy && (
         <p className="export-notice">页面正在制作中，完成或停止后即可导出。</p>
@@ -1027,13 +1226,19 @@ function ExportDialog({
           {error}
         </p>
       )}
-      <div className="modal-actions">
+      <div className="modal-actions export-actions">
         <Button onClick={onClose} disabled={exporting}>
           返回
         </Button>
         <Button
+          onClick={() => download(true)}
+          disabled={exporting || !!unsegmented || !project.slides.length}
+        >
+          仅下载逐字稿
+        </Button>
+        <Button
           variant="primary"
-          onClick={download}
+          onClick={() => download()}
           loading={exporting}
           disabled={blocked}
         >
@@ -1042,7 +1247,9 @@ function ExportDialog({
             ? "正在导出…"
             : stale
               ? "使用当前图片与最新备注下载"
-              : "下载 PPT"}
+              : bundleAvailable
+                ? "下载 PPT 与逐字稿"
+                : "下载 PPT"}
         </Button>
       </div>
     </Modal>

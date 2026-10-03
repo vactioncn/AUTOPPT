@@ -4,6 +4,7 @@ import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import sharp from "sharp";
+import JSZip from "jszip";
 import {
   defaultSystem,
   composeScene,
@@ -14,7 +15,7 @@ import { inspectPresentation } from "./helpers/presentation.mjs";
 
 const dir = mkdtempSync(path.join(tmpdir(), "autoppt-export-test-"));
 process.env.AUTOPPT_DATA_DIR = dir;
-const { exportPresentation, exportFilename } =
+const { exportPresentation, exportFilename, exportBundle, exportManuscript } =
   await import("../server/export.mjs");
 const { db, assetsDir } = await import("../server/store.mjs");
 after(() => {
@@ -24,6 +25,51 @@ after(() => {
 const project = (slides) => ({ title: "完整图片与备注", batches: [], slides });
 const picture = (width, height, background) =>
   sharp({ create: { width, height, channels: 3, background } });
+
+test("export bundle includes a separate current manuscript in page order, matching PPT notes", async () => {
+  const image = "bundle.png";
+  writeFileSync(
+    path.join(assetsDir, image),
+    await picture(32, 18, "white").png().toBuffer(),
+  );
+  const slides = [
+    {
+      image,
+      notes: "最新保存的正文。\n仍保留完整的第二段。",
+      manuscriptVersion: 1,
+      plan: { displayText: ["不应导出上屏摘要"] },
+    },
+    { image, notes: "# 写作标题\n\n插入页的正文。" },
+    { image, notes: "  结尾：10% 与 200 元。\r\n", manuscriptVersion: 1 },
+  ];
+  const p = {
+    ...project(slides),
+    revision: 42,
+    draft: "不导出草稿",
+    proposal: { notes: ["不导出未确认方案"] },
+  };
+  const before = structuredClone(p);
+  const zip = await JSZip.loadAsync(await exportBundle(p));
+  const files = Object.keys(zip.files);
+  assert.equal(files.length, 2);
+  const txt = await zip
+    .file(files.find((f) => f.endsWith(".md")))
+    .async("string");
+  assert.equal(txt, exportManuscript(p));
+  assert(txt.includes("## 第 2 页\n\n插入页的正文。"));
+  assert(txt.indexOf(slides[0].notes) < txt.indexOf("插入页的正文。"));
+  assert(txt.includes(slides[2].notes));
+  assert(!/不导出|不应导出|写作标题/.test(txt));
+  await inspectPresentation(
+    await zip.file(files.find((f) => f.endsWith(".pptx"))).async("nodebuffer"),
+    [slides[0], { ...slides[1], notes: "插入页的正文。" }, slides[2]],
+  );
+  assert.deepEqual(p, before);
+  assert.throws(
+    () => exportManuscript({ ...p, batches: [{ slideIds: [] }] }),
+    /尚未完成/,
+  );
+});
 
 test("image PPT preserves PNG/JPEG bytes, order, aspect ratio, complete notes and input records", async () => {
   const sources = [

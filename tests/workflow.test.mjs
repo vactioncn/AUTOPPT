@@ -8,6 +8,7 @@ import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { DatabaseSync } from "node:sqlite";
 import sharp from "sharp";
+import JSZip from "jszip";
 import { defaultSystem, composeScene, samplePlan } from "../shared/slides.mjs";
 import { inspectPresentation } from "./helpers/presentation.mjs";
 import { compositionFixture } from "./fixtures/composition.mjs";
@@ -1086,6 +1087,145 @@ test(
         (r) => !r.prompt.includes("UNRESOLVED LIBRARY VARIANTS"),
       ),
     );
+    // Insert one page without segmentation; preserve neighbours even while they render.
+    const insertProject = await req(
+      "/projects",
+      { title: "插页验收", styleId: style.id },
+      "POST",
+      201,
+    );
+    const ip = `/projects/${insertProject.id}`;
+    const insertBody = (afterSlideId, notes, generate = false) => ({
+      afterSlideId,
+      notes,
+      generate,
+      requestId: crypto.randomUUID(),
+    });
+    const firstBody = insertBody(null, "第一张原稿。完整口播内容。");
+    const insertFirst = await req(ip + "/slides", firstBody, "POST", 201);
+    const tail = await req(
+      ip + "/slides",
+      insertBody(insertFirst.slideId, "原来的第二张。"),
+      "POST",
+      201,
+    );
+    const beforeInsertCalls = [calls.length, imageCalls];
+    const middleBody = insertBody(
+      insertFirst.slideId,
+      "## 写作标题\n\n中间新插入的完整原稿。",
+    );
+    const middle = await req(ip + "/slides", middleBody, "POST", 201);
+    assert.deepEqual(
+      middle.project.slides.map((s) => s.id),
+      [insertFirst.slideId, middle.slideId, tail.slideId],
+    );
+    assert.equal(middle.project.slides[1].notes, "中间新插入的完整原稿。");
+    assert.equal(middle.project.slides[1].styleId, style.id);
+    assert.deepEqual([calls.length, imageCalls], beforeInsertCalls);
+    assert.equal(
+      (await req(ip + "/slides", middleBody)).slideId,
+      middle.slideId,
+    );
+    assert.equal((await req(ip)).slides.length, 3);
+    await req(
+      ip + "/slides",
+      { ...middleBody, notes: "不同内容" },
+      "POST",
+      409,
+    );
+    await req(ip + "/slides", insertBody("gone-page", "位置失效"), "POST", 409);
+    await req(ip + "/slides", insertBody(null, "## 只有标题"), "POST", 400);
+    holdImages = true;
+    const insertGate = imageGates.length;
+    const neighbourJob = await req(
+      ip + "/render",
+      {
+        slideIds: [insertFirst.slideId],
+      },
+      "POST",
+      202,
+    );
+    await until(() => imageGates.length === insertGate + 1);
+    const newPage = await req(
+      ip + "/slides",
+      insertBody(insertFirst.slideId, "继续插入，可以后台生成。", true),
+      "POST",
+      201,
+    );
+    await until(() => imageGates.length === insertGate + 2);
+    assert.equal((await req(ip)).slides.length, 4);
+    holdImages = false;
+    imageGates[insertGate]();
+    imageGates[insertGate + 1]();
+    assert.equal((await poll(neighbourJob)).status, "completed");
+    await until(
+      async () =>
+        (await req(ip)).slides.find((s) => s.id === newPage.slideId).image,
+    );
+    const insertedState = await req(ip);
+    assert.deepEqual(
+      insertedState.slides.map((s) => s.id),
+      [insertFirst.slideId, newPage.slideId, middle.slideId, tail.slideId],
+    );
+    const manuscriptDownload = await fetch(
+      base + ip + `/manuscript?download=1&revision=${insertedState.revision}`,
+    );
+    assert.equal(manuscriptDownload.status, 200);
+    const manuscriptText = await manuscriptDownload.text();
+    assert(
+      manuscriptText.indexOf("继续插入") < manuscriptText.indexOf("中间新插入"),
+    );
+    assert(manuscriptText.includes("原来的第二张。"));
+    await req(ip + "/manuscript?download=1&revision=-1", undefined, "GET", 409);
+
+    // A failed append retried after a manual insertion must still append at the end.
+    const orderProject = await req(
+      "/projects",
+      { title: "追加与插页顺序", styleId: style.id },
+      "POST",
+      201,
+    );
+    const op = `/projects/${orderProject.id}`;
+    const orderFirst = await req(
+      op + "/slides",
+      insertBody(null, "已有开场。"),
+      "POST",
+      201,
+    );
+    const orderTail = await req(
+      op + "/slides",
+      insertBody(orderFirst.slideId, "已有结尾。"),
+      "POST",
+      201,
+    );
+    failSegment = true;
+    const appendBeforeInsert = await req(
+      op + "/batches",
+      { text: "最后追加的一段。保持在所有已有页面后面。" },
+      "POST",
+      202,
+    );
+    assert.equal((await poll(appendBeforeInsert)).status, "failed");
+    const orderMiddle = await req(
+      op + "/slides",
+      insertBody(orderFirst.slideId, "中间插入页。"),
+      "POST",
+      201,
+    );
+    failSegment = false;
+    await req(`/jobs/${appendBeforeInsert.id}/retry`, {});
+    assert.equal((await poll(appendBeforeInsert)).status, "completed");
+    const ordered = await req(op);
+    assert.deepEqual(
+      ordered.slides.slice(0, 3).map((s) => s.id),
+      [orderFirst.slideId, orderMiddle.slideId, orderTail.slideId],
+    );
+    assert.equal(
+      ordered.slides.at(-1).notes,
+      "最后追加的一段。保持在所有已有页面后面。",
+    );
+
+    imageGates.length = 0;
     // Six independent page edits: four execute, two queue; a seventh remains editable.
     const concurrentProject = await req(
       "/projects",
@@ -1452,6 +1592,93 @@ test(
       page.setDefaultTimeout(10000);
       const errors = [];
       page.on("pageerror", (e) => errors.push(e.message));
+      // Insert from the visible gap while another page is generating.
+      holdImages = true;
+      const uiInsertGate = imageGates.length;
+      const uiNeighbourJob = await req(
+        ip + "/render",
+        {
+          slideIds: [insertFirst.slideId],
+          redesign: true,
+        },
+        "POST",
+        202,
+      );
+      await until(() => imageGates.length === uiInsertGate + 1);
+      await page.goto(
+        base.replace("/api", "") + "/#project/" + insertProject.id,
+      );
+      await page.getByLabel("查看段落").selectOption("all");
+      await page
+        .getByRole("button", { name: "在第 1、2 页之间插入", exact: true })
+        .click();
+      await expect(
+        page.getByRole("button", { name: "插入并生成", exact: true }),
+      ).toBeDisabled();
+      await page
+        .getByLabel("新页面逐字稿", { exact: true })
+        .fill("浏览器插入的这一页。完整讲稿保留。");
+      mkdirSync(".local/verification/insert-export", { recursive: true });
+      await page.screenshot({
+        path: ".local/verification/insert-export/insert-desktop.png",
+      });
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.screenshot({
+        path: ".local/verification/insert-export/insert-mobile.png",
+      });
+      assert(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth + 1,
+        ),
+      );
+      await page
+        .getByRole("button", { name: "插入并生成", exact: true })
+        .click();
+      await expect(
+        page.getByLabel("新页面逐字稿", { exact: true }),
+      ).toHaveCount(0);
+      await until(() => imageGates.length === uiInsertGate + 2);
+      await expect(page.locator(".slide-card")).toHaveCount(5);
+      const uiInsertedState = await req(ip);
+      assert.equal(
+        uiInsertedState.slides[1].notes,
+        "浏览器插入的这一页。完整讲稿保留。",
+      );
+      await page.getByRole("button", { name: "导出 PPT", exact: true }).click();
+      const scriptDownload = page.waitForEvent("download");
+      await page
+        .getByRole("button", { name: "仅下载逐字稿", exact: true })
+        .click();
+      const scriptFile = await scriptDownload;
+      assert.match(scriptFile.suggestedFilename(), /逐字稿-v\d+\.md$/);
+      assert(
+        readFileSync(await scriptFile.path(), "utf8").includes(
+          uiInsertedState.slides[1].notes,
+        ),
+      );
+      await page.getByRole("button", { name: "演说稿", exact: true }).click();
+      const directScriptDownload = page.waitForEvent("download");
+      await page
+        .getByRole("button", { name: "导出演说稿（Markdown）", exact: true })
+        .click();
+      const directScriptFile = await directScriptDownload;
+      assert(
+        readFileSync(await directScriptFile.path(), "utf8").includes(
+          "## 第 2 页\n\n" + uiInsertedState.slides[1].notes,
+        ),
+      );
+      holdImages = false;
+      imageGates[uiInsertGate]();
+      imageGates[uiInsertGate + 1]();
+      await poll(uiNeighbourJob);
+      await until(async () => (await req(ip)).slides[1].image);
+      await page.reload();
+      await page.getByLabel("查看段落").selectOption("all");
+      await expect(page.locator(".slide-card")).toHaveCount(5);
+      await page.setViewportSize({ width: 1440, height: 1000 });
+      await page.screenshot({
+        path: ".local/verification/insert-export/inserted-desktop.png",
+      });
       // Reproduce the disabled confirmation reported for an already prepared split.
       await poll(
         await req(
@@ -1876,14 +2103,44 @@ test(
       ).toBeVisible();
       await page.getByRole("button", { name: "导出 PPT", exact: true }).click();
       const initialDownload = page.waitForEvent("download");
-      await page.getByRole("button", { name: "下载 PPT", exact: true }).click();
+      await page
+        .getByRole("button", { name: "下载 PPT 与逐字稿", exact: true })
+        .click();
       const initialFile = await initialDownload;
-      assert.equal(initialFile.suggestedFilename(), "图片演讲验收.pptx");
+      assert.match(initialFile.suggestedFilename(), /^图片演讲验收-v\d+\.zip$/);
       assert.equal(await initialFile.failure(), null);
-      await inspectPresentation(
+      const initialBundle = await JSZip.loadAsync(
         readFileSync(await initialFile.path()),
+      );
+      await inspectPresentation(
+        await initialBundle.file("图片演讲验收.pptx").async("nodebuffer"),
         (await read()).slides,
       );
+      // New frontend keeps the original PPT workflow when an old backend is still running.
+      await page.route("**/api/bootstrap", async (route) => {
+        const response = await route.fetch();
+        const body = await response.json();
+        delete body.features.insertAndManuscriptExport;
+        await route.fulfill({ response, json: body });
+      });
+      await page.reload();
+      await expect(
+        page.getByRole("heading", { name: "图片演讲验收", exact: true }),
+      ).toBeVisible();
+      await expect(page.locator(".insert-page")).toHaveCount(0);
+      await page.getByRole("button", { name: "导出 PPT", exact: true }).click();
+      await expect(
+        page.getByRole("button", { name: "仅下载逐字稿", exact: true }),
+      ).toBeVisible();
+      const legacyDownload = page.waitForEvent("download");
+      await page.getByRole("button", { name: "下载 PPT", exact: true }).click();
+      assert.equal(
+        (await legacyDownload).suggestedFilename(),
+        "图片演讲验收.pptx",
+      );
+      await page.unroute("**/api/bootstrap");
+      await page.reload();
+      await expect(page.locator(".insert-page").first()).toBeVisible();
       const first = page.locator(".slide-card").first();
       await first.locator(".slide-image").click();
       await expect(
@@ -2002,14 +2259,21 @@ test(
         })
         .click();
       const downloaded = await downloadEvent;
-      assert.equal(downloaded.suggestedFilename(), "图片演讲验收.pptx");
+      assert.match(downloaded.suggestedFilename(), /^图片演讲验收-v\d+\.zip$/);
       assert.equal(await downloaded.failure(), null);
       const current = await read();
-      await inspectPresentation(
+      const bundle = await JSZip.loadAsync(
         readFileSync(await downloaded.path()),
+      );
+      await inspectPresentation(
+        await bundle.file("图片演讲验收.pptx").async("nodebuffer"),
         current.slides,
       );
-      await downloaded.saveAs(path.join(dir, "browser-export.pptx"));
+      const script = await bundle
+        .file(Object.keys(bundle.files).find((f) => f.endsWith(".md")))
+        .async("string");
+      assert(script.includes("浏览器修改后的原稿。"));
+      await downloaded.saveAs(path.join(dir, "browser-export.zip"));
       await page.setViewportSize({ width: 1440, height: 1000 });
       await page.goto(base.replace("/api", "") + "/#styles");
       const modelsBeforeCreate = calls.length;

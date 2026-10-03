@@ -977,6 +977,28 @@ img {
   position: relative;
   min-width: 0;
 }
+.insert-first {
+  margin-bottom: 16px;
+}
+.insert-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  margin-top: 14px;
+  padding: 10px;
+  border: 1px dashed #cbd2c2;
+  border-radius: 7px;
+  color: #647257;
+  background: transparent;
+  font-size: 13px;
+}
+.insert-page:hover,
+.insert-page:focus-visible {
+  background: #eff1e9;
+  border-color: #758565;
+}
 .slide-open {
   display: block;
   padding: 0;
@@ -3744,4 +3766,12 @@ textarea::placeholder {
   .palette-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+.export-actions {
+  flex-wrap: wrap;
+}
+.export-actions .btn {
+  max-width: 100%;
+  white-space: normal;
 }

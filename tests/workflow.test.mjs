@@ -9,6 +9,7 @@ import { once } from "node:events";
 import { DatabaseSync } from "node:sqlite";
 import sharp from "sharp";
 import JSZip from "jszip";
+import { DEFAULT_STYLE_ID } from "../shared/styles.mjs";
 import { defaultSystem, composeScene, samplePlan } from "../shared/slides.mjs";
 import { inspectPresentation } from "./helpers/presentation.mjs";
 import { compositionFixture } from "./fixtures/composition.mjs";
@@ -394,7 +395,7 @@ test(
       manualRules,
     );
     const defaultStyle = (await req("/bootstrap")).styles[0];
-    assert.equal(defaultStyle.id, "restrained-minimal");
+    assert.equal(defaultStyle.id, DEFAULT_STYLE_ID);
     assert.equal(defaultStyle.compositionMode, "direct");
     const defaultProject = await req(
       "/projects",
@@ -1954,9 +1955,15 @@ test(
       const newProjectDialog = page.getByRole("dialog");
       await expect(
         newProjectDialog.getByRole("button", {
-          name: /克制极简风格 · 内置默认/,
+          name: /克制儿童摄影杂志风 · 内置默认/,
         }),
       ).toHaveAttribute("aria-pressed", "true");
+      const defaultCover =
+        newProjectDialog.getByAltText("克制儿童摄影杂志风封面");
+      await expect(defaultCover).toBeVisible();
+      await expect
+        .poll(() => defaultCover.evaluate((img) => img.naturalWidth))
+        .toBeGreaterThan(1000);
       mkdirSync(".impeccable/review", { recursive: true });
       for (const [label, width, height] of [
         ["desktop", 1440, 1000],
@@ -1978,7 +1985,7 @@ test(
         newProjectDialog.getByRole("button", { name: /极简叙事/ }),
       ).toHaveAttribute("aria-pressed", "true");
       await newProjectDialog
-        .getByRole("button", { name: /克制极简风格 · 内置默认/ })
+        .getByRole("button", { name: /克制儿童摄影杂志风 · 内置默认/ })
         .click();
       await newProjectDialog
         .getByPlaceholder("例如：儿童摄影行业的下一步")
@@ -2015,7 +2022,7 @@ test(
         (await req("/bootstrap")).projects.find(
           (p) => p.title === "默认风格浏览器验收",
         ).styleId,
-        "restrained-minimal",
+        DEFAULT_STYLE_ID,
       );
       const createdWithOptions = (await req("/bootstrap")).projects.find(
         (p) => p.title === "默认风格浏览器验收",

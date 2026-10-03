@@ -158,6 +158,17 @@ export function updateSettings(input) {
 const defaults = [
   {
     id: DEFAULT_STYLE_ID,
+    name: "克制儿童摄影杂志风",
+    description: "黑白儿童摄影、荧光黄绿点睛与杂志编辑层次，随内容自由构图。",
+    colors: ["#FCFCFA", "#050505", "#D7FF00"],
+    compositionMode: "direct",
+    rules: readFileSync(
+      new URL("./styles/restrained-childhood-editorial.txt", import.meta.url),
+      "utf8",
+    ),
+  },
+  {
+    id: "restrained-minimal",
     name: "克制极简风格",
     description: "黑白基底、荧光强调与鲜明的中文层次，按内容自由构图。",
     colors: [

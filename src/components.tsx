@@ -16,6 +16,7 @@ import {
 } from "@phosphor-icons/react";
 import type { Style, Slide } from "./types";
 import { asset } from "./api";
+import { BUILTIN_STYLE_COVERS } from "../shared/styles.mjs";
 export function Button({
   children,
   variant = "secondary",
@@ -88,6 +89,7 @@ export function StylePreview({
   style: Style;
   compact?: boolean;
 }) {
+  const cover = BUILTIN_STYLE_COVERS[style.id];
   return (
     <div
       className={`style-preview ${compact ? "compact" : ""}`}
@@ -96,8 +98,11 @@ export function StylePreview({
         color: style.colors[1] || "#2f3630",
       }}
     >
-      {style.refs[0] ? (
-        <img src={asset(style.refs[0])} alt={`${style.name}参考图`} />
+      {cover || style.refs[0] ? (
+        <img
+          src={cover || asset(style.refs[0])}
+          alt={`${style.name}${cover ? "封面" : "参考图"}`}
+        />
       ) : (
         <>
           <span className="style-sample-top">把值得讲述的，留下来。</span>

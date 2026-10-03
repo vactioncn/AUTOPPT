@@ -128,13 +128,13 @@ export function StyleLibrary({
               <div>
                 <h3>{s.name}</h3>
                 <span>
-                  {s.builtin
-                    ? s.id === DEFAULT_STYLE_ID
-                      ? "内置默认风格"
-                      : "内置起始风格"
-                    : s.refs.length
-                      ? `${s.refs.length} 张参考图`
-                      : "提示词风格"}
+                  {s.id === DEFAULT_STYLE_ID
+                    ? "默认风格"
+                    : s.builtin
+                      ? "内置起始风格"
+                      : s.refs.length
+                        ? `${s.refs.length} 张参考图`
+                        : "提示词风格"}
                 </span>
               </div>
               <p>{s.description}</p>

@@ -78,6 +78,8 @@ export function Workspace({
     [detail, setDetail] = useState<string | null>(null),
     [split, setSplit] = useState<string | null>(null),
     [proposalOpen, setProposalOpen] = useState(false),
+    [proposalError, setProposalError] = useState(""),
+    [proposalSubmitting, setProposalSubmitting] = useState(false),
     [showScript, setShowScript] = useState(false),
     [exportOpen, setExportOpen] = useState(false),
     [reportOpen, setReportOpen] = useState(false),
@@ -173,6 +175,31 @@ export function Workspace({
   const pageBusy = (sid: string) =>
     activeJobs.some((j) => !j.slideIds || j.slideIds.includes(sid));
   const proposalBusy = project.proposal?.sourceIds.some(pageBusy) ?? false;
+  const submitProposal = async (commit: boolean) => {
+    const proposalId = project.proposal?.id;
+    if (!proposalId || proposalSubmitting) return;
+    setProposalSubmitting(true);
+    setProposalError("");
+    try {
+      if (commit)
+        await post("/projects/" + id + "/proposal/commit", { proposalId });
+      else await api("/projects/" + id + "/proposal", { method: "DELETE" });
+      setProposalOpen(false);
+      notify(commit ? "已确认调整，新页面正在后台制作。" : "已放弃这次调整。");
+      try {
+        await refresh();
+        await onRefresh();
+      } catch {
+        setError(
+          "调整已提交，但页面状态暂未刷新，请稍后刷新页面，不要重复提交。",
+        );
+      }
+    } catch (e) {
+      setProposalError((e as Error).message);
+    } finally {
+      setProposalSubmitting(false);
+    }
+  };
   const lastJob = jobs[0];
   const currentBatch = project.batches.at(-1);
   const sourceBatch =
@@ -412,7 +439,14 @@ export function Workspace({
               预览 {project.proposal.notes.length} 页新方案，确认后再生成画面。
             </p>
           </div>
-          <Button variant="primary" onClick={() => setProposalOpen(true)}>
+          <Button
+            variant="primary"
+            onClick={() => {
+              setError("");
+              setProposalError("");
+              setProposalOpen(true);
+            }}
+          >
             查看新方案
             <ArrowRight size={16} />
           </Button>
@@ -869,38 +903,25 @@ export function Workspace({
               本次调整的原页面仍在制作，请完成或停止该页任务后确认；其他页的任务不影响确认。
             </p>
           )}
-          {error && (
+          {proposalError && (
             <p className="error-text" role="alert">
-              {error}
+              上次提交未成功：{proposalError}
             </p>
           )}
           <div className="modal-actions">
             <Button
-              disabled={proposalBusy}
-              onClick={() =>
-                run(async () => {
-                  await api("/projects/" + id + "/proposal", {
-                    method: "DELETE",
-                  });
-                  setProposalOpen(false);
-                })
-              }
+              disabled={proposalBusy || proposalSubmitting}
+              onClick={() => submitProposal(false)}
             >
               放弃这次调整
             </Button>
             <Button
               variant="primary"
               disabled={proposalBusy}
-              onClick={() =>
-                run(async () => {
-                  await post("/projects/" + id + "/proposal/commit", {
-                    proposalId: project.proposal!.id,
-                  });
-                  setProposalOpen(false);
-                })
-              }
+              loading={proposalSubmitting}
+              onClick={() => submitProposal(true)}
             >
-              确认并生成页面
+              {proposalSubmitting ? "正在提交…" : "确认并生成页面"}
               <ArrowRight size={17} />
             </Button>
           </div>

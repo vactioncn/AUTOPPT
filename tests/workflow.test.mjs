@@ -1487,19 +1487,33 @@ test(
         page.getByRole("button", { name: "确认并生成页面", exact: true }),
       ).toBeEnabled();
       // Failed confirmations are visible inside the modal, rather than behind it.
-      await page.route("**/proposal/commit", (route) =>
-        route.fulfill({
+      let releaseConfirmation;
+      await page.route("**/proposal/commit", async (route) => {
+        await new Promise((resolve) => {
+          releaseConfirmation = resolve;
+        });
+        await route.fulfill({
           status: 409,
           contentType: "application/json",
           body: JSON.stringify({ error: "测试确认冲突" }),
-        }),
-      );
+        });
+      });
       await page
         .getByRole("button", { name: "确认并生成页面", exact: true })
         .click();
+      await expect(
+        page.getByRole("button", { name: "正在提交…", exact: true }),
+      ).toBeDisabled();
+      await until(() => releaseConfirmation);
+      releaseConfirmation();
       await expect(page.getByRole("dialog").getByRole("alert")).toHaveText(
-        "测试确认冲突",
+        "上次提交未成功：测试确认冲突",
       );
+      await page.keyboard.press("Escape");
+      await page
+        .getByRole("button", { name: "查看新方案", exact: true })
+        .click();
+      await expect(page.getByRole("dialog").getByRole("alert")).toHaveCount(0);
       await page.unroute("**/proposal/commit");
       await page
         .getByRole("button", { name: "确认并生成页面", exact: true })

@@ -67,22 +67,7 @@ export function Modal({
     };
   }, []);
   return (
-    <dialog
-      ref={ref}
-      className={`modal ${wide ? "wide" : ""}`}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) {
-          const r = e.currentTarget.getBoundingClientRect();
-          if (
-            e.clientX < r.left ||
-            e.clientX > r.right ||
-            e.clientY < r.top ||
-            e.clientY > r.bottom
-          )
-            onClose();
-        }
-      }}
-    >
+    <dialog ref={ref} className={`modal ${wide ? "wide" : ""}`}>
       <div className="modal-heading">
         <div>
           <h2>{title}</h2>

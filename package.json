@@ -9,10 +9,11 @@
   "scripts": {
     "dev": "node server/index.mjs",
     "start": "node scripts/serve.mjs",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && node scripts/build-intro.mjs",
     "test": "node --test tests/*.test.mjs",
     "check": "npm run build && npm test",
-    "test:browser": "BROWSER_TEST=1 node --test tests/workflow.test.mjs"
+    "test:browser": "BROWSER_TEST=1 node --test tests/workflow.test.mjs",
+    "intro:screenshots": "node scripts/capture-intro.mjs"
   },
   "dependencies": {
     "@fontsource/dm-sans": "^5.3.0",

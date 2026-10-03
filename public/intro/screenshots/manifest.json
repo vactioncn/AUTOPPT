@@ -1,0 +1,19 @@
+{
+  "source": "isolated AutoPPT demo workspace",
+  "viewport": {
+    "width": 1440,
+    "height": 1040
+  },
+  "modelCalls": 0,
+  "privateData": false,
+  "files": [
+    "workspace.webp",
+    "manuscript.webp",
+    "insert.webp",
+    "detail.webp",
+    "export.webp",
+    "styles.webp",
+    "options.webp",
+    "settings.webp"
+  ]
+}

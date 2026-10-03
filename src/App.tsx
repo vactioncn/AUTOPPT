@@ -20,6 +20,7 @@ import {
   Stack,
   ArrowLeft,
   FolderSimple,
+  Info,
   SpinnerGap,
 } from "@phosphor-icons/react";
 import { api, post, asset, formatDate, active } from "./api";
@@ -126,6 +127,16 @@ export default function App() {
               {data.styles.filter((s) => !s.deletedAt).length}
             </span>
           </button>
+          <a
+            className="intro-nav-link"
+            href="/intro/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Info size={20} />
+            介绍
+            <ArrowUpRight size={14} />
+          </a>
         </nav>
         <div className="side-projects">
           <span className="side-label">最近项目</span>

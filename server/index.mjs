@@ -114,6 +114,7 @@ app.use("/api", (req, res, next) => {
 const safeJob = (j) => ({
   ...j,
   styleId: j.payload.styleId || j.payload.styleSnapshot?.id,
+  slideIds: j.type === "render" ? j.payload.slideIds : undefined,
   payload: undefined,
 });
 const styleReady = (styleId) => {
@@ -278,7 +279,7 @@ app.post("/api/projects/:id/batches", (req, res) => {
 });
 app.patch("/api/projects/:id/slides/:sid", (req, res) => {
   const p = projectOrThrow(req.params.id);
-  assertIdle(p.id);
+  assertIdle(p.id, [req.params.sid]);
   const s = p.slides.find((s) => s.id === req.params.sid);
   if (!s) throw new Error("页面不存在");
   if (typeof req.body.notes !== "string" || !req.body.notes.trim())
@@ -303,7 +304,6 @@ app.patch("/api/projects/:id/slides/:sid", (req, res) => {
 });
 app.post("/api/projects/:id/render", (req, res) => {
   const p = projectOrThrow(req.params.id);
-  assertIdle(p.id);
   styleReady(p.styleId);
   const ids = req.body.slideIds;
   if (
@@ -312,6 +312,7 @@ app.post("/api/projects/:id/render", (req, res) => {
     ids.some((id) => !p.slides.some((s) => s.id === id))
   )
     throw new Error("请选择需要制作的页面。");
+  assertIdle(p.id, ids);
   p.undo = null;
   if (req.body.attachmentIds !== undefined && ids.length !== 1)
     throw new Error("添加内容附件时，请单独重新设计这一页。");
@@ -351,7 +352,7 @@ app.post("/api/projects/:id/slides/:sid/inspect", (req, res) =>
 );
 app.patch("/api/projects/:id/slides/:sid/scene", (req, res) => {
   const p = projectOrThrow(req.params.id);
-  assertIdle(p.id);
+  assertIdle(p.id, [req.params.sid]);
   const s = p.slides.find((s) => s.id === req.params.sid);
   if (!s?.scene)
     throw new Error("这页还是历史图片，请先重新设计为可编辑页面。");
@@ -376,7 +377,7 @@ app.patch("/api/projects/:id/slides/:sid/scene", (req, res) => {
 });
 app.post("/api/projects/:id/slides/:sid/restore", (req, res) => {
   const p = projectOrThrow(req.params.id);
-  assertIdle(p.id);
+  assertIdle(p.id, [req.params.sid]);
   const s = p.slides.find((s) => s.id === req.params.sid);
   const v = s?.versions.find((v) => v.id === req.body.versionId);
   if (!v) throw new Error("历史版本不存在");
@@ -553,7 +554,9 @@ app.get("/api/jobs", (req, res) =>
         (j) => !req.query.projectId || j.projectId === req.query.projectId,
       )
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-      .slice(0, 30)
+      .filter(
+        (j, index) => index < 30 || ["queued", "running"].includes(j.status),
+      )
       .map(safeJob),
   ),
 );

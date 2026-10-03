@@ -168,7 +168,12 @@ export function Workspace({
         )}
       </div>
     );
-  const busy = jobs.find((j) => active(j.status));
+  const activeJobs = jobs.filter((j) => active(j.status));
+  const busy = activeJobs[0];
+  const pageBusy = (sid: string) =>
+    activeJobs.some(
+      (j) => j.type !== "render" || !j.slideIds || j.slideIds.includes(sid),
+    );
   const lastJob = jobs[0];
   const currentBatch = project.batches.at(-1);
   const sourceBatch =
@@ -319,12 +324,24 @@ export function Workspace({
           </button>
         </div>
       )}
-      {busy && (
-        <div className="job-banner" role="status">
+      {activeJobs.length > 0 && (
+        <p>
+          后台制作：{activeJobs.filter((j) => j.status === "running").length}{" "}
+          项进行中，{activeJobs.filter((j) => j.status === "queued").length}{" "}
+          项排队。最多同时执行 4 项，可继续修改其他页面。
+        </p>
+      )}
+      {activeJobs.map((busy) => (
+        <div className="job-banner" role="status" key={busy.id}>
           <SpinnerGap className="spin" size={22} />
           <div>
-            <strong>{busy.stage}</strong>
-            <span>已完成的内容会自动保存，你可以先准备下一段。</span>
+            <strong>
+              {busy.slideIds?.length === 1
+                ? `第 ${project.slides.findIndex((s) => s.id === busy.slideIds![0]) + 1} 页 · `
+                : ""}
+              {busy.stage}
+            </strong>
+            <span>已完成的内容会自动保存，可以继续编辑其他空闲页面。</span>
           </div>
           {busy.total > 0 && (
             <span className="job-count">
@@ -347,7 +364,7 @@ export function Workspace({
             />
           )}
         </div>
-      )}
+      ))}
       {!busy &&
         lastJob &&
         ["failed", "interrupted", "cancelled"].includes(lastJob.status) && (
@@ -782,7 +799,8 @@ export function Workspace({
           revision={project.revision}
           styles={styles}
           currentStyle={style}
-          busy={!!busy}
+          busy={pageBusy(detailSlide.id)}
+          projectBusy={!!busy}
           onClose={() => setDetail(null)}
           onNavigate={(offset) =>
             setDetail(
@@ -1038,6 +1056,7 @@ function SlideDetail({
   styles,
   currentStyle,
   busy,
+  projectBusy,
   onClose,
   onNavigate,
   onSplit,
@@ -1052,6 +1071,7 @@ function SlideDetail({
   styles: Style[];
   currentStyle?: Style;
   busy: boolean;
+  projectBusy: boolean;
   onClose: () => void;
   onNavigate: (n: number) => void;
   onSplit: () => void;
@@ -1156,7 +1176,9 @@ function SlideDetail({
         copyFeedback,
         attachmentIds: attachments.map((a) => a.id),
       });
-      notify("正在换一个思路重新设计，旧版本会保留。");
+      setFeedback("");
+      setCopyFeedback("");
+      notify("修改已提交到后台，可以继续编辑下一页；旧版本会保留。");
     });
   const leave = (action: number | "close") => {
     if (uploading || loading) return;
@@ -1241,7 +1263,11 @@ function SlideDetail({
               </div>
               <Button
                 disabled={
-                  busy || loading || uploading || dirty || attachmentsDirty
+                  projectBusy ||
+                  loading ||
+                  uploading ||
+                  dirty ||
+                  attachmentsDirty
                 }
                 onClick={onSplit}
                 title={

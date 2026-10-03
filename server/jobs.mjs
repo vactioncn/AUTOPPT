@@ -29,21 +29,33 @@ import { reusableScreenCopy } from "./screen-copy.mjs";
 import { attachmentKey } from "./attachments.mjs";
 import { saveStyleVersion } from "./style-versions.mjs";
 const controllers = new Map();
-let processing = false;
+const MAX_CONCURRENT_JOBS = 4;
 export function activeJob(projectId) {
   return all("job").find(
     (j) =>
       j.projectId === projectId && ["queued", "running"].includes(j.status),
   );
 }
-export function assertIdle(projectId) {
-  if (
-    activeJob(projectId) ||
-    all("job").some((j) => j.projectId === projectId && controllers.has(j.id))
-  )
-    throw Object.assign(new Error("这一段还在制作中，请完成或停止后再修改。"), {
-      status: 409,
-    });
+// Render jobs own only their selected pages. Structural jobs own the project.
+export function assertIdle(projectId, slideIds = null, exceptJobId = null) {
+  const conflict = all("job").some(
+    (j) =>
+      j.id !== exceptJobId &&
+      j.projectId === projectId &&
+      (["queued", "running"].includes(j.status) || controllers.has(j.id)) &&
+      (!slideIds ||
+        j.type !== "render" ||
+        j.payload.slideIds.some((sid) => slideIds.includes(sid))),
+  );
+  if (conflict)
+    throw Object.assign(
+      new Error(
+        slideIds
+          ? "这页已有制作任务，或项目正在调整结构，请完成或停止后再提交。"
+          : "项目还有制作任务，请完成或停止后再调整。",
+      ),
+      { status: 409 },
+    );
 }
 export function enqueue(type, projectId, payload = {}) {
   if (
@@ -55,7 +67,7 @@ export function enqueue(type, projectId, payload = {}) {
   )
     throw new Error("上一项风格任务还在结束，请稍后再试。");
   if (projectId) {
-    assertIdle(projectId);
+    assertIdle(projectId, type === "render" ? payload.slideIds : null);
     const p = projectOrThrow(projectId);
     if (type !== "inspect") {
       payload.styleSnapshot = selectedStyle(p);
@@ -96,7 +108,11 @@ export function retry(jobId) {
   if (controllers.has(jobId))
     throw new Error("正在停止上一次制作，请稍后继续。");
   if (j.projectId) {
-    assertIdle(j.projectId);
+    assertIdle(
+      j.projectId,
+      j.type === "render" ? j.payload.slideIds : null,
+      j.id,
+    );
     // A retry is a new attempt under the user's current choice, not the original job's style.
     if (j.type !== "inspect") {
       const p = projectOrThrow(j.projectId);
@@ -128,6 +144,7 @@ export function retry(jobId) {
   return j;
 }
 function progress(j, stage, done = j.done, total = j.total) {
+  if (j.status === "running" && controllers.get(j.id)?.signal.aborted) return;
   Object.assign(j, { stage, done, total, updatedAt: now() });
   put("job", j);
 }
@@ -313,6 +330,7 @@ async function renderSlides(j, ids, signal, redesign = false) {
           },
         );
       }
+      signal.throwIfAborted();
       // Persist the proposed plan before image generation, without discarding the previous rendered version.
       stamp = styleStamp(style, plan);
       p = projectOrThrow(j.projectId);
@@ -509,47 +527,50 @@ async function run(j, signal) {
     return;
   }
 }
-async function pump() {
-  if (processing) return;
-  processing = true;
+function pump() {
+  while (controllers.size < MAX_CONCURRENT_JOBS) {
+    const j = all("job")
+      .filter((x) => x.status === "queued" && !controllers.has(x.id))
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0];
+    if (!j) break;
+    const controller = new AbortController();
+    controllers.set(j.id, controller);
+    j.status = "running";
+    progress(j, "开始制作");
+    void execute(j, controller);
+  }
+}
+async function execute(j, controller) {
   try {
-    while (true) {
-      const j = all("job")
-        .filter((x) => x.status === "queued")
-        .sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0];
-      if (!j) break;
-      const controller = new AbortController();
-      controllers.set(j.id, controller);
-      j.status = "running";
-      progress(j, "开始制作");
-      try {
-        await run(j, controller.signal);
-        j.status = "completed";
-        progress(j, "制作完成", j.total, j.total);
-      } catch (e) {
-        j.status = controller.signal.aborted ? "cancelled" : "failed";
-        j.error = controller.signal.aborted
-          ? "任务已停止，已完成的内容已保存。"
-          : e.message;
-        progress(j, controller.signal.aborted ? "已停止" : "需要处理");
-      } finally {
-        controllers.delete(j.id);
-        if (j.projectId) {
-          const p = get("project", j.projectId);
-          if (p) {
-            let dirty = false;
-            for (const s of p.slides)
-              if (s.status === "generating") {
-                s.status = s.image || s.scene ? "ready" : "pending";
-                dirty = true;
-              }
-            if (dirty) saveProject(p);
+    await run(j, controller.signal);
+    controller.signal.throwIfAborted();
+    j.status = "completed";
+    progress(j, "制作完成", j.total, j.total);
+  } catch (e) {
+    j.status = controller.signal.aborted ? "cancelled" : "failed";
+    j.error = controller.signal.aborted
+      ? "任务已停止，已完成的内容已保存。"
+      : e.message;
+    progress(j, controller.signal.aborted ? "已停止" : "需要处理");
+  } finally {
+    // Never clear another concurrent job's generating marker.
+    if (j.projectId) {
+      const p = get("project", j.projectId);
+      if (p) {
+        let dirty = false;
+        for (const s of p.slides)
+          if (
+            s.status === "generating" &&
+            (j.type !== "render" || j.payload.slideIds.includes(s.id))
+          ) {
+            s.status = s.image || s.scene ? "ready" : "pending";
+            dirty = true;
           }
-        }
+        if (dirty) saveProject(p);
       }
     }
-  } finally {
-    processing = false;
+    controllers.delete(j.id);
+    setImmediate(pump);
   }
 }
 export function recoverJobs() {

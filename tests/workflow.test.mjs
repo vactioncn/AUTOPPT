@@ -25,6 +25,10 @@ test(
     const calls = [];
     const imageRequests = [];
     const editRequests = [];
+    let holdImages = false;
+    const imageGates = [];
+    let concurrentImages = 0,
+      peakImages = 0;
     let failImage = false;
     let transparentImage = false;
     let rejectCopyReview = false;
@@ -42,6 +46,19 @@ test(
       res.setHeader("Content-Type", "application/json");
       if (req.url.includes("/images/")) {
         imageCalls++;
+        if (holdImages) {
+          concurrentImages++;
+          peakImages = Math.max(peakImages, concurrentImages);
+          const failed = await new Promise((resolve) =>
+            imageGates.push(resolve),
+          );
+          concurrentImages--;
+          if (failed) {
+            res.statusCode = 503;
+            res.end('{"error":{"message":"Concurrent image failure"}}');
+            return;
+          }
+        }
         if (req.url.endsWith("/images/edits")) {
           const form = await new Response(bytes, {
             headers: { "Content-Type": req.headers["content-type"] },
@@ -306,6 +323,7 @@ test(
     };
     t.after(async () => {
       held?.();
+      imageGates.forEach((release) => release());
       await shutdown();
       provider.closeAllConnections();
       await new Promise((r) => provider.close(r));
@@ -1026,6 +1044,120 @@ test(
         (r) => !r.prompt.includes("UNRESOLVED LIBRARY VARIANTS"),
       ),
     );
+    // Six independent page edits: four execute, two queue; a seventh remains editable.
+    const concurrentProject = await req(
+      "/projects",
+      {
+        title: "并发逐页修改验收",
+        styleId: style.id,
+      },
+      "POST",
+      201,
+    );
+    const sourceSlide = (await read()).slides.find((s) => s.image && s.plan);
+    const concurrentSlides = Array.from({ length: 7 }, (_, i) => ({
+      ...structuredClone(sourceSlide),
+      id: `concurrent-page-${i}`,
+      versions: [],
+      batchIds: ["concurrent-batch"],
+      status: "ready",
+      error: null,
+    }));
+    const seedDb = new DatabaseSync(path.join(dir, "autoppt.sqlite"));
+    seedDb
+      .prepare("UPDATE records SET data=? WHERE kind='project' AND id=?")
+      .run(
+        JSON.stringify({
+          ...concurrentProject,
+          slides: concurrentSlides,
+          batches: [
+            {
+              id: "concurrent-batch",
+              text: concurrentSlides.map((s) => s.notes).join("\n"),
+              slideIds: concurrentSlides.map((s) => s.id),
+            },
+          ],
+        }),
+        concurrentProject.id,
+      );
+    seedDb.close();
+    const cp = `/projects/${concurrentProject.id}`;
+    holdImages = true;
+    const concurrentJobs = [];
+    for (const slide of concurrentSlides.slice(0, 6)) {
+      concurrentJobs.push(
+        await req(
+          cp + "/render",
+          { slideIds: [slide.id], redesign: true },
+          "POST",
+          202,
+        ),
+      );
+      if (concurrentJobs.length <= 4)
+        await until(() => imageGates.length === concurrentJobs.length);
+    }
+    await until(() => imageGates.length === 4);
+    let cjobs = await req(`/jobs?projectId=${concurrentProject.id}`);
+    assert.equal(cjobs.filter((j) => j.status === "running").length, 4);
+    assert.equal(cjobs.filter((j) => j.status === "queued").length, 2);
+    assert(cjobs.every((j) => j.slideIds.length === 1));
+    await req(`/jobs/${concurrentJobs[5].id}/cancel`, {});
+    assert.equal((await poll(concurrentJobs[5])).status, "cancelled");
+    assert.equal(
+      imageGates.length,
+      4,
+      "cancel queued job without calling image model",
+    );
+    await req(`/jobs/${concurrentJobs[5].id}/retry`, {});
+    await req(
+      cp + "/render",
+      { slideIds: [concurrentSlides[0].id] },
+      "POST",
+      409,
+    );
+    await req(
+      cp + `/slides/${concurrentSlides[0].id}`,
+      { notes: "不得覆盖正在制作的页面" },
+      "PATCH",
+      409,
+    );
+    await req(
+      cp + `/slides/${concurrentSlides[6].id}`,
+      { notes: "其他页面可以继续修改。" },
+      "PATCH",
+    );
+    await req(cp, { styleId: "night" }, "PATCH", 409);
+    imageGates[0]();
+    assert.equal((await poll(concurrentJobs[0])).status, "completed");
+    await until(() => imageGates.length === 5);
+    assert.equal(
+      (await req(cp)).slides[1].status,
+      "generating",
+      "completion must not reset another job's status",
+    );
+    await req(`/jobs/${concurrentJobs[1].id}/cancel`, {});
+    imageGates[1]();
+    await until(() => imageGates.length === 6);
+    imageGates[3](true);
+    assert.equal((await poll(concurrentJobs[3])).status, "failed");
+    assert.equal(
+      (await req(cp)).slides[3].image,
+      concurrentSlides[3].image,
+      "failure preserves old image",
+    );
+    for (const release of imageGates) release();
+    await Promise.all(concurrentJobs.map(poll));
+    holdImages = false;
+    assert.equal(peakImages, 4);
+    const finishedConcurrent = await req(cp);
+    for (const i of [0, 2, 4, 5])
+      assert.equal(finishedConcurrent.slides[i].versions.length, 1);
+    assert.equal(finishedConcurrent.slides[1].image, concurrentSlides[1].image);
+    assert.equal(finishedConcurrent.slides[6].notes, "其他页面可以继续修改。");
+    assert.equal(
+      (await poll(await req(`/jobs/${concurrentJobs[3].id}/retry`, {}))).status,
+      "completed",
+    );
     if (process.env.BROWSER_TEST) {
       const { chromium, expect } = await import("@playwright/test");
       const browser = await chromium.launch({
@@ -1040,6 +1172,56 @@ test(
       page.setDefaultTimeout(10000);
       const errors = [];
       page.on("pageerror", (e) => errors.push(e.message));
+      holdImages = true;
+      const uiGateStart = imageGates.length;
+      await page.goto(
+        base.replace("/api", "") + "/#project/" + concurrentProject.id,
+      );
+      await page.getByRole("button", { name: /^打开第 1 页/ }).click();
+      await page
+        .getByLabel("重新设计要求", { exact: true })
+        .fill("第一页面调整");
+      await page
+        .getByRole("button", { name: "重新设计这页", exact: true })
+        .click();
+      await until(() => imageGates.length === uiGateStart + 1);
+      await expect(
+        page.getByRole("button", { name: "正在制作中", exact: true }),
+      ).toBeDisabled();
+      await page.getByRole("button", { name: "下一页", exact: true }).click();
+      await expect(
+        page.getByLabel("重新设计要求", { exact: true }),
+      ).toBeEnabled();
+      await page
+        .getByLabel("本页逐字稿", { exact: true })
+        .fill(concurrentSlides[1].notes + "\n补充的原文。");
+      await page
+        .getByLabel("重新设计要求", { exact: true })
+        .fill("第二页面调整");
+      await page
+        .getByRole("button", { name: "按新稿重新设计", exact: true })
+        .click();
+      await until(() => imageGates.length === uiGateStart + 2);
+      await page.getByRole("button", { name: "下一页", exact: true }).click();
+      await expect(
+        page.getByRole("button", { name: "重新设计这页", exact: true }),
+      ).toBeEnabled();
+      await expect(
+        page.getByRole("button", { name: "拆分这一页", exact: true }),
+      ).toBeDisabled();
+      mkdirSync(".impeccable/review", { recursive: true });
+      await page.screenshot({
+        path: ".impeccable/review/concurrent-edit-next-page.png",
+      });
+      holdImages = false;
+      imageGates.slice(uiGateStart).forEach((release) => release());
+      await until(
+        async () =>
+          !(await req(`/jobs?projectId=${concurrentProject.id}`)).some((j) =>
+            ["queued", "running"].includes(j.status),
+          ),
+      );
+      assert.equal(errors.length, 0);
       await page.goto(base.replace("/api", ""));
       await page
         .getByRole("complementary")

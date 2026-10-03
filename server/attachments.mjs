@@ -68,7 +68,7 @@ export function registerAttachments(app, { assertIdle }) {
     "/api/projects/:id/slides/:sid/attachments",
     (req, res, next) => {
       const p = projectOrThrow(req.params.id);
-      assertIdle(p.id);
+      assertIdle(p.id, [req.params.sid]);
       if (!p.slides.some((s) => s.id === req.params.sid))
         throw new Error("页面不存在。");
       next();
@@ -107,7 +107,7 @@ export function registerAttachments(app, { assertIdle }) {
             createdAt: now(),
           });
         }
-        assertIdle(req.params.id);
+        assertIdle(req.params.id, [req.params.sid]);
         if (
           !projectOrThrow(req.params.id).slides.some(
             (s) => s.id === req.params.sid,

@@ -191,7 +191,7 @@ while i < len(lines):
         inline(p, m[2])
         if n == 2 and (not m[2].startswith('1 ')):
             p.paragraph_format.page_break_before = True
-        if n == 3 and m[2] == '做一次完整测试':
+        if n == 3 and m[2] in ('做一次完整测试', '导出图片加备注的 PPT'):
             p.paragraph_format.page_break_before = True
     elif line.startswith('- '):
         p = doc.add_paragraph(style='List Bullet')

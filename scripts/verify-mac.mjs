@@ -1,3 +1,5 @@
+import { RELEASE_STYLES } from "../shared/builtin-style-catalog.mjs";
+import { createHash } from "node:crypto";
 import { fork } from "node:child_process";
 import { once } from "node:events";
 import { mkdtempSync, rmSync, existsSync } from "node:fs";
@@ -55,6 +57,27 @@ export async function verifyMacApp(appPath) {
     ).json();
     assert.equal(data.projects.length, 0);
     assert.ok(data.styles.some((s) => s.name === "克制儿童摄影杂志风"));
+    assert.equal(data.styles.length, 13);
+    assert.equal(data.settings.image.hasKey, false);
+    assert.equal(data.settings.text.hasKey, false);
+    for (const expected of RELEASE_STYLES) {
+      const style = data.styles.find((s) => s.id === expected.id);
+      assert.equal(style?.name, expected.name);
+      assert.equal(style?.builtin, true);
+      assert.deepEqual(style?.refs, []);
+      assert.equal(
+        createHash("sha256").update(style.rules).digest("hex"),
+        expected.promptSha256,
+      );
+      const cover = await fetch(url + expected.cover, { headers });
+      assert.equal(cover.status, 200);
+      assert.equal(
+        createHash("sha256")
+          .update(Buffer.from(await cover.arrayBuffer()))
+          .digest("hex"),
+        expected.coverSha256,
+      );
+    }
     assert.equal((await fetch(url, { headers })).status, 200);
     assert.equal(
       (await (await fetch(url + "/api/account", { headers })).json()).hosted,
@@ -66,7 +89,7 @@ export async function verifyMacApp(appPath) {
       0,
     );
     console.log(
-      "安装包验证通过：自带运行环境、内置风格、免登录、独立空工作区、私有本机接口。",
+      "安装包验证通过：自带运行环境、13 个内置风格及 8 个新增封面逐一校验、免登录、独立空工作区、私有本机接口。",
     );
   } finally {
     clearTimeout(timer);

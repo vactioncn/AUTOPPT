@@ -1,3 +1,4 @@
+import { RELEASE_STYLES } from "../shared/builtin-style-catalog.mjs";
 import test, { after } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, readFileSync } from "node:fs";
@@ -91,6 +92,54 @@ test("upgrade only adds the missing builtin and preserves edits, deletion and ol
   seedBuiltinStyles();
   assert.deepEqual(get("style", DEFAULT_STYLE_ID), deleted);
   assert.notEqual(defaultStyleId(all("style")), DEFAULT_STYLE_ID);
+});
+
+test("release includes eight approved prompt/cover pairs and upgrade preserves every personal record", () => {
+  assert.equal(RELEASE_STYLES.length, 8);
+  assert.equal(new Set(RELEASE_STYLES.map((s) => s.id)).size, 8);
+  for (const published of RELEASE_STYLES) {
+    const style = get("style", published.id);
+    assert.equal(style.name, published.name);
+    assert.equal(style.builtin, true);
+    assert.deepEqual(style.refs, []);
+    assert.equal(
+      createHash("sha256").update(style.rules).digest("hex"),
+      published.promptSha256,
+    );
+    assert.equal(BUILTIN_STYLE_COVERS[style.id], published.cover);
+    const cover = readFileSync(
+      new URL("../public" + published.cover, import.meta.url),
+    );
+    assert.equal(
+      createHash("sha256").update(cover).digest("hex"),
+      published.coverSha256,
+    );
+    assert.equal(cover.subarray(1, 4).toString(), "PNG");
+    for (const field of [
+      "coverTrialId",
+      "imageRecipes",
+      "referenceProfiles",
+      "versions",
+      "apiKey",
+    ])
+      assert.equal(style[field], undefined);
+    const edited = {
+      ...style,
+      rules: "个人修改",
+      cover: "personal.png",
+      deletedAt: "keep-deleted",
+      updatedAt: "keep-time",
+    };
+    put("style", edited);
+    seedBuiltinStyles();
+    assert.deepEqual(get("style", style.id), edited);
+    db.prepare("DELETE FROM records WHERE kind='style' AND id=?").run(style.id);
+    seedBuiltinStyles();
+    assert.equal(get("style", style.id).rules, style.rules);
+  }
+  const before = all("style");
+  seedBuiltinStyles();
+  assert.deepEqual(all("style"), before);
 });
 
 test("default selection skips unavailable styles and handles an empty library", () => {

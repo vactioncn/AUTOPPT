@@ -1,3 +1,4 @@
+import { RELEASE_STYLES } from "../shared/builtin-style-catalog.mjs";
 import { DatabaseSync } from "node:sqlite";
 import {
   mkdirSync,
@@ -168,6 +169,19 @@ export function updateSettings(input) {
 }
 
 const defaults = [
+  ...RELEASE_STYLES.map(
+    ({ id, name, description, colors, compositionMode, promptFile }) => ({
+      id,
+      name,
+      description,
+      colors,
+      compositionMode,
+      rules: readFileSync(
+        new URL("./styles/" + promptFile, import.meta.url),
+        "utf8",
+      ),
+    }),
+  ),
   {
     id: DEFAULT_STYLE_ID,
     name: "克制儿童摄影杂志风",

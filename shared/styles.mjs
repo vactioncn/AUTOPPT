@@ -1,8 +1,11 @@
+import { RELEASE_STYLES } from "./builtin-style-catalog.mjs";
+
 // Preserve the approved saved style identity so upgrades reuse it without overwriting edits.
 export const DEFAULT_STYLE_ID = "27266b4f-7da5-4549-ae74-7c9cf7e910ca";
 
 // Display assets only: never add these covers to model reference images.
 export const BUILTIN_STYLE_COVERS = {
+  ...Object.fromEntries(RELEASE_STYLES.map((s) => [s.id, s.cover])),
   [DEFAULT_STYLE_ID]: "/style-covers/restrained-childhood-editorial.png",
 };
 

@@ -3,7 +3,11 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { product } from "../site/intro/content.mjs";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const out = path.join(root, "dist", "intro");
+// Deployment builds into a fresh temporary directory without touching the
+// running application's dist/ or any user data.
+const out = process.env.AUTOPPT_INTRO_OUTPUT_DIR
+  ? path.resolve(process.env.AUTOPPT_INTRO_OUTPUT_DIR)
+  : path.join(root, "dist", "intro");
 mkdirSync(out, { recursive: true });
 const esc = (s) =>
   s
@@ -105,4 +109,4 @@ const md = [
   "",
 ].join("\n");
 writeFileSync(path.join(out, "guide.md"), md);
-console.log("Built standalone introduction and Markdown guide: dist/intro/");
+console.log(`Built introduction and Markdown guide: ${out}`);

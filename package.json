@@ -13,7 +13,8 @@
     "test": "node --test tests/*.test.mjs",
     "check": "npm run build && npm test",
     "test:browser": "BROWSER_TEST=1 node --test tests/workflow.test.mjs",
-    "intro:screenshots": "node scripts/capture-intro.mjs"
+    "intro:screenshots": "node scripts/capture-intro.mjs",
+    "deploy:intro": "node scripts/deploy-intro.mjs"
   },
   "dependencies": {
     "@fontsource/dm-sans": "^5.3.0",

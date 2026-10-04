@@ -32,7 +32,16 @@ npm start
 
 介绍页和指南由同一份 `site/intro/content.mjs` 内容源生成，随 `npm run build` 输出到 `dist/intro/`。界面截图随源码提供；更新截图时运行 `npm run intro:screenshots`，脚本在临时目录启动隔离的演示数据库，使用真实界面、示例讲稿和内置封面，自动采集 8 张截图，不读取私人项目、不调用模型、不重启用户服务。macOS 默认使用已安装的 Google Chrome；其他环境可设置 `CHROMIUM_EXECUTABLE`。更新后重新构建即可。
 
-页面为独立静态站点，可部署到静态网站服务。发布时需要一并包含 `dist/intro/`、`dist/style-covers/` 和 `dist/favicon.svg`；当前代码提供本机入口，不代表已发布到公网域名。详细维护方式见 [维护与同步](docs/维护与同步.md)。
+页面为独立静态站点，可部署到静态网站服务。本项目已接入技术部的 OSS 发布方案；完成本机 `ossutil` 授权配置后，在 Codex 中说“将介绍页部署到 autoppt”，或在项目根目录执行：
+
+```sh
+npm run deploy:intro -- autoppt --dry-run
+npm run deploy:intro -- autoppt
+```
+
+`autoppt` 是网站子目录示例，正式发布前明确目标并核对已有内容。第一行只预演，第二行上传并验证 `https://show.turing.art/autoppt/`。脚本从源码在临时目录独立生成介绍页及所需的 14 个文件，自动适配子目录路径，不需要构建整个应用，不改变运行中的 `dist/`。只更新目标目录同名文件，保留其他云端文件；不上传讲稿、项目图片、密钥、源码或依赖，不调用模型。
+
+**这里发布的是产品介绍页。制作工作台仍需本机运行；完整在线版另需后端部署。** 已验证 macOS ARM64 上的 `ossutil 2.4.0`、云端读取与发布预演，以及电脑和手机浏览器的子目录访问；配置完成或预演通过不代表已正式上线。详细配置与维护方式见 [维护与同步](docs/维护与同步.md)。
 
 ## 制作流程
 

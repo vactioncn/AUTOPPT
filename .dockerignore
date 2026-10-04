@@ -1,0 +1,16 @@
+node_modules
+.local
+.hosted
+.env
+.env.*
+deploy/secrets
+.git
+dist
+test-results
+*.tsbuildinfo
+**/.env
+**/.env.*
+**/secrets
+.agents
+.codex
+.impeccable

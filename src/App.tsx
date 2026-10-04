@@ -1,3 +1,4 @@
+import { useAccount, AccountFooter, AccountPage } from "./Account";
 import { DeleteItem } from "./DeleteItem";
 import {
   DesignOptionsEditor,
@@ -32,6 +33,7 @@ import { SettingsPage } from "./Settings";
 import { DEFAULT_STYLE_ID, defaultStyleId } from "../shared/styles.mjs";
 
 export default function App() {
+  const account = useAccount();
   const [data, setData] = useState<Bootstrap | null>(null),
     [route, setRoute] = useState(location.hash.slice(1) || "projects"),
     [error, setError] = useState(""),
@@ -155,20 +157,27 @@ export default function App() {
           )}
         </div>
         <div className="sidebar-footer">
-          <button
-            className={route === "settings" ? "selected" : ""}
-            onClick={() => go("settings")}
-          >
-            <SlidersHorizontal size={20} />
-            模型设置
-            {(!data.settings.text.hasKey || !data.settings.image.hasKey) && (
-              <span className="connection-dot warning" />
-            )}
-          </button>
-          <div className="local-label">
-            <span className="connection-dot" />
-            本机工作空间<span>LOCAL</span>
-          </div>
+          {account.hosted ? (
+            <AccountFooter onOpen={() => go("account")} />
+          ) : (
+            <>
+              <button
+                className={route === "settings" ? "selected" : ""}
+                onClick={() => go("settings")}
+              >
+                <SlidersHorizontal size={20} />
+                模型设置
+                {(!data.settings.text.hasKey ||
+                  !data.settings.image.hasKey) && (
+                  <span className="connection-dot warning" />
+                )}
+              </button>
+              <div className="local-label">
+                <span className="connection-dot" />
+                本机工作空间<span>LOCAL</span>
+              </div>
+            </>
+          )}
         </div>
       </aside>
       <main className="main">
@@ -180,14 +189,16 @@ export default function App() {
               {current?.title ||
                 (route === "styles"
                   ? "风格库"
-                  : route === "settings"
-                    ? "模型设置"
-                    : "我的演讲")}
+                  : route === "account"
+                    ? "账号与额度"
+                    : route === "settings"
+                      ? "模型设置"
+                      : "我的演讲")}
             </strong>
           </div>
           <span className="top-hint">
             <CheckCircle size={15} />
-            内容保存在本机
+            {account.hosted ? "内容保存在你的独立工作区" : "内容保存在本机"}
           </span>
         </header>
         {error && (
@@ -206,7 +217,7 @@ export default function App() {
             settings={data.settings}
             notify={notify}
             onRefresh={refresh}
-            onSettings={() => go("settings")}
+            onSettings={() => go(account.hosted ? "account" : "settings")}
           />
         ) : route === "styles" ? (
           <StyleLibrary
@@ -217,6 +228,8 @@ export default function App() {
             notify={notify}
             onUse={(styleId) => create(styleId)}
           />
+        ) : route === "account" || (account.hosted && route === "settings") ? (
+          <AccountPage />
         ) : route === "settings" ? (
           <SettingsPage
             initial={data.settings}

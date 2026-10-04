@@ -1,0 +1,9 @@
+{$AUTOPPT_DOMAIN} {
+  encode zstd gzip
+  request_body {
+    max_size 80MB
+  }
+  @internal path /internal /internal/*
+  respond @internal 404
+  reverse_proxy app:4318
+}

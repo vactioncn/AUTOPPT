@@ -13,6 +13,8 @@ export async function api<T = any>(
     },
   });
   const data = await response.json();
+  if (response.status === 401)
+    window.dispatchEvent(new Event("autoppt-session-expired"));
   if (!response.ok) throw new Error(data.error || "操作没有完成，请重试。");
   return data;
 }

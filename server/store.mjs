@@ -74,6 +74,18 @@ const officialBase = (
   process.env.OPENAI_BASE_URL || "https://api.openai.com/v1"
 ).replace(/\/$/, "");
 export function settings() {
+  if (process.env.AUTOPPT_WORKER_TOKEN) {
+    return Object.fromEntries(
+      ["text", "image"].map((kind) => [
+        kind,
+        {
+          baseUrl: `${process.env.AUTOPPT_GATEWAY}/internal/model/${kind}`,
+          model: process.env[`AUTOPPT_${kind.toUpperCase()}_MODEL`],
+          apiKey: process.env.AUTOPPT_WORKER_TOKEN,
+        },
+      ]),
+    );
+  }
   const saved = existsSync(settingsPath)
     ? JSON.parse(readFileSync(settingsPath, "utf8"))
     : {};

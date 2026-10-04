@@ -1,0 +1,55 @@
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+    init: true
+    environment:
+      AUTOPPT_PUBLIC_URL: https://${AUTOPPT_DOMAIN:?Set AUTOPPT_DOMAIN}
+      AUTOPPT_TRUST_PROXY: '1'
+      AUTOPPT_ADMIN_USER: ${AUTOPPT_ADMIN_USER:-admin}
+      AUTOPPT_ADMIN_PASSWORD_FILE: /run/secrets/admin_password
+      AUTOPPT_TEXT_API_KEY_FILE: /run/secrets/text_key
+      AUTOPPT_IMAGE_API_KEY_FILE: /run/secrets/image_key
+      AUTOPPT_TEXT_BASE_URL: ${AUTOPPT_TEXT_BASE_URL:-https://api.openai.com/v1}
+      AUTOPPT_TEXT_MODEL: ${AUTOPPT_TEXT_MODEL:-gpt-5.4-mini}
+      AUTOPPT_IMAGE_BASE_URL: ${AUTOPPT_IMAGE_BASE_URL:-https://api.openai.com/v1}
+      AUTOPPT_IMAGE_MODEL: ${AUTOPPT_IMAGE_MODEL:-gpt-image-2.5-sunburst}
+      AUTOPPT_MODEL_CONCURRENCY: ${AUTOPPT_MODEL_CONCURRENCY:-4}
+      AUTOPPT_DAILY_MODEL_CALLS: ${AUTOPPT_DAILY_MODEL_CALLS:-2000}
+      AUTOPPT_USER_DAILY_MODEL_CALLS: ${AUTOPPT_USER_DAILY_MODEL_CALLS:-300}
+      AUTOPPT_MAX_WORKSPACES: ${AUTOPPT_MAX_WORKSPACES:-10}
+    secrets: [admin_password, text_key, image_key]
+    volumes: [autoppt_data:/data]
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:4318/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+    stop_grace_period: 30s
+  web:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports: ['80:80', '443:443']
+    environment:
+      AUTOPPT_DOMAIN: ${AUTOPPT_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+secrets:
+  admin_password:
+    file: ./secrets/admin_password
+  text_key:
+    file: ./secrets/text_key
+  image_key:
+    file: ./secrets/image_key
+volumes:
+  autoppt_data:
+  caddy_data:
+  caddy_config:

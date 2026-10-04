@@ -8,3 +8,6 @@ dist/
 test-results/
 *.tsbuildinfo
 .DS_Store
+
+.hosted/
+deploy/secrets/

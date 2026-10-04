@@ -73,11 +73,20 @@ import { registerStyleImports } from "./style-import.mjs";
 import { registerAttachments, resolveAttachments } from "./attachments.mjs";
 import { projectReport } from "./report.mjs";
 
+if (process.env.AUTOPPT_WORKER_TOKEN)
+  process.on("disconnect", () => process.exit(1));
 const app = express();
 app.disable("x-powered-by");
 const port = Number(process.env.PORT || 4317);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 app.use((req, res, next) => {
+  if (process.env.AUTOPPT_WORKER_TOKEN) {
+    if (req.headers["x-autoppt-worker"] !== process.env.AUTOPPT_WORKER_TOKEN)
+      return res.status(403).json({ error: "请通过登录入口访问。" });
+    if (req.path.startsWith("/api/settings") && req.method !== "GET")
+      return res.status(403).json({ error: "模型由管理员在服务器配置。" });
+    return next();
+  }
   const host = req.hostname;
   if (!["127.0.0.1", "localhost", "::1", "[::1]"].includes(host))
     return res.status(403).json({ error: "只允许本机访问。" });
@@ -114,6 +123,10 @@ app.use(
     maxAge: "1y",
   }),
 );
+if (process.env.AUTOPPT_WORKER_TOKEN)
+  app.use("/assets", (req, res) =>
+    res.status(404).json({ error: "图片不存在。" }),
+  );
 app.use("/api", (req, res, next) => {
   res.set("Cache-Control", "no-store");
   next();
@@ -135,6 +148,7 @@ const styleReady = (styleId) => {
     throw new Error("请选择一个可用风格，或先到风格库完成提炼。");
   return s;
 };
+app.get("/api/account", (req, res) => res.json({ hosted: false, user: null }));
 app.get("/api/health", (req, res) => res.json({ app: "AutoPPT", ok: true }));
 app.get("/api/bootstrap", (req, res) =>
   res.json({
@@ -944,7 +958,7 @@ if (process.env.NODE_ENV === "production") {
   });
   app.use(vite.middlewares);
 }
-app.listen(port, "127.0.0.1", (error) => {
+const listener = app.listen(port, "127.0.0.1", (error) => {
   if (error) {
     console.error(`AutoPPT 启动失败：${error.message}`);
     process.exit(1);
@@ -952,5 +966,6 @@ app.listen(port, "127.0.0.1", (error) => {
   // A second process must never mark the real server's jobs as interrupted.
   recoverJobs();
   migrateManuscripts();
-  console.log(`AutoPPT → http://127.0.0.1:${port} · data: ${dataDir}`);
+  process.send?.({ type: "ready", port: listener.address().port });
+  console.log(`AutoPPT → http://127.0.0.1:${listener.address().port}`);
 });

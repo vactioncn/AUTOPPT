@@ -1,3 +1,8 @@
+import {
+  meteredImage,
+  meterHeaders,
+  hostedWorker,
+} from "./hosted/worker-meter.mjs";
 import { designOptions, audiencePrompt } from "./design-options.mjs";
 import { readFileSync, writeFileSync } from "node:fs";
 import { settings, assetPath, id } from "./store.mjs";
@@ -18,6 +23,7 @@ const safeError = (message) =>
     .slice(0, 500);
 export async function request(kind, route, body, signal, form = false) {
   const config = settings()[kind];
+  const requestTimeout = hostedWorker ? 1200000 : 600000;
   if (!config.apiKey)
     throw new ProviderError(
       `请先到「模型设置」配置${kind === "image" ? "图片生成" : "内容分析"}的 API Key。`,
@@ -28,25 +34,41 @@ export async function request(kind, route, body, signal, form = false) {
       method: "POST",
       headers: {
         Authorization: `Bearer ${config.apiKey}`,
+        ...meterHeaders(),
         ...(!form ? { "Content-Type": "application/json" } : {}),
       },
       body: form ? body : JSON.stringify(body),
       signal: signal
-        ? AbortSignal.any([signal, AbortSignal.timeout(600000)])
-        : AbortSignal.timeout(600000),
+        ? AbortSignal.any([signal, AbortSignal.timeout(requestTimeout)])
+        : AbortSignal.timeout(requestTimeout),
     });
   } catch (e) {
-    if (signal?.aborted) throw new Error("任务已停止，已完成的页面已保存。");
-    throw new ProviderError(
-      e.name === "TimeoutError"
-        ? "模型服务响应超时，请重试。"
-        : "无法连接模型服务，请检查接口地址和网络。",
+    if (signal?.aborted)
+      throw Object.assign(new Error("任务已停止，已完成的页面已保存。"), {
+        uncertain: true,
+      });
+    throw Object.assign(
+      new ProviderError(
+        e.name === "TimeoutError"
+          ? "模型服务响应超时，请重试。"
+          : "无法连接模型服务，请检查接口地址和网络。",
+      ),
+      { uncertain: true },
     );
   }
-  const data = await response.json().catch(() => ({}));
+  const data = await response.json().catch(() => {
+    if (hostedWorker && kind === "image")
+      throw Object.assign(new ProviderError("图片响应中断，结果待核对。"), {
+        uncertain: true,
+      });
+    return {};
+  });
   if (!response.ok) {
     const message = safeError(
-      data.error?.message || data.message || "请检查接口设置。",
+      data.error?.message ||
+        (typeof data.error === "string" ? data.error : "") ||
+        data.message ||
+        "请检查接口设置。",
     );
     if (
       response.status === 429 &&
@@ -55,7 +77,10 @@ export async function request(kind, route, body, signal, form = false) {
       throw new ProviderError(
         "模型账户额度不足（429）。请补充额度，或在「模型设置」更换有额度的接口，然后继续任务。",
       );
-    throw new ProviderError(`模型服务返回 ${response.status}：${message}`);
+    throw Object.assign(
+      new ProviderError(`模型服务返回 ${response.status}：${message}`),
+      { uncertain: !!data.uncertain },
+    );
   }
   return data;
 }
@@ -311,6 +336,11 @@ export const imagePrompt = directImagePrompt;
 
 const IMAGE_OUTPUT_SIZE = "2560x1440";
 export async function generateImage(plan, style, signal, attachments = []) {
+  return meteredImage(() =>
+    generateImageOutput(plan, style, signal, attachments),
+  );
+}
+async function generateImageOutput(plan, style, signal, attachments = []) {
   const config = settings().image;
   if (plan.engine !== "image") throw new Error("请先按图片模式重新设计此页。");
   if (attachmentKey(plan.attachments) !== attachmentKey(attachments))
@@ -357,9 +387,12 @@ export async function generateImage(plan, style, signal, attachments = []) {
       result = await request("image", "/images/edits", form, signal, true);
     } catch (e) {
       if (e instanceof ProviderError)
-        throw new ProviderError(
-          e.message +
-            "；带附件出图需要服务支持 Images Edits 多图输入，附件已保留，不会降级成忽略附件的纯文字出图。",
+        throw Object.assign(
+          new ProviderError(
+            e.message +
+              "；带附件出图需要服务支持 Images Edits 多图输入，附件已保留，不会降级成忽略附件的纯文字出图。",
+          ),
+          { uncertain: !!e.uncertain },
         );
       throw e;
     }
@@ -370,13 +403,24 @@ export async function generateImage(plan, style, signal, attachments = []) {
   else if (item?.url) {
     const u = new URL(item.url);
     if (u.protocol !== "https:") throw new Error("模型返回的图片地址无效。");
-    const r = await fetch(u, {
-      signal: signal
-        ? AbortSignal.any([signal, AbortSignal.timeout(90000)])
-        : AbortSignal.timeout(90000),
-    });
-    if (!r.ok) throw new Error("生成完成，但图片下载失败，请重试。");
-    bytes = Buffer.from(await r.arrayBuffer());
+    if (hostedWorker) {
+      const { publicFetch } = await import("./public-fetch.mjs");
+      const r = await publicFetch(u.href, {
+        signal,
+        maxBytes: 40 * 1024 * 1024,
+      });
+      if (r.status !== 200)
+        throw new Error("生成完成，但图片下载失败，请重试。");
+      bytes = r.body;
+    } else {
+      const r = await fetch(u, {
+        signal: signal
+          ? AbortSignal.any([signal, AbortSignal.timeout(90000)])
+          : AbortSignal.timeout(90000),
+      });
+      if (!r.ok) throw new Error("生成完成，但图片下载失败，请重试。");
+      bytes = Buffer.from(await r.arrayBuffer());
+    }
   } else throw new Error("图片模型没有返回图片，请检查模型名称和接口。");
   const normalized = await sharp(bytes, { limitInputPixels: 40000000 })
     .rotate()

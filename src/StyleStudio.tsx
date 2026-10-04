@@ -20,7 +20,7 @@ import { RawPromptDetails } from "./RawPromptDetails";
 import { CopyReview } from "./CopyReview";
 import { TrialCopyPreview } from "./TrialCopyPreview";
 import { StyleVersions } from "./StyleVersions";
-import { STYLE_DEMOS } from "../shared/style-demo.mjs";
+import { STYLE_DEMOS, STYLE_COVER } from "../shared/style-demo.mjs";
 export function StyleStudio({
   style,
   onBack,
@@ -82,8 +82,9 @@ export function StyleStudio({
     }
     const t = d.trials.find((t) => t.id === pending.current);
     if (t && !active(t.status)) {
-      setRules(t.styleSnapshot.rules);
+      if (t.purpose !== "cover") setRules(t.styleSnapshot.rules);
       setPending(null);
+      if (t.purpose === "cover") await refreshStyles();
     }
     setLoading(false);
   }, [style.id]);
@@ -150,7 +151,9 @@ export function StyleStudio({
         copyFeedback,
         mode,
         parentId:
-          selected?.engine === "image" && selected.status === "completed"
+          selected?.engine === "image" &&
+          selected.purpose !== "cover" &&
+          selected.status === "completed"
             ? selected.id
             : undefined,
       });
@@ -166,7 +169,7 @@ export function StyleStudio({
       <div className="page-heading studio-heading">
         <div>
           <h1>{style.name} · 风格试做</h1>
-          <p>用示例文案或自己的讲稿做一页 demo，满意后可设为风格封面。</p>
+          <p>用示例文案或自己的讲稿调试；风格封面使用统一文案单独生成。</p>
         </div>
         <Button
           disabled={disabled}
@@ -180,6 +183,35 @@ export function StyleStudio({
           从正式风格重新开始
         </Button>
       </div>
+      <section className="unified-style-cover" aria-label="统一风格封面">
+        <div>
+          <h2>统一封面</h2>
+          <strong>{STYLE_COVER.title}</strong>
+          <p>{STYLE_COVER.subtitle}</p>
+          <p className="detail-help">
+            所有风格使用同一文案，按已保存的风格自由设计。成功后自动更新封面；不会带入下方的讲稿、调试意见、临时配色或内容倾向。
+          </p>
+        </div>
+        <Button
+          disabled={disabled || !style.rules?.trim()}
+          onClick={() =>
+            act(async () => {
+              const capabilities = await api("/bootstrap");
+              if (!capabilities.features?.unifiedStyleCover)
+                throw new Error(
+                  "当前后台还是旧版本，未加载统一封面功能。请在制作任务完成后重新打开 AutoPPT；仅刷新页面不会更新后台。",
+                );
+              const t = await post<Trial>(`/styles/${style.id}/trials`, {
+                purpose: "cover",
+              });
+              setSelectedId(t.id);
+              setPending(t.id);
+            })
+          }
+        >
+          {style.cover ? "重新生成统一封面" : "生成统一封面"}
+        </Button>
+      </section>
       {error && (
         <p className="error-text" role="alert">
           {error}
@@ -223,24 +255,14 @@ export function StyleStudio({
                 保存图片
               </a>
             </p>
-            <Button
-              disabled={
-                disabled ||
-                selected.status !== "completed" ||
-                style.coverTrialId === selected.id
-              }
-              onClick={() =>
-                act(async () => {
-                  await post(`/styles/${style.id}/trials/${selected.id}/cover`);
-                  await refreshStyles();
-                  notify("已设为风格封面，提示词保持不变。");
-                })
-              }
-            >
-              {style.coverTrialId === selected.id
-                ? "已是风格封面"
-                : "将这张图设为风格封面"}
-            </Button>
+            {selected.purpose === "cover" && (
+              <p className="detail-help">
+                统一封面示例 ·{" "}
+                {style.coverTrialId === selected.id
+                  ? "已更新为风格封面"
+                  : "保留的封面版本；如风格已修改，请重新生成。"}
+              </p>
+            )}
           </>
         ) : (
           <div className="studio-empty">
@@ -367,7 +389,7 @@ export function StyleStudio({
             ))}
           </div>
           <p className="detail-help">
-            示例可直接修改，无需先创建演讲项目。点击生成只做一页；生成后可单独设为封面。
+            示例可直接修改，无需先创建演讲项目。点击生成只做一页；试做不替换风格封面。
             讲稿先提炼并复核，出图时原文使用「{style.name}」的设计提示词。
           </p>
           <DesignOptionsEditor
@@ -508,6 +530,7 @@ export function StyleStudio({
           disabled={
             disabled ||
             !selected?.image ||
+            selected.purpose === "cover" ||
             selected.engine !== "image" ||
             selected.status !== "completed" ||
             edited ||

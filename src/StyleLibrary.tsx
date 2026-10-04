@@ -90,7 +90,7 @@ export function StyleLibrary({
           <p>
             配色、字体、图形画法与留白，成为适用于不同内容的设计规范。
             <br />
-            用现成示例或自己的内容试做一页，满意后设为风格封面。
+            用现成示例或自己的内容试做；使用统一文案单独生成风格封面。
           </p>
         </div>
         <Button onClick={() => setCreate(true)}>

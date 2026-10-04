@@ -7,9 +7,11 @@ export function RawPromptDetails({ plan }: { plan: Plan }) {
   return (
     <>
       <p className="detail-help">
-        {plan.copyReused
-          ? "本次复用已提炼的上屏文案。"
-          : "上屏文案已单独提炼并复核。"}
+        {plan.purpose === "cover"
+          ? "统一封面固定文案直接上屏。"
+          : plan.copyReused
+            ? "本次复用已提炼的上屏文案。"
+            : "上屏文案已单独提炼并复核。"}
         {plan.compositionPlan
           ? "风格提示词按原文使用，本页先按内容构思，再生成图片。"
           : "风格提示词按原文使用，构图由图片模型完成。"}

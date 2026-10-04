@@ -170,7 +170,7 @@ export type Plan = {
   styleFeatures?: string[];
   adaptations?: string;
   referenceSpec?: ReferenceSpec;
-  purpose?: "transfer" | "reconstruction";
+  purpose?: "transfer" | "reconstruction" | "cover";
   referenceMode?: "with-reference" | "rules-only" | "content-attachments";
 };
 export type ContentAttachment = {
@@ -315,7 +315,7 @@ export type Trial = {
   mode: string;
   layoutId?: string;
   engine?: "web" | "image";
-  purpose?: "transfer" | "reconstruction";
+  purpose?: "transfer" | "reconstruction" | "cover";
   referenceMode?: "with-reference" | "rules-only";
   primaryRef: string;
   styleSnapshot: Style;

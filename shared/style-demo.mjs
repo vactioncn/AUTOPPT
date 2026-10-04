@@ -19,3 +19,11 @@ export const STYLE_DEMOS = [
       "每一次出发，都有自己的节奏。\n从起点到终点，记录赛道上的专注、坚持与相遇。\n今天，让我们走进这一场比赛。",
   },
 ];
+
+// Shared source of truth: cover copy is fixed, only the selected style varies.
+export const STYLE_COVER = Object.freeze({
+  version: 1,
+  title: "让想法被看见",
+  subtitle: "把内容讲清楚，让表达有自己的风格。",
+});
+export const STYLE_COVER_NOTES = `${STYLE_COVER.title}\n${STYLE_COVER.subtitle}`;

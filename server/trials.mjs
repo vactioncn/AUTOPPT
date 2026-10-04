@@ -8,6 +8,9 @@ import { DIRECT_PROMPT_MODE } from "./direct-image.mjs";
 import { validateScene } from "../shared/slides.mjs";
 import { saveStyleVersion } from "./style-versions.mjs";
 
+import { STYLE_COVER, STYLE_COVER_NOTES } from "../shared/style-demo.mjs";
+import { unifiedCoverPlan } from "./style-cover.mjs";
+
 function availableStyle(key) {
   const style = get("style", key);
   if (!style || style.deletedAt) throw new Error("风格不存在或已删除。");
@@ -36,6 +39,10 @@ export function registerTrials(app, { enqueue }) {
   app.post("/api/styles/:id/trials/:tid/cover", (req, res) => {
     const style = availableStyle(req.params.id);
     const trial = trialFor(style.id, req.params.tid);
+    if (trial.purpose !== "cover" || trial.coverVersion !== STYLE_COVER.version)
+      throw new Error("请使用“生成统一封面”，普通试做图片不再用作封面。");
+    if (trial.baseFingerprint !== styleStamp(style).fingerprint)
+      throw new Error("风格已变化，请按当前风格重新生成统一封面。");
     if (
       trial.engine !== "image" ||
       !trial.image ||
@@ -71,6 +78,10 @@ export function registerTrials(app, { enqueue }) {
   app.post("/api/styles/:id/trials", (req, res) => {
     const style = availableStyle(req.params.id);
     assertStyleIdle(style.id);
+    const isCover = req.body.purpose === "cover";
+    const input = isCover
+      ? { notes: STYLE_COVER_NOTES, rules: style.rules, mode: "baseline" }
+      : req.body;
     const {
       notes,
       rules,
@@ -78,30 +89,33 @@ export function registerTrials(app, { enqueue }) {
       mode = "baseline",
       parentId,
       purpose = "transfer",
-    } = req.body;
+    } = input;
     if (typeof notes !== "string" || !notes.trim() || notes.length > 20000)
       throw new Error("请填写一页试做讲稿，最多 2 万字。");
     if (typeof rules !== "string" || !rules.trim() || rules.length > 30000)
       throw new Error("请填写试做的设计语言，最多 3 万字。");
     if (!["baseline", "redesign", "refine"].includes(mode))
       throw new Error("试做方式无效。");
-    const parent = parentId ? trialFor(style.id, parentId) : null;
+    const sourceTrial = parentId ? trialFor(style.id, parentId) : null;
+    const parent = sourceTrial?.purpose === "cover" ? null : sourceTrial;
     if (
       parent &&
       (!(parent.image || parent.scene) ||
         get("job", parent.jobId)?.status !== "completed")
     )
       throw new Error("请先完成上一版试做。");
-    const feedback = String(req.body.feedback || "")
+    const feedback = String(input.feedback || "")
       .trim()
       .slice(0, 10000);
-    const copyFeedback = String(req.body.copyFeedback || "")
+    const copyFeedback = String(input.copyFeedback || "")
       .trim()
       .slice(0, 10000);
     const candidate = structuredClone(
       parent?.engine === "image" ? parent.styleSnapshot : style,
     );
     candidate.rules = rules;
+    // Cover copy is already final; the image model designs it directly.
+    if (isCover) candidate.compositionMode = "direct";
     if (
       parent?.engine === "image" &&
       parent.baseFingerprint !== styleStamp(style).fingerprint &&
@@ -119,7 +133,8 @@ export function registerTrials(app, { enqueue }) {
       feedback,
       copyFeedback,
       mode,
-      purpose: "transfer",
+      purpose: isCover ? "cover" : "transfer",
+      ...(isCover ? { coverVersion: STYLE_COVER.version } : {}),
       layoutId: "",
       engine: "image",
       needsSystem: false,
@@ -127,9 +142,9 @@ export function registerTrials(app, { enqueue }) {
       primaryRef: "",
       styleSnapshot: candidate,
       designOptions: designOptions(
-        req.body.designOptions === undefined
+        input.designOptions === undefined
           ? parent?.designOptions
-          : req.body.designOptions,
+          : input.designOptions,
       ),
       baseFingerprint: styleStamp(style).fingerprint,
       plan: null,
@@ -200,6 +215,8 @@ export function registerTrials(app, { enqueue }) {
     const style = availableStyle(req.params.id);
     assertStyleIdle(style.id);
     const t = trialFor(style.id, req.params.tid);
+    if (t.purpose === "cover")
+      throw new Error("统一封面只用于展示，不用于修改正式风格。");
     if (
       t.engine !== "image" ||
       !t.image ||
@@ -262,7 +279,10 @@ export async function runTrial(job, signal, progress) {
     // A manual edit is already the user's chosen prompt. Historical refine
     // requests now adjust this page only; they cannot rewrite saved style text.
     t.needsSystem = false;
-    if (
+    if (t.purpose === "cover") {
+      t.plan = unifiedCoverPlan(t.styleSnapshot);
+      put("trial", t);
+    } else if (
       !t.plan ||
       t.plan.engine !== "image" ||
       t.plan.planningVersion !== PLANNING_VERSION ||
@@ -296,7 +316,23 @@ export async function runTrial(job, signal, progress) {
     t.engine = "image";
     t.status = "completed";
     t.imageStyle = styleStamp(t.styleSnapshot, t.plan);
-    put("trial", t);
+    transaction(() => {
+      put("trial", t);
+      const style = get("style", t.styleId);
+      if (
+        t.purpose === "cover" &&
+        style &&
+        !style.deletedAt &&
+        t.baseFingerprint === styleStamp(style).fingerprint
+      ) {
+        style.cover = t.image;
+        style.coverTrialId = t.id;
+        style.updatedAt = now();
+        put("style", style);
+        t.coverApplied = true;
+        put("trial", t);
+      }
+    });
   } catch (e) {
     t.status = signal.aborted ? "cancelled" : "failed";
     t.error = e.message;

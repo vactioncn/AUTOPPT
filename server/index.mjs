@@ -167,6 +167,7 @@ app.get("/api/bootstrap", (req, res) =>
   res.json({
     features: {
       styleUrlImport: true,
+      unifiedStyleCover: true,
       directStylePrompt: true,
       designOptions: true,
       insertAndManuscriptExport: true,

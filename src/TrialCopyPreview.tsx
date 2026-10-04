@@ -40,7 +40,11 @@ export function TrialCopyPreview({
         <>
           <p className="detail-help">
             当前选中试做的出图文案，共 {plan!.displayText.length} 条。
-            {plan?.screenCopy ? "已单独提炼并复核。" : "来自历史方案。"}
+            {trial?.purpose === "cover"
+              ? "统一封面固定文案，直接上屏。"
+              : plan?.screenCopy
+                ? "已单独提炼并复核。"
+                : "来自历史方案。"}
           </p>
           {trial!.notes !== notes && (
             <p className="small-notice">

@@ -3833,3 +3833,29 @@ textarea::placeholder {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+.unified-style-cover {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 24px;
+  margin: 24px 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.unified-style-cover h2 {
+  margin: 0 0 16px;
+}
+.unified-style-cover p {
+  margin: 8px 0;
+}
+.unified-style-cover .btn {
+  flex-shrink: 0;
+}
+@media (max-width: 760px) {
+  .unified-style-cover {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

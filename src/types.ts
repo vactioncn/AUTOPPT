@@ -218,6 +218,8 @@ export type Slide = {
   createdAt: string;
 };
 export type Style = {
+  cover?: string;
+  coverTrialId?: string;
   versionToken?: string;
   compositionMode?: "direct" | "content-led";
   source?: {

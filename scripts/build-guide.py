@@ -189,7 +189,7 @@ while i < len(lines):
         style = {1: 'Title', 2: 'Heading 1', 3: 'Heading 2'}[n]
         p = doc.add_paragraph(style=style)
         inline(p, m[2])
-        if n == 2 and (not m[2].startswith('1 ')):
+        if n == 2 and (not m[2].startswith('Mac App')):
             p.paragraph_format.page_break_before = True
         if n == 3 and m[2] in ('做一次完整测试', '导出图片加备注的 PPT'):
             p.paragraph_format.page_break_before = True

@@ -89,7 +89,9 @@ export function StylePreview({
   style: Style;
   compact?: boolean;
 }) {
-  const cover = BUILTIN_STYLE_COVERS[style.id];
+  const cover = style.cover
+    ? asset(style.cover)
+    : BUILTIN_STYLE_COVERS[style.id];
   return (
     <div
       className={`style-preview ${compact ? "compact" : ""}`}

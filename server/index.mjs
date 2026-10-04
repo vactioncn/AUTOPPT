@@ -73,13 +73,18 @@ import { registerStyleImports } from "./style-import.mjs";
 import { registerAttachments, resolveAttachments } from "./attachments.mjs";
 import { projectReport } from "./report.mjs";
 
-if (process.env.AUTOPPT_WORKER_TOKEN)
+if (process.env.AUTOPPT_WORKER_TOKEN || process.env.AUTOPPT_DESKTOP_TOKEN)
   process.on("disconnect", () => process.exit(1));
 const app = express();
 app.disable("x-powered-by");
-const port = Number(process.env.PORT || 4317);
+let port = Number(process.env.PORT || 4317);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 app.use((req, res, next) => {
+  if (
+    process.env.AUTOPPT_DESKTOP_TOKEN &&
+    req.headers["x-autoppt-desktop"] !== process.env.AUTOPPT_DESKTOP_TOKEN
+  )
+    return res.status(403).json({ error: "请通过 AutoPPT App 访问。" });
   if (process.env.AUTOPPT_WORKER_TOKEN) {
     if (req.headers["x-autoppt-worker"] !== process.env.AUTOPPT_WORKER_TOKEN)
       return res.status(403).json({ error: "请通过登录入口访问。" });
@@ -150,6 +155,14 @@ const styleReady = (styleId) => {
 };
 app.get("/api/account", (req, res) => res.json({ hosted: false, user: null }));
 app.get("/api/health", (req, res) => res.json({ app: "AutoPPT", ok: true }));
+if (process.env.AUTOPPT_DESKTOP_TOKEN)
+  app.get("/api/desktop/status", (req, res) =>
+    res.json({
+      activeJobs: all("job").filter((job) =>
+        ["queued", "running"].includes(job.status),
+      ).length,
+    }),
+  );
 app.get("/api/bootstrap", (req, res) =>
   res.json({
     features: {
@@ -963,6 +976,7 @@ const listener = app.listen(port, "127.0.0.1", (error) => {
     console.error(`AutoPPT 启动失败：${error.message}`);
     process.exit(1);
   }
+  port = listener.address().port;
   // A second process must never mark the real server's jobs as interrupted.
   recoverJobs();
   migrateManuscripts();

@@ -1,5 +1,6 @@
 import { designOptions, designOptionsKey } from "./design-options.mjs";
-import { all, get, put, id, now, transaction } from "./store.mjs";
+import { all, get, put, id, now, transaction, assetPath } from "./store.mjs";
+import { existsSync } from "node:fs";
 import { styleStamp } from "./core.mjs";
 import { design, generateImage } from "./models.mjs";
 import { PLANNING_VERSION } from "./content-planning.mjs";
@@ -32,6 +33,23 @@ function assertStyleIdle(styleId) {
     );
 }
 export function registerTrials(app, { enqueue }) {
+  app.post("/api/styles/:id/trials/:tid/cover", (req, res) => {
+    const style = availableStyle(req.params.id);
+    const trial = trialFor(style.id, req.params.tid);
+    if (
+      trial.engine !== "image" ||
+      !trial.image ||
+      get("job", trial.jobId)?.status !== "completed" ||
+      !existsSync(assetPath(trial.image))
+    )
+      throw new Error("请先完成这一页图片，再设为封面。");
+    // Cover is presentation metadata. Never add it to refs or overwrite rules.
+    style.cover = trial.image;
+    style.coverTrialId = trial.id;
+    style.updatedAt = now();
+    put("style", style);
+    res.json(style);
+  });
   app.get("/api/styles/:id/trials", (req, res) => {
     const style = availableStyle(req.params.id);
     res.json({

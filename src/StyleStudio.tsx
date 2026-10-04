@@ -20,6 +20,7 @@ import { RawPromptDetails } from "./RawPromptDetails";
 import { CopyReview } from "./CopyReview";
 import { TrialCopyPreview } from "./TrialCopyPreview";
 import { StyleVersions } from "./StyleVersions";
+import { STYLE_DEMOS } from "../shared/style-demo.mjs";
 export function StyleStudio({
   style,
   onBack,
@@ -43,7 +44,9 @@ export function StyleStudio({
     initial.designOptions || emptyDesignOptions,
   );
   const [optionsBusy, setOptionsBusy] = useState(false);
-  const [notes, setNotes] = useState<string>(initial.notes || ""),
+  const [notes, setNotes] = useState<string>(
+      initial.notes ?? STYLE_DEMOS[0].notes,
+    ),
     [feedback, setFeedback] = useState<string>(initial.feedback || ""),
     [copyFeedback, setCopyFeedback] = useState<string>(
       initial.copyFeedback || "",
@@ -163,7 +166,7 @@ export function StyleStudio({
       <div className="page-heading studio-heading">
         <div>
           <h1>{style.name} · 风格试做</h1>
-          <p>先提炼上屏文案，再使用原始风格提示词生成图片。</p>
+          <p>用示例文案或自己的讲稿做一页 demo，满意后可设为风格封面。</p>
         </div>
         <Button
           disabled={disabled}
@@ -220,6 +223,24 @@ export function StyleStudio({
                 保存图片
               </a>
             </p>
+            <Button
+              disabled={
+                disabled ||
+                selected.status !== "completed" ||
+                style.coverTrialId === selected.id
+              }
+              onClick={() =>
+                act(async () => {
+                  await post(`/styles/${style.id}/trials/${selected.id}/cover`);
+                  await refreshStyles();
+                  notify("已设为风格封面，提示词保持不变。");
+                })
+              }
+            >
+              {style.coverTrialId === selected.id
+                ? "已是风格封面"
+                : "将这张图设为风格封面"}
+            </Button>
           </>
         ) : (
           <div className="studio-empty">
@@ -328,7 +349,25 @@ export function StyleStudio({
               placeholder="粘贴一段完整的逐字稿，画面会提炼重点，原文保留。"
             />
           </Field>
+          <div className="web-studio-actions" aria-label="示例文案">
+            {STYLE_DEMOS.map((demo) => (
+              <Button
+                key={demo.id}
+                disabled={disabled}
+                onClick={() => {
+                  setNotes(demo.notes);
+                  setFeedback("");
+                  setCopyFeedback("");
+                  setSelectedId("");
+                  setPending(null);
+                }}
+              >
+                使用{demo.name}示例
+              </Button>
+            ))}
+          </div>
           <p className="detail-help">
+            示例可直接修改，无需先创建演讲项目。点击生成只做一页；生成后可单独设为封面。
             讲稿先提炼并复核，出图时原文使用「{style.name}」的设计提示词。
           </p>
           <DesignOptionsEditor

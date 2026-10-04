@@ -90,7 +90,7 @@ export function StyleLibrary({
           <p>
             配色、字体、图形画法与留白，成为适用于不同内容的设计规范。
             <br />
-            用真实内容试做图片，打磨构图、字体和图形细节。
+            用现成示例或自己的内容试做一页，满意后设为风格封面。
           </p>
         </div>
         <Button onClick={() => setCreate(true)}>
@@ -853,7 +853,7 @@ function StyleDetail({
           disabled={!style.rules || analyzing || busy}
           onClick={onTest}
         >
-          打开风格试做
+          生成一页 demo / 调试风格
           <ArrowRight size={17} />
         </Button>
       </div>

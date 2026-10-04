@@ -145,3 +145,91 @@ test(
     }
   },
 );
+
+test(
+  "workspace introduction stays in the right pane and preserves unsaved forms",
+  { skip: !process.env.INTRO_BROWSER_TEST, timeout: 60000 },
+  async () => {
+    const app = express();
+    const connection = {
+      baseUrl: "https://example.com/v1",
+      model: "fixture",
+      hasKey: false,
+    };
+    app.get("/api/account", (_req, res) =>
+      res.json({ hosted: false, user: null }),
+    );
+    app.get("/api/bootstrap", (_req, res) =>
+      res.json({
+        projects: [],
+        styles: [],
+        jobs: [],
+        settings: { text: connection, image: connection },
+      }),
+    );
+    app.use(express.static(path.resolve("dist")));
+    const server = app.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    const base = `http://127.0.0.1:${server.address().port}`;
+    let browser;
+    try {
+      browser = await chromium.launch({
+        headless: true,
+        executablePath:
+          process.env.CHROMIUM_EXECUTABLE ||
+          "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+      });
+      const context = await browser.newContext();
+      const page = await context.newPage();
+      const errors = [];
+      page.on("pageerror", (e) => errors.push(e.message));
+      await page.setViewportSize({ width: 1440, height: 1000 });
+      await page.goto(base + "/#settings");
+      const model = page.getByLabel("模型名称", { exact: true }).first();
+      await model.fill("unsaved-model-draft");
+      await page.getByRole("button", { name: "介绍", exact: true }).click();
+      const frame = page.frameLocator('iframe[title="AutoPPT 产品介绍"]');
+      await frame.getByRole("heading", { level: 1 }).waitFor();
+      assert.equal(context.pages().length, 1);
+      assert.equal(new URL(page.url()).hash, "#intro");
+      assert(
+        await page.getByRole("navigation", { name: "主导航" }).isVisible(),
+      );
+      assert(!(await model.isVisible()));
+      await page.screenshot({
+        path: ".local/verification/intro/embedded-desktop.png",
+      });
+      await page.getByRole("button", { name: "返回刚才的页面" }).click();
+      assert.equal(await model.inputValue(), "unsaved-model-draft");
+      await page.getByRole("button", { name: "介绍", exact: true }).click();
+      await frame.locator("#open-workspace").click();
+      await model.waitFor({ state: "visible" });
+      assert.equal(new URL(page.url()).hash, "#settings");
+      assert.equal(await model.inputValue(), "unsaved-model-draft");
+      await page.getByRole("button", { name: "介绍", exact: true }).click();
+      await page.getByRole("button", { name: /^风格库/ }).click();
+      await page
+        .getByRole("heading", { name: "把喜欢的，变成你的风格。" })
+        .waitFor();
+      await page.goto(base + "/#intro");
+      await page.reload();
+      await page.getByRole("button", { name: "返回刚才的页面" }).click();
+      await page.getByRole("heading", { name: /让讲述.*自然成页/ }).waitFor();
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.getByRole("button", { name: "介绍", exact: true }).click();
+      await frame.getByRole("heading", { level: 1 }).waitFor();
+      assert(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth + 1,
+        ),
+      );
+      await page.screenshot({
+        path: ".local/verification/intro/embedded-mobile.png",
+      });
+      assert.deepEqual(errors, []);
+    } finally {
+      await browser?.close();
+      await new Promise((resolve) => server.close(resolve));
+    }
+  },
+);

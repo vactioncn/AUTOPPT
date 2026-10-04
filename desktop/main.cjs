@@ -136,7 +136,9 @@ function showWindow() {
     }
   });
   window.webContents.setWindowOpenHandler(({ url }) => {
-    if (ownedURL(url)) window.loadURL(url);
+    if (ownedURL(url) && new URL(url).pathname.startsWith("/intro/"))
+      window.webContents.executeJavaScript("location.hash = 'intro'");
+    else if (ownedURL(url)) window.loadURL(url);
     else external(url);
     return { action: "deny" };
   });

@@ -27,9 +27,39 @@ for (const button of document.querySelectorAll(".copy-code"))
     }
     setTimeout(() => (button.textContent = "复制命令"), 2500);
   });
+const embedded =
+  window.parent !== window &&
+  new URLSearchParams(location.search).has("embedded");
+if (embedded) {
+  document
+    .getElementById("open-workspace")
+    .addEventListener("click", (event) => {
+      event.preventDefault();
+      window.parent.postMessage(
+        { type: "autoppt:intro-back" },
+        location.origin,
+      );
+    });
+  // External documentation opens outside the frame; navigation stays available.
+  for (const link of document.querySelectorAll("a[href]")) {
+    if (new URL(link.href).origin !== location.origin) {
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+    }
+  }
+} else if (["127.0.0.1", "localhost", "[::1]"].includes(location.hostname)) {
+  const back = document.createElement("a");
+  back.href = "../#projects";
+  back.className = "text-link";
+  back.textContent = "← 返回工作台";
+  document.querySelector(".site-header nav").prepend(back);
+}
 // The downloadable introduction can also be hosted on any static host.
 // Only local installations have a same-origin workspace to open.
-if (!["127.0.0.1", "localhost", "[::1]"].includes(location.hostname)) {
+if (
+  !embedded &&
+  !["127.0.0.1", "localhost", "[::1]"].includes(location.hostname)
+) {
   const link = document.getElementById("open-workspace");
   link.href = "https://github.com/vactioncn/AUTOPPT";
   link.textContent = "查看源码与安装入口 ↗";

@@ -6,7 +6,7 @@ import {
   validDesignOptions,
 } from "./DesignOptionsEditor";
 import { SceneView } from "./SceneView";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Trash,
   SquaresFour,
@@ -30,6 +30,7 @@ import { Button, Modal, Field, StylePreview } from "./components";
 import { Workspace } from "./Workspace";
 import { StyleLibrary } from "./StyleLibrary";
 import { SettingsPage } from "./Settings";
+import { Introduction } from "./Introduction";
 import { DEFAULT_STYLE_ID, defaultStyleId } from "../shared/styles.mjs";
 
 export default function App() {
@@ -40,6 +41,8 @@ export default function App() {
     [toast, setToast] = useState(""),
     [creating, setCreating] = useState(false),
     [initialStyle, setInitialStyle] = useState(DEFAULT_STYLE_ID);
+  const previousRoute = useRef(route === "intro" ? "projects" : route);
+  const contentRoute = route === "intro" ? previousRoute.current : route;
   const refresh = useCallback(async () => {
     try {
       setData(await api("/bootstrap"));
@@ -51,7 +54,11 @@ export default function App() {
   useEffect(() => {
     refresh();
     const timer = setInterval(refresh, 2500);
-    const hash = () => setRoute(location.hash.slice(1) || "projects");
+    const hash = () => {
+      const next = location.hash.slice(1) || "projects";
+      if (next !== "intro") previousRoute.current = next;
+      setRoute(next);
+    };
     window.addEventListener("hashchange", hash);
     return () => {
       clearInterval(timer);
@@ -64,6 +71,7 @@ export default function App() {
     return () => clearTimeout(t);
   }, [toast]);
   const go = (to: string) => {
+    if (to !== "intro") previousRoute.current = to;
     location.hash = to;
     setRoute(to);
   };
@@ -76,7 +84,9 @@ export default function App() {
     );
     setCreating(true);
   };
-  const currentId = route.startsWith("project/") ? route.slice(8) : null;
+  const currentId = contentRoute.startsWith("project/")
+    ? contentRoute.slice(8)
+    : null;
   const current = data?.projects.find((p) => p.id === currentId);
   const notify = (text: string) => setToast(text);
   if (!data)
@@ -113,7 +123,11 @@ export default function App() {
         </Button>
         <nav className="main-nav" aria-label="主导航">
           <button
-            className={route === "projects" || currentId ? "active" : ""}
+            className={
+              route !== "intro" && (route === "projects" || currentId)
+                ? "active"
+                : ""
+            }
             onClick={() => go("projects")}
           >
             <SquaresFour size={20} />
@@ -129,16 +143,13 @@ export default function App() {
               {data.styles.filter((s) => !s.deletedAt).length}
             </span>
           </button>
-          <a
-            className="intro-nav-link"
-            href="/intro/"
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            className={route === "intro" ? "active" : ""}
+            onClick={() => go("intro")}
           >
             <Info size={20} />
             介绍
-            <ArrowUpRight size={14} />
-          </a>
+          </button>
         </nav>
         <div className="side-projects">
           <span className="side-label">最近项目</span>
@@ -186,14 +197,16 @@ export default function App() {
             <span>工作空间</span>
             <span>/</span>
             <strong>
-              {current?.title ||
-                (route === "styles"
-                  ? "风格库"
-                  : route === "account"
-                    ? "账号与额度"
-                    : route === "settings"
-                      ? "模型设置"
-                      : "我的演讲")}
+              {route === "intro"
+                ? "产品介绍"
+                : current?.title ||
+                  (route === "styles"
+                    ? "风格库"
+                    : route === "account"
+                      ? "账号与额度"
+                      : route === "settings"
+                        ? "模型设置"
+                        : "我的演讲")}
             </strong>
           </div>
           <span className="top-hint">
@@ -208,44 +221,50 @@ export default function App() {
             <button onClick={refresh}>重试连接</button>
           </div>
         )}
-        {currentId ? (
-          <Workspace
-            insertExportAvailable={!!data.features?.insertAndManuscriptExport}
-            key={currentId}
-            id={currentId}
-            styles={data.styles}
-            settings={data.settings}
-            notify={notify}
-            onRefresh={refresh}
-            onSettings={() => go(account.hosted ? "account" : "settings")}
-          />
-        ) : route === "styles" ? (
-          <StyleLibrary
-            urlImportAvailable={!!data.features?.styleUrlImport}
-            styles={data.styles}
-            jobs={data.jobs}
-            refresh={refresh}
-            notify={notify}
-            onUse={(styleId) => create(styleId)}
-          />
-        ) : route === "account" || (account.hosted && route === "settings") ? (
-          <AccountPage />
-        ) : route === "settings" ? (
-          <SettingsPage
-            initial={data.settings}
-            notify={notify}
-            refresh={refresh}
-          />
-        ) : (
-          <ProjectHome
-            refresh={refresh}
-            projects={data.projects}
-            styles={data.styles}
-            onCreate={() => create()}
-            onOpen={(id) => go("project/" + id)}
-            onStyles={() => go("styles")}
-          />
+        {route === "intro" && (
+          <Introduction onBack={() => go(previousRoute.current)} />
         )}
+        <div hidden={route === "intro"} className="workspace-content">
+          {currentId ? (
+            <Workspace
+              insertExportAvailable={!!data.features?.insertAndManuscriptExport}
+              key={currentId}
+              id={currentId}
+              styles={data.styles}
+              settings={data.settings}
+              notify={notify}
+              onRefresh={refresh}
+              onSettings={() => go(account.hosted ? "account" : "settings")}
+            />
+          ) : contentRoute === "styles" ? (
+            <StyleLibrary
+              urlImportAvailable={!!data.features?.styleUrlImport}
+              styles={data.styles}
+              jobs={data.jobs}
+              refresh={refresh}
+              notify={notify}
+              onUse={(styleId) => create(styleId)}
+            />
+          ) : contentRoute === "account" ||
+            (account.hosted && contentRoute === "settings") ? (
+            <AccountPage />
+          ) : contentRoute === "settings" ? (
+            <SettingsPage
+              initial={data.settings}
+              notify={notify}
+              refresh={refresh}
+            />
+          ) : (
+            <ProjectHome
+              refresh={refresh}
+              projects={data.projects}
+              styles={data.styles}
+              onCreate={() => create()}
+              onOpen={(id) => go("project/" + id)}
+              onStyles={() => go("styles")}
+            />
+          )}
+        </div>
       </main>
       {creating && (
         <NewProject

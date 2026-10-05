@@ -57,7 +57,7 @@ export async function downloadManuscript(id: string, revision: number) {
     `${stem}-逐字稿-v${revision}.md`,
   );
 }
-async function downloadFile(path: string, fallback: string) {
+export async function downloadFile(path: string, fallback: string) {
   const response = await fetch(path);
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));

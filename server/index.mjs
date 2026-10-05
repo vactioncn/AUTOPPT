@@ -72,6 +72,11 @@ import {
 import { registerStyleImports } from "./style-import.mjs";
 import { registerAttachments, resolveAttachments } from "./attachments.mjs";
 import { projectReport } from "./report.mjs";
+import {
+  registerMotion,
+  recoverMotion,
+  activeMotionCount,
+} from "./motion/index.mjs";
 
 if (process.env.AUTOPPT_WORKER_TOKEN || process.env.AUTOPPT_DESKTOP_TOKEN)
   process.on("disconnect", () => process.exit(1));
@@ -155,12 +160,19 @@ const styleReady = (styleId) => {
 };
 app.get("/api/account", (req, res) => res.json({ hosted: false, user: null }));
 app.get("/api/health", (req, res) => res.json({ app: "AutoPPT", ok: true }));
+app.get("/api/activity", (req, res) =>
+  res.json({
+    activeJobs:
+      all("job").filter((j) => ["queued", "running"].includes(j.status))
+        .length + activeMotionCount(),
+  }),
+);
 if (process.env.AUTOPPT_DESKTOP_TOKEN)
   app.get("/api/desktop/status", (req, res) =>
     res.json({
-      activeJobs: all("job").filter((job) =>
-        ["queued", "running"].includes(job.status),
-      ).length,
+      activeJobs:
+        all("job").filter((job) => ["queued", "running"].includes(job.status))
+          .length + activeMotionCount(),
     }),
   );
 app.get("/api/bootstrap", (req, res) =>
@@ -171,6 +183,7 @@ app.get("/api/bootstrap", (req, res) =>
       directStylePrompt: true,
       designOptions: true,
       insertAndManuscriptExport: true,
+      motionPresentation: true,
     },
     projects: all("project")
       .filter((p) => !p.deletedAt)
@@ -252,6 +265,8 @@ app.post("/api/projects", (req, res) => {
 });
 app.delete("/api/projects/:id", (req, res) => {
   const p = projectOrThrow(req.params.id);
+  if (activeMotionCount(p.id))
+    throw new Error("请先完成或停止本项目的动态演示转换，再删除项目。");
   assertIdle(p.id);
   // Keep source/assets/history; deletion only removes access and discovery.
   p.deletedAt = now();
@@ -917,7 +932,10 @@ app.post(
 );
 app.get("/api/settings", (req, res) => res.json(publicSettings()));
 app.put("/api/settings", (req, res) => {
-  if (all("job").some((j) => ["queued", "running"].includes(j.status)))
+  if (
+    activeMotionCount() ||
+    all("job").some((j) => ["queued", "running"].includes(j.status))
+  )
     throw new Error("请等待生成任务完成，或先停止任务，再更换模型设置。");
   res.json(updateSettings(req.body));
 });
@@ -946,6 +964,7 @@ app.post("/api/settings/test", async (req, res) => {
       : "接口连通，列表中未找到该模型；请确认模型名称。实际生成仍需单独验证。",
   });
 });
+registerMotion(app);
 app.use("/api", (req, res) => res.status(404).json({ error: "接口不存在" }));
 app.use((err, req, res, next) => {
   console.error(
@@ -980,6 +999,7 @@ const listener = app.listen(port, "127.0.0.1", (error) => {
   port = listener.address().port;
   // A second process must never mark the real server's jobs as interrupted.
   recoverJobs();
+  recoverMotion();
   migrateManuscripts();
   process.send?.({ type: "ready", port: listener.address().port });
   console.log(`AutoPPT → http://127.0.0.1:${listener.address().port}`);

@@ -1,0 +1,349 @@
+dialog.modal.wide:has(.motion-studio) {
+  width: min(1540px, 96vw);
+  max-width: 96vw;
+}
+.motion-studio {
+  --motion-accent: #315df5;
+}
+.motion-topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 16px;
+  margin: 8px 0 18px;
+}
+.motion-topbar .field {
+  flex: 1;
+  max-width: 480px;
+}
+.motion-create {
+  max-width: 900px;
+  margin: 0 auto;
+}
+.motion-intro {
+  padding: 22px 0 18px;
+}
+.motion-intro > svg {
+  color: var(--motion-accent);
+}
+.motion-intro h3 {
+  font-size: 25px;
+  margin: 16px 0 10px;
+}
+.motion-intro p,
+.motion-explain {
+  color: var(--muted, #69707d);
+  line-height: 1.8;
+}
+.motion-scope {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin: 14px 0 22px;
+}
+.motion-scope > button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 23px;
+  border: 1px solid #dfe3ea;
+  border-radius: 12px;
+  background: white;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+}
+.motion-scope > button.chosen {
+  border-color: var(--motion-accent);
+  box-shadow: inset 0 0 0 1px var(--motion-accent);
+  background: #f6f8ff;
+}
+.motion-scope strong {
+  font-size: 17px;
+}
+.motion-scope span {
+  color: #79818e;
+  font-size: 13px;
+}
+.motion-scope button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.motion-explain {
+  padding: 4px 0;
+  font-size: 13px;
+}
+.motion-progress {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px;
+  background: #f4f6fa;
+  border-radius: 12px;
+  margin-bottom: 16px;
+}
+.motion-progress > div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.motion-progress span {
+  font-size: 12px;
+  color: #79818e;
+}
+.motion-workbench {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr) 250px;
+  gap: 18px;
+  align-items: start;
+}
+.motion-pages {
+  max-height: 660px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 2px;
+}
+.motion-pages > button {
+  padding: 5px;
+  border: 1px solid #e4e7ec;
+  border-radius: 8px;
+  background: #fff;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+.motion-pages > button.chosen {
+  border: 2px solid var(--motion-accent);
+  padding: 4px;
+}
+.motion-pages img {
+  width: 100%;
+  aspect-ratio: 16/9;
+  object-fit: contain;
+  display: block;
+}
+.motion-pages span {
+  display: block;
+  font-size: 12px;
+  padding: 6px 1px;
+}
+.motion-pages small {
+  display: block;
+  color: #9298a1;
+  margin-top: 4px;
+}
+.motion-canvas {
+  min-width: 0;
+}
+.motion-canvas-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 5px 0 16px;
+  font-size: 13px;
+}
+.motion-canvas-heading label {
+  white-space: nowrap;
+  color: #79818e;
+}
+.motion-previews {
+  display: grid;
+  gap: 12px;
+}
+.motion-previews figure {
+  margin: 0;
+  min-width: 0;
+}
+.motion-previews figcaption {
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: #858d9b;
+  margin: 0 0 6px;
+}
+.motion-previews img,
+.motion-previews iframe {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16/9;
+  object-fit: contain;
+  border: 0;
+  background: #16181c;
+  border-radius: 6px;
+}
+.motion-previews.split {
+  grid-template-columns: 1fr;
+}
+.motion-warnings {
+  font-size: 12px;
+  color: #727985;
+  line-height: 1.6;
+  margin-top: 12px;
+}
+.motion-warnings p {
+  margin: 8px 0;
+}
+.motion-pending {
+  min-height: 350px;
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: 18px;
+  justify-content: center;
+  color: #79818e;
+  font-size: 14px;
+  text-align: center;
+}
+.motion-pending img {
+  max-width: 90%;
+  max-height: 280px;
+  opacity: 0.65;
+}
+.motion-inspector {
+  background: #f7f8fa;
+  border: 1px solid #e6e8ee;
+  border-radius: 10px;
+  padding: 12px;
+  max-height: 730px;
+  overflow: auto;
+}
+.motion-inspector fieldset {
+  border: 0;
+  padding: 0;
+  margin: 12px 0 0;
+  min-width: 0;
+}
+.motion-inspector input,
+.motion-inspector select,
+.motion-inspector textarea {
+  max-width: 100%;
+  width: 100%;
+  min-width: 0;
+}
+.motion-inspector textarea {
+  min-height: 70px;
+  resize: vertical;
+}
+.motion-inspector .field {
+  margin: 0 0 10px;
+}
+.motion-inspector .btn {
+  width: 100%;
+  font-size: 12px;
+  margin-top: 8px;
+}
+.motion-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 10px;
+}
+.motion-inspector .detail-help {
+  font-size: 11px;
+  line-height: 1.5;
+  margin: 8px 0 12px;
+}
+.motion-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+}
+.motion-check input {
+  width: auto;
+}
+.motion-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid #e6e8ee;
+  padding-top: 20px;
+  margin-top: 22px;
+}
+.motion-footer small {
+  display: block;
+  color: #9298a1;
+  font-size: 11px;
+  margin-top: 7px;
+}
+.motion-footer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.motion-font {
+  position: relative;
+  overflow: hidden;
+  font-size: 12px;
+}
+.motion-font input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+}
+.motion-studio .error-text {
+  padding: 12px;
+  border-radius: 6px;
+  background: #fff0f0;
+}
+.motion-studio .dialog-actions {
+  margin-top: 22px;
+}
+@media (min-width: 1500px) {
+  .motion-previews.split {
+    grid-template-columns: 1fr 1fr;
+  }
+  .motion-workbench {
+    grid-template-columns: 130px minmax(0, 1fr) 275px;
+  }
+}
+@media (max-width: 950px) {
+  .motion-workbench {
+    grid-template-columns: 90px minmax(0, 1fr);
+  }
+  .motion-inspector {
+    grid-column: 2;
+    max-height: none;
+  }
+  .motion-footer-actions .btn {
+    font-size: 12px;
+  }
+}
+@media (max-width: 600px) {
+  .motion-workbench {
+    display: flex;
+    flex-direction: column;
+  }
+  .motion-pages {
+    flex-direction: row;
+    width: 100%;
+    max-height: 120px;
+  }
+  .motion-pages > button {
+    min-width: 105px;
+  }
+  .motion-canvas,
+  .motion-inspector {
+    width: 100%;
+  }
+  .motion-scope {
+    grid-template-columns: 1fr;
+  }
+  .motion-canvas-heading {
+    flex-direction: column;
+  }
+  .motion-topbar {
+    align-items: center;
+  }
+  .motion-intro h3 {
+    font-size: 20px;
+  }
+}

@@ -1,0 +1,241 @@
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #101214;
+  color: #fff;
+  font-family: system-ui, sans-serif;
+}
+button,
+select {
+  font: inherit;
+}
+button {
+  cursor: pointer;
+}
+button:focus-visible,
+select:focus-visible {
+  outline: 2px solid #caff69;
+  outline-offset: 3px;
+}
+button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+[hidden] {
+  display: none !important;
+}
+#viewport {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+#stage {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform-origin: center;
+  overflow: hidden;
+}
+.scene {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  isolation: isolate;
+}
+.background {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+}
+.layer {
+  position: absolute;
+  transform-origin: center;
+}
+.content {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+.content > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+}
+.text {
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: visible;
+  font-kerning: normal;
+  font-synthesis: none;
+}
+#toolbar {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid #ffffff20;
+  border-radius: 14px;
+  background: #171a1ee8;
+  backdrop-filter: blur(16px);
+  max-width: calc(100% - 24px);
+  flex-wrap: wrap;
+  justify-content: center;
+  transition: opacity 0.3s;
+  z-index: 20;
+}
+#toolbar.quiet {
+  opacity: 0;
+  pointer-events: none;
+}
+#toolbar:hover,
+#toolbar:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+}
+#toolbar button,
+#toolbar select,
+#overview button {
+  background: transparent;
+  color: #dfe4e8;
+  border: 0;
+  border-radius: 6px;
+  padding: 8px 10px;
+  white-space: nowrap;
+  font-size: 13px;
+}
+#toolbar button:hover,
+#overview button:hover {
+  background: #ffffff18;
+}
+#toolbar button[aria-pressed="true"] {
+  background: #caff6922;
+  color: #dbffad;
+}
+#toolbar select option {
+  background: #171a1e;
+}
+#counter {
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  padding: 0 7px;
+  min-width: 62px;
+  text-align: center;
+}
+#progress {
+  position: fixed;
+  height: 2px;
+  left: 0;
+  bottom: 0;
+  background: #caff69;
+  transition: width 0.3s;
+  z-index: 21;
+}
+#notes {
+  position: fixed;
+  right: 22px;
+  top: 22px;
+  max-width: min(440px, 85vw);
+  max-height: 65vh;
+  overflow: auto;
+  background: #16191ff2;
+  border: 1px solid #ffffff22;
+  padding: 24px;
+  white-space: pre-wrap;
+  line-height: 1.8;
+  border-radius: 12px;
+  z-index: 25;
+}
+#overview {
+  position: fixed;
+  inset: 30px 30px 110px;
+  background: #16191ff5;
+  overflow: auto;
+  padding: 24px;
+  border-radius: 16px;
+  z-index: 30;
+  display: grid;
+  align-content: start;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 8px;
+}
+#overview button {
+  text-align: left;
+  white-space: normal;
+  min-height: 54px;
+  border: 1px solid #ffffff15;
+}
+#blackout {
+  position: fixed;
+  inset: 0;
+  background: black;
+  z-index: 35;
+}
+#original {
+  position: fixed;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  z-index: 10;
+  background: #101214;
+}
+#loading {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+  z-index: 40;
+  background: #101214;
+}
+.preview .layer:hover {
+  outline: 2px solid #73b7ff;
+  cursor: pointer;
+}
+@media (max-width: 700px) {
+  #toolbar {
+    bottom: 8px;
+    gap: 0;
+    padding: 5px;
+  }
+  #toolbar button,
+  #toolbar select {
+    font-size: 11px;
+    padding: 7px;
+  }
+  #toolbar .secondary {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+@media print {
+  html,
+  body {
+    height: auto;
+    overflow: visible;
+  }
+  #toolbar,
+  #progress,
+  #notes,
+  #overview {
+    display: none !important;
+  }
+}

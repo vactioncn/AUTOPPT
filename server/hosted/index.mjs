@@ -562,15 +562,14 @@ const reconciler = setInterval(async () => {
     const checked = w.lastUsed;
     if (w.requests || Date.now() - checked < 5 * 60000 || !w.port) continue;
     try {
-      const r = await fetch(`http://127.0.0.1:${w.port}/api/jobs`, {
+      const r = await fetch(`http://127.0.0.1:${w.port}/api/activity`, {
         headers: { "x-autoppt-worker": w.token },
         signal: AbortSignal.timeout(5000),
       });
-      const jobs = await r.json();
+      const activity = await r.json();
       if (
         r.ok &&
-        Array.isArray(jobs) &&
-        !jobs.some((j) => ["queued", "running"].includes(j.status)) &&
+        activity.activeJobs === 0 &&
         !w.requests &&
         w.lastUsed === checked
       )

@@ -55,10 +55,12 @@ import type {
 } from "./types";
 import { ProjectReport } from "./ProjectReport";
 import { CopyReview } from "./CopyReview";
+import { MotionPresentation } from "./MotionPresentation";
 import { Button, Modal, Field, SlideImage, Status } from "./components";
 
 export function Workspace({
   insertExportAvailable,
+  motionAvailable,
   id,
   styles,
   settings,
@@ -68,6 +70,7 @@ export function Workspace({
 }: {
   id: string;
   insertExportAvailable: boolean;
+  motionAvailable: boolean;
   styles: Style[];
   settings: Settings;
   notify: (s: string) => void;
@@ -96,6 +99,7 @@ export function Workspace({
     [proposalError, setProposalError] = useState(""),
     [proposalSubmitting, setProposalSubmitting] = useState(false),
     [showScript, setShowScript] = useState(false),
+    [motionOpen, setMotionOpen] = useState(false),
     [exportOpen, setExportOpen] = useState(false),
     [reportOpen, setReportOpen] = useState(false),
     [renaming, setRenaming] = useState(false);
@@ -276,6 +280,14 @@ export function Workspace({
           </p>
         </div>
         <div className="project-output-actions">
+          {motionAvailable && (
+            <Button
+              onClick={() => setMotionOpen(true)}
+              disabled={!project.slides.some((s) => s.image || s.scene)}
+            >
+              动态 HTML
+            </Button>
+          )}
           <Button onClick={() => setReportOpen(true)}>
             <ChartBar size={18} />
             报告
@@ -840,6 +852,13 @@ export function Workspace({
             refresh().catch(() => {});
             onRefresh().catch(() => {});
           }}
+        />
+      )}
+      {motionOpen && (
+        <MotionPresentation
+          project={project}
+          selected={selected}
+          onClose={() => setMotionOpen(false)}
         />
       )}
       {exportOpen && (

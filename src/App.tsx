@@ -228,6 +228,7 @@ export default function App() {
           {currentId ? (
             <Workspace
               insertExportAvailable={!!data.features?.insertAndManuscriptExport}
+              motionAvailable={!!data.features?.motionPresentation}
               key={currentId}
               id={currentId}
               styles={data.styles}

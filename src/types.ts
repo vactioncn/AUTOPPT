@@ -416,7 +416,11 @@ export type Connection = {
 };
 export type Settings = { text: Connection; image: Connection };
 export type Bootstrap = {
-  features?: { styleUrlImport?: boolean; insertAndManuscriptExport?: boolean };
+  features?: {
+    styleUrlImport?: boolean;
+    insertAndManuscriptExport?: boolean;
+    motionPresentation?: boolean;
+  };
   projects: ProjectSummary[];
   styles: Style[];
   settings: Settings;

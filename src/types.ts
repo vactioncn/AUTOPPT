@@ -74,6 +74,7 @@ export type DesignLanguage = Record<
   string
 >;
 export type Plan = {
+  pageNumber?: number;
   designOptions?: DesignOptions;
   compositionPlan?: {
     version: number;

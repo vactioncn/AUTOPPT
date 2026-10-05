@@ -1741,7 +1741,7 @@ function SlideDetail({
                       copy={slide.plan.screenCopy}
                       stale={slide.stale}
                     />
-                    <RawPromptDetails plan={slide.plan} />
+                    <RawPromptDetails plan={slide.plan} currentPageNumber={index + 1} />
                     <h4>版面安排</h4>
                     <p>{slide.plan.layout}</p>
                     <h4>视觉表达</h4>

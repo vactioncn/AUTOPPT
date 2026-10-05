@@ -47,6 +47,7 @@ export function unifiedCoverPlan(style) {
   return {
     engine: "image",
     purpose: "cover",
+    pageNumber: 1,
     promptMode: DIRECT_PROMPT_MODE,
     planningVersion: PLANNING_VERSION,
     sourceStyle: styleStamp(style),

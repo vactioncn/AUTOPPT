@@ -1,9 +1,22 @@
+import {
+  pageNumberTemplate,
+  PAGE_NUMBER_TOKEN,
+} from "../shared/page-number.mjs";
 import type { Plan } from "./types";
 import { ContentPromptDetails } from "./ContentPromptDetails";
 import { CompositionDetails } from "./CompositionDetails";
 
-export function RawPromptDetails({ plan }: { plan: Plan }) {
+export function RawPromptDetails({
+  plan,
+  currentPageNumber,
+}: {
+  plan: Plan;
+  currentPageNumber?: number;
+}) {
   if (!plan.promptMode?.startsWith("verbatim-style-")) return null;
+  const numbered = pageNumberTemplate(plan.styleRules).includes(
+    PAGE_NUMBER_TOKEN,
+  );
   return (
     <>
       <p className="detail-help">
@@ -16,6 +29,20 @@ export function RawPromptDetails({ plan }: { plan: Plan }) {
           ? "风格提示词按原文使用，本页先按内容构思，再生成图片。"
           : "风格提示词按原文使用，构图由图片模型完成。"}
       </p>
+      {numbered && plan.pageNumber && (
+        <p className="detail-help">
+          本次传入的页码：{String(plan.pageNumber).padStart(2, "0")}
+          。仅替换原有页码描述，其余风格原文保持不变。
+          {currentPageNumber && currentPageNumber !== plan.pageNumber
+            ? ` 当前已是第 ${currentPageNumber} 页，旧图页码不会自动更新，需重新生成此页。`
+            : ""}
+        </p>
+      )}
+      {!numbered && plan.pageNumber && (
+        <p className="detail-help">
+          当前风格没有明确的动态页码位置，本次未自动添加页码。
+        </p>
+      )}
       <details className="copy-review">
         <summary>本次风格提示词原文</summary>
         <div className="rules-text">{plan.styleRules}</div>

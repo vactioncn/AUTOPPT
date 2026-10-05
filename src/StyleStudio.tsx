@@ -1,3 +1,4 @@
+import { PageNumberHelp } from "./PageNumberHelp";
 import {
   DesignOptionsEditor,
   emptyDesignOptions,
@@ -471,8 +472,9 @@ export function StyleStudio({
           />
         </Field>
         <p className="detail-help">
-          这里的文字将原样用于出图，不再自动整理或改写。
+          只在明确的页码位置填入动态编号，其他文字原样用于出图。
         </p>
+        <PageNumberHelp rules={rules} />
       </details>
       <StyleVersions
         style={style}

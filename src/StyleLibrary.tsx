@@ -1,3 +1,4 @@
+import { PageNumberHelp } from "./PageNumberHelp";
 import { DeleteItem } from "./DeleteItem";
 import { useEffect, useState, useRef } from "react";
 import {
@@ -826,6 +827,7 @@ function StyleDetail({
             )
           )}
           <StyleAnalysis style={style} />
+          <PageNumberHelp rules={editing ? rules : style.rules || ""} />
           <StyleVersions
             style={style}
             disabled={editing || busy || analyzing}

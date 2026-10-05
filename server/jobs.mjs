@@ -1,3 +1,4 @@
+import { withProjectPageNumber } from "../shared/page-number.mjs";
 import {
   designOptions,
   designOptionsKey,
@@ -390,6 +391,7 @@ async function renderSlides(j, ids, signal, redesign = false) {
       stamp = styleStamp(style, plan);
       p = projectOrThrow(j.projectId);
       s = p.slides.find((x) => x.id === sid);
+      plan = withProjectPageNumber(plan, p.slides, sid);
       s.pendingPlan = plan;
       s.pendingPlanStyle = stamp;
       if (!s.image && !s.scene) {

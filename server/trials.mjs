@@ -307,6 +307,8 @@ export async function runTrial(job, signal, progress) {
       signal.throwIfAborted();
       put("trial", t);
     }
+    t.plan = { ...t.plan, pageNumber: 1 };
+    put("trial", t);
     progress("正在生成图片，完成后自动显示");
     t.image = await generateImage(t.plan, t.styleSnapshot, signal);
     signal.throwIfAborted();

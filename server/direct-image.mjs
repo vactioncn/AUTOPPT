@@ -1,3 +1,4 @@
+import { pageNumberStyle } from "../shared/page-number.mjs";
 import { audiencePrompt, palettePrompt } from "./design-options.mjs";
 import { assertDesignedCopy } from "./screen-copy.mjs";
 import { imageContentPrompt } from "./image-content.mjs";
@@ -29,5 +30,6 @@ export function directImagePrompt(plan) {
   const feedback = plan.imageFeedback
     ? `\n\n【本页画面调整要求】\n${plan.imageFeedback}`
     : "";
-  return `${plan.styleRules}\n\n${plan.contentPrompt}${materials}${compositionPrompt(plan)}${feedback}${audiencePrompt(plan.designOptions)}${palettePrompt(plan.designOptions)}`;
+  const styleRules = pageNumberStyle(plan.styleRules, plan.pageNumber).rules;
+  return `${styleRules}\n\n${plan.contentPrompt}${materials}${compositionPrompt(plan)}${feedback}${audiencePrompt(plan.designOptions)}${palettePrompt(plan.designOptions)}`;
 }

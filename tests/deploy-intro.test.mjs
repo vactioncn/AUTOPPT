@@ -58,10 +58,10 @@ test("standalone payload contains only public intro files and resolves inside th
   const temp = fixture(t);
   const output = path.join(temp, "site");
   const files = prepareIntroduction(output);
-  assert.equal(files.length, 14);
+  assert.equal(files.length, 19);
   assert.deepEqual(
     readdirSync(output, { recursive: true })
-      .filter((p) => !["screenshots", "style-covers"].includes(p))
+      .filter((p) => !["screenshots", "artwork"].includes(p))
       .sort(),
     files,
   );

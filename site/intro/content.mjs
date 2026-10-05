@@ -1,12 +1,50 @@
 export const product = {
   name: "AutoPPT",
   description:
-    "两件事，完成一场有自己风格的演讲：制作并调试你的主题风格，再把逐字稿变成演讲页面，逐页打磨后导出 PPT 与完整讲稿。",
+    "AutoPPT 是一款 AI 演讲 PPT 制作工具。粘贴逐字稿，自动拆页、提炼重点，按你选定的风格生成画面。逐页打磨后，导出带讲稿备注的 PPTX 和完整逐字稿。",
+  gallery: [
+    {
+      file: "neo-swiss-strategy",
+      label: "新瑞士主义战略编辑风",
+      short: "瑞士编辑",
+      detail: "鲜明的文字层级，让观点成为画面的主角。",
+    },
+    {
+      file: "technology-strategy",
+      label: "高端科技战略发布会风",
+      short: "科技发布",
+      detail: "开阔的空间与光影，为表达带来临场感。",
+    },
+    {
+      file: "tactile-journal",
+      label: "高质感手账",
+      short: "质感手账",
+      detail: "纸张、拼贴与手写感，让叙述多一份温度。",
+    },
+    {
+      file: "dark-data-terrain",
+      label: "暗黑参数化数据地形风",
+      short: "数据地形",
+      detail: "用深色背景与立体地形，呈现理性而有张力的视觉。",
+    },
+    {
+      file: "japanese-architecture",
+      label: "日系现代建筑提案风",
+      short: "建筑提案",
+      detail: "克制的布局与空间秩序，让信息从容展开。",
+    },
+    {
+      file: "acid-editorial",
+      label: "先锋酸性色彩编辑风",
+      short: "先锋色彩",
+      detail: "大胆的色彩与编辑语言，让主题更醒目。",
+    },
+  ],
   modules: [
     {
       id: "style-making",
       label: "风格制作",
-      title: "先做出自己的主题风格。",
+      title: "有你的观点。也有你的风格。",
       description:
         "提取喜欢的视觉风格，或手动填写提示词；用一页内容反复试做、调整，形成可复用的主题风格。也可以直接使用默认风格开始。",
       sequence: "提取 / 手动设置 → 试做与调试 → 保存主题风格",
@@ -17,7 +55,7 @@ export const product = {
     {
       id: "speech-making",
       label: "演讲稿制作",
-      title: "再把逐字稿做成演讲页面。",
+      title: "你把话想好。让 AI 把画面做好。",
       description:
         "提交自己的逐字稿，系统按讲述逻辑拆页、提炼上屏文案，再按你选定的风格生成画面。完成后继续插页、合并、拆分和逐页修改，最后导出 PPT 与最新逐字稿。",
       sequence: "提交逐字稿 → 拆页与提炼 → 按风格生成 → 打磨与导出",
@@ -30,7 +68,7 @@ export const product = {
     {
       id: "write",
       label: "拆稿与自动生成",
-      title: "完整的话留给你，最重要的话留给画面。",
+      title: "完整的话，留给你。\n重点，留给画面。",
       description:
         "粘贴自己的逐字稿，系统先按讲述逻辑拆页，再提炼、复核上屏文案，最后按选定风格自动生成画面。完整讲稿与上屏文案分别保存，重点怎么提炼随时可查。",
       shot: "manuscript",
@@ -53,7 +91,7 @@ export const product = {
     {
       id: "style",
       label: "提取、设置与调试",
-      title: "风格由你定，每一页按内容生长。",
+      title: "喜欢的风格，\n变成自己的。",
       description:
         "从参考图或公开作品中提取设计语言，也可以不上传图片，直接手动填写提示词。先用一页讲稿测试、调整，满意后保存成自己的主题风格；默认风格也能直接使用。",
       shot: "styles",
@@ -77,7 +115,7 @@ export const product = {
     {
       id: "context",
       label: "内容倾向与配色",
-      title: "同一个观点，讲给不同的人听。",
+      title: "同一个观点，\n讲给不同的人听。",
       description:
         "面向儿童、摄影、食品或体育运动，都可以用一句话说明受众与场景，让视觉联想更贴近内容。配色可直接选预设或自定义；领域和颜色不必固定在同一套风格里。",
       shot: "options",
@@ -99,7 +137,7 @@ export const product = {
     {
       id: "edit",
       label: "逐页打磨",
-      title: "这一页，值得再好一点。",
+      title: "这一页，\n值得再好一点。",
       description:
         "文案、画面、附件分开调整。保留历史结果，继续打磨你选中的那一页；也能在两页之间插入新的内容。",
       shot: "detail",
@@ -128,7 +166,7 @@ export const product = {
     {
       id: "deliver",
       label: "导出与保存",
-      title: "画面带走，完整讲稿也带走。",
+      title: "画面，带走。\n讲稿，也带走。",
       description:
         "交付的不只是图片。PPTX 按页包含完整图片与讲稿备注，另有独立 Markdown 逐字稿，作为你下一次演讲的起点。",
       shot: "export",
@@ -152,7 +190,7 @@ export const product = {
   setup: [
     {
       title: "安装并打开",
-      text: "Mac 内部版可直接打开 AutoPPT.app，免登录、自行配置模型，无需另装 Node。尚未完成 Apple 签名公证。源码浏览器版安装 Node.js 24 LTS 后执行以下命令，打开 http://127.0.0.1:4317。",
+      text: "已有 Mac 内部安装包？将 AutoPPT.app 拖入应用程序即可打开，无需另装 Node。公开仓库提供源码和安装说明；浏览器版安装 Node.js 24 LTS 后执行以下命令，打开 http://127.0.0.1:4317。Mac 内部版尚未完成 Apple 签名公证。",
       code: "npm ci\nnpm run build\nnpm start",
     },
     {

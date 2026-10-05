@@ -53,13 +53,15 @@ test(
             : undefined),
         headless: true,
       });
-      const page = await browser.newPage();
+      const page = await browser.newPage({ reducedMotion: "reduce" });
       const errors = [];
       page.on("pageerror", (e) => errors.push(e.message));
       mkdirSync(".local/verification/intro", { recursive: true });
       for (const [label, width, height] of [
         ["desktop", 1440, 1000],
+        ["tablet", 820, 1180],
         ["mobile", 390, 844],
+        ["small-mobile", 320, 740],
       ]) {
         await page.setViewportSize({ width, height });
         await page.goto(base + "/intro/");
@@ -75,6 +77,48 @@ test(
         await page.screenshot({
           path: `.local/verification/intro/${label}-top.png`,
         });
+        if (width < 760) {
+          await page.getByRole("button", { name: "打开导航" }).click();
+          assert.equal(
+            await page.locator(".menu-toggle").getAttribute("aria-expanded"),
+            "true",
+          );
+          await page
+            .locator("#site-navigation")
+            .getByRole("link", { name: "风格制作" })
+            .click();
+          assert.equal(
+            await page.locator(".menu-toggle").getAttribute("aria-expanded"),
+            "false",
+          );
+        }
+        const choices = page.locator(".style-choice");
+        await choices.nth(2).click();
+        await page.waitForFunction(
+          () =>
+            document.getElementById("gallery-title").textContent ===
+            "高质感手账",
+        );
+        assert.equal(await choices.nth(2).getAttribute("aria-pressed"), "true");
+        await choices.nth(2).press("ArrowRight");
+        await page.waitForFunction(
+          () =>
+            document.getElementById("gallery-title").textContent ===
+            "暗黑参数化数据地形风",
+        );
+        await page.locator("#gallery-zoom").click();
+        assert(
+          (await page.locator("#viewer-image").getAttribute("src")).includes(
+            "dark-data-terrain.webp",
+          ),
+        );
+        await page.keyboard.press("Escape");
+        assert(!(await page.getByRole("dialog").isVisible()));
+        await page
+          .locator("#style-making")
+          .screenshot({
+            path: `.local/verification/intro/${label}-styles.png`,
+          });
         assert.equal(await page.getByRole("tab").count(), 0);
         assert.equal(
           await page
@@ -139,6 +183,18 @@ test(
         "../#projects",
       );
       assert.deepEqual(errors, []);
+      // The base content remains readable without JavaScript; only the
+      // optional gallery controls and zoom need scripting.
+      const noScript = await browser.newContext({ javaScriptEnabled: false });
+      const fallback = await noScript.newPage();
+      await fallback.goto(base + "/intro/");
+      assert(await fallback.getByRole("heading", { level: 1 }).isVisible());
+      assert.equal(
+        await fallback.locator(".feature-panel").count(),
+        product.features.length,
+      );
+      assert.equal(await fallback.locator(".reveal-pending").count(), 0);
+      await noScript.close();
     } finally {
       await browser?.close();
       await new Promise((r) => server.close(r));

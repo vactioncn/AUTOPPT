@@ -14,6 +14,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { product } from "../site/intro/content.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const bucket = "oss://turing-show";
@@ -80,7 +81,6 @@ export function prepareIntroduction(output) {
   );
   for (const name of screenshots)
     copyPublicFile(`intro/screenshots/${name}`, output);
-  copyPublicFile("style-covers/restrained-childhood-editorial.png", output);
   copyPublicFile("favicon.svg", output);
 
   return [
@@ -89,7 +89,7 @@ export function prepareIntroduction(output) {
     "intro.js",
     "guide.md",
     "favicon.svg",
-    "style-covers/restrained-childhood-editorial.png",
+    ...product.gallery.map((style) => `artwork/${style.file}.webp`),
     ...[...screenshots].map((name) => `screenshots/${name}`),
   ].sort();
 }

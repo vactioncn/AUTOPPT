@@ -5,10 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="AutoPPT：把完整逐字稿变成有风格的演讲画面。拆页、提炼文案、风格生成、逐页修改，导出 PPT 与 Markdown 讲稿。"
+      content="AutoPPT，AI 演讲 PPT 制作工具。粘贴逐字稿，自动拆页、提炼重点，按自己的风格生成演示画面。13 套内置风格，逐页打磨，导出 PPT 与完整讲稿。"
     />
-    <meta name="theme-color" content="#f5f4ef" />
-    <title>AutoPPT — 从你要讲的，到值得看的</title>
+    <meta name="theme-color" content="#ffffff" />
+    <meta property="og:title" content="AutoPPT · 好内容，自有好画面。" />
+    <meta
+      property="og:description"
+      content="从逐字稿到有风格的演讲 PPT。自动拆页，逐页打磨，连同完整讲稿一起带走。"
+    />
+    <meta property="og:type" content="website" />
+    <title>AutoPPT · 好内容，自有好画面。</title>
     <link rel="icon" href="../favicon.svg" />
     <link rel="stylesheet" href="./intro.css" />
     <script src="./intro.js" defer></script>
@@ -16,169 +22,222 @@
   <body>
     <a class="skip-link" href="#main">跳到正文</a>
     <header class="site-header">
-      <a class="wordmark" href="#" aria-label="AutoPPT 首页"
-        ><span class="brand-mark">A</span>AutoPPT<span class="wordmark-note"
-          >演讲制作室</span
-        ></a
-      >
-      <nav aria-label="介绍页导航">
-        <a href="#style-making">风格制作</a
-        ><a href="#speech-making">演讲稿制作</a><a href="#start">开始使用</a>
-      </nav>
-      <a
-        class="nav-download"
-        href="https://github.com/vactioncn/AUTOPPT/archive/refs/heads/main.zip"
-        >下载 AutoPPT <span aria-hidden="true">↗</span></a
-      >
+      <div class="nav-inner">
+        <a class="wordmark" href="#" aria-label="AutoPPT 首页">AutoPPT</a>
+        <button
+          class="menu-toggle"
+          aria-expanded="false"
+          aria-controls="site-navigation"
+          aria-label="打开导航"
+        >
+          <span></span><span></span>
+        </button>
+        <nav id="site-navigation" aria-label="介绍页导航">
+          <a href="#workflow">概览</a><a href="#style-making">风格制作</a
+          ><a href="#speech-making">演讲稿制作</a><a href="#faq">常见问题</a>
+        </nav>
+        <a class="button nav-cta" href="#start">开始使用</a>
+      </div>
     </header>
     <main id="main">
-      <section class="hero wrap">
-        <div class="hero-copy">
-          <p class="eyebrow"><span></span> YOUR WORDS. YOUR STYLE.</p>
-          <h1>把你要讲的，<br />变成<span class="marked">值得看的。</span></h1>
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy wrap">
+          <p class="hero-category">AutoPPT · AI 演讲 PPT 制作工具</p>
+          <h1 id="hero-title">好内容。<br /><span>自有好画面。</span></h1>
           <p class="hero-description">
-            先制作自己的主题风格，<br />再把逐字稿变成演讲页面。<br />从试做调试，到打磨导出，一步步完成。
+            把逐字稿，变成有你风格的演讲 PPT。<br />从自动拆页到画面生成，再到完整讲稿导出。
           </p>
           <div class="hero-actions">
-            <a class="button dark" href="#workflow"
-              >看它如何工作 <span aria-hidden="true">↓</span></a
-            ><a class="text-link" href="#start">开始我的第一场演讲 ↗</a>
+            <a class="button" href="#start">开始你的第一场演讲</a
+            ><a class="text-link" href="#workflow"
+              >进一步了解 <span aria-hidden="true">›</span></a
+            >
           </div>
-          <p class="hero-note">
-            本机工作台 <i>·</i> 自带风格 <i>·</i> 连接你自己的模型
-          </p>
         </div>
-        <div class="hero-art">
-          <div class="art-topline">
-            <span>THE ART OF PRESENTING</span><span>AUTOPPT / 01</span>
+        <div class="hero-stage" aria-label="AutoPPT 内置风格封面展示">
+          <img
+            class="hero-slide hero-left"
+            src="artwork/tactile-journal.webp"
+            alt="高质感手账风格封面"
+            width="1440"
+            height="810"
+          />
+          <img
+            class="hero-slide hero-right"
+            src="artwork/technology-strategy.webp"
+            alt="科技战略发布会风格封面"
+            width="1440"
+            height="810"
+          />
+          <img
+            class="hero-slide hero-center"
+            src="artwork/neo-swiss-strategy.webp"
+            alt="新瑞士主义战略编辑风封面：让想法被看见"
+            width="1440"
+            height="810"
+            fetchpriority="high"
+          />
+        </div>
+        <p class="image-note hero-image-note">
+          AutoPPT 内置风格封面 · 实际画面
+        </p>
+      </section>
+
+      <section id="workflow" class="overview section mist">
+        <div class="wrap">
+          <div class="section-heading" data-reveal>
+            <p class="eyebrow">从讲稿，到登场。</p>
+            <h2>少一些排版。<br />多一些好表达。</h2>
+            <p>
+              演讲、培训、产品介绍、工作汇报。<br />只要有想讲的内容，就从一段逐字稿开始。
+            </p>
           </div>
-          <figure>
-            <img
-              src="../style-covers/restrained-childhood-editorial.png"
-              alt="内置克制儿童摄影杂志风封面：黑白儿童摄影与荧光黄绿重点"
-              width="1672"
-              height="941"
-              fetchpriority="high"
-            />
+          <div class="benefits">
+            <article data-reveal>
+              <span class="benefit-symbol" aria-hidden="true">Aa</span>
+              <h3>长稿，化成重点。</h3>
+              <p>按讲述逻辑拆页，提炼上屏文案。完整讲稿另行保留。</p>
+            </article>
+            <article data-reveal>
+              <span class="benefit-symbol" aria-hidden="true">13</span>
+              <h3>风格，直接选用。</h3>
+              <p>13 套内置风格随时开始，也能创建自己的视觉语言。</p>
+            </article>
+            <article data-reveal>
+              <span class="benefit-symbol" aria-hidden="true">1</span>
+              <h3>打磨，细到一页。</h3>
+              <p>调整文字、画面或内容附件，逐页重做，保留历史版本。</p>
+            </article>
+            <article data-reveal>
+              <span class="benefit-symbol benefit-file" aria-hidden="true"
+                >PPT</span
+              >
+              <h3>登场，稿图俱备。</h3>
+              <p>导出带逐页讲稿备注的 PPTX，附上独立 Markdown 全文。</p>
+            </article>
+          </div>
+          <figure class="app-showcase" data-reveal>
+            <button
+              class="shot-button"
+              data-zoom="screenshots/workspace.webp"
+              data-caption="演讲工作台 · 查看页面、调整风格、逐页制作"
+              aria-label="放大演讲工作台截图"
+            >
+              <img
+                src="screenshots/workspace.webp"
+                alt="AutoPPT 实际演讲工作台，包含页面预览、逐字稿和导出入口"
+                width="1440"
+                height="1040"
+                loading="lazy"
+              />
+            </button>
             <figcaption>
-              <span class="tiny-label">BUILT-IN STYLE</span
-              ><strong>有自己的表达，也有自己的样子。</strong
-              ><span>克制儿童摄影杂志风 · 程序默认内置</span>
+              讲稿、画面、风格和修改记录。都在同一个工作台。<span
+                >真实界面 · 演示资料 · 点击放大</span
+              >
             </figcaption>
           </figure>
-          <div class="art-bottomline">
-            <span>内容决定结构<br />风格决定表达</span
-            ><span class="art-star" aria-hidden="true">✳</span>
+          <div class="module-overview">{{MODULE_OVERVIEW}}</div>
+        </div>
+      </section>
+
+      <div id="features">{{FEATURES}}</div>
+
+      <section class="ownership section mist">
+        <div class="wrap ownership-grid">
+          <div data-reveal>
+            <p class="eyebrow">为你的下一次表达，继续积累。</p>
+            <h2>
+              用过的好风格。<br />做过的好内容。<br /><span class="muted"
+                >都留在你手里。</span
+              >
+            </h2>
+          </div>
+          <div class="ownership-copy" data-reveal>
+            <article>
+              <h3>项目，在本机保存。</h3>
+              <p>
+                关闭后再次打开，接着上次的稿子继续。风格、素材和历史版本随项目保存在自己的电脑里。
+              </p>
+            </article>
+            <article>
+              <h3>模型，由你选择。</h3>
+              <p>
+                内容理解和图片生成分别配置，连接支持相应能力的兼容服务。模型费用或额度由所选服务商决定。
+              </p>
+            </article>
+            <article>
+              <h3>从一页开始，慢慢做完整。</h3>
+              <p>
+                先试做、确认风格，再逐段追加讲稿。生成期间也能编辑其他空闲页面，最多同时执行
+                4 项任务。
+              </p>
+            </article>
+            <p class="small-note">
+              生成时，相关讲稿与素材会发送给你配置的模型服务。
+            </p>
           </div>
         </div>
       </section>
-      <div class="promise-strip">
+
+      <section id="start" class="start-section section">
         <div class="wrap">
-          <span>保留完整讲稿</span><span>看到上屏文案</span
-          ><span>按自己的风格生成</span><span>逐页调整与恢复</span
-          ><span>PPT + Markdown</span>
-        </div>
-      </div>
-      <section id="workflow" class="workflow wrap section">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">TWO WAYS TO MAKE IT YOURS</p>
-            <h2>两大功能，<br />串起你的整个制作过程。</h2>
-          </div>
-          <p>先定风格，再做演讲。<br />已有合适风格？直接开始第二步。</p>
-        </div>
-        <div class="module-overview">{{MODULE_OVERVIEW}}</div>
-        <figure class="app-showcase">
-          <div class="window-top">
-            <span aria-hidden="true">● ● ●</span
-            ><span>AutoPPT · 你的演讲制作室</span
-            ><span>真实界面 / 演示资料</span>
-          </div>
-          <button
-            class="shot-button"
-            data-zoom="screenshots/workspace.webp"
-            data-caption="演讲工作台 · 查看页面、调整风格、逐页制作"
-            aria-label="放大演讲工作台截图"
-          >
-            <img
-              src="screenshots/workspace.webp"
-              alt="AutoPPT 工作台真实截图，展示演讲页面、页间插入及导出入口"
-              width="1440"
-              height="1040"
-              loading="lazy"
-            />
-          </button>
-          <figcaption>
-            你的稿子、页面和修改记录，在同一个工作空间里。<span
-              >点击截图可放大 ↗</span
-            >
-          </figcaption>
-        </figure>
-      </section>
-      <section id="features" class="features-section">
-        <div class="wrap section">{{FEATURES}}</div>
-      </section>
-      <section class="style-note wrap section">
-        <div>
-          <p class="eyebrow">A STYLE OF YOUR OWN</p>
-          <h2>统一的是气质，<br />自由的是每一页。</h2>
-          <p>
-            儿童摄影只是默认示例，不是使用范围。<br />提取或手动设置风格，搭配食品、体育、教育等受众语境，讲好你自己的内容。
-          </p>
-          <a class="text-link" href="#style-making">了解风格库与版本管理 ↗</a>
-        </div>
-        <div class="style-swatch">
-          <span class="swatch-small">RESTRAINED / EDITORIAL</span
-          ><span class="swatch-word">克制<span>有度。</span></span>
-          <div class="swatch-footer">
-            <span>BLACK / WHITE / ACID LIME</span><span>Aa · 中文</span>
-          </div>
-        </div>
-      </section>
-      <section id="start" class="start-section">
-        <div class="wrap section">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">03 / YOUR FIRST PRESENTATION</p>
-              <h2>你的下一场演讲，<br />从这里开始。</h2>
+          <div class="section-heading centered" data-reveal>
+            <p class="eyebrow">下一场，轮到你。</p>
+            <h2>让你想讲的，<br />被好好看见。</h2>
+            <p>先拿一小段稿子试试。<br />你的第一套风格，已经准备好了。</p>
+            <div class="hero-actions">
+              <a
+                class="button"
+                href="https://github.com/vactioncn/AUTOPPT/blob/main/docs/同事安装与使用说明.md"
+                >查看安装与使用说明</a
+              ><a
+                class="text-link"
+                href="https://github.com/vactioncn/AUTOPPT/archive/refs/heads/main.zip"
+                >下载源码 <span aria-hidden="true">↗</span></a
+              >
             </div>
-            <a
-              class="button lime"
-              href="https://github.com/vactioncn/AUTOPPT/archive/refs/heads/main.zip"
-              >下载最新代码 <span aria-hidden="true">↗</span></a
-            >
           </div>
           <div class="setup-steps">{{SETUP}}</div>
           <div class="start-links">
             <a href="./guide.md" download="AutoPPT-功能与快速使用指南.md"
-              >下载这份使用指南 .md ↗</a
+              >下载快速指南 <span aria-hidden="true">↓</span></a
             ><a
-              href="https://github.com/vactioncn/AUTOPPT/blob/main/docs/同事安装与使用说明.md"
-              >完整安装与使用说明 ↗</a
+              href="https://github.com/vactioncn/AUTOPPT/raw/refs/heads/main/docs/AutoPPT-安装与使用说明.docx"
+              >下载 Word 使用说明 <span aria-hidden="true">↓</span></a
             ><a href="../#projects" id="open-workspace">打开本机工作台 ↗</a>
           </div>
           <p class="start-note">
-            需要自行配置兼容模型服务；生成费用或额度由服务商决定。首次使用建议先试做一页。
+            Mac
+            内部版免登录；公开下载入口提供源码。首次生成需配置自己的模型服务，不附带模型额度。
           </p>
         </div>
       </section>
-      <section id="faq" class="wrap section faq-section">
-        <div>
-          <p class="eyebrow">BEFORE YOU BEGIN</p>
-          <h2>你可能还想知道。</h2>
+      <section id="faq" class="faq-section section mist">
+        <div class="wrap">
+          <div class="section-heading" data-reveal>
+            <h2>还有一些，<br />你可能想知道。</h2>
+          </div>
+          <div class="faq-list">{{FAQ}}</div>
         </div>
-        <div class="faq-list">{{FAQ}}</div>
       </section>
     </main>
     <footer class="site-footer wrap">
-      <a class="wordmark" href="#"><span class="brand-mark">A</span>AutoPPT</a>
-      <p>让每一次表达，都有自己的样子。</p>
-      <a href="https://github.com/vactioncn/AUTOPPT">GitHub ↗</a>
+      <div>
+        <a class="wordmark" href="#">AutoPPT</a>
+        <p>让内容讲清楚，让表达有自己的风格。</p>
+      </div>
+      <a href="https://github.com/vactioncn/AUTOPPT"
+        >在 GitHub 查看项目 <span aria-hidden="true">↗</span></a
+      >
     </footer>
     <dialog id="image-viewer" aria-labelledby="viewer-caption">
-      <button class="viewer-close" aria-label="关闭截图">关闭 ×</button>
-      <p id="viewer-caption"></p>
+      <div class="viewer-toolbar">
+        <p id="viewer-caption"></p>
+        <button class="viewer-close" aria-label="关闭截图">关闭 ×</button>
+      </div>
       <img id="viewer-image" alt="" />
     </dialog>
+    <p class="sr-only" id="page-status" role="status" aria-live="polite"></p>
   </body>
 </html>

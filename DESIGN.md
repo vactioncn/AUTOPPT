@@ -281,3 +281,12 @@ Actual samples in test project `76279902-8efb-4e61-ade7-3595a836670e` are black 
 - **Don't** reintroduce style-reference image selection, reference comparison or automatic deviation review into the finalized trial and production flows; content attachments have their own explicit material input.
 - **Don't** treat choosing a history result as saving its candidate rules to the formal style.
 - **Don't** treat reviewed image samples or a successful interface review as a general guarantee of output quality or reference-style fidelity.
+
+
+## Product introduction website
+
+The standalone `/intro/` page uses a separate marketing presentation: white and pale gray surfaces, large centered Chinese headlines, system typography, a restrained blue action color, and generous spacing inspired by product storytelling. It introduces AutoPPT as an AI speech-to-PPT tool before explaining style creation and speech production. This does not change the warm working-interface palette described above.
+
+Approved built-in covers lead the page and a six-choice gallery. All application screenshots are captured from an isolated demo workspace. Cover switching has named buttons, pressed state, left/right and Home/End keyboard support; every workflow remains visible without selecting a tab. Native image dialogs support Escape and return focus. Small screens use a disclosure navigation; reveal motion respects reduced-motion preferences and all content stays visible without JavaScript.
+
+The primary action leads to installation instructions, with an explicitly labeled source ZIP download. Mac builds remain internal; no public installer or hosted generation service is implied. Export is described as full-page image PPTX with speaker notes plus a separate Markdown manuscript.

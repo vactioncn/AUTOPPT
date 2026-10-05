@@ -12,6 +12,10 @@ import JSZip from "jszip";
 import { DEFAULT_STYLE_ID } from "../shared/styles.mjs";
 import { defaultSystem, composeScene, samplePlan } from "../shared/slides.mjs";
 import { inspectPresentation } from "./helpers/presentation.mjs";
+import {
+  observationsFixture,
+  creationFixture,
+} from "./fixtures/style-creation.mjs";
 import { compositionFixture } from "./fixtures/composition.mjs";
 import { copyFixture, reviewFixture } from "./fixtures/screen-copy.mjs";
 
@@ -191,27 +195,9 @@ test(
         system.includes("演讲设计系统设计师")
       ) {
         calls.push({ type: "system", refs, user });
-        output = {
-          description: "用于验收的设计规范",
-          rules:
-            "浅色底、深灰细字体、蓝色强调与细线。各页共享字重、间距与图形语言。按内容选择版式，不在页面复制原始参考文字。",
-          colors: ["#f7f7f3", "#20272b", "#284fa3"],
-          referenceProfiles: Array.from(
-            {
-              length:
-                refs || JSON.parse(user).style?.referenceProfiles?.length || 0,
-            },
-            () => ({
-              name: "蓝色测绘细线",
-              role: "概念地图",
-              layout: "左侧大字，右侧开放海域",
-              typography: "Regular 标题与微型标注",
-              graphics: "浅蓝群岛等高线、虚线网格和十字定位点",
-              avoid: "不要卡片或粗标题",
-            }),
-          ),
-          imageRecipes: [],
-        };
+        output = system.includes("本阶段只做参考图视觉观察")
+          ? observationsFixture(refs)
+          : creationFixture();
       } else if (system.includes("演讲上屏文案编辑")) {
         const data = JSON.parse(user);
         calls.push({
@@ -428,6 +414,17 @@ test(
       (s) => s.id === upload.style.id,
     );
     assert.equal(style.referenceProfiles.length, 1);
+    assert.equal(style.styleAnalysis.version, 1);
+    assert.match(style.rules, /十二、设计自检与效果标准/);
+    const creationCalls = calls.filter((c) => c.type === "system");
+    assert.deepEqual(
+      creationCalls.map((c) => c.refs),
+      [1, 0],
+    );
+    assert.equal(
+      JSON.parse(creationCalls[1].user).observations.referenceProfiles[0].ref,
+      style.refs[0],
+    );
     assert.equal(
       (await req(`/styles/${style.id}/versions`)).versions[0].source,
       "extraction",

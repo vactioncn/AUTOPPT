@@ -21,6 +21,7 @@ import { api, post, patch, asset, active } from "./api";
 import { Button, Modal, Field, StylePreview, Status } from "./components";
 import { StyleStudio } from "./StyleStudio";
 import { StyleVersions } from "./StyleVersions";
+import { StyleAnalysis } from "./StyleAnalysis";
 import { DEFAULT_STYLE_ID } from "../shared/styles.mjs";
 export function StyleLibrary({
   urlImportAvailable,
@@ -88,7 +89,7 @@ export function StyleLibrary({
         <div>
           <h2>用提示词、图片或网址，建立自己的风格库</h2>
           <p>
-            配色、字体、图形画法与留白，成为适用于不同内容的设计规范。
+            先仔细分析每张参考图，再设计字体、色彩、图像与细节完整的新风格。
             <br />
             用现成示例或自己的内容试做；使用统一文案单独生成风格封面。
           </p>
@@ -192,6 +193,14 @@ export function StyleLibrary({
                 j.styleId === selected.id &&
                 active(j.status),
             ) || selected.status === "analyzing"
+          }
+          analysisStage={
+            jobs.find(
+              (j) =>
+                j.type === "style" &&
+                j.styleId === selected.id &&
+                active(j.status),
+            )?.stage
           }
           onUse={() => {
             setDetail(null);
@@ -314,7 +323,7 @@ function CreateStyle({
   return (
     <Modal
       title="创建你的视觉风格"
-      subtitle="直接填写风格提示词，或选择参考图提炼。"
+      subtitle="直接填写提示词，或上传喜欢的图片，分析特点并创作新风格。"
       onClose={() => {
         if (!busy) onClose();
       }}
@@ -361,6 +370,11 @@ function CreateStyle({
       {!urlImportAvailable && (
         <p className="url-import-hint">
           网址导入需要更新本地服务后启用，当前生成任务不受影响。
+        </p>
+      )}
+      {source !== "prompt" && (
+        <p className="detail-help">
+          先逐图分析，再生成完整的风格规范，包含字体、配色、图像、材质、构图、细节和跨页变化。完成后可查看分析依据并试做。
         </p>
       )}
       {source === "prompt" ? (
@@ -579,6 +593,7 @@ function StyleDetail({
   notify,
   onUse,
   analyzing,
+  analysisStage,
   onTest,
 }: {
   style: Style;
@@ -587,6 +602,7 @@ function StyleDetail({
   notify: (s: string) => void;
   onUse: () => void;
   analyzing: boolean;
+  analysisStage?: string;
   onTest: () => void;
 }) {
   const [rules, setRules] = useState(style.rules),
@@ -750,8 +766,8 @@ function StyleDetail({
           {analyzing && (
             <div className="analyzing-style">
               <SpinnerGap size={24} className="spin" />
-              <p>正在观察配色、字体、构图和留白…</p>
-              <span>完成后，设计规则会自动出现在这里。</span>
+              <p>{analysisStage || "正在逐图分析视觉特点…"}</p>
+              <span>完成图片分析后，将继续设计完整的新风格规范。</span>
             </div>
           )}
           {style.error && <p className="error-text">{style.error}</p>}
@@ -809,6 +825,7 @@ function StyleDetail({
               </p>
             )
           )}
+          <StyleAnalysis style={style} />
           <StyleVersions
             style={style}
             disabled={editing || busy || analyzing}

@@ -1,0 +1,15 @@
+.style-analysis h4 {
+  margin: 18px 0 6px;
+}
+
+.style-analysis p {
+  margin: 8px 0;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+
+.style-analysis > details {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line, #dedfd7);
+}

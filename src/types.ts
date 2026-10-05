@@ -249,6 +249,14 @@ export type Style = {
   error?: string;
   deletedAt?: string;
   referenceProfiles?: ReferenceProfile[];
+  styleAnalysis?: {
+    version: number;
+    summary: string;
+    sharedTraits: { trait: string; references: number[] }[];
+    differences: string[];
+    uncertainties: string[];
+    direction: string;
+  };
   appliedTrialId?: string;
 };
 export type ReferenceProfile = {
@@ -259,6 +267,11 @@ export type ReferenceProfile = {
   typography: string;
   graphics: string;
   avoid: string;
+  color?: string;
+  imagery?: string;
+  texture?: string;
+  density?: string;
+  details?: string;
   spec?: ReferenceSpec;
 };
 export type ReferenceSpec = {

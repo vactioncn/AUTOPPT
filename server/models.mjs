@@ -15,6 +15,7 @@ import { prepareScreenCopy, reusableScreenCopy } from "./screen-copy.mjs";
 import { DIRECT_PROMPT_MODE, directImagePrompt } from "./direct-image.mjs";
 import { PLANNING_VERSION, validateBriefs } from "./content-planning.mjs";
 import { imageContentPrompt } from "./image-content.mjs";
+import { createStyleFromReferences } from "./style-creation.mjs";
 
 export class ProviderError extends Error {}
 const safeError = (message) =>
@@ -282,40 +283,6 @@ export async function design(
   };
 }
 
-const analysisInstructions = `提炼真正可延伸的设计风格。不要只记录单个元素，应按参考实际特征观察字体、配色、绘画或摄影方式、材质纹理、装饰密度、元素尺度、疏密节奏与排版。不要预设极简、粗体、细线、纯色、留白量或装饰程度；把特定审美要求写入当前风格自己的rules。若参考中有极小标签、页边细线、局部精密图形，记录它们的作用和尺度，把它们保留为可延伸的编辑语言；不要当作无关装饰丢弃。新内容可用本页的短译或定位词替换标注，但不得抄年份、坐标或捏造统计。大标题的笔画粗细和字腔不能只用“无衬线”概括。rules写字体性格、字重/字号比例、色彩组合、材质纹理、装饰密度、线条与图形画法、强调、信息层级、对齐、留白节奏和微观细节；区分共同规则与允许变体。不要写固定模板选择规则，不将地图/岛屿/台阶/3个节点或某些区域坐标当成每页必须的风格特征。原图题材只是风格的示例，允许为不同内容发明新构图，不能只有换色排版。逐图referenceProfiles仅作观察档案，按输入顺序返回{name:"短名",role:"原图表达的内容",layout:"观察到的构图，不作为锁定规则",typography:"字体细节",graphics:"原图图形与画法",avoid:"哪些做法破坏这套语言"}。不复制原图文案。返回{description:"一句话特点",rules:"完整可执行风格规范及延伸原则",colors:["#RRGGBB"],referenceProfiles:[],imageRecipes:[]}。`;
-
-function checkedAnalysis(out, style) {
-  if (typeof out.rules !== "string" || out.rules.length < 40)
-    throw new Error("设计规范不完整，请重新提炼。");
-  if (
-    (style.refs || []).length &&
-    (!Array.isArray(out.referenceProfiles) ||
-      out.referenceProfiles.length !== style.refs.length)
-  )
-    throw new Error("各参考方向的分析不完整，请重新提炼。");
-  const profiles = (out.referenceProfiles || []).map((p, i) => {
-    for (const key of ["layout", "typography", "graphics", "avoid"])
-      if (typeof p[key] !== "string" || !p[key].trim())
-        throw new Error("风格细节不完整，请重新提炼。");
-    return { ...p, ref: style.refs?.[i] };
-  });
-  const recipes = (out.imageRecipes || []).filter(
-    (r) =>
-      /^reference-[1-9][0-9]*$/.test(r.sourceId) &&
-      Number(r.sourceId.split("-")[1]) <= profiles.length &&
-      ["name", "layout", "typography", "graphics", "avoid"].every(
-        (k) => typeof r[k] === "string" && r[k].trim(),
-      ),
-  );
-  return {
-    description: String(out.description || style.name),
-    rules: out.rules,
-    colors:
-      out.colors?.filter((c) => /^#[a-f\d]{6}$/i.test(c)) || style.colors || [],
-    referenceProfiles: profiles,
-    imageRecipes: recipes,
-  };
-}
 export async function analyzeStyle(
   style,
   feedback = "",
@@ -323,14 +290,11 @@ export async function analyzeStyle(
   comparison = {},
   progress = () => {},
 ) {
-  progress("正在观察构图、字体与图形细节，提炼并延伸风格");
-  const out = await jsonModel(
-    `你是视觉设计总监。这是建库或用户要求重新提炼的阶段，可以读参考图；后续页面设计与出图不读取原图。${analysisInstructions}`,
-    JSON.stringify({ name: style.name, previousRules: style.rules, feedback }),
-    style.refs || [],
+  return createStyleFromReferences(style, feedback, {
+    callModel: jsonModel,
     signal,
-  );
-  return checkedAnalysis(out, style);
+    progress,
+  });
 }
 export const imagePrompt = directImagePrompt;
 

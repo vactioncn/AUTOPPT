@@ -56,6 +56,7 @@ import type {
 import { ProjectReport } from "./ProjectReport";
 import { CopyReview } from "./CopyReview";
 import { MotionPresentation } from "./MotionPresentation";
+import { RedesignDialog } from "./RedesignDialog";
 import { Button, Modal, Field, SlideImage, Status } from "./components";
 
 export function Workspace({
@@ -100,6 +101,7 @@ export function Workspace({
     [proposalSubmitting, setProposalSubmitting] = useState(false),
     [showScript, setShowScript] = useState(false),
     [motionOpen, setMotionOpen] = useState(false),
+    [redesignOpen, setRedesignOpen] = useState(false),
     [exportOpen, setExportOpen] = useState(false),
     [reportOpen, setReportOpen] = useState(false),
     [renaming, setRenaming] = useState(false);
@@ -280,6 +282,13 @@ export function Workspace({
           </p>
         </div>
         <div className="project-output-actions">
+          <Button
+            disabled={!project.slides.length}
+            onClick={() => setRedesignOpen(true)}
+          >
+            <ArrowsClockwise size={18} />
+            重新设计
+          </Button>
           {motionAvailable && (
             <Button
               onClick={() => setMotionOpen(true)}
@@ -660,6 +669,7 @@ export function Workspace({
                     disabled={pageBusy(s.id)}
                     onClick={() => select(s.id)}
                     aria-label={`选择第 ${project.slides.indexOf(s) + 1} 页`}
+                    aria-pressed={selected.includes(s.id)}
                   >
                     {selected.includes(s.id) ? (
                       <CheckSquare size={23} weight="fill" />
@@ -726,18 +736,10 @@ export function Workspace({
           </span>
           <Button
             disabled={selected.some(pageBusy) || !style || !!style.deletedAt}
-            onClick={() =>
-              run(async () => {
-                await post("/projects/" + id + "/render", {
-                  slideIds: selected,
-                  redesign: true,
-                });
-                setSelected([]);
-              }, `正在按「${style?.name}」重新设计，旧版本会保留。`)
-            }
+            onClick={() => setRedesignOpen(true)}
           >
             <ArrowsClockwise size={17} />
-            按当前风格重做
+            重新设计所选 {selected.length} 页
           </Button>
           <Button
             variant="primary"
@@ -851,6 +853,20 @@ export function Workspace({
             );
             refresh().catch(() => {});
             onRefresh().catch(() => {});
+          }}
+        />
+      )}
+      {redesignOpen && (
+        <RedesignDialog
+          project={project}
+          style={style}
+          selected={selected}
+          pageBusy={pageBusy}
+          onClose={() => setRedesignOpen(false)}
+          onSubmitted={(count) => {
+            setRedesignOpen(false);
+            setSelected([]);
+            void run(async () => {}, `已提交 ${count} 页重新设计，旧版本会保留。`);
           }}
         />
       )}

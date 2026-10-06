@@ -1093,7 +1093,7 @@ img {
   background: #fffefa;
   border-radius: 5px;
   color: #909b84;
-  opacity: 0;
+  opacity: 1;
 }
 .slide-card:hover .slide-checkbox,
 .slide-checkbox:focus,

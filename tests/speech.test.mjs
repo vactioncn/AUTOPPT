@@ -324,6 +324,11 @@ test(
     assert.equal(calls.length, count + 1);
     assert.equal(calls.at(-1).voice_setting.emotion, "happy");
     assert.equal(d.pages[1].notes, project.slides[1].notes);
+    await request("/api/speech/preview", {
+      text: "平稳讲述这一段",
+      options: { ...SPEECH_DEFAULTS, emotion: "neutral" },
+    });
+    assert.equal(calls.at(-1).voice_setting.emotion, "calm");
     const preview = await request("/api/speech/preview", {
       text: "试看这一段",
       options: SPEECH_DEFAULTS,

@@ -58,7 +58,12 @@ export async function synthesize(config, text, options, signal) {
         speed: options.speed,
         vol: 1,
         pitch: 0,
-        ...(options.emotion === "auto" ? {} : { emotion: options.emotion }),
+        ...(options.emotion === "auto"
+          ? {}
+          : {
+              // Keep the saved/UI value stable; MiniMax names neutral delivery "calm".
+              emotion: options.emotion === "neutral" ? "calm" : options.emotion,
+            }),
       },
       audio_setting: {
         sample_rate: 32000,

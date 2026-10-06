@@ -73,6 +73,11 @@ import { registerStyleImports } from "./style-import.mjs";
 import { registerAttachments, resolveAttachments } from "./attachments.mjs";
 import { projectReport } from "./report.mjs";
 import {
+  registerSpeech,
+  recoverSpeech,
+  activeSpeechCount,
+} from "./speech/index.mjs";
+import {
   registerMotion,
   recoverMotion,
   activeMotionCount,
@@ -164,7 +169,9 @@ app.get("/api/activity", (req, res) =>
   res.json({
     activeJobs:
       all("job").filter((j) => ["queued", "running"].includes(j.status))
-        .length + activeMotionCount(),
+        .length +
+      activeMotionCount() +
+      activeSpeechCount(),
   }),
 );
 if (process.env.AUTOPPT_DESKTOP_TOKEN)
@@ -172,7 +179,9 @@ if (process.env.AUTOPPT_DESKTOP_TOKEN)
     res.json({
       activeJobs:
         all("job").filter((job) => ["queued", "running"].includes(job.status))
-          .length + activeMotionCount(),
+          .length +
+        activeMotionCount() +
+        activeSpeechCount(),
     }),
   );
 app.get("/api/bootstrap", (req, res) =>
@@ -184,6 +193,7 @@ app.get("/api/bootstrap", (req, res) =>
       designOptions: true,
       insertAndManuscriptExport: true,
       motionPresentation: true,
+      speechPresentation: !process.env.AUTOPPT_WORKER_TOKEN,
     },
     projects: all("project")
       .filter((p) => !p.deletedAt)
@@ -265,6 +275,8 @@ app.post("/api/projects", (req, res) => {
 });
 app.delete("/api/projects/:id", (req, res) => {
   const p = projectOrThrow(req.params.id);
+  if (activeSpeechCount(p.id))
+    throw new Error("请先完成或停止本项目的口播生成，再删除项目。");
   if (activeMotionCount(p.id))
     throw new Error("请先完成或停止本项目的动态演示转换，再删除项目。");
   assertIdle(p.id);
@@ -965,6 +977,7 @@ app.post("/api/settings/test", async (req, res) => {
   });
 });
 registerMotion(app);
+registerSpeech(app);
 app.use("/api", (req, res) => res.status(404).json({ error: "接口不存在" }));
 app.use((err, req, res, next) => {
   console.error(
@@ -974,7 +987,9 @@ app.use((err, req, res, next) => {
   res.status(err.status || 400).json({
     error:
       err.code === "LIMIT_FILE_SIZE"
-        ? "单张图片不能超过 12 MB。"
+        ? req.path.startsWith("/api/speech")
+          ? "录音不能超过 20 MB。"
+          : "单张图片不能超过 12 MB。"
         : err.message || "操作失败，请重试。",
   });
 });
@@ -1000,6 +1015,7 @@ const listener = app.listen(port, "127.0.0.1", (error) => {
   // A second process must never mark the real server's jobs as interrupted.
   recoverJobs();
   recoverMotion();
+  recoverSpeech();
   migrateManuscripts();
   process.send?.({ type: "ready", port: listener.address().port });
   console.log(`AutoPPT → http://127.0.0.1:${listener.address().port}`);

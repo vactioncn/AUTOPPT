@@ -45,6 +45,10 @@ const outputs = await packager({
   arch: process.arch,
   appVersion: version,
   appBundleId: "com.autoppt.desktop",
+  extendInfo: {
+    NSMicrophoneUsageDescription:
+      "用于录制你的演讲声音，经你确认后创建语音口播音色。",
+  },
   icon,
   overwrite: true,
   asar: false,

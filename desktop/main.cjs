@@ -5,7 +5,9 @@ const {
   dialog,
   shell,
   session,
+  systemPreferences,
 } = require("electron");
+const { ownedFrame, allowRequest } = require("./media-permissions.cjs");
 const { fork } = require("node:child_process");
 const {
   mkdirSync,
@@ -162,10 +164,31 @@ else {
     .whenReady()
     .then(async () => {
       await startBackend();
+      let microphoneGranted = false;
       session.defaultSession.setPermissionRequestHandler(
-        (_web, _permission, callback) => callback(false),
+        async (web, permission, callback, details) => {
+          if (!allowRequest(origin, web, permission, details))
+            return callback(false);
+          if (permission === "fullscreen") return callback(true);
+          try {
+            microphoneGranted =
+              process.platform !== "darwin" ||
+              (await systemPreferences.askForMediaAccess("microphone"));
+            callback(microphoneGranted);
+          } catch {
+            callback(false);
+          }
+        },
       );
-      session.defaultSession.setPermissionCheckHandler(() => false);
+      session.defaultSession.setPermissionCheckHandler(
+        (web, permission, requestingOrigin, details) =>
+          ownedFrame(origin, web, details) &&
+          ownedURL(requestingOrigin) &&
+          (permission === "fullscreen" ||
+            (permission === "media" &&
+              details.mediaType === "audio" &&
+              microphoneGranted)),
+      );
       session.defaultSession.webRequest.onBeforeSendHeaders(
         (details, callback) => {
           // Only this app's own loopback service receives its per-launch secret.

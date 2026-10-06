@@ -11,6 +11,7 @@ import {
 import type { Settings, Connection } from "./types";
 import { api, post } from "./api";
 import { Button, Field, Status } from "./components";
+import { SpeechSettings } from "./SpeechSettings";
 export function SettingsPage({
   initial,
   notify,
@@ -53,6 +54,7 @@ export function SettingsPage({
       <p className="settings-footnote">
         接口使用 OpenAI 兼容协议。修改服务地址后，请为新服务重新填写密钥。
       </p>
+      <SpeechSettings notify={notify} />
     </div>
   );
 }

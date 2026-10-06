@@ -420,6 +420,7 @@ export type Bootstrap = {
     styleUrlImport?: boolean;
     insertAndManuscriptExport?: boolean;
     motionPresentation?: boolean;
+    speechPresentation?: boolean;
   };
   projects: ProjectSummary[];
   styles: Style[];

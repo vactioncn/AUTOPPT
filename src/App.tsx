@@ -6,7 +6,14 @@ import {
   validDesignOptions,
 } from "./DesignOptionsEditor";
 import { SceneView } from "./SceneView";
-import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  lazy,
+  Suspense,
+} from "react";
 import {
   Trash,
   SquaresFour,
@@ -32,6 +39,11 @@ import { StyleLibrary } from "./StyleLibrary";
 import { SettingsPage } from "./Settings";
 import { Introduction } from "./Introduction";
 import { DEFAULT_STYLE_ID, defaultStyleId } from "../shared/styles.mjs";
+const SpeechPresentation = lazy(() =>
+  import("./SpeechPresentation").then((m) => ({
+    default: m.SpeechPresentation,
+  })),
+);
 
 export default function App() {
   const account = useAccount();
@@ -40,6 +52,7 @@ export default function App() {
     [error, setError] = useState(""),
     [toast, setToast] = useState(""),
     [creating, setCreating] = useState(false),
+    [speechProject, setSpeechProject] = useState<string | null>(null),
     [initialStyle, setInitialStyle] = useState(DEFAULT_STYLE_ID);
   const previousRoute = useRef(route === "intro" ? "projects" : route);
   const contentRoute = route === "intro" ? previousRoute.current : route;
@@ -209,6 +222,14 @@ export default function App() {
                         : "我的演讲")}
             </strong>
           </div>
+          {currentId &&
+            route !== "intro" &&
+            data.features?.speechPresentation && (
+              <Button onClick={() => setSpeechProject(currentId)}>
+                <Presentation size={17} />
+                播放演讲
+              </Button>
+            )}
           <span className="top-hint">
             <CheckCircle size={15} />
             {account.hosted ? "内容保存在你的独立工作区" : "内容保存在本机"}
@@ -267,6 +288,25 @@ export default function App() {
           )}
         </div>
       </main>
+      {speechProject && (
+        <Suspense
+          fallback={
+            <div className="connection-banner" role="status">
+              正在载入演讲播放器…
+            </div>
+          }
+        >
+          <SpeechPresentation
+            key={speechProject}
+            projectId={speechProject}
+            onClose={() => setSpeechProject(null)}
+            onSettings={() => {
+              setSpeechProject(null);
+              go("settings");
+            }}
+          />
+        </Suspense>
+      )}
       {creating && (
         <NewProject
           styles={data.styles}

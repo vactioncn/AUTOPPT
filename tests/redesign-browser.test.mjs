@@ -125,7 +125,7 @@ test(
         }),
     );
     const open = async () => {
-      await p.goto(`${base}/#project/${project.id}`);
+      await p.goto(`${base}/#project/${project.id}/studio`);
       await p.getByRole("button", { name: "重新设计", exact: true }).click();
     };
     await open();

@@ -243,7 +243,9 @@ test(
       await page.goto(base + "/#settings");
       const model = page.getByLabel("模型名称", { exact: true }).first();
       await model.fill("unsaved-model-draft");
-      await page.getByRole("button", { name: "介绍", exact: true }).click();
+      await page
+        .getByRole("button", { name: "帮助与介绍", exact: true })
+        .click();
       const frame = page.frameLocator('iframe[title="AutoPPT 产品介绍"]');
       await frame.getByRole("heading", { level: 1 }).waitFor();
       assert.equal(context.pages().length, 1);
@@ -257,12 +259,16 @@ test(
       });
       await page.getByRole("button", { name: "返回刚才的页面" }).click();
       assert.equal(await model.inputValue(), "unsaved-model-draft");
-      await page.getByRole("button", { name: "介绍", exact: true }).click();
+      await page
+        .getByRole("button", { name: "帮助与介绍", exact: true })
+        .click();
       await frame.locator("#open-workspace").click();
       await model.waitFor({ state: "visible" });
       assert.equal(new URL(page.url()).hash, "#settings");
       assert.equal(await model.inputValue(), "unsaved-model-draft");
-      await page.getByRole("button", { name: "介绍", exact: true }).click();
+      await page
+        .getByRole("button", { name: "帮助与介绍", exact: true })
+        .click();
       await page.getByRole("button", { name: /^风格库/ }).click();
       await page
         .getByRole("heading", { name: "把喜欢的，变成你的风格。" })
@@ -272,7 +278,9 @@ test(
       await page.getByRole("button", { name: "返回刚才的页面" }).click();
       await page.getByRole("heading", { name: /让讲述.*自然成页/ }).waitFor();
       await page.setViewportSize({ width: 390, height: 844 });
-      await page.getByRole("button", { name: "介绍", exact: true }).click();
+      await page
+        .getByRole("button", { name: "帮助与介绍", exact: true })
+        .click();
       await frame.getByRole("heading", { level: 1 }).waitFor();
       assert(
         await page.evaluate(

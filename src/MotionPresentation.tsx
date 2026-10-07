@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Narration } from "./speech-types";
+import {
+  HtmlExportOptions,
+  useHtmlExportOptions,
+  motionHtmlUrl,
+  downloadMotionHtml,
+} from "./HtmlExportOptions";
 import {
   Play,
   DownloadSimple,
@@ -9,7 +14,7 @@ import {
   FilmStrip,
   Plus,
 } from "@phosphor-icons/react";
-import { api, asset, patch, post, downloadFile } from "./api";
+import { api, asset, patch, post } from "./api";
 import { Button, Field, Modal } from "./components";
 import type { Project } from "./types";
 import "./motion.css";
@@ -101,20 +106,13 @@ export function MotionPresentation({
     [scope, setScope] = useState(selected.length ? "selected" : "all"),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
-    [pageId, setPageId] = useState(""),
-    [notes, setNotes] = useState(false);
+    [pageId, setPageId] = useState("");
   const [draft, setDraft] = useState<Layer[] | null>(null),
     [baseRevision, setBaseRevision] = useState(0),
     [layerId, setLayerId] = useState(""),
     [compare, setCompare] = useState(true);
   const [previewHtml, setPreviewHtml] = useState<string | undefined>(undefined);
-  const [narrations, setNarrations] = useState<Narration[]>([]),
-    [narration, setNarration] = useState("");
-  useEffect(() => {
-    api<Narration[]>(`/projects/${project.id}/narration`)
-      .then((list) => setNarrations(list.filter((n) => n.status === "ready")))
-      .catch(() => {});
-  }, [project.id]);
+  const html = useHtmlExportOptions(project.id);
   const frame = useRef<HTMLIFrameElement>(null),
     dirty = useRef(false);
   const refresh = useCallback(async () => {
@@ -246,7 +244,7 @@ export function MotionPresentation({
     onClose();
   };
   const playerUrl = deck
-    ? `/api/motion/${deck.id}/html?notes=${notes ? "1" : "0"}&narration=${encodeURIComponent(narration)}`
+    ? motionHtmlUrl(deck.id, html.notes, html.narration)
     : "";
   const previewUrl =
     deck && page
@@ -681,28 +679,7 @@ export function MotionPresentation({
               </div>
               <div className="motion-footer">
                 <div>
-                  <label className="motion-check">
-                    <input
-                      type="checkbox"
-                      checked={notes}
-                      onChange={(e) => setNotes(e.target.checked)}
-                    />
-                    HTML 包含演讲备注
-                  </label>
-                  <Field label="HTML 口播版本">
-                    <select
-                      value={narration}
-                      onChange={(e) => setNarration(e.target.value)}
-                    >
-                      <option value="">仅画面，不包含口播</option>
-                      {narrations.map((n) => (
-                        <option key={n.id} value={n.id}>
-                          {n.voiceName} · 项目版本 {n.sourceRevision} ·{" "}
-                          {new Date(n.createdAt).toLocaleString("zh-CN")}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
+                  <HtmlExportOptions options={html} disabled={busy} />
                   <small>
                     内嵌图片、字体与所选口播，断网可播放。选择与此动画画面和讲稿一致的音频；讲完一页自动翻页。浏览器拦截声音时，点击一次开始。
                   </small>
@@ -767,10 +744,7 @@ export function MotionPresentation({
                     disabled={ready !== deck.pages.length || dirtyValue}
                     onClick={() =>
                       run(() =>
-                        downloadFile(
-                          playerUrl + "&download=1",
-                          "动态演示.html",
-                        ),
+                        downloadMotionHtml(deck.id, html.notes, html.narration),
                       )
                     }
                   >

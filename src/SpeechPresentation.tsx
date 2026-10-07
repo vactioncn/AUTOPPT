@@ -29,9 +29,16 @@ import {
   type SpeechConnection,
 } from "./speech-types";
 import "./speech.css";
+import { SpeechPerformance } from "./SpeechPerformance";
+import {
+  performanceMatches,
+  supportsDeliverySounds,
+  type SpeechPerformance as Performance,
+} from "../shared/speech-performance.mjs";
 
 const time = (value: number) =>
   `${Math.floor(value / 60)}:${String(Math.floor(value % 60)).padStart(2, "0")}`;
+const performanceNow = () => window.performance.now();
 const audioReadError =
   "本页音频已生成，但读取失败。请重试读取已保存音频；此操作不会重新生成或计费。";
 export function SpeechPresentation({
@@ -55,6 +62,11 @@ export function SpeechPresentation({
   const [playbackRate, setPlaybackRate] = useState(1);
   const [pendingDeck, setPendingDeck] = useState<Narration | null>(null);
   const [pageTexts, setPageTexts] = useState<Record<string, string>>({});
+  const [performance, setPerformance] = useState<Performance | null>(null);
+  const [usePerformance, setUsePerformance] = useState(false);
+  const [performanceBusy, setPerformanceBusy] = useState(false);
+  const [inPause, setInPause] = useState(false);
+  const pauseRemaining = useRef(0);
   const [textReviewed, setTextReviewed] = useState(false),
     [textFeedback, setTextFeedback] = useState<{
       error?: boolean;
@@ -96,6 +108,16 @@ export function SpeechPresentation({
   const textFor = (p: { id: string; notes: string }) =>
     pageTexts[p.id] ?? prepareSpeechText(p.notes).text;
   const spokenText = scriptPage ? textFor(scriptPage) : "";
+  const performancePages = draftPages.map((p) => ({
+    id: p.id,
+    text: textFor(p),
+  }));
+  const performanceValid = performanceMatches(performance, performancePages);
+  const performanceBlocked =
+    usePerformance &&
+    (!performanceValid ||
+      (!supportsDeliverySounds(config?.model || "") &&
+        performance?.pages.some((p) => p.units.some((u) => u.sound))));
   const removed = prepareSpeechText(scriptPage?.notes || "").removed;
   const clip = deck?.pages[pageIndex]?.clips[clipIndex];
   const source = clip?.file
@@ -125,12 +147,19 @@ export function SpeechPresentation({
   const totalDuration =
     deck?.pages.reduce(
       (sum, p) =>
-        sum + p.clips.reduce((n, c) => n + (c.file ? c.duration || 0 : 0), 0),
+        sum +
+        (p.clips.length
+          ? p.clips.reduce(
+              (n, c) =>
+                n + (c.file ? (c.duration || 0) + (c.pauseAfter || 0) : 0),
+              0,
+            )
+          : p.silentDuration || 3),
       0,
     ) || 0;
   const pageDuration =
     deck?.pages[pageIndex]?.clips.reduce(
-      (sum, c) => sum + (c.file ? c.duration || 0 : 0),
+      (sum, c) => sum + (c.file ? (c.duration || 0) + (c.pauseAfter || 0) : 0),
       0,
     ) || 0;
 
@@ -138,6 +167,8 @@ export function SpeechPresentation({
     setPlaying(false);
     setPageIndex(0);
     setClipIndex(0);
+    setInPause(false);
+    pauseRemaining.current = 0;
     setDeck(d);
     setError("");
     setMessage("");
@@ -173,13 +204,20 @@ export function SpeechPresentation({
       api<Voice[]>("/speech/voices"),
       api<SpeechConnection>("/settings/speech"),
       api<Narration[]>(`/projects/${projectId}/narration`),
-      api<{ pages: { id: string; text: string; edited?: boolean }[] }>(
-        `/projects/${projectId}/speech-script`,
-      ),
+      api<{
+        pages: { id: string; text: string; edited?: boolean }[];
+        performance: Performance | null;
+        performanceTask: { status: string } | null;
+      }>(`/projects/${projectId}/speech-script`),
     ])
       .then(([p, v, c, h, script]) => {
         if (cancelled) return;
         setProject(p);
+        setPerformance(script.performance);
+        setUsePerformance(!!script.performance);
+        setPerformanceBusy(
+          !!script.performanceTask && active(script.performanceTask.status),
+        );
         setVoices(v);
         setConfig(c);
         setHistory(h);
@@ -215,6 +253,31 @@ export function SpeechPresentation({
     };
   }, [projectId, selectDeck]);
   useEffect(() => {
+    if (!performanceBusy || panel === "text") return;
+    let stopped = false;
+    const timer = setInterval(() => {
+      api<{
+        performance: Performance | null;
+        performanceTask: { status: string } | null;
+      }>(`/projects/${projectId}/speech-script`)
+        .then((s) => {
+          if (!stopped) {
+            setPerformance(s.performance);
+            setPerformanceBusy(
+              !!s.performanceTask && active(s.performanceTask.status),
+            );
+          }
+        })
+        .catch((e) => {
+          if (!stopped) setError(e.message);
+        });
+    }, 1500);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+    };
+  }, [performanceBusy, panel, projectId]);
+  useEffect(() => {
     if (!polling || !job) return;
     let stopped = false,
       timer: ReturnType<typeof setTimeout>;
@@ -241,7 +304,7 @@ export function SpeechPresentation({
     const el = audio.current;
     if (!el) return;
     let cancelled = false;
-    if (playing && source) {
+    if (playing && source && !inPause) {
       previewAudio.current?.pause();
       el.play().catch((e: DOMException) => {
         if (cancelled || e.name === "AbortError") return;
@@ -261,7 +324,27 @@ export function SpeechPresentation({
       cancelled = true;
       el.pause();
     };
-  }, [source, playing, clipKey]);
+  }, [source, playing, clipKey, inPause]);
+  useEffect(() => {
+    if (!playing || !inPause) return;
+    const started = performanceNow();
+    const timer = setTimeout(
+      () => {
+        pauseRemaining.current = 0;
+        advanceClip();
+        setInPause(false);
+      },
+      (pauseRemaining.current * 1000) / playbackRate,
+    );
+    return () => {
+      clearTimeout(timer);
+      pauseRemaining.current = Math.max(
+        0,
+        pauseRemaining.current -
+          ((performanceNow() - started) / 1000) * playbackRate,
+      );
+    };
+  }, [playing, inPause, playbackRate, clipKey]);
   useEffect(() => {
     if (audio.current) {
       audio.current.playbackRate = playbackRate;
@@ -298,6 +381,8 @@ export function SpeechPresentation({
       setPageIndex(index);
       setEditPageId("");
       setClipIndex(0);
+      setInPause(false);
+      pauseRemaining.current = 0;
       setMessage("");
       if (index === pageIndex) {
         if (audio.current) audio.current.currentTime = 0;
@@ -360,6 +445,7 @@ export function SpeechPresentation({
       const d = await post<Narration>(`/projects/${projectId}/narration`, {
         revision: project.revision,
         options,
+        ...(usePerformance ? { performanceId: performance?.id } : {}),
         pageEmotions,
         pageTexts: Object.fromEntries(
           draftPages.map((p) => [p.id, textFor(p)]),
@@ -386,7 +472,16 @@ export function SpeechPresentation({
           emotion: pageEmotions[scriptPage?.id] || options.emotion,
         },
         prepared: true,
-        text: Array.from(spokenText).slice(0, 180).join(""),
+        text: usePerformance
+          ? spokenText
+          : Array.from(spokenText).slice(0, 180).join(""),
+        ...(usePerformance
+          ? {
+              projectId,
+              performanceId: performance?.id,
+              pageId: scriptPage?.id,
+            }
+          : {}),
       });
       setPreview(speechAudio(data.file));
       setMessage("试听已生成，请点击音频播放按钮。");
@@ -426,6 +521,14 @@ export function SpeechPresentation({
     }
   }
   function ended() {
+    if (playing && clip?.pauseAfter) {
+      pauseRemaining.current = clip.pauseAfter;
+      setInPause(true);
+      return;
+    }
+    advanceClip();
+  }
+  function advanceClip() {
     if (!playing || !deck) return;
     if (clipIndex + 1 < deck.pages[pageIndex].clips.length)
       setClipIndex(clipIndex + 1);
@@ -438,7 +541,7 @@ export function SpeechPresentation({
     }
   }
   function start() {
-    if (audio.current?.ended) audio.current.currentTime = 0;
+    if (audio.current?.ended && !inPause) audio.current.currentTime = 0;
     setPresenting(true);
     setPlaying(true);
     setMessage("");
@@ -564,6 +667,8 @@ export function SpeechPresentation({
                 value={Math.min(elapsed, duration || 1)}
                 disabled={!duration}
                 onChange={(e) => {
+                  setInPause(false);
+                  pauseRemaining.current = 0;
                   if (audio.current)
                     audio.current.currentTime = Number(e.target.value);
                   setElapsed(Number(e.target.value));
@@ -601,6 +706,8 @@ export function SpeechPresentation({
               <SpeakerHigh size={15} />
               AI 合成口播 · {deck.voiceName} · 保存于项目版本{" "}
               {deck.sourceRevision}
+              {deck.performance ? " · 已应用演绎编排" : ""}
+              {inPause ? " · 表达停顿中" : ""}
               {changed ? " · 播放已保存音频，草稿修改尚未生成" : ""}
             </p>
           )}
@@ -705,6 +812,11 @@ export function SpeechPresentation({
                 <p>连接语音服务后，即可试听和生成口播。</p>
                 <Button onClick={onSettings}>配置语音服务</Button>
               </div>
+            )}
+            {panel === "voice" && performanceBusy && (
+              <p role="status" className="speech-callout">
+                演绎编排进行中，请回到“口播文本”查看进度或停止。
+              </p>
             )}
             <fieldset hidden={panel === "play"} disabled={busy || polling}>
               {panel === "text" && scriptPage && (
@@ -828,6 +940,22 @@ export function SpeechPresentation({
                       {textFeedback.text}
                     </p>
                   )}
+                  {project && (
+                    <SpeechPerformance
+                      projectId={projectId}
+                      revision={project.revision}
+                      pages={performancePages}
+                      pageId={scriptPage.id}
+                      model={config?.model || ""}
+                      plan={performance}
+                      enabled={usePerformance}
+                      disabled={busy || polling}
+                      onPlan={setPerformance}
+                      onEnabled={setUsePerformance}
+                      onWorking={setPerformanceBusy}
+                      onTexts={setPageTexts}
+                    />
+                  )}
                   {deck?.pages.some(
                     (p) => (p.speechTextVersion || 0) < SPEECH_TEXT_VERSION,
                   ) && (
@@ -866,6 +994,7 @@ export function SpeechPresentation({
                   <div className="speech-options">
                     <Field label="整体情绪">
                       <select
+                        disabled={usePerformance}
                         value={options.emotion}
                         onChange={(e) =>
                           setOptions({ ...options, emotion: e.target.value })
@@ -900,6 +1029,7 @@ export function SpeechPresentation({
                       label={`第 ${draftPages.findIndex((p) => p.id === scriptPage.id) + 1} 页的情绪`}
                     >
                       <select
+                        disabled={usePerformance}
                         value={pageEmotions[scriptPage.id] || ""}
                         onChange={(e) =>
                           setPageEmotions({
@@ -918,11 +1048,23 @@ export function SpeechPresentation({
                     </Field>
                   )}
                   <Button
-                    disabled={!config?.hasKey || !spokenText.trim()}
+                    disabled={
+                      !config?.hasKey ||
+                      !spokenText.trim() ||
+                      performanceBusy ||
+                      !!performanceBlocked
+                    }
                     onClick={audition}
                   >
                     试听本页开头
                   </Button>
+                  {usePerformance && (
+                    <p className="speech-callout">
+                      {performanceBlocked
+                        ? "演绎方案尚未就绪、正文已改变或模型不支持辅助声音，请回到口播文本检查。"
+                        : "将按演绎方案逐段生成情绪、停顿和重点表达；整体与逐页情绪由编排接管。"}
+                    </p>
+                  )}
                   <p className="speech-subtle">
                     生成语速决定新音频的表达。放映时可用左侧“播放倍速”即时调整。
                   </p>
@@ -945,7 +1087,12 @@ export function SpeechPresentation({
               <Button
                 variant="primary"
                 disabled={
-                  busy || polling || !config?.hasKey || !draftPages.length
+                  busy ||
+                  polling ||
+                  performanceBusy ||
+                  !!performanceBlocked ||
+                  !config?.hasKey ||
+                  !draftPages.length
                 }
                 onClick={generate}
               >

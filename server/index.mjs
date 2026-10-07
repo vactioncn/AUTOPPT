@@ -1008,6 +1008,7 @@ app.get("/api/settings", (req, res) => res.json(publicSettings()));
 app.put("/api/settings", (req, res) => {
   if (
     activeMotionCount() ||
+    activeSpeechCount() ||
     all("job").some((j) => ["queued", "running"].includes(j.status))
   )
     throw new Error("请等待生成任务完成，或先停止任务，再更换模型设置。");

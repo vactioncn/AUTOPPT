@@ -25,7 +25,12 @@ export type NarrationPage = {
   emotion: string;
   status: string;
   error?: string;
-  clips: { text: string; file?: string; duration?: number }[];
+  clips: {
+    text: string;
+    file?: string;
+    duration?: number;
+    pauseAfter?: number;
+  }[];
 };
 export type Narration = {
   id: string;
@@ -38,6 +43,7 @@ export type Narration = {
   model: string;
   pages: NarrationPage[];
   createdAt: string;
+  performance?: import("../shared/speech-performance.mjs").SpeechPerformance;
 };
 export const speechAudio = (file: string) =>
   // v2 could also cache 404s while the old backend was finishing active jobs.

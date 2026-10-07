@@ -32,6 +32,17 @@
     speechTicket = 0,
     silentTimer = null,
     finished = false;
+  let gapRemaining = 0,
+    gapStarted = 0;
+  function waitSpeechGap() {
+    gapStarted = performance.now();
+    speechProgress("表达停顿中…");
+    silentTimer = setTimeout(() => {
+      gapRemaining = 0;
+      gapStarted = 0;
+      speechEnded(true);
+    }, gapRemaining);
+  }
   const stamp = (seconds) =>
     `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`;
   function speechProgress(message = "") {
@@ -41,8 +52,14 @@
       message ||
       `AI 合成口播 · ${deck.narration.voiceName} · 第 ${index + 1} 页 · ${deck.pages[index].clips.length ? stamp(audio.currentTime || 0) + " / " + stamp(Number.isFinite(audio.duration) ? audio.duration : 0) : "本页无口播，停留 3 秒"}`;
   }
-  function speechEnded() {
+  function speechEnded(afterPause = false) {
     if (!narrating) return;
+    const gap = deck.pages[index].clips[clipIndex]?.pauseAfter || 0;
+    if (!afterPause && gap > 0) {
+      gapRemaining = gap * 1000;
+      waitSpeechGap();
+      return;
+    }
     if (clipIndex + 1 < deck.pages[index].clips.length) {
       clipIndex++;
       void playSpeech();
@@ -56,6 +73,10 @@
     if (!narrating) return;
     clearTimeout(silentTimer);
     const ticket = ++speechTicket;
+    if (gapRemaining > 0) {
+      waitSpeechGap();
+      return;
+    }
     const p = deck.pages[index],
       clip = p.clips[clipIndex];
     speechProgress();
@@ -87,7 +108,7 @@
       showControls();
     }
   }
-  audio.addEventListener("ended", speechEnded);
+  audio.addEventListener("ended", () => speechEnded());
   audio.addEventListener("timeupdate", () => speechProgress());
   audio.addEventListener("error", () => {
     if (!deck.narration || !audio.src) return;
@@ -286,6 +307,8 @@
     clearTimeout(silentTimer);
     speechTicket++;
     clipIndex = 0;
+    gapRemaining = 0;
+    gapStarted = 0;
     audioKey = "";
     finished = false;
     index = next;
@@ -320,6 +343,13 @@
     narrating = false;
     speechTicket++;
     clearTimeout(silentTimer);
+    if (gapStarted) {
+      gapRemaining = Math.max(
+        0,
+        gapRemaining - (performance.now() - gapStarted),
+      );
+      gapStarted = 0;
+    }
     audio.pause();
     document.getElementById("autoplay").textContent = deck.narration
       ? "开始口播"
@@ -380,6 +410,8 @@
     const resume = narrating;
     stop();
     clipIndex = 0;
+    gapRemaining = 0;
+    gapStarted = 0;
     audioKey = "";
     finished = false;
     step = 0;

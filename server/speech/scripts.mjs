@@ -10,6 +10,8 @@ export function speechScript(project) {
   return {
     revision: project.revision,
     version: SPEECH_TEXT_VERSION,
+    performance: draft?.performance || null,
+    performanceTask: draft?.performanceTask || null,
     pages: project.slides.map((s) => {
       const notes = speakerNotes(s);
       const prepared = prepareSpeechText(notes);
@@ -46,6 +48,7 @@ export function saveSpeechScript(project, input) {
       "请检查每页口播文本（每页最多 10 万字符，可留空作为无口播页）",
     );
   put("speech-script", {
+    ...get("speech-script", project.id),
     id: project.id,
     projectId: project.id,
     updatedAt: now(),

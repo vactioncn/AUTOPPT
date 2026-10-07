@@ -100,7 +100,7 @@ export async function synthesize(config, text, options, signal, onWait) {
           voice_setting: {
             voice_id: options.voiceId,
             speed: options.speed,
-            vol: 1,
+            vol: options.volume ?? 1,
             pitch: 0,
             ...(options.emotion === "auto"
               ? {}

@@ -19,6 +19,15 @@ import {
 import { synthesize, cloneVoice, validateSample } from "./provider.mjs";
 import { speechScript, saveSpeechScript } from "./scripts.mjs";
 import {
+  activePerformanceCount,
+  recoverPerformances,
+  registerPerformance,
+} from "./performance.mjs";
+import {
+  compilePerformancePage,
+  performanceMatches,
+} from "../../shared/speech-performance.mjs";
+import {
   prepareSpeechText,
   SPEECH_TEXT_VERSION,
 } from "../../shared/speech-text.mjs";
@@ -33,7 +42,9 @@ let quickOperation = false,
 export const activeSpeechCount = (projectId = null) =>
   all("narration").filter(
     (d) => running(d) && (!projectId || d.projectId === projectId),
-  ).length + (!projectId && quickOperation ? 1 : 0);
+  ).length +
+  (!projectId && quickOperation ? 1 : 0) +
+  activePerformanceCount(projectId);
 const save = (d) => put("narration", { ...d, updatedAt: now() });
 const safeDeck = ({ provider, ...d }) => d;
 function deck(key) {
@@ -130,7 +141,7 @@ async function drain() {
               const audio = await cachedAudio(
                 config,
                 clip.text,
-                { ...d.options, emotion: p.emotion },
+                { ...d.options, emotion: p.emotion, ...clip.delivery },
                 signal,
                 (waiting) => {
                   d.progress = !waiting
@@ -173,6 +184,7 @@ async function drain() {
   }
 }
 export function recoverSpeech() {
+  recoverPerformances();
   for (const d of all("narration").filter(running)) {
     d.status = "interrupted";
     d.progress = "上次生成中断，点击继续才会恢复语音请求";
@@ -196,9 +208,11 @@ export function registerSpeech(app) {
       "/api/narration",
       "/api/projects/:id/narration",
       "/api/projects/:id/speech-script",
+      "/api/projects/:id/speech-performance",
     ],
     localOnly,
   );
+  registerPerformance(app, assertIdle);
   app.get("/api/settings/speech", (_req, res) =>
     res.json(publicSpeechSettings()),
   );
@@ -224,13 +238,31 @@ export function registerSpeech(app) {
     assertIdle();
     const config = speechSettings();
     requireKey(config);
-    const options = optionsFor(req.body.options, config);
+    let options = optionsFor(req.body.options, config);
     const input = String(req.body.text || "");
-    const text = (
+    let text = (
       req.body.prepared === true ? input : prepareSpeechText(input).text
     ).trim();
-    if (!text || Array.from(text).length > 300)
-      throw new Error("试听文本应为 1–300 字");
+    if (req.body.performanceId) {
+      const project = projectOrThrow(req.body.projectId);
+      const plan = speechScript(project).performance;
+      if (plan?.id !== req.body.performanceId)
+        throw new Error("演绎方案已改变，请重新载入");
+      const page = plan.pages.find((p) => p.id === req.body.pageId);
+      if (!page || page.text !== input)
+        throw new Error("本页文本已改变，请重新编排后试听");
+      const sample = {
+        ...page,
+        text: page.units[0]?.text || "",
+        units: page.units.slice(0, 1),
+      };
+      const clip = compilePerformancePage(sample, config.model, options)[0];
+      if (!clip) throw new Error("本页没有口播正文");
+      text = clip.text;
+      options = { ...options, ...clip.delivery };
+    }
+    if (!text || Array.from(text).length > (req.body.performanceId ? 750 : 300))
+      throw new Error("试听文本过长或为空");
     quickOperation = true;
     const controller = new AbortController();
     res.on("close", () => controller.abort());
@@ -307,6 +339,16 @@ export function registerSpeech(app) {
     const script = req.body.pageTexts
       ? saveSpeechScript(p, req.body)
       : speechScript(p);
+    const performance = req.body.performanceId ? script.performance : null;
+    if (
+      req.body.performanceId &&
+      (performance?.id !== req.body.performanceId ||
+        !performanceMatches(performance, script.pages))
+    )
+      throw Object.assign(
+        new Error("口播正文已改变，请重新编排演绎或切回普通口播"),
+        { status: 409 },
+      );
     const emotions = req.body.pageEmotions || {};
     if (
       typeof emotions !== "object" ||
@@ -341,7 +383,13 @@ export function registerSpeech(app) {
         stale: !!s.stale,
         emotion,
         status: spokenText ? "pending" : "ready",
-        clips: splitSpeech(spokenText).map((text) => ({ text })),
+        clips: performance
+          ? compilePerformancePage(
+              performance.pages[index],
+              config.model,
+              options,
+            )
+          : splitSpeech(spokenText).map((text) => ({ text })),
       };
     });
     const d = save({
@@ -353,6 +401,7 @@ export function registerSpeech(app) {
       model: config.model,
       voiceName: voices(config).find((v) => v.id === options.voiceId).name,
       options,
+      ...(performance ? { performance } : {}),
       pages,
       createdAt: now(),
       status: "queued",

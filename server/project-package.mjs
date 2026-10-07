@@ -26,6 +26,10 @@ import {
 import { exportFilename } from "./export.mjs";
 import { validateLayers } from "../shared/motion/schema.mjs";
 import { validateScene } from "../shared/slides.mjs";
+import {
+  compilePerformancePage,
+  performanceSettings,
+} from "../shared/speech-performance.mjs";
 
 const MAX_ZIP = 1024 * 1024 * 1024,
   MAX_TOTAL = 1024 * 1024 * 1024,
@@ -218,6 +222,26 @@ function validateRecords(records, projectId) {
       throw new Error("项目包记录类型或编号无效");
     if (seen.has(kind + ":" + v.id)) throw new Error("项目包记录重复");
     seen.add(kind + ":" + v.id);
+    if (["speech-script", "narration"].includes(kind) && v.performance) {
+      const plan = v.performance;
+      if (
+        plan.version !== 1 ||
+        !Array.isArray(plan.pages) ||
+        plan.pages.length > 500
+      )
+        throw new Error("项目包演绎方案无效");
+      performanceSettings(plan.settings);
+      for (const page of plan.pages) {
+        if (
+          typeof page.text !== "string" ||
+          page.text.length > 100000 ||
+          !Array.isArray(page.units) ||
+          page.units.length > 10000
+        )
+          throw new Error("项目包演绎正文无效");
+        compilePerformancePage(page, "speech-2.8-hd", { speed: 1 });
+      }
+    }
     if (
       ["motion", "narration", "attachment", "speech-script"].includes(kind) &&
       v.projectId !== projectId
@@ -269,6 +293,10 @@ function validateRecords(records, projectId) {
           p.clips.some(
             (c) =>
               typeof c.text !== "string" ||
+              (c.pauseAfter !== undefined &&
+                (!Number.isFinite(c.pauseAfter) ||
+                  c.pauseAfter < 0 ||
+                  c.pauseAfter > 2)) ||
               (c.file && !audioName(c.file)) ||
               (c.duration !== undefined &&
                 (!Number.isFinite(c.duration) || c.duration < 0)),
@@ -453,6 +481,12 @@ export async function importProjectPackage(buffer) {
           : v,
       );
       const v = r.value;
+      // Unit IDs are sentence ordinals, not database identities.
+      if (["speech-script", "narration"].includes(r.kind) && v.performance)
+        for (const page of v.performance.pages)
+          page.units.forEach((unit, index) => {
+            unit.id = String(index + 1);
+          });
       if (r.kind === "project") {
         v.title = source.title + "（导入）";
         v.createdAt = now();
@@ -478,6 +512,14 @@ export async function importProjectPackage(buffer) {
         for (const p of v.slides)
           if (["queued", "running"].includes(p.status))
             p.status = p.image || p.scene ? "ready" : "pending";
+      if (
+        r.kind === "speech-script" &&
+        ["queued", "running"].includes(v.performanceTask?.status)
+      ) {
+        v.performanceTask.status = "interrupted";
+        v.performanceTask.progress =
+          "导入的编排任务已暂停；点击编排才会调用模型";
+      }
     }
     transaction(() => {
       for (const { kind, value } of records) {
@@ -496,7 +538,7 @@ export async function importProjectPackage(buffer) {
                 n.provider,
                 n.model,
                 c.text,
-                { ...n.options, emotion: p.emotion },
+                { ...n.options, emotion: p.emotion, ...c.delivery },
               ]),
             );
             if (!get("speech-cache", key))

@@ -1,5 +1,5 @@
 // Speech is a derivative of the manuscript. Never write this back to slide.notes.
-export const SPEECH_TEXT_VERSION = 2;
+export const SPEECH_TEXT_VERSION = 3;
 export function prepareSpeechText(input) {
   const removed = [];
   const omit = (text, reason) => {
@@ -20,6 +20,10 @@ export function prepareSpeechText(input) {
     .replace(/\[([^\]]+)\]\((?:[^()\n]|\([^()\n]*\))*\)/g, "$1")
     .replace(/\[\^[^\]]+\]/g, (s) => omit(s, "脚注编号"))
     .replace(/[\u200b\u2060\ufeff]/g, "");
+  text = text.replace(
+    /[【（\[(](?:轻笑|笑声|咳嗽|清嗓|叹气|换气)(?:[，,：:\s][^】）\])\n]*)?[】）\])]|^\s*(?:轻笑|笑声|咳嗽|清嗓|叹气|换气)[。.]?\s*$/gm,
+    (s) => omit(s, "辅助表达提示"),
+  );
   const stage =
     /^(?:(?:语气|语速|重读|舞台提示|动作)[：:]|(?:停顿(?:\s*[\d一二三四五六七八九十几]+\s*秒)?|暂停(?:\s*[\d一二三四五六七八九十几]+\s*秒)?|稍停|停一下|环顾(?:四周|全场|观众)?|环视(?:全场|观众)?|微笑|鞠躬|鼓掌|掌声|切换(?:到)?(?:下一页|PPT|画面)|翻页|播放(?:视频|音乐|音频)|点击(?:播放|下一页)|不口播)(?:[\s，,、。；;：:]|$))/i;
   text = text.replace(

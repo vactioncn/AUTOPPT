@@ -16,6 +16,11 @@ import JSZip from "jszip";
 import express from "express";
 import { once } from "node:events";
 import { silenceMp3 } from "./helpers/speech-audio.mjs";
+import {
+  compilePerformancePage,
+  performanceMatches,
+  speechUnits,
+} from "../shared/speech-performance.mjs";
 
 const dir = mkdtempSync(path.join(tmpdir(), "autoppt-portable-"));
 process.env.AUTOPPT_DATA_DIR = dir;
@@ -251,6 +256,30 @@ test("static and motion HTML carry offline audio with silent pages and omit priv
 });
 let archive;
 test("project packages round-trip editable history, assets, narration and drafts into independent projects", async () => {
+  const script = get("speech-script", p.id);
+  const performance = {
+    id: "performance-1",
+    version: 1,
+    model: "mock",
+    settings: { style: "natural", sounds: false },
+    pages: script.pages.map((page) => ({
+      ...page,
+      units: speechUnits(page.text).map((u) => ({
+        ...u,
+        emotion: "calm",
+        pace: 1,
+        pauseAfter: 0.4,
+        sound: "",
+        emphasis: false,
+        reason: "从容讲述",
+      })),
+    })),
+  };
+  put("speech-script", {
+    ...script,
+    performance,
+    performanceTask: { id: "performance-1", status: "running" },
+  });
   const source = JSON.stringify(get("project", p.id));
   archive = await (
     await exportProjectPackage(p)
@@ -282,6 +311,17 @@ test("project packages round-trip editable history, assets, narration and drafts
     silenceMp3,
   );
   assert.equal(speechScript(copy).pages[0].text, "各位朋友，大家好。");
+  const importedScript = speechScript(copy);
+  assert(performanceMatches(importedScript.performance, importedScript.pages));
+  assert.equal(importedScript.performanceTask.status, "interrupted");
+  assert.equal(
+    compilePerformancePage(
+      importedScript.performance.pages[0],
+      "speech-2.8-hd",
+      { speed: 1 },
+    )[0].pauseAfter,
+    0.4,
+  );
   await renderStaticHtml(copy, { narration: imported });
   const importedMotion = all("motion").find((d) => d.projectId === copy.id);
   assert.equal(

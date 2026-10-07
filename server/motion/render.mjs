@@ -50,7 +50,13 @@ export async function renderMotionHtml(
       background: still
         ? `data:image/${still.format === "jpeg" ? "jpeg" : "png"};base64,${still.data.toString("base64")}`
         : await dataImage(p.background),
-      clips: n ? n.clips.map(({ file, duration }) => ({ file, duration })) : [],
+      clips: n
+        ? n.clips.map(({ file, duration, pauseAfter }) => ({
+            file,
+            duration,
+            pauseAfter,
+          }))
+        : [],
       silentDuration: n?.silentDuration || 3,
       layers: staticMode
         ? []

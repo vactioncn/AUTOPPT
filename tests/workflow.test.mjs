@@ -1663,7 +1663,7 @@ test(
         .getByRole("navigation", { name: "项目区域" })
         .getByRole("button", { name: "交付中心", exact: true })
         .click();
-      await page.getByRole("button", { name: "导出 PPT", exact: true }).click();
+      await page.locator(".journey-panel .btn.primary").click();
       const scriptDownload = page.waitForEvent("download");
       await page
         .getByRole("button", { name: "仅下载逐字稿", exact: true })
@@ -1973,10 +1973,10 @@ test(
         .getByLabel("添加逐字稿", { exact: true })
         .fill("浏览器在拆分任务期间提交新的段落。");
       await expect(
-        page.getByRole("button", { name: "提交下一段", exact: false }),
+        page.getByRole("button", { name: "提交讲稿并制作", exact: true }),
       ).toBeEnabled();
       await page
-        .getByRole("button", { name: "提交下一段", exact: false })
+        .getByRole("button", { name: "提交讲稿并制作", exact: true })
         .click();
       await expect(page.getByLabel("添加逐字稿", { exact: true })).toHaveValue(
         "",
@@ -2079,6 +2079,8 @@ test(
       assert.match(savedOptions.audience.description, /自行车/);
       assert.equal(savedOptions.audience.brief, "");
       assert.equal(savedOptions.palette.name, "暖白 · 深蓝");
+      if (!(await page.locator(".studio-settings").evaluate((el) => el.open)))
+        await page.locator(".studio-settings > summary").click();
       await page
         .getByRole("button", { name: "内容倾向与配色", exact: true })
         .click();
@@ -2095,6 +2097,8 @@ test(
         savedOptions,
         "opening and saving without editing preserves settings",
       );
+      if (!(await page.locator(".studio-settings").evaluate((el) => el.open)))
+        await page.locator(".studio-settings > summary").click();
       await page
         .getByRole("button", { name: "内容倾向与配色", exact: true })
         .click();
@@ -2111,6 +2115,8 @@ test(
           .colors[2],
         "#cc5522",
       );
+      if (!(await page.locator(".studio-settings").evaluate((el) => el.open)))
+        await page.locator(".studio-settings > summary").click();
       await page
         .getByRole("button", { name: "内容倾向与配色", exact: true })
         .click();
@@ -2159,10 +2165,11 @@ test(
         .getByRole("navigation", { name: "项目区域" })
         .getByRole("button", { name: "交付中心", exact: true })
         .click();
-      await page.getByRole("button", { name: "导出 PPT", exact: true }).click();
+      await page.locator(".journey-panel .btn.primary").click();
       const initialDownload = page.waitForEvent("download");
       await page
-        .getByRole("button", { name: "下载 PPT 与逐字稿", exact: true })
+        .getByRole("dialog")
+        .getByRole("button", { name: "下载 PPTX＋逐字稿", exact: true })
         .click();
       const initialFile = await initialDownload;
       assert.match(initialFile.suggestedFilename(), /^图片演讲验收-v\d+\.zip$/);
@@ -2191,12 +2198,15 @@ test(
         .getByRole("navigation", { name: "项目区域" })
         .getByRole("button", { name: "交付中心", exact: true })
         .click();
-      await page.getByRole("button", { name: "导出 PPT", exact: true }).click();
+      await page.locator(".journey-panel .btn.primary").click();
       await expect(
         page.getByRole("button", { name: "仅下载逐字稿", exact: true }),
       ).toBeVisible();
       const legacyDownload = page.waitForEvent("download");
-      await page.getByRole("button", { name: "下载 PPT", exact: true }).click();
+      await page
+        .getByRole("dialog")
+        .getByRole("button", { name: "下载 PPTX", exact: true })
+        .click();
       assert.equal(
         (await legacyDownload).suggestedFilename(),
         "图片演讲验收.pptx",
@@ -2214,7 +2224,7 @@ test(
         page.getByRole("link", { name: "保存图片", exact: true }),
       ).toBeVisible();
       await expect(
-        page.getByRole("button", { name: "导出 PPT", exact: true }),
+        page.getByRole("button", { name: "下载 PPTX＋逐字稿", exact: true }),
       ).toHaveCount(0);
       await expect(
         page.getByRole("button", { name: "编辑画面", exact: true }),
@@ -2288,7 +2298,7 @@ test(
         .getByRole("navigation", { name: "项目区域" })
         .getByRole("button", { name: "交付中心", exact: true })
         .click();
-      await page.getByRole("button", { name: "导出 PPT", exact: true }).click();
+      await page.locator(".journey-panel .btn.primary").click();
       await expect(
         page.getByText(/图片尚未更新。本次将使用当前图片/),
       ).toBeVisible();

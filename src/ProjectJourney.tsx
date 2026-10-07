@@ -11,6 +11,8 @@ import type { Project } from "./types";
 import type { Capabilities } from "../shared/diagnostics.mjs";
 import {
   completePresentation,
+  projectPrimaryAction,
+  type JourneyAction,
   type PresentationRecord,
   type projectJourney,
 } from "./project-journey";
@@ -88,16 +90,29 @@ export function usePresentationRecords(
 type Presentations = ReturnType<typeof usePresentationRecords>;
 type Journey = ReturnType<typeof projectJourney>;
 
-export function ProjectOverview({ journey }: { journey: Journey }) {
+export function ProjectOverview({
+  journey,
+  onAction,
+}: {
+  journey: Journey;
+  onAction: (action: JourneyAction) => void;
+}) {
+  const action = projectPrimaryAction("overview", journey);
   return (
     <section aria-label="概览" className="journey-panel">
-      <div className="journey-stage">
-        <span className="journey-eyebrow">写 → 做 → 练 → 交</span>
-        <h2>{journey.next.stage}</h2>
-        <p>{journey.next.reason}</p>
-        <p>下一步：{journey.next.label}。一场演讲，持续更新同一份母版。</p>
+      <div className="journey-section-heading">
+        <h2>{journey.tasks.length ? "当前待办" : "页面已齐备"}</h2>
+        <p>
+          {journey.tasks.length
+            ? "从当前障碍开始，继续这场演讲。"
+            : "打开播放器核对画面与讲稿，再检查交付文件。"}
+        </p>
+        <Button variant="primary" onClick={() => onAction(action)}>
+          {action.label}
+        </Button>
       </div>
-      <dl className="journey-stats">
+      <TaskList journey={journey} onAction={onAction} />
+      <dl className="journey-stats" aria-label="页面摘要">
         {[
           ["总页数", journey.total],
           ["已有画面", journey.illustrated],
@@ -110,26 +125,35 @@ export function ProjectOverview({ journey }: { journey: Journey }) {
           </div>
         ))}
       </dl>
-      <TaskList journey={journey} />
-      <p className="journey-note">
-        阶段由当前内容和已有演示记录判断；系统尚未记录你是否已完成演练或交付。
-      </p>
     </section>
   );
 }
 
-function TaskList({ journey }: { journey: Journey }) {
+function TaskList({
+  journey,
+  onAction,
+}: {
+  journey: Journey;
+  onAction: (action: JourneyAction) => void;
+}) {
   return (
     <section className="journey-tasks" aria-label="待处理事项">
       <h3>待处理事项</h3>
       {journey.tasks.length ? (
         <ul>
           {journey.tasks.map((task) => (
-            <li key={task}>{task}</li>
+            <li key={task.id} data-tone={task.tone}>
+              <p>{task.reason}</p>
+              <Button variant="ghost" onClick={() => onAction(task.action)}>
+                {task.action.label}
+              </Button>
+            </li>
           ))}
         </ul>
       ) : (
-        <p>当前没有待制作事项。请在演练时核对画面与讲稿，再检查交付文件。</p>
+        <p className="journey-success">
+          当前没有待制作事项。演练与交付效果仍需自行核对。
+        </p>
       )}
     </section>
   );
@@ -188,6 +212,7 @@ export function RehearsalCenter({
   onSpeech,
   onMotion,
   onSettings,
+  onStudio,
 }: {
   project: Project;
   journey: Journey;
@@ -197,99 +222,123 @@ export function RehearsalCenter({
   onSpeech: () => void;
   onMotion: () => void;
   onSettings: () => void;
+  onStudio: () => void;
 }) {
   const speechAvailable = capabilities.standardPresentation.enabled;
   const motionAvailable = capabilities.motionPresentation.enabled;
+  const action = projectPrimaryAction("rehearsal", journey, {
+    speechAvailable,
+  });
   return (
     <section aria-label="演练中心" className="journey-panel">
-      <div className="journey-section-heading">
-        <h2>演练中心</h2>
-        <p>当前母版 r{project.revision} · 演练中的演示保留各自的来源版本。</p>
-      </div>
-      <div className="journey-cards">
-        <article className="journey-card">
-          <h3>标准放映 / AI 口播</h3>
-          <p>在同一个播放器中翻页演讲、查看讲稿，或生成 AI 口播。</p>
-          {!speechAvailable ? (
-            <p className="journey-warning">
-              {capabilities.standardPresentation.reason}
-            </p>
-          ) : (
-            <>
-              <p>标准放映使用当前母版；打开后可选择已有口播版本。</p>
-              {records.voice.error ? (
-                <p>{records.voice.error}</p>
-              ) : !capabilities.aiNarration.enabled ? (
-                <p className="journey-warning">
-                  {capabilities.aiNarration.reason}
-                </p>
-              ) : records.voice.ready === null ? (
-                <p>正在读取语音服务状态…</p>
-              ) : (
-                <p>语音服务已配置，可在播放器内选择音色并生成口播。</p>
-              )}
-              <RecordStatus
-                state={records.narration}
-                revision={project.revision}
-                kind="口播"
-              />
-            </>
-          )}
-          {!journey.illustrated && <p>请先在制作台生成至少一页画面。</p>}
-          <div className="journey-card-actions">
-            <Button
-              disabled={!speechAvailable || !journey.illustrated}
-              onClick={onSpeech}
-            >
-              打开演讲播放器
-            </Button>
-            {speechAvailable &&
-              (records.voice.ready === false || records.voice.error) && (
-                <Button variant="ghost" onClick={onSettings}>
-                  配置语音服务
-                </Button>
-              )}
-          </div>
-        </article>
-        <article className="journey-card">
-          <h3>动态演示</h3>
-          <p>把已有画面转换为动态 HTML，在编辑器中对照原图校准和预览。</p>
-          {motionAvailable ? (
-            <RecordStatus
-              state={records.dynamic}
-              revision={project.revision}
-              kind="动态演示"
-            />
-          ) : (
-            <p className="journey-warning">
-              {capabilities.motionPresentation.reason}
-            </p>
-          )}
-          {!journey.illustrated && <p>需要先生成画面，再创建动态演示。</p>}
-          {!!journey.missing.length && !!journey.illustrated && (
-            <p>
-              还有 {journey.missing.length}{" "}
-              页缺少画面。可先在制作台选中有画面的页面进行转换。
-            </p>
-          )}
+      <section className="journey-focus" aria-label="标准放映">
+        <div className="journey-section-heading">
+          <span className="journey-eyebrow">开始演练</span>
+          <h2>标准放映</h2>
           <p>
-            {selectedCount
-              ? `制作台已选 ${selectedCount} 页，打开后可选择转换范围。`
-              : "支持整个项目或制作台选中的页面；转换前会确认范围与费用。"}
+            {journey.illustrated} / {journey.total} 页可演练 · 当前母版 r
+            {project.revision}
           </p>
-          <div className="journey-card-actions">
-            <Button
-              disabled={
-                !motionAvailable ||
-                (!journey.illustrated && !records.dynamic.records.length)
-              }
-              onClick={onMotion}
-            >
-              打开动态演示
-            </Button>
-          </div>
-        </article>
-      </div>
+        </div>
+        <Button
+          variant="primary"
+          onClick={action.target === "player" ? onSpeech : onStudio}
+        >
+          {action.label}
+        </Button>
+        {!speechAvailable ? (
+          <p className="journey-warning">
+            {capabilities.standardPresentation.reason}
+          </p>
+        ) : !journey.illustrated ? (
+          <p>先到制作台生成至少一页画面，再开始放映。</p>
+        ) : (
+          <p>翻页演讲并查看讲稿，无需配置语音服务。</p>
+        )}
+        {!!journey.missing.length && !!journey.illustrated && (
+          <p className="journey-warning">
+            {journey.missing.length} 页缺少画面，请回制作台补齐后完整演练。
+          </p>
+        )}
+        {!!journey.stale && (
+          <p className="journey-warning">
+            {journey.stale} 页画面待更新，请对照最新讲稿核对。
+          </p>
+        )}
+        {!!journey.illustrated && !journey.missing.length && !journey.stale && (
+          <p className="journey-success">画面已齐备，可从头演练。</p>
+        )}
+      </section>
+      <section className="journey-secondary" aria-label="AI 口播">
+        <h3>
+          AI 口播 <span>可选增强</span>
+        </h3>
+        {!speechAvailable ? (
+          <p>当前服务尚未开放 AI 口播，可在模型与服务中查看服务能力。</p>
+        ) : records.voice.error ? (
+          <p className="journey-warning">{records.voice.error}</p>
+        ) : records.voice.ready === false ? (
+          <p className="journey-warning">尚未配置语音服务，AI 口播生成不可用。</p>
+        ) : !capabilities.aiNarration.enabled ? (
+          <p className="journey-warning">{capabilities.aiNarration.reason}</p>
+        ) : records.voice.ready === null ? (
+          <p role="status">正在读取语音服务状态…</p>
+        ) : (
+          <p>语音服务已配置，可在播放器内选择音色并生成口播。</p>
+        )}
+        {speechAvailable && (
+          <p>{journey.illustrated ? "普通放映仍可使用。打开上方播放器，可选择已有口播或制作新口播。" : "先制作至少一页画面，即可普通放映；无需配置语音服务。"}</p>
+        )}
+        {speechAvailable && (
+          <RecordStatus
+            state={records.narration}
+            revision={project.revision}
+            kind="口播"
+          />
+        )}
+        {speechAvailable && !!journey.illustrated &&
+          (records.voice.ready === false || records.voice.error) && (
+            <Button onClick={onSettings}>配置语音服务</Button>
+          )}
+      </section>
+      <section className="journey-secondary" aria-label="动态演示">
+        <h3>
+          动态演示 <span>可选增强</span>
+        </h3>
+        <p>把已有画面转换为动态 HTML，再对照原图校准。</p>
+        {motionAvailable ? (
+          <RecordStatus
+            state={records.dynamic}
+            revision={project.revision}
+            kind="动态演示"
+          />
+        ) : (
+          <p className="journey-warning">
+            {capabilities.motionPresentation.reason}
+          </p>
+        )}
+        {!journey.illustrated && <p>需要先生成画面；已有历史演示仍可打开。</p>}
+        {!!journey.missing.length && !!journey.illustrated && (
+          <p>
+            还有 {journey.missing.length}{" "}
+            页缺少画面。可先在制作台选中有画面的页面进行转换。
+          </p>
+        )}
+        <p>
+          {selectedCount
+            ? `制作台已选 ${selectedCount} 页，打开后可选择转换范围。`
+            : "支持整个项目或选中的页面；转换前会确认范围与费用。"}
+        </p>
+        <Button
+          disabled={
+            !motionAvailable ||
+            (!journey.illustrated && !records.dynamic.records.length)
+          }
+          onClick={onMotion}
+        >
+          打开动态演示
+        </Button>
+      </section>
     </section>
   );
 }
@@ -304,6 +353,7 @@ export function DeliveryCenter({
   onExport,
   onManuscript,
   onRehearsal,
+  onAction,
   notify,
 }: {
   project: Project;
@@ -315,6 +365,7 @@ export function DeliveryCenter({
   onExport: (format: ExportFormat) => void;
   onManuscript: () => void;
   onRehearsal: () => void;
+  onAction: (action: JourneyAction) => void;
   notify: (message: string) => void;
 }) {
   const motionAvailable = capabilities.motionPresentation.enabled;
@@ -327,72 +378,233 @@ export function DeliveryCenter({
     records.dynamic.records.find((d) => d.id === chosen) ||
     records.dynamic.records[0];
   const ready = deck && completePresentation(deck);
+  const action = projectPrimaryAction("delivery", journey, { bundleAvailable });
   return (
     <section aria-label="交付中心" className="journey-panel">
-      <div className="journey-section-heading">
-        <h2>交付中心</h2>
-        <p>当前母版 r{project.revision} · 下载前核对内容、画面和版本。</p>
-      </div>
-      <TaskList journey={journey} />
-      <div className="journey-cards">
-        <article className="journey-card">
-          <h3>制作报告</h3>
-          <p>核对原文、逐页备注与逐字稿，查看缺页和内容完整性。</p>
-          <Button onClick={onReport}>查看制作报告</Button>
-        </article>
-        <article className="journey-card">
-          <h3>PPTX + 逐字稿</h3>
-          <p>
-            {bundleAvailable
-              ? "ZIP 包含 PPTX 和完整逐字稿 Markdown。"
-              : capabilities.bundleExport.reason}
-            画面与备注采用当前保存的版本。
-          </p>
-          <p>
-            {journey.working ||
-            journey.missing.length ||
-            journey.unsegmented ||
-            !journey.total
-              ? "尚不满足 PPT 下载条件，可打开导出检查查看详情。"
-              : "画面已齐备，可打开导出检查。"}
-          </p>
-          <Button
-            disabled={!journey.total && !project.batches.length}
-            onClick={() => onExport("ppt")}
+      <section
+        className="journey-focus"
+        data-delivery-section="checks"
+        aria-label="交付检查"
+      >
+        <div className="journey-section-heading">
+          <h2>交付检查</h2>
+          <p
+            className={
+              journey.pptxReady && !journey.needsReview
+                ? "journey-success"
+                : "journey-warning"
+            }
           >
-            导出 PPT
-          </Button>
-        </article>
-        <article className="journey-card">
-          <h3>单独逐字稿</h3>
-          <p>
-            按当前页序下载最新正文，无需等待图片生成。未提交草稿不包含在内。
+            {!journey.pptxReady
+              ? "暂不能下载 PPTX，请先处理以下事项。"
+              : journey.needsReview
+                ? "画面已齐备，交付前还有内容需要核对。"
+                : `${journey.total} 页画面已齐备，可以交付。`}
           </p>
-          {!!journey.unsegmented && (
-            <p className="journey-warning">
-              请先完成 {journey.unsegmented} 段讲稿拆页。
+        </div>
+        {(!journey.pptxReady || journey.needsReview) && (
+          <Button variant="primary" onClick={() => onExport("ppt")}>
+            {action.label}
+          </Button>
+        )}
+        {!!journey.tasks.length && (
+          <TaskList journey={journey} onAction={onAction} />
+        )}
+        <Button variant="ghost" onClick={onReport}>
+          查看制作报告
+        </Button>
+      </section>
+      <section
+        className="journey-primary-delivery"
+        data-delivery-section="primary"
+        aria-label="主交付"
+      >
+        <h2>PPTX＋完整逐字稿</h2>
+        <p>
+          {bundleAvailable
+            ? "ZIP 包含 PPTX 和完整逐字稿 Markdown；备注使用最新保存的讲稿。"
+            : capabilities.bundleExport.reason}
+        </p>
+        {journey.pptxReady && !journey.needsReview ? (
+          <Button variant="primary" onClick={() => onExport("ppt")}>
+            {action.label}
+          </Button>
+        ) : (
+          <p>完成上方检查后下载；需要提前交付正文，可在下方单独下载逐字稿。</p>
+        )}
+      </section>
+      <section data-delivery-section="formats" aria-label="更多格式">
+        <h2 className="journey-subheading">更多格式</h2>
+        <div className="journey-cards">
+          <article className="journey-card">
+            <h3>单独逐字稿</h3>
+            <p>
+              按当前页序下载最新正文，无需等待图片生成。未提交草稿不包含在内。
             </p>
-          )}
-          <Button
-            disabled={!journey.total || !!journey.unsegmented}
-            loading={scriptExporting}
-            onClick={onManuscript}
-          >
-            导出演说稿（Markdown）
-          </Button>
-        </article>
-        <article className="journey-card">
-          <h3>静态 HTML</h3>
-          <p>
-            直接打包当前画面，可选择已完成的口播与演讲备注，离线放映，无需转换动画。
-          </p>
-          <Button
-            disabled={!journey.total && !project.batches.length}
-            onClick={() => onExport("html")}
-          >
-            导出静态 HTML
-          </Button>
-        </article>
+            {!journey.total && (
+              <p className="journey-warning">
+                还没有页面正文，请先在制作台添加讲稿并完成拆页。
+              </p>
+            )}
+            {!!journey.unsegmented && (
+              <p className="journey-warning">
+                请先完成 {journey.unsegmented} 段讲稿拆页。
+              </p>
+            )}
+            {(!journey.total || !!journey.unsegmented) && (
+              <Button
+                variant="ghost"
+                onClick={() =>
+                  onAction({
+                    area: "studio",
+                    target: journey.unsegmented ? "batches" : "composer",
+                    label: "前往制作台",
+                  })
+                }
+              >
+                前往制作台
+              </Button>
+            )}
+            <Button
+              disabled={!journey.total || !!journey.unsegmented}
+              loading={scriptExporting}
+              onClick={onManuscript}
+            >
+              导出演说稿（Markdown）
+            </Button>
+          </article>
+          <article className="journey-card">
+            <h3>静态 HTML</h3>
+            <p>
+              直接打包当前画面，可选择已完成的口播与演讲备注，离线放映，无需转换动画。
+            </p>
+            {!journey.total && !project.batches.length && (
+              <p className="journey-warning">
+                还没有可打包页面，请先添加讲稿并制作画面。
+              </p>
+            )}
+            <Button
+              onClick={() =>
+                !journey.total && !project.batches.length
+                  ? onAction({
+                      area: "studio",
+                      target: "composer",
+                      label: "开始写讲稿",
+                    })
+                  : onExport("html")
+              }
+            >
+              {!journey.total && !project.batches.length
+                ? "添加讲稿后制作 HTML"
+                : "导出静态 HTML"}
+            </Button>
+          </article>
+          <article className="journey-card">
+            <h3>动态 HTML</h3>
+            <p>下载演练中心已转换的动态演示，保留该演示的版本与页面范围。</p>
+            {!motionAvailable ? (
+              <p className="journey-warning">
+                {capabilities.motionPresentation.reason}
+              </p>
+            ) : (
+              <>
+                <RecordStatus
+                  state={records.dynamic}
+                  revision={project.revision}
+                  kind="动态演示"
+                />
+                {!!records.dynamic.records.length && (
+                  <label className="journey-field">
+                    交付版本
+                    <select
+                      aria-label="动态 HTML 交付版本"
+                      value={deck?.id || ""}
+                      disabled={downloading}
+                      onChange={(e) => {
+                        setChosen(e.target.value);
+                        setError("");
+                      }}
+                    >
+                      {records.dynamic.records.map((d, i) => (
+                        <option key={d.id} value={d.id}>
+                          {i === 0 ? "最近演示" : `历史演示 ${i}`} · 母版 r
+                          {d.sourceRevision} · {d.pages.length} 页 ·{" "}
+                          {statusLabels[d.status] || "状态待核对"}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                {deck && (
+                  <p>
+                    所选演示：基于母版 r{deck.sourceRevision} ·{" "}
+                    {deck.pages.length} 页。
+                    {deck.sourceRevision !== project.revision
+                      ? "与当前母版不同，请确认是否交付历史版本。"
+                      : "来源版本与当前母版一致。"}
+                    {deck.pages.length !== project.slides.length ||
+                    project.slides.some((s, i) => deck.pages[i]?.id !== s.id)
+                      ? "页面范围或顺序与当前项目不同，请核对。"
+                      : ""}
+                  </p>
+                )}
+                {deck && !ready && (
+                  <p className="journey-warning">
+                    所选动态演示尚未全部完成，请到演练中心完成或重试后下载。
+                  </p>
+                )}
+                {ready && deck.pages.some((p) => !p.reviewed) && (
+                  <p>仍有页面未标记校对，请在演练中心对照原图检查。</p>
+                )}
+                {deck && (
+                  <HtmlExportOptions options={html} disabled={downloading} />
+                )}
+                <p>
+                  可选与所选演示画面、讲稿一致的口播，内嵌音频后离线自动讲述；不一致时会提示并停止下载。
+                </p>
+              </>
+            )}
+            {motionAvailable && !deck && (
+              <p>先到演练中心创建动态演示，完成后即可下载。</p>
+            )}
+            {error && (
+              <p role="alert" className="error-text">
+                {error}
+              </p>
+            )}
+            <div className="journey-card-actions">
+              <Button
+                disabled={!motionAvailable || !ready}
+                loading={downloading}
+                onClick={async () => {
+                  if (!deck) return;
+                  setDownloading(true);
+                  setError("");
+                  try {
+                    await downloadMotionHtml(
+                      deck.id,
+                      html.notes,
+                      html.narration,
+                    );
+                    notify("动态 HTML 已开始下载。");
+                  } catch (e) {
+                    setError((e as Error).message);
+                  } finally {
+                    setDownloading(false);
+                  }
+                }}
+              >
+                下载动态 HTML
+              </Button>
+              <Button variant="ghost" onClick={onRehearsal}>
+                前往演练中心
+              </Button>
+            </div>
+          </article>
+        </div>
+      </section>
+      <section data-delivery-section="backup" aria-label="备份与继续编辑">
+        <h2 className="journey-subheading">备份与继续编辑</h2>
         <article className="journey-card">
           <h3>项目源文件</h3>
           <p>
@@ -412,102 +624,7 @@ export function DeliveryCenter({
             导出项目源文件
           </Button>
         </article>
-        <article className="journey-card">
-          <h3>动态 HTML</h3>
-          <p>下载演练中心已转换的动态演示，保留该演示的版本与页面范围。</p>
-          {!motionAvailable ? (
-            <p className="journey-warning">
-              {capabilities.motionPresentation.reason}
-            </p>
-          ) : (
-            <>
-              <RecordStatus
-                state={records.dynamic}
-                revision={project.revision}
-                kind="动态演示"
-              />
-              {!!records.dynamic.records.length && (
-                <label className="journey-field">
-                  交付版本
-                  <select
-                    aria-label="动态 HTML 交付版本"
-                    value={deck?.id || ""}
-                    disabled={downloading}
-                    onChange={(e) => {
-                      setChosen(e.target.value);
-                      setError("");
-                    }}
-                  >
-                    {records.dynamic.records.map((d, i) => (
-                      <option key={d.id} value={d.id}>
-                        {i === 0 ? "最近演示" : `历史演示 ${i}`} · 母版 r
-                        {d.sourceRevision} · {d.pages.length} 页 ·{" "}
-                        {statusLabels[d.status] || "状态待核对"}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              )}
-              {deck && (
-                <p>
-                  所选演示：基于母版 r{deck.sourceRevision} ·{" "}
-                  {deck.pages.length} 页。
-                  {deck.sourceRevision !== project.revision
-                    ? "与当前母版不同，请确认是否交付历史版本。"
-                    : "来源版本与当前母版一致。"}
-                  {deck.pages.length !== project.slides.length ||
-                  project.slides.some((s, i) => deck.pages[i]?.id !== s.id)
-                    ? "页面范围或顺序与当前项目不同，请核对。"
-                    : ""}
-                </p>
-              )}
-              {deck && !ready && (
-                <p className="journey-warning">
-                  所选动态演示尚未全部完成，请到演练中心完成或重试后下载。
-                </p>
-              )}
-              {ready && deck.pages.some((p) => !p.reviewed) && (
-                <p>仍有页面未标记校对，请在演练中心对照原图检查。</p>
-              )}
-              {deck && (
-                <HtmlExportOptions options={html} disabled={downloading} />
-              )}
-              <p>
-                可选与所选演示画面、讲稿一致的口播，内嵌音频后离线自动讲述；不一致时会提示并停止下载。
-              </p>
-            </>
-          )}
-          {error && (
-            <p role="alert" className="error-text">
-              {error}
-            </p>
-          )}
-          <div className="journey-card-actions">
-            <Button
-              disabled={!motionAvailable || !ready}
-              loading={downloading}
-              onClick={async () => {
-                if (!deck) return;
-                setDownloading(true);
-                setError("");
-                try {
-                  await downloadMotionHtml(deck.id, html.notes, html.narration);
-                  notify("动态 HTML 已开始下载。");
-                } catch (e) {
-                  setError((e as Error).message);
-                } finally {
-                  setDownloading(false);
-                }
-              }}
-            >
-              下载动态 HTML
-            </Button>
-            <Button variant="ghost" onClick={onRehearsal}>
-              前往演练中心
-            </Button>
-          </div>
-        </article>
-      </div>
+      </section>
       <p className="journey-note">
         PPTX、Markdown 与 HTML 用于放映或交付；项目源文件用于在 AutoPPT
         中恢复编辑，不能用交付文件替代。

@@ -3865,3 +3865,31 @@ textarea::placeholder {
     flex-direction: column;
   }
 }
+
+/* Match workspace clearance to the actual fixed mobile navigation, including iOS safe area. */
+@media (max-width: 600px) {
+  .app-shell:has(.workspace) {
+    --project-nav-height: calc(62px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: var(--project-nav-height);
+  }
+  .app-shell:has(.workspace) .sidebar {
+    height: var(--project-nav-height);
+    padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px));
+  }
+  .workspace {
+    padding-bottom: 28px;
+  }
+  .workspace button,
+  .workspace textarea {
+    scroll-margin-bottom: calc(78px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+.app-shell:has(.workspace) .new-project-side {
+  background: transparent;
+  color: #43533c;
+  border-color: #cbd2c2;
+}
+.app-shell:has(.workspace) .new-project-side:hover {
+  background: #e4e6dc;
+}

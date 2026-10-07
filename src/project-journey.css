@@ -5,16 +5,6 @@
 .workspace-heading > div {
   min-width: 0;
 }
-.journey-next {
-  flex-shrink: 0;
-  display: grid;
-  gap: 8px;
-  justify-items: end;
-}
-.journey-next > span {
-  font-size: 11px;
-  color: var(--muted);
-}
 .project-area-nav {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -23,7 +13,7 @@
   border: 1px solid var(--line);
   border-radius: 10px;
   background: #eeeee7;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 .project-area-nav button {
   padding: 12px 8px;
@@ -33,12 +23,12 @@
 }
 .project-area-nav button[aria-current="page"] {
   background: #fff;
-  color: var(--accent);
+  color: #354b32;
   box-shadow: 0 1px 3px #0000000d;
   font-weight: 600;
 }
 .project-area-nav button:hover {
-  color: var(--accent);
+  color: #354b32;
 }
 .journey-panel {
   display: grid;
@@ -51,19 +41,9 @@
   color: var(--muted);
   overflow-wrap: anywhere;
 }
-.journey-stage {
-  padding: 26px;
-  background: #eef1e8;
-  border-radius: 12px;
-}
 .journey-eyebrow {
-  color: var(--accent);
+  color: var(--muted);
   font-size: 12px;
-  letter-spacing: 0.08em;
-}
-.journey-stage h2 {
-  font-size: 23px;
-  margin: 14px 0 10px;
 }
 .journey-stats {
   display: grid;
@@ -93,11 +73,11 @@
   margin-bottom: 12px;
 }
 .journey-tasks ul {
-  padding-left: 20px;
+  list-style: none;
+  padding: 0;
   margin: 0;
-  color: #68745d;
   font-size: 13px;
-  line-height: 2;
+  line-height: 1.6;
   overflow-wrap: anywhere;
 }
 .journey-section-heading h2 {
@@ -243,12 +223,6 @@
   .workspace .workspace-heading {
     flex-wrap: wrap;
   }
-  .journey-next {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
   .project-area-nav {
     gap: 2px;
     padding: 4px;
@@ -269,7 +243,6 @@
   .journey-stats > div:nth-child(n + 3) {
     border-top: 1px solid var(--line);
   }
-  .journey-stage,
   .journey-card {
     padding: 20px;
   }
@@ -328,4 +301,324 @@
   .sidebar .account-footer > span {
     display: none;
   }
+}
+
+/* The area owns the task; the shared heading only identifies the project. */
+.workspace .workspace-heading {
+  margin-bottom: 16px;
+}
+.workspace .project-alert-summary {
+  color: #925520;
+  font-weight: 500;
+  margin-top: 6px;
+}
+.journey-section-heading > .btn {
+  margin-top: 16px;
+}
+.journey-focus,
+.journey-primary-delivery {
+  display: grid;
+  justify-items: start;
+  gap: 14px;
+  padding: 22px 0;
+  border-bottom: 1px solid var(--line);
+}
+.journey-focus:first-child {
+  padding-top: 0;
+}
+.journey-focus .journey-tasks {
+  width: 100%;
+}
+.journey-primary-delivery h2 {
+  font-size: 21px;
+}
+.journey-secondary {
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+  padding: 0 0 22px;
+  border-bottom: 1px solid var(--line);
+}
+.journey-secondary h3 {
+  font-size: 16px;
+}
+.journey-secondary h3 span {
+  margin-left: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+.journey-subheading {
+  font-size: 16px;
+  margin-bottom: 14px;
+}
+.journey-tasks li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 0 14px 14px;
+  border-left: 3px solid #a8b2bc;
+  border-bottom: 1px solid var(--line);
+}
+.journey-tasks li[data-tone="warning"] {
+  border-left-color: #b98532;
+}
+.journey-tasks li[data-tone="error"] {
+  border-left-color: #b34c45;
+}
+.journey-tasks li[data-tone="error"] p {
+  color: #9b3e38;
+}
+.journey-tasks li[data-tone="progress"] {
+  border-left-color: #4d7d9c;
+}
+.journey-tasks li[data-tone="progress"] p {
+  color: #396582;
+}
+.journey-tasks .btn {
+  flex-shrink: 0;
+  white-space: normal;
+}
+.journey-panel .journey-success {
+  color: #426641;
+}
+.journey-panel .journey-warning {
+  color: #8c5925;
+}
+.journey-panel .error-text {
+  color: #a1403b;
+}
+.journey-panel .btn:disabled {
+  opacity: 1;
+  color: #757575;
+  background: #f0f0ec;
+  border-color: #d7d7d0;
+}
+.studio-topbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.studio-pages,
+.studio-tasks {
+  scroll-margin-top: 110px;
+}
+.studio-tasks:empty {
+  display: none;
+}
+.studio-tasks > p {
+  font-size: 13px;
+  color: #396582;
+  margin-bottom: 12px;
+}
+.studio-tasks .job-banner {
+  background: #edf3f8;
+  color: #396582;
+}
+.studio-settings {
+  border-top: 1px solid var(--line);
+  margin: 24px 0 18px;
+  padding-top: 18px;
+}
+.studio-settings > summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--muted);
+  padding: 8px 0;
+}
+.studio-settings .project-controls {
+  margin-top: 16px;
+}
+.project-studio .composer {
+  margin-top: 24px;
+}
+.project-studio .first-composer {
+  margin-top: 0;
+}
+.project-studio .composer-model-help {
+  font-size: 12px;
+  color: #8c5925;
+}
+.project-studio .composer-model-help .btn {
+  padding: 6px;
+  font-size: 12px;
+}
+.project-studio .slide-caption {
+  align-items: flex-start;
+}
+.project-studio .slide-caption h3 {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.page-state {
+  flex-shrink: 0;
+  font-size: 11px;
+  padding: 4px 6px;
+  border-radius: 4px;
+}
+.page-state.warning {
+  color: #815520;
+  background: #faf0db;
+}
+.page-state.error {
+  color: #9b3e38;
+  background: #fbece9;
+}
+.page-state.progress {
+  color: #396582;
+  background: #edf3f8;
+}
+.project-studio .page-repair {
+  font-size: 12px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+}
+.project-studio .insert-page {
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  padding: 6px;
+  margin: 4px 0 0;
+  vertical-align: middle;
+}
+.project-studio .slide-card > .insert-page {
+  float: right;
+}
+.project-studio .slide-card::after {
+  content: "";
+  display: block;
+  clear: both;
+}
+@media (max-width: 600px) {
+  .workspace.page {
+    padding-top: 16px;
+  }
+  .workspace .workspace-heading {
+    margin-bottom: 12px;
+    gap: 0;
+  }
+  .workspace .workspace-heading h1 {
+    font-size: 19px;
+    overflow-wrap: anywhere;
+  }
+  .workspace .project-metadata {
+    font-size: 10px;
+    gap: 5px;
+    line-height: 1.5;
+  }
+  .project-area-nav {
+    margin-bottom: 18px;
+  }
+  .journey-panel {
+    gap: 20px;
+  }
+  .journey-section-heading h2,
+  .journey-primary-delivery h2 {
+    font-size: 20px;
+  }
+  .journey-focus,
+  .journey-primary-delivery {
+    padding-bottom: 18px;
+    gap: 12px;
+  }
+  .journey-tasks li {
+    display: grid;
+    gap: 6px;
+    padding: 12px 0 12px 10px;
+  }
+  .journey-tasks li .btn {
+    justify-self: start;
+    text-align: left;
+    padding: 6px 0;
+  }
+  .journey-stats > div {
+    padding: 12px;
+  }
+  .journey-stats dd {
+    font-size: 24px;
+    margin-top: 6px;
+  }
+  .journey-card {
+    padding: 16px;
+  }
+  .studio-topbar {
+    align-items: start;
+    padding: 10px 0;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .studio-topbar h2 {
+    font-size: 15px;
+    white-space: nowrap;
+    padding-top: 10px;
+  }
+  .studio-topbar-actions {
+    gap: 6px;
+  }
+  .studio-topbar-actions .btn {
+    padding: 9px 10px;
+    font-size: 11px;
+  }
+  .studio-topbar-actions .btn.primary {
+    flex-basis: 100%;
+  }
+  .studio-pages,
+  .studio-tasks {
+    scroll-margin-top: 125px;
+  }
+  .project-studio .gallery-toolbar {
+    gap: 12px;
+  }
+  .project-studio .studio-view-controls {
+    gap: 10px;
+  }
+  .project-studio .studio-control-group > span {
+    display: none;
+  }
+  .project-studio .composer-heading {
+    flex-wrap: wrap;
+  }
+  .project-studio .composer-heading .draft-state {
+    flex-basis: 100%;
+  }
+  .project-studio .composer-model-help {
+    margin: 8px 0;
+  }
+  .project-studio .selection-bar {
+    position: static;
+    transform: none;
+    width: 100%;
+    max-width: none;
+    margin: 18px 0;
+  }
+}
+
+.project-studio .insert-first {
+  margin-bottom: 0;
+}
+.project-studio .slide-checkbox.checked {
+  color: #426641;
+}
+.project-studio .gallery-actions {
+  align-items: center;
+}
+@media (max-width: 600px) {
+  .project-studio .gallery-actions {
+    margin-left: 0;
+    gap: 8px;
+  }
+  .project-studio .gallery-actions .btn {
+    padding: 6px 0;
+  }
+}
+
+.journey-card .field,
+.journey-card .field select {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
 }

@@ -18,8 +18,10 @@ import { chromium, expect } from "@playwright/test";
 
 test(
   "four project areas preserve editing, own rehearsal/delivery, and fit desktop/mobile in local and hosted shells",
-  { timeout: 120000 },
+  { timeout: 180000 },
   async (t) => {
+    const evidence = path.resolve("test-results/ux-hierarchy");
+    mkdirSync(evidence, { recursive: true });
     const dir = mkdtempSync(path.join(tmpdir(), "autoppt-p0-ia-"));
     mkdirSync(path.join(dir, "assets"));
     const image = await sharp({
@@ -165,7 +167,16 @@ test(
       child.kill();
       db.close();
     });
-    const [message] = await once(child, "message");
+    let startupError = "";
+    child.stderr.on("data", (chunk) => {
+      startupError += chunk;
+    });
+    const [message] = await Promise.race([
+      once(child, "message", { signal: AbortSignal.timeout(15000) }),
+      once(child, "exit").then(([code]) => {
+        throw new Error(`Fixture server exited (${code}): ${startupError}`);
+      }),
+    ]);
     const base = `http://127.0.0.1:${message.port}`;
     const chrome =
       "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
@@ -205,13 +216,24 @@ test(
     const nav = () => page.getByRole("navigation", { name: "项目区域" });
     const goArea = (name) =>
       nav().getByRole("button", { name, exact: true }).click();
-    const overflow = async () =>
+    const overflow = async () => {
+      const report = await page.evaluate(() => ({
+        width: innerWidth,
+        scroll: document.documentElement.scrollWidth,
+        outside: [...document.querySelectorAll("body *")]
+          .filter((el) => el.getBoundingClientRect().right > innerWidth + 1)
+          .slice(0, 12)
+          .map((el) => ({
+            tag: el.tagName,
+            class: el.className,
+            right: el.getBoundingClientRect().right,
+          })),
+      }));
       assert(
-        await page.evaluate(
-          () => document.documentElement.scrollWidth <= innerWidth + 1,
-        ),
-        "no horizontal overflow",
+        report.scroll <= report.width + 1,
+        `no horizontal overflow: ${page.url()} ${JSON.stringify(report)}`,
       );
+    };
     const visibleInViewport = async (locator) => {
       await expect(locator).toBeVisible();
       const box = await locator.boundingBox();
@@ -239,16 +261,18 @@ test(
       "演练中心",
       "交付中心",
     ]);
-    await expect(page.locator(".workspace-heading .btn.primary")).toHaveText(
+    await expect(page.locator(".workspace .btn.primary:visible")).toHaveText(
       "开始演练",
     );
-    await expect(page.locator(".workspace-heading .btn.primary")).toHaveCount(
+    await expect(page.locator(".workspace .btn.primary:visible")).toHaveCount(
       1,
     );
     await expect(
       page.locator(".topbar").getByRole("button", { name: "播放演讲" }),
     ).toHaveCount(0);
-    await page.screenshot({ path: path.join(dir, "1280-overview.png") });
+    await page.screenshot({
+      path: path.join(evidence, "regression-1280-overview.png"),
+    });
     await goArea("制作台");
     const addScript = page.getByRole("button", {
       name: "继续添加讲稿",
@@ -270,12 +294,20 @@ test(
       .fill("保留这个未提交草稿。");
     await expect(page.getByRole("group", { name: "内容视图" })).toBeVisible();
     await expect(page.getByRole("group", { name: "范围筛选" })).toBeVisible();
-    await page.screenshot({ path: path.join(dir, "1280-studio.png") });
+    await page.screenshot({
+      path: path.join(evidence, "regression-1280-studio.png"),
+    });
     await goArea("演练中心");
+    await expect(page.getByRole("heading", { name: "标准放映" })).toBeVisible();
     await expect(
-      page.getByRole("heading", { name: "标准放映 / AI 口播" }),
+      page.locator('[aria-label="AI 口播"]').getByText(/尚未配置语音服务/),
     ).toBeVisible();
-    await expect(page.getByText(/尚未配置语音服务/)).toBeVisible();
+    await expect(page.locator('[aria-label="AI 口播"]')).toContainText(
+      "普通放映仍可使用",
+    );
+    await expect(page.locator(".workspace .btn.primary:visible")).toHaveText(
+      "打开演讲播放器",
+    );
     await expect(page.getByText(/制作台已选 1 页/)).toBeVisible();
     await page
       .getByRole("button", { name: "打开演讲播放器", exact: true })
@@ -299,8 +331,15 @@ test(
     await expect(
       nav().getByRole("button", { name: "演练中心", exact: true }),
     ).toHaveAttribute("aria-current", "page");
-    await page.screenshot({ path: path.join(dir, "1280-rehearsal.png") });
-    await goArea("制作台");
+    await page.screenshot({
+      path: path.join(evidence, "regression-1280-rehearsal.png"),
+    });
+    await goArea("概览");
+    await page
+      .locator(".journey-tasks")
+      .getByRole("button", { name: "继续未提交草稿", exact: true })
+      .click();
+    await expect(page.getByLabel("添加逐字稿", { exact: true })).toBeFocused();
     await expect(page.getByLabel("添加逐字稿", { exact: true })).toHaveValue(
       "保留这个未提交草稿。",
     );
@@ -311,10 +350,10 @@ test(
     await expect(page.locator(".manuscript-row")).toHaveCount(12);
     await goArea("交付中心");
     await expect(
-      page.getByRole("heading", { name: "制作报告", exact: true }),
+      page.getByRole("heading", { name: "交付检查", exact: true }),
     ).toBeVisible();
     await expect(
-      page.getByRole("heading", { name: "PPTX + 逐字稿", exact: true }),
+      page.getByRole("heading", { name: "PPTX＋完整逐字稿", exact: true }),
     ).toBeVisible();
     await expect(
       page.getByRole("heading", { name: "单独逐字稿", exact: true }),
@@ -344,16 +383,35 @@ test(
       nav().getByRole("button", { name: "交付中心", exact: true }),
     ).toHaveAttribute("aria-current", "page");
     await page.goto(`${base}/#project/unfinished`);
-    await expect(page.locator(".workspace-heading .btn.primary")).toHaveText(
-      "继续制作",
+    await expect(page.locator(".workspace .btn.primary:visible")).toHaveText(
+      "补齐 1 页画面",
     );
     await expect(page.locator(".journey-stats")).toContainText("已有画面2");
     await expect(page.locator(".journey-stats")).toContainText("待生成1");
     await expect(page.locator(".journey-stats")).toContainText(
       "内容已改待更新1",
     );
+    for (const [label, number] of [
+      ["补齐 1 页画面", 3],
+      ["更新 1 页画面", 2],
+    ]) {
+      await page
+        .locator(".journey-tasks")
+        .getByRole("button", { name: label, exact: true })
+        .click();
+      await expect(
+        page.getByRole("dialog").getByLabel("本页逐字稿", { exact: true }),
+      ).toHaveValue(`第 ${number} 页完整测试讲稿。`);
+      await page
+        .getByRole("dialog")
+        .getByRole("button", { name: "关闭", exact: true })
+        .click();
+      await goArea("概览");
+    }
     await goArea("交付中心");
-    await page.getByRole("button", { name: "导出 PPT", exact: true }).click();
+    await page
+      .getByRole("button", { name: "查看导出检查", exact: true })
+      .click();
     await expect(
       page.getByRole("button", { name: /使用当前图片与最新备注下载/ }),
     ).toBeDisabled();
@@ -362,12 +420,14 @@ test(
       .getByRole("dialog")
       .getByRole("button", { name: "关闭", exact: true })
       .click();
-    await page.screenshot({ path: path.join(dir, "1280-delivery.png") });
+    await page.screenshot({
+      path: path.join(evidence, "regression-1280-delivery.png"),
+    });
     await page.goto(`${base}/#project/complete`);
-    await expect(page.locator(".workspace-heading .btn.primary")).toHaveText(
+    await expect(page.locator(".workspace .btn.primary:visible")).toHaveText(
       "检查交付",
     );
-    await page.locator(".workspace-heading .btn.primary").click();
+    await page.locator(".workspace .btn.primary:visible").click();
     await page
       .getByLabel("动态 HTML 交付版本")
       .selectOption("historical-motion");
@@ -562,23 +622,34 @@ test(
     ).json();
     assert.equal(importedScript.pages[0].text, "保存独立的口播修改。");
     await page.goto(`${base}/#project/complete/delivery`);
-    await page.getByRole("button", { name: "导出 PPT", exact: true }).click();
+    await page
+      .getByRole("button", { name: "下载 PPTX＋逐字稿", exact: true })
+      .click();
     const pptDownload = page.waitForEvent("download");
     await page
-      .getByRole("button", { name: "下载 PPT 与逐字稿", exact: true })
+      .getByRole("dialog")
+      .getByRole("button", { name: "下载 PPTX＋逐字稿", exact: true })
       .click();
     assert.match((await pptDownload).suggestedFilename(), /\.zip$/);
     await page.goto(`${base}/#project/empty`);
-    await expect(page.locator(".workspace-heading .btn.primary")).toHaveText(
+    await expect(page.locator(".workspace .btn.primary:visible")).toHaveText(
       "开始写讲稿",
     );
     await goArea("演练中心");
     await expect(
       page.getByRole("button", { name: "打开演讲播放器", exact: true }),
-    ).toBeDisabled();
+    ).toHaveCount(0);
+    await expect(page.locator(".workspace .btn.primary:visible")).toHaveText(
+      "返回制作台",
+    );
     await expect(
       page.getByRole("button", { name: "打开动态演示", exact: true }),
     ).toBeDisabled();
+    await goArea("交付中心");
+    await page.getByRole("button", { name: "查看导出检查", exact: true }).click();
+    await expect(page.getByRole("dialog")).toContainText("还没有页面");
+    await page.getByRole("dialog").getByRole("button", { name: "前往制作台处理", exact: true }).click();
+    await expect(page.getByLabel("添加逐字稿", { exact: true })).toBeFocused();
     // A failed metadata read must never be presented as an empty history or ready delivery.
     await page.route("**/api/projects/complete/motion", (route) =>
       route.fulfill({ status: 503, json: { error: "fixture outage" } }),
@@ -622,9 +693,18 @@ test(
         ],
       }),
     );
-    await page.goto(`${base}/#project/unfinished/delivery`);
+    await page.goto(`${base}/#project/unfinished`);
+    await page
+      .locator(".journey-tasks")
+      .getByRole("button", { name: "查看 1 项后台任务", exact: true })
+      .click();
+    await expect(page.locator(".job-banner")).toContainText("隔离后台制作");
+    await expect(page.locator(".studio-tasks")).toBeFocused();
+    await goArea("交付中心");
     await expect(page.getByText(/1 项后台制作任务进行中/)).toBeVisible();
-    await page.getByRole("button", { name: "导出 PPT", exact: true }).click();
+    await page
+      .getByRole("button", { name: "查看导出检查", exact: true })
+      .click();
     await expect(page.getByRole("dialog")).toContainText("页面正在制作中");
     await page
       .getByRole("dialog")
@@ -638,33 +718,172 @@ test(
       .getByRole("button", { name: "关闭", exact: true })
       .click();
     await page.unroute("**/api/jobs?projectId=unfinished");
+    await page.route("**/api/projects/unfinished", async (route) => {
+      const body = structuredClone(unfinished);
+      body.slides[0].status = "error";
+      body.slides[0].error = "隔离测试：画面制作失败";
+      await route.fulfill({ json: body });
+    });
+    await page.goto(`${base}/#project/unfinished`);
+    await page.reload();
+    await page
+      .locator(".journey-tasks")
+      .getByRole("button", { name: "检查 1 页失败页面", exact: true })
+      .click();
+    await expect(
+      page.getByRole("dialog").getByLabel("本页逐字稿", { exact: true }),
+    ).toHaveValue("第 1 页完整测试讲稿。");
+    await expect(
+      page
+        .getByRole("dialog")
+        .getByRole("button", { name: "重新设计这页", exact: true }),
+    ).toBeVisible();
+    await page
+      .getByRole("dialog")
+      .getByRole("button", { name: "关闭", exact: true })
+      .click();
+    await page.unroute("**/api/projects/unfinished");
+    // Exercise every area and state with actual DOM order and navigation geometry.
     for (const [width, height] of [
       [1280, 800],
       [390, 844],
       [320, 700],
     ]) {
       await page.setViewportSize({ width, height });
-      await page.goto(`${base}/#project/unfinished`);
-      for (const area of ["概览", "制作台", "演练中心", "交付中心"]) {
-        await goArea(area);
-        await overflow();
-        if (area === "制作台") {
-          await visibleInViewport(addScript);
-          await page.locator(".slide-card").last().scrollIntoViewIfNeeded();
-          await visibleInViewport(addScript);
-          await addScript.click();
+      for (const state of ["empty", "unfinished", "complete"]) {
+        await page.goto(`${base}/#project/${state}`);
+        for (const [area, label] of Object.entries({
+          overview: "概览",
+          studio: "制作台",
+          rehearsal: "演练中心",
+          delivery: "交付中心",
+        })) {
+          await goArea(label);
+          await overflow();
           await expect(
-            page.getByLabel("添加逐字稿", { exact: true }),
-          ).toBeFocused();
-          await visibleInViewport(
-            page.getByLabel("添加逐字稿", { exact: true }),
-          );
+            page.locator(".workspace-heading .btn.primary"),
+          ).toHaveCount(0);
+          const primary = page.locator(".workspace .btn.primary:visible");
+          await expect(primary).toHaveCount(1);
+          if (area === "overview") {
+            assert(
+              await page
+                .locator(".journey-tasks")
+                .evaluate(
+                  (el) =>
+                    !!(
+                      el.compareDocumentPosition(
+                        document.querySelector(".journey-stats"),
+                      ) & Node.DOCUMENT_POSITION_FOLLOWING
+                    ),
+                ),
+            );
+          }
+          if (area === "studio") {
+            if (state === "empty") {
+              await expect(
+                page.getByLabel("添加逐字稿", { exact: true }),
+              ).toBeFocused();
+              await visibleInViewport(
+                page.getByLabel("添加逐字稿", { exact: true }),
+              );
+            } else {
+              await expect(page.locator(".composer")).toBeHidden();
+              assert(
+                await page
+                  .locator(".slide-grid")
+                  .evaluate(
+                    (el) =>
+                      !!(
+                        el.compareDocumentPosition(
+                          document.querySelector(".composer"),
+                        ) & Node.DOCUMENT_POSITION_FOLLOWING
+                      ),
+                  ),
+              );
+              await expect(
+                page.locator(".slide-caption h3").first(),
+              ).not.toHaveText("");
+              await page.locator(".slide-card").last().scrollIntoViewIfNeeded();
+              await visibleInViewport(addScript);
+              // A compact insertion action remains focusable and touch accessible.
+              await page.locator(".insert-page").last().focus();
+              await expect(page.locator(".insert-page").last()).toBeFocused();
+              await addScript.click();
+              await expect(
+                page.getByLabel("添加逐字稿", { exact: true }),
+              ).toBeFocused();
+              await visibleInViewport(
+                page.getByLabel("添加逐字稿", { exact: true }),
+              );
+              if (width === 390) {
+                // Approximate a reduced visual viewport without adding any input overlay.
+                await page.setViewportSize({ width, height: 460 });
+                const submit = page.getByRole("button", { name: "提交讲稿并制作", exact: true });
+                await submit.scrollIntoViewIfNeeded();
+                const submitBox = await submit.boundingBox();
+                const fixedNav = await page.locator(".sidebar").boundingBox();
+                assert(submitBox.y >= 0 && submitBox.y + submitBox.height <= fixedNav.y, "submit clears mobile navigation with reduced viewport");
+                await overflow();
+                await page.setViewportSize({ width, height });
+              }
+              await page
+                .getByRole("button", { name: "收起讲稿输入", exact: true })
+                .click();
+            }
+          }
+          if (area === "rehearsal") {
+            await expect(primary).toHaveText(
+              state === "empty" ? "返回制作台" : "打开演讲播放器",
+            );
+            if (state === "empty") {
+              await expect(page.locator(".journey-panel .btn:enabled")).toHaveCount(1);
+              await expect(page.getByText(/打开上方播放器/)).toHaveCount(0);
+            }
+          }
+          if (area === "delivery") {
+            assert.deepEqual(
+              await page
+                .locator("[data-delivery-section]")
+                .evaluateAll((els) =>
+                  els.map((el) => el.dataset.deliverySection),
+                ),
+              ["checks", "primary", "formats", "backup"],
+            );
+            await expect(primary).toHaveText(
+              state === "complete" ? "下载 PPTX＋逐字稿" : "查看导出检查",
+            );
+            if (state !== "complete")
+              await expect(
+                page.getByRole("button", {
+                  name: "下载 PPTX＋逐字稿",
+                  exact: true,
+                }),
+              ).toHaveCount(0);
+          }
           await page.evaluate(() => window.scrollTo(0, 0));
+          if (area === "rehearsal" || area === "delivery")
+            await visibleInViewport(primary);
+          if (width !== 320) {
+            await page.screenshot({
+              path: path.join(evidence, `${width}-${state}-${area}-first.png`),
+            });
+            await page.screenshot({
+              path: path.join(evidence, `${width}-${state}-${area}-full.png`),
+              fullPage: true,
+            });
+          }
+          const lastAction = page.locator(".workspace button:visible").last();
+          await lastAction.scrollIntoViewIfNeeded();
+          const box = await lastAction.boundingBox();
+          const navBox = await page.locator(".sidebar").boundingBox();
+          assert(
+            box.y >= 0 &&
+              box.y + box.height <= (width <= 600 ? navBox.y : height),
+            "last action can scroll above navigation",
+          );
+          await overflow();
         }
-        await page.screenshot({
-          path: path.join(dir, `${width}-${area}.png`),
-          fullPage: true,
-        });
       }
     }
     // Same navigation under hosted feature restrictions; preserve the hosted account entry.
@@ -743,6 +962,6 @@ test(
       0,
       "no model tasks started",
     );
-    console.log("P0 IA browser evidence:", dir);
+    console.log("UX hierarchy browser evidence:", evidence);
   },
 );

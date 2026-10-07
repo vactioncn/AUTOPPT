@@ -45,34 +45,80 @@ export function projectJourney(
   const presentationJobs = presentations.filter((p) =>
     isWorking(p.status),
   ).length;
-  const tasks = [
-    !total && !unsegmented ? "添加第一段讲稿，开始制作页面。" : "",
-    hasDraft
-      ? "有尚未提交的草稿，放映与逐字稿交付物不包含这部分内容；项目源文件包含已保存草稿。"
-      : "",
-    unsegmented ? `${unsegmented} 段讲稿尚未完成拆页。` : "",
-    missing.length
-      ? `${missing.length} 页待生成（第 ${missing.join("、")} 页缺少画面）。`
-      : "",
-    stale
-      ? `${stale} 页内容已改待更新；导出当前画面时，备注仍使用最新讲稿。`
-      : "",
-    failed ? `${failed} 页制作失败，请在制作台检查并重试。` : "",
-    working ? `${working} 项后台制作任务进行中，完成或停止后再导出 PPT。` : "",
-    project.proposal ? "有拆分或合并方案待确认，当前母版仍保留原页面。" : "",
-    presentationJobs
-      ? `${presentationJobs} 项口播或动态演示任务进行中，请到演练中心查看。`
-      : "",
-  ].filter(Boolean);
-  const needsMaking =
-    !total ||
-    hasDraft ||
-    unsegmented ||
-    missing.length ||
-    stale ||
-    failed ||
-    working ||
-    project.proposal;
+  const tasks: JourneyTask[] = [];
+  const task = (
+    count: number | boolean,
+    target: JourneyTarget,
+    label: string,
+    reason: string,
+    tone: JourneyTask["tone"] = "warning",
+    area: ProjectArea = "studio",
+  ) => {
+    if (count)
+      tasks.push({ id: target, reason, tone, action: { area, target, label } });
+  };
+  task(
+    working,
+    "jobs",
+    `查看 ${working} 项后台任务`,
+    `${working} 项后台制作任务进行中，完成或停止后再导出 PPTX。`,
+    "progress",
+  );
+  task(
+    failed,
+    "failed",
+    `检查 ${failed} 页失败页面`,
+    "打开失败页面，查看原因并重试。",
+    "error",
+  );
+  task(
+    missing.length,
+    "missing",
+    `补齐 ${missing.length} 页画面`,
+    `第 ${missing.join("、")} 页缺少画面；打开页面继续制作。`,
+  );
+  task(
+    stale,
+    "stale",
+    `更新 ${stale} 页画面`,
+    "讲稿已修改，画面仍是旧版本；请打开页面更新或核对后交付。",
+  );
+  task(
+    unsegmented,
+    "batches",
+    `继续 ${unsegmented} 段未拆页讲稿`,
+    "原文已保存，前往制作台查看未完成任务并继续。",
+  );
+  task(
+    !!project.proposal,
+    "proposal",
+    "查看待确认方案",
+    "拆分或合并方案待确认，当前母版仍保留原页面。",
+    "info",
+  );
+  task(
+    hasDraft,
+    "composer",
+    "继续未提交草稿",
+    "草稿尚未进入页面和逐字稿交付物；请继续编辑并提交。",
+    "info",
+  );
+  task(
+    !total && !unsegmented && !hasDraft,
+    "composer",
+    "开始写讲稿",
+    "添加第一段讲稿，开始制作页面。",
+    "info",
+  );
+  task(
+    presentationJobs,
+    "presentations",
+    `查看 ${presentationJobs} 项演练任务`,
+    "口播或动态演示正在制作，可在演练中心查看进度。",
+    "progress",
+    "rehearsal",
+  );
+  const nextMaking = tasks.find((t) => t.action.area === "studio");
   // A subset conversion is not evidence that the entire talk is ready.
   const currentPresentation = presentations.some(
     (p) =>
@@ -81,40 +127,85 @@ export function projectJourney(
       p.pages.length === total &&
       project.slides.every((s, i) => p.pages[i]?.id === s.id),
   );
-  const next: {
-    area: ProjectArea;
-    label: string;
-    stage: string;
-    reason: string;
-  } = needsMaking
-    ? {
-        area: "studio",
-        label: total || project.batches.length ? "继续制作" : "开始写讲稿",
-        stage: total ? "做 · 完善母版" : "写 · 准备讲稿",
-        reason: "先处理待制作内容，再进入演练与交付。",
-      }
+  const next: JourneyAction = nextMaking
+    ? nextMaking.action
     : currentPresentation && !presentationJobs
-      ? {
-          area: "delivery",
-          label: "检查交付",
-          stage: "交 · 检查交付",
-          reason:
-            "已有基于当前母版的完整演示记录，可检查文件与交付条件；仍需自行核对演练效果。",
-        }
+      ? { area: "delivery", target: "checks", label: "检查交付" }
       : {
           area: "rehearsal",
+          target: "presentations",
           label: presentationJobs ? "查看演练进度" : "开始演练",
-          stage: "练 · 演练演讲",
-          reason: "页面画面已齐备，可打开标准放映，或制作口播与动态演示。",
         };
+  // Mirror existing PPTX export blockers; warnings still require review in the dialog.
+  const pptxReady = !!total && !working && !missing.length && !unsegmented;
   return {
     total,
     illustrated,
     missing,
     stale,
     unsegmented,
+    failed,
     working,
+    pptxReady,
+    needsReview: !!(stale || failed || hasDraft || project.proposal),
     tasks,
     next,
   };
+}
+
+export type JourneyTarget =
+  | "composer"
+  | "missing"
+  | "stale"
+  | "failed"
+  | "jobs"
+  | "batches"
+  | "proposal"
+  | "pages"
+  | "presentations"
+  | "player"
+  | "checks";
+export type JourneyAction = {
+  area: ProjectArea;
+  target: JourneyTarget;
+  label: string;
+};
+export type JourneyTask = {
+  id: string;
+  reason: string;
+  tone: "info" | "progress" | "warning" | "error";
+  action: JourneyAction;
+};
+
+export function projectPrimaryAction(
+  area: ProjectArea,
+  journey: ReturnType<typeof projectJourney>,
+  {
+    speechAvailable = true,
+    bundleAvailable = true,
+  }: { speechAvailable?: boolean; bundleAvailable?: boolean } = {},
+): JourneyAction {
+  if (area === "overview") return journey.next;
+  if (area === "rehearsal")
+    return speechAvailable && journey.illustrated
+      ? { area, target: "player", label: "打开演讲播放器" }
+      : { area: "studio", target: "pages", label: "返回制作台" };
+  if (area === "delivery")
+    return {
+      area,
+      target: "checks",
+      label:
+        journey.pptxReady && !journey.needsReview
+          ? bundleAvailable
+            ? "下载 PPTX＋逐字稿"
+            : "下载 PPTX"
+          : "查看导出检查",
+    };
+  return (
+    journey.tasks.find((task) => task.action.area === "studio")?.action || {
+      area,
+      target: "pages",
+      label: `检查 ${journey.total} 页讲稿与画面`,
+    }
+  );
 }

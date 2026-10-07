@@ -14,7 +14,7 @@ const { outputText } = ts.transpileModule(source, {
     module: ts.ModuleKind.ESNext,
   },
 });
-const { projectArea, projectJourney } = await import(
+const { projectArea, projectJourney, projectPrimaryAction } = await import(
   `data:text/javascript,${encodeURIComponent(outputText)}`
 );
 
@@ -91,4 +91,70 @@ test("delivery readiness requires complete current records with the same scope a
   assert.equal(journey.illustrated, 1);
   assert.deepEqual(journey.missing, [2]);
   assert.equal(journey.stale, 1);
+});
+
+test("each area owns its primary action and PPTX readiness reflects export checks", () => {
+  const journey = projectJourney(project(slides), [], false);
+  const action = (area, state = journey, options) =>
+    projectPrimaryAction(area, state, options);
+  assert.equal(action("overview").label, "开始演练");
+  assert.equal(action("studio").target, "pages");
+  assert.equal(action("rehearsal").label, "打开演讲播放器");
+  assert.equal(
+    action("rehearsal", journey, { speechAvailable: true }).target,
+    "player",
+  );
+  assert.equal(action("delivery").label, "下载 PPTX＋逐字稿");
+  assert.equal(
+    action("delivery", journey, { bundleAvailable: false }).label,
+    "下载 PPTX",
+  );
+  for (const blocked of [
+    projectJourney(project(), [], false),
+    projectJourney(project([{ ...slides[0], image: null }]), [], false),
+    projectJourney(project(slides), [{ status: "running" }], false),
+    projectJourney(
+      { ...project(slides), batches: [{ slideIds: [] }] },
+      [],
+      false,
+    ),
+  ]) {
+    assert.equal(blocked.pptxReady, false);
+    assert.equal(action("delivery", blocked).label, "查看导出检查");
+  }
+  assert.equal(
+    action("rehearsal", projectJourney(project(), [], false)).label,
+    "返回制作台",
+  );
+  assert.equal(
+    action("rehearsal", journey, { speechAvailable: false }).target,
+    "pages",
+  );
+});
+
+test("task queue carries concrete repair destinations and counts", () => {
+  const journey = projectJourney(
+    project([
+      { ...slides[0], image: null, status: "error" },
+      { ...slides[1], stale: true },
+    ]),
+    [{ status: "running" }],
+    true,
+  );
+  for (const target of ["missing", "stale", "failed", "jobs", "composer"]) {
+    const task = journey.tasks.find((t) => t.action.target === target);
+    assert(task, `reachable ${target} task`);
+    assert.equal(task.action.area, "studio");
+    assert(task.action.label.length > 0);
+    assert(task.reason.length > 0);
+  }
+  for (const [slide, label] of [
+    [{ ...slides[0], image: null }, "补齐 1 页画面"],
+    [{ ...slides[0], stale: true }, "更新 1 页画面"],
+    [{ ...slides[0], status: "error" }, "检查 1 页失败页面"],
+  ]) {
+    const state = projectJourney(project([slide]), [], false);
+    assert.equal(projectPrimaryAction("studio", state).label, label);
+    assert.equal(projectPrimaryAction("overview", state).label, label);
+  }
 });

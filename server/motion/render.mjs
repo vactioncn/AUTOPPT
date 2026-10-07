@@ -1,6 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { assetPath } from "../store.mjs";
 import { embeddedFonts } from "./fonts.mjs";
+import { pageImage } from "../export.mjs";
+import { embedAudio, matchNarrationPage } from "../speech/export.mjs";
 const escape = (str) =>
   String(str).replace(
     /[&<>"']/g,
@@ -11,7 +13,14 @@ const escape = (str) =>
   );
 export async function renderMotionHtml(
   deck,
-  { preview = false, pageId = null, includeNotes = true, compare = false } = {},
+  {
+    preview = false,
+    pageId = null,
+    includeNotes = true,
+    compare = false,
+    narration = null,
+    staticMode = false,
+  } = {},
 ) {
   const selected = pageId
     ? deck.pages.filter((p) => p.id === pageId)
@@ -21,20 +30,39 @@ export async function renderMotionHtml(
   const dataImage = async (name) =>
     `data:image/png;base64,${(await readFile(assetPath(name))).toString("base64")}`;
   const pages = [];
-  for (const p of selected)
+  const spoken = [];
+  for (const p of selected) {
+    const n = narration ? matchNarrationPage(narration, p, !staticMode) : null;
+    if (n) spoken.push(n);
+    const still = staticMode ? await pageImage(p) : null;
     pages.push({
-      ...p,
+      id: p.id,
+      number: p.number,
+      title: p.title,
       source: undefined,
       regions: undefined,
       original: compare ? await dataImage(p.source.image) : null,
-      notes: includeNotes ? p.source.notes : "",
-      background: await dataImage(p.background),
-      layers: await Promise.all(
-        p.layers.map(async (l) =>
-          l.type === "image" ? { ...l, asset: await dataImage(l.asset) } : l,
-        ),
-      ),
+      notes: includeNotes
+        ? (n?.spokenText ?? (staticMode ? p.notes : p.source.notes))
+        : "",
+      width: still?.width || p.width,
+      height: still?.height || p.height,
+      background: still
+        ? `data:image/${still.format === "jpeg" ? "jpeg" : "png"};base64,${still.data.toString("base64")}`
+        : await dataImage(p.background),
+      clips: n ? n.clips.map(({ file, duration }) => ({ file, duration })) : [],
+      silentDuration: n?.silentDuration || 3,
+      layers: staticMode
+        ? []
+        : await Promise.all(
+            p.layers.map(async (l) =>
+              l.type === "image"
+                ? { ...l, asset: await dataImage(l.asset) }
+                : l,
+            ),
+          ),
     });
+  }
   const [runtime, css, fonts] = await Promise.all([
     readFile(new URL("../../shared/motion/player.js", import.meta.url), "utf8"),
     readFile(
@@ -43,9 +71,16 @@ export async function renderMotionHtml(
     ),
     embeddedFonts(pages, deck.customFont),
   ]);
-  const payload = JSON.stringify({ title: deck.title, pages, preview })
+  const payload = JSON.stringify({
+    title: deck.title,
+    pages,
+    preview,
+    staticMode,
+    narration: narration ? { voiceName: narration.voiceName } : null,
+    audio: narration ? await embedAudio(spoken) : {},
+  })
     .replace(/</g, "\\u003c")
     .replace(/\u2028/g, "\\u2028")
     .replace(/\u2029/g, "\\u2029");
-  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; font-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'none'; base-uri 'none'; form-action 'none'"><title>${escape(deck.title)}</title><style>${fonts.css}\n${css}</style></head><body class="${preview ? "preview" : ""}"><main id="viewport" aria-label="演讲画面"><div id="stage"></div></main><img id="original" hidden alt="原图对照"><div id="blackout" hidden></div><aside id="notes" hidden aria-label="演讲备注"></aside><nav id="overview" hidden aria-label="页面总览"><button id="close-overview">关闭总览</button></nav><nav id="toolbar" aria-label="播放控制"><button id="previous" title="← ↑ Page Up">上一页</button><span id="counter" aria-live="polite"></span><button id="next" title="→ ↓ 空格 Page Down">下一页</button><button id="replay" title="R">重播</button><button id="steps" aria-pressed="false">整页播放</button><button id="autoplay" aria-pressed="false" title="P">自动播放</button><select id="interval" aria-label="自动播放间隔"><option value="5">5 秒</option><option value="10" selected>10 秒</option><option value="20">20 秒</option><option value="30">30 秒</option></select><button id="motion" class="secondary" aria-pressed="true">动效</button><button id="show-overview" class="secondary" title="G">总览</button><button id="show-notes" class="secondary" title="N" ${includeNotes ? "" : "hidden"}>备注</button><button id="compare" class="secondary" ${compare ? "" : "hidden"}>原图</button><button id="fullscreen" title="F">全屏</button></nav><div id="progress"></div><div id="loading">正在加载画面与字体…</div><script type="application/json" id="deck-data">${payload}</script><script>${runtime}</script><template id="font-licenses">${escape(fonts.licenses)}</template></body></html>`;
+  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; media-src data: blob:; font-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'none'; base-uri 'none'; form-action 'none'"><title>${escape(deck.title)}</title><style>${fonts.css}\n${css}</style></head><body class="${preview ? "preview" : ""}"><main id="viewport" aria-label="演讲画面"><div id="stage"></div></main><img id="original" hidden alt="原图对照"><div id="blackout" hidden></div><aside id="notes" hidden aria-label="演讲备注"></aside><nav id="overview" hidden aria-label="页面总览"><button id="close-overview">关闭总览</button></nav><nav id="toolbar" aria-label="播放控制"><button id="previous" title="← ↑ Page Up">上一页</button><span id="counter" aria-live="polite"></span><button id="next" title="→ ↓ 空格 Page Down">下一页</button><button id="replay" title="R">重播</button><button id="steps" aria-pressed="false">整页播放</button><button id="autoplay" aria-pressed="false" title="P">自动播放</button><select id="interval" aria-label="自动播放间隔"><option value="5">5 秒</option><option value="10" selected>10 秒</option><option value="20">20 秒</option><option value="30">30 秒</option></select><button id="motion" class="secondary" aria-pressed="true">动效</button><button id="show-overview" class="secondary" title="G">总览</button><button id="show-notes" class="secondary" title="N" ${includeNotes ? "" : "hidden"}>备注</button><button id="compare" class="secondary" ${compare ? "" : "hidden"}>原图</button><button id="fullscreen" title="F">全屏</button></nav><div id="speech-status" role="status" hidden></div><div id="speech-gate" hidden><div><h1>开始这场演讲</h1><p id="speech-gate-message">点击一次后，口播将自动播放并翻页。</p><button id="speech-start">开始演讲</button></div></div><audio id="speech-audio" preload="auto"></audio><div id="progress"></div><div id="loading">正在加载画面与字体…</div><script type="application/json" id="deck-data">${payload}</script><script>${runtime}</script><template id="font-licenses">${escape(fonts.licenses)}</template></body></html>`;
 }

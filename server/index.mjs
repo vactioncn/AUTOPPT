@@ -63,6 +63,8 @@ import {
 } from "./manuscript-migration.mjs";
 
 import { registerTrials } from "./trials.mjs";
+import { registerHtmlExport } from "./html-export.mjs";
+import { registerProjectPackages } from "./project-package.mjs";
 import {
   registerStyleVersions,
   saveStyleVersion,
@@ -194,6 +196,8 @@ app.get("/api/bootstrap", (req, res) =>
       insertAndManuscriptExport: true,
       motionPresentation: true,
       speechPresentation: !process.env.AUTOPPT_WORKER_TOKEN,
+      projectPackages: true,
+      spokenHtml: true,
     },
     projects: all("project")
       .filter((p) => !p.deletedAt)
@@ -978,6 +982,17 @@ app.post("/api/settings/test", async (req, res) => {
 });
 registerMotion(app);
 registerSpeech(app);
+registerHtmlExport(app);
+registerProjectPackages(app, {
+  assertIdle: (projectId) => {
+    assertIdle(projectId);
+    if (activeMotionCount(projectId) || activeSpeechCount(projectId))
+      throw Object.assign(
+        new Error("请等待此项目的动画或口播任务结束后再打包"),
+        { status: 409 },
+      );
+  },
+});
 app.use("/api", (req, res) => res.status(404).json({ error: "接口不存在" }));
 app.use((err, req, res, next) => {
   console.error(
@@ -987,9 +1002,11 @@ app.use((err, req, res, next) => {
   res.status(err.status || 400).json({
     error:
       err.code === "LIMIT_FILE_SIZE"
-        ? req.path.startsWith("/api/speech")
-          ? "录音不能超过 20 MB。"
-          : "单张图片不能超过 12 MB。"
+        ? req.path === "/api/projects/import"
+          ? "项目包不能超过 1 GB。"
+          : req.path.startsWith("/api/speech")
+            ? "录音不能超过 20 MB。"
+            : "单张图片不能超过 12 MB。"
         : err.message || "操作失败，请重试。",
   });
 });

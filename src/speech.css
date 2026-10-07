@@ -486,3 +486,28 @@
     max-width: 100%;
   }
 }
+
+.speech-text-review {
+  margin-bottom: 20px;
+}
+.speech-text-review summary {
+  cursor: pointer;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+.speech-text-review textarea {
+  width: 100%;
+  resize: vertical;
+  line-height: 1.7;
+  padding: 12px;
+  border: 1px solid #b4b9a3;
+  border-radius: 10px;
+  font: inherit;
+}
+.speech-text-review details {
+  margin: 12px 0;
+}
+.speech-text-review .speech-notes {
+  max-height: 240px;
+  overflow: auto;
+}

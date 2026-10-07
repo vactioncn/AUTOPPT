@@ -553,6 +553,12 @@ img {
 .intro-script i:nth-child(5) {
   width: 70%;
 }
+.home-project-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
 .section-heading {
   display: flex;
   align-items: center;

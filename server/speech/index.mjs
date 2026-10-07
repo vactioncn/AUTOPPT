@@ -17,6 +17,11 @@ import {
   providerIdentity,
 } from "./settings.mjs";
 import { synthesize, cloneVoice, validateSample } from "./provider.mjs";
+import { speechScript, saveSpeechScript } from "./scripts.mjs";
+import {
+  prepareSpeechText,
+  SPEECH_TEXT_VERSION,
+} from "../../shared/speech-text.mjs";
 const audioDir = path.join(dataDir, "speech-audio");
 mkdirSync(audioDir, { recursive: true, mode: 0o700 });
 const hash = (value) =>
@@ -190,6 +195,7 @@ export function registerSpeech(app) {
       "/api/settings/speech",
       "/api/narration",
       "/api/projects/:id/narration",
+      "/api/projects/:id/speech-script",
     ],
     localOnly,
   );
@@ -219,7 +225,10 @@ export function registerSpeech(app) {
     const config = speechSettings();
     requireKey(config);
     const options = optionsFor(req.body.options, config);
-    const text = String(req.body.text || "").trim();
+    const input = String(req.body.text || "");
+    const text = (
+      req.body.prepared === true ? input : prepareSpeechText(input).text
+    ).trim();
     if (!text || Array.from(text).length > 300)
       throw new Error("试听文本应为 1–300 字");
     quickOperation = true;
@@ -275,6 +284,12 @@ export function registerSpeech(app) {
         .map(safeDeck),
     );
   });
+  app.get("/api/projects/:id/speech-script", (req, res) =>
+    res.json(speechScript(projectOrThrow(req.params.id))),
+  );
+  app.put("/api/projects/:id/speech-script", (req, res) => {
+    res.json(saveSpeechScript(projectOrThrow(req.params.id), req.body));
+  });
   app.post("/api/projects/:id/narration", (req, res) => {
     assertIdle();
     const config = speechSettings();
@@ -289,6 +304,9 @@ export function registerSpeech(app) {
     if (p.batches?.some((b) => !b.slideIds?.length))
       throw new Error("还有讲稿未完成拆页，请先完成内容拆分");
     const options = optionsFor(req.body.options, config);
+    const script = req.body.pageTexts
+      ? saveSpeechScript(p, req.body)
+      : speechScript(p);
     const emotions = req.body.pageEmotions || {};
     if (
       typeof emotions !== "object" ||
@@ -300,8 +318,7 @@ export function registerSpeech(app) {
       if (!s.image && !s.scene)
         throw new Error(`第 ${index + 1} 页尚未生成画面`);
       const notes = speakerNotes(s);
-      if (!notes?.trim())
-        throw new Error(`第 ${index + 1} 页没有讲稿，请补充后生成口播`);
+      const spokenText = script.pages[index].text;
       const emotion = speechOptions({
         ...options,
         emotion: emotions[s.id] || options.emotion,
@@ -313,10 +330,18 @@ export function registerSpeech(app) {
         image: s.image,
         scene: s.scene || null,
         notes,
+        sourceFingerprint: createHash("sha256")
+          .update(
+            JSON.stringify({ image: s.image, scene: s.scene, notes: s.notes }),
+          )
+          .digest("hex"),
+        spokenText,
+        speechTextVersion: SPEECH_TEXT_VERSION,
+        silentDuration: spokenText ? 0 : 3,
         stale: !!s.stale,
         emotion,
-        status: "pending",
-        clips: splitSpeech(notes).map((text) => ({ text })),
+        status: spokenText ? "pending" : "ready",
+        clips: splitSpeech(spokenText).map((text) => ({ text })),
       };
     });
     const d = save({

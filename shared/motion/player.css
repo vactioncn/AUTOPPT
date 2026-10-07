@@ -205,6 +205,47 @@ button:disabled {
   outline: 2px solid #73b7ff;
   cursor: pointer;
 }
+#speech-status {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 90vw;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: #171a1ee8;
+  color: #e2e8dd;
+  font-size: 13px;
+  z-index: 25;
+}
+#speech-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  background: #101214c9;
+  padding: 24px;
+}
+#speech-gate > div {
+  max-width: 480px;
+  text-align: center;
+  padding: 36px;
+  background: #1c2025;
+  border-radius: 20px;
+}
+#speech-gate p {
+  line-height: 1.8;
+  color: #bfc8ce;
+}
+#speech-start {
+  padding: 12px 28px;
+  background: #caff69;
+  color: #172012;
+  border: 0;
+  border-radius: 9px;
+  font-size: 17px;
+}
 @media (max-width: 700px) {
   #toolbar {
     bottom: 8px;

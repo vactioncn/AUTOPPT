@@ -22,7 +22,93 @@
     animations = [],
     hideTimer,
     touch = null,
-    motion = true;
+    motion = !deck.staticMode;
+  const audio = document.getElementById("speech-audio"),
+    speechStatus = document.getElementById("speech-status"),
+    speechGate = document.getElementById("speech-gate");
+  let narrating = false,
+    clipIndex = 0,
+    audioKey = "",
+    speechTicket = 0,
+    silentTimer = null,
+    finished = false;
+  const stamp = (seconds) =>
+    `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`;
+  function speechProgress(message = "") {
+    if (!deck.narration) return;
+    speechStatus.hidden = false;
+    speechStatus.textContent =
+      message ||
+      `AI 合成口播 · ${deck.narration.voiceName} · 第 ${index + 1} 页 · ${deck.pages[index].clips.length ? stamp(audio.currentTime || 0) + " / " + stamp(Number.isFinite(audio.duration) ? audio.duration : 0) : "本页无口播，停留 3 秒"}`;
+  }
+  function speechEnded() {
+    if (!narrating) return;
+    if (clipIndex + 1 < deck.pages[index].clips.length) {
+      clipIndex++;
+      void playSpeech();
+    } else if (!go(index + 1)) {
+      stop();
+      finished = true;
+      speechProgress("演讲已结束 · 点击开始口播可从头重播");
+    }
+  }
+  async function playSpeech() {
+    if (!narrating) return;
+    clearTimeout(silentTimer);
+    const ticket = ++speechTicket;
+    const p = deck.pages[index],
+      clip = p.clips[clipIndex];
+    speechProgress();
+    if (!clip) {
+      audio.pause();
+      silentTimer = setTimeout(speechEnded, (p.silentDuration || 3) * 1000);
+      return;
+    }
+    const key = `${index}:${clipIndex}`;
+    if (audioKey !== key || audio.ended) {
+      audioKey = key;
+      audio.src = deck.audio[clip.file];
+      audio.load();
+    }
+    try {
+      await audio.play();
+      if (ticket === speechTicket) speechGate.hidden = true;
+    } catch (error) {
+      if (ticket !== speechTicket || error.name === "AbortError") return;
+      stop();
+      if (error.name === "NotAllowedError") {
+        speechGate.hidden = false;
+        document.getElementById("speech-gate-message").textContent =
+          "浏览器需要一次点击才能播放声音。点击后将自动讲述并翻页。";
+      } else
+        speechProgress(
+          "音频无法播放，请点击开始口播重试，或使用其他浏览器打开此文件。",
+        );
+      showControls();
+    }
+  }
+  audio.addEventListener("ended", speechEnded);
+  audio.addEventListener("timeupdate", () => speechProgress());
+  audio.addEventListener("error", () => {
+    if (!deck.narration || !audio.src) return;
+    stop();
+    speechProgress("本页音频无法读取，请点击开始口播重试。");
+    audioKey = "";
+    showControls();
+  });
+  document.getElementById("speech-start").addEventListener("click", () => {
+    speechGate.hidden = true;
+    play();
+  });
+  if (deck.narration) {
+    document.getElementById("interval").hidden = true;
+    document.getElementById("steps").hidden = true;
+    document.getElementById("autoplay").textContent = "开始口播";
+  }
+  if (deck.staticMode) {
+    document.getElementById("motion").hidden = true;
+    document.getElementById("steps").hidden = true;
+  }
   const canvas = document.createElement("canvas"),
     ctx = canvas.getContext("2d");
   const button = (id, fn) =>
@@ -196,9 +282,17 @@
   function go(next) {
     if (next < 0 || next >= deck.pages.length) return false;
     const direction = next >= index ? 1 : -1;
+    audio.pause();
+    clearTimeout(silentTimer);
+    speechTicket++;
+    clipIndex = 0;
+    audioKey = "";
+    finished = false;
     index = next;
     step = incremental ? 0 : maxStep();
     render(true, direction);
+    speechProgress();
+    if (narrating) void playSpeech();
     return true;
   }
   function advance() {
@@ -223,10 +317,31 @@
   function stop() {
     clearInterval(timer);
     timer = null;
-    document.getElementById("autoplay").textContent = "自动播放";
+    narrating = false;
+    speechTicket++;
+    clearTimeout(silentTimer);
+    audio.pause();
+    document.getElementById("autoplay").textContent = deck.narration
+      ? "开始口播"
+      : "自动播放";
     document.getElementById("autoplay").setAttribute("aria-pressed", "false");
   }
   function play() {
+    if (deck.narration) {
+      if (narrating) {
+        stop();
+        return;
+      }
+      if (finished) go(0);
+      incremental = false;
+      narrating = true;
+      speechGate.hidden = true;
+      document.getElementById("autoplay").textContent = "暂停口播";
+      document.getElementById("autoplay").setAttribute("aria-pressed", "true");
+      reveal();
+      void playSpeech();
+      return;
+    }
     if (timer) {
       stop();
       return;
@@ -262,8 +377,14 @@
     back();
   });
   button("replay", () => {
+    const resume = narrating;
+    stop();
+    clipIndex = 0;
+    audioKey = "";
+    finished = false;
     step = 0;
     render();
+    if (resume) play();
   });
   button("autoplay", play);
   document.getElementById("interval").addEventListener("change", () => {
@@ -429,6 +550,8 @@
   );
   document.getElementById("loading").remove();
   render(false);
+  speechProgress();
   showControls();
   window.__motionReady = true;
+  if (deck.narration && !deck.preview && !document.hidden) play();
 })();

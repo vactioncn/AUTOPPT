@@ -1,0 +1,73 @@
+// Speech is a derivative of the manuscript. Never write this back to slide.notes.
+export const SPEECH_TEXT_VERSION = 1;
+export function prepareSpeechText(input) {
+  const removed = [];
+  const omit = (text, reason) => {
+    if (text.trim()) removed.push({ text: text.trim(), reason });
+    return "";
+  };
+  let text = String(input || "").replace(/\r\n?/g, "\n");
+  text = text
+    .replace(/<!--[^]*?-->/g, (s) => omit(s, "批注"))
+    .replace(/【不口播】[^]*?【\/不口播】/g, (s) => omit(s, "明确标注不口播"))
+    .replace(/^[ \t]*(`{3,}|~{3,})[^\n]*\n[^]*?^[ \t]*\1[^\n]*$/gm, (s) =>
+      omit(s, "代码块"),
+    )
+    .replace(
+      /!\[[^\]]*\]\((?:[^()\n]|\([^()\n]*\))*\)|!\[\[[^\]]*\]\]|!\[[^\]]*\]\[[^\]]*\]/g,
+      (s) => omit(s, "图片附件"),
+    )
+    .replace(/\[([^\]]+)\]\((?:[^()\n]|\([^()\n]*\))*\)/g, "$1")
+    .replace(/\[\^[^\]]+\]/g, (s) => omit(s, "脚注编号"))
+    .replace(/[\u200b\u2060\ufeff]/g, "");
+  const stage =
+    /^(?:(?:语气|语速|重读|舞台提示|动作)[：:]|(?:停顿(?:\s*[\d一二三四五六七八九十几]+\s*秒)?|稍停|停一下|环视(?:全场|观众)?|微笑|鞠躬|鼓掌|掌声|切换(?:到)?(?:下一页|PPT|画面)|翻页|播放(?:视频|音乐|音频)|点击(?:播放|下一页)|不口播)(?:[\s，,、。；;：:]|$))/i;
+  text = text.replace(
+    /【[^【】\n]{1,160}】|〔[^〔〕\n]{1,160}〕|\[[^\[\]\n]{1,160}\]|（[^（）\n]{1,160}）|\([^()\n]{1,160}\)/g,
+    (s) => (stage.test(s.slice(1, -1).trim()) ? omit(s, "舞台或语气提示") : s),
+  );
+  let labelValue = false;
+  text = text
+    .split("\n")
+    .map((line) => {
+      const plain = line.replace(/\*\*|__/g, "").trim();
+      if (labelValue && plain) {
+        labelValue = false;
+        return omit(line, "标题或画面说明");
+      }
+      if (
+        /^(?:主标题|副标题|标题页|页面标题|画面说明|配图说明)\s*[：:]?$/.test(
+          plain,
+        )
+      ) {
+        labelValue = true;
+        return omit(line, "标题或画面标签");
+      }
+      if (
+        /^\s{0,3}#{1,6}(?:\s|$)/.test(line) ||
+        /^(?:开场|开场白|结束语|结尾|过渡页|目录页)$/.test(plain) ||
+        /^第[一二三四五六七八九十百\d]+(?:部分|章节|章|节)[：:、\s]/.test(plain)
+      )
+        return omit(line, "章节标题");
+      if (
+        /^(?:主标题|副标题|标题页|页面标题|画面(?:说明)?|配图(?:说明)?|舞台提示|动作提示|备注|不口播|预计用时|时长)\s*[：:]/.test(
+          plain,
+        )
+      )
+        return omit(line, "非口播说明");
+      if (
+        /^\s*(?:[-*_]\s*){3,}$/.test(line) ||
+        /^\s*\[[^\]]+\]:\s*\S/.test(line)
+      )
+        return omit(line, "分隔线或链接定义");
+      return line
+        .replace(/^\s*>\s?/, "")
+        .replace(/^\s*(?:[-+*]|\d+[.)])\s+/, "")
+        .replace(/(?:\*\*|__|~~|`)/g, "");
+    })
+    .join("\n")
+    .replace(/\n[ \t]+/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  return { text, removed };
+}

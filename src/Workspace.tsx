@@ -43,6 +43,7 @@ import {
   active,
   downloadPresentation,
   downloadManuscript,
+  downloadFile,
 } from "./api";
 import { SceneView } from "./SceneView";
 import type {
@@ -57,6 +58,7 @@ import { ProjectReport } from "./ProjectReport";
 import { CopyReview } from "./CopyReview";
 import { MotionPresentation } from "./MotionPresentation";
 import { RedesignDialog } from "./RedesignDialog";
+import type { Narration } from "./speech-types";
 import { Button, Modal, Field, SlideImage, Status } from "./components";
 
 export function Workspace({
@@ -306,7 +308,7 @@ export function Workspace({
             disabled={!project.slides.length && !project.batches.length}
           >
             <DownloadSimple size={18} />
-            导出 PPT
+            导出
           </Button>
         </div>
       </div>
@@ -866,7 +868,10 @@ export function Workspace({
           onSubmitted={(count) => {
             setRedesignOpen(false);
             setSelected([]);
-            void run(async () => {}, `已提交 ${count} 页重新设计，旧版本会保留。`);
+            void run(
+              async () => {},
+              `已提交 ${count} 页重新设计，旧版本会保留。`,
+            );
           }}
         />
       )}
@@ -1165,6 +1170,15 @@ function ExportDialog({
 }) {
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState("");
+  const [format, setFormat] = useState("ppt"),
+    [narrations, setNarrations] = useState<Narration[]>([]),
+    [narration, setNarration] = useState(""),
+    [htmlNotes, setHtmlNotes] = useState(false);
+  useEffect(() => {
+    api<Narration[]>(`/projects/${project.id}/narration`)
+      .then((list) => setNarrations(list.filter((n) => n.status === "ready")))
+      .catch(() => {});
+  }, [project.id]);
   const missing = project.slides.flatMap((s, i) =>
     !s.image && !s.scene ? [i + 1] : [],
   );
@@ -1178,6 +1192,16 @@ function ExportDialog({
     try {
       if (manuscriptOnly)
         await downloadManuscript(project.id, project.revision);
+      else if (format === "project")
+        await downloadFile(
+          `/api/projects/${project.id}/package?revision=${project.revision}`,
+          "项目.autoppt.zip",
+        );
+      else if (format === "html")
+        await downloadFile(
+          `/api/projects/${project.id}/html?${new URLSearchParams({ revision: String(project.revision), narration, notes: htmlNotes ? "1" : "0", download: "1" })}`,
+          "演讲.html",
+        );
       else
         await downloadPresentation(
           project.id,
@@ -1188,9 +1212,13 @@ function ExportDialog({
       notify(
         manuscriptOnly
           ? "最新逐字稿已开始下载。"
-          : bundleAvailable
-            ? "导出包已开始下载，包含 PPT 和独立的最新逐字稿。"
-            : "PPT 已开始下载，包含逐页讲稿备注。",
+          : format === "project"
+            ? "项目包已开始下载；在另一台电脑的项目首页选择“导入项目包”。"
+            : format === "html"
+              ? "静态 HTML 已开始下载，可离线放映。"
+              : bundleAvailable
+                ? "导出包已开始下载，包含 PPT 和独立的最新逐字稿。"
+                : "PPT 已开始下载，包含逐页讲稿备注。",
       );
       onClose();
     } catch (e) {
@@ -1201,40 +1229,90 @@ function ExportDialog({
   };
   return (
     <Modal
-      title="导出 PPT"
-      subtitle={
-        bundleAvailable
-          ? "一起导出 PPT 和独立逐字稿，保存这次演讲的最新版本。"
-          : "导出图片与逐页讲稿备注。"
-      }
+      title="导出演讲"
+      subtitle="下载用于放映的文件，或打包项目带到另一台电脑继续编辑。"
       onClose={() => {
         if (!exporting) onClose();
       }}
     >
-      <div className="ppt-export-summary">
-        <h3>{project.title}</h3>
-        <p>
-          全部 {project.slides.length} 页 · 16:9 宽屏 ·{" "}
-          {bundleAvailable ? "ZIP 内含 PPTX 与逐字稿 Markdown" : "PPTX 文件"}
-        </p>
-        <p>
-          图片按原比例完整放入页面，保留原图清晰度。备注使用每页最新保存的完整讲稿。
-        </p>
-        {bundleAvailable && (
-          <p>
-            独立逐字稿按当前页序导出，包含插页及改稿，以版本号命名，不使用提炼后的上屏文案。
+      <Field label="导出格式">
+        <select
+          value={format}
+          disabled={exporting}
+          onChange={(e) => setFormat(e.target.value)}
+        >
+          <option value="ppt">PPT 与逐字稿</option>
+          <option value="html">静态 HTML · 可含口播</option>
+          <option value="project">项目迁移包 · 换电脑继续编辑</option>
+        </select>
+      </Field>
+      {format === "html" && (
+        <>
+          <Field label="HTML 口播版本">
+            <select
+              value={narration}
+              onChange={(e) => setNarration(e.target.value)}
+              disabled={exporting}
+            >
+              <option value="">仅画面，不包含口播</option>
+              {narrations.map((n) => (
+                <option key={n.id} value={n.id}>
+                  {n.voiceName} · 项目版本 {n.sourceRevision} ·{" "}
+                  {new Date(n.createdAt).toLocaleString("zh-CN")}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <p className="detail-help">
+            选择已生成且与当前画面、讲稿一致的口播。文件内嵌图片和声音，可离线自动讲述；浏览器拦截出声时，点击一次“开始演讲”。动画
+            HTML 请从“动态演示”下载。
           </p>
-        )}
-      </div>
+          <label>
+            <input
+              type="checkbox"
+              checked={htmlNotes}
+              onChange={(e) => setHtmlNotes(e.target.checked)}
+            />{" "}
+            包含演讲备注
+          </label>
+        </>
+      )}
+      {format === "project" ? (
+        <p className="detail-help">
+          包含保存的讲稿、草稿、图片与历史版本、项目风格、动态演示和口播音频。导入时创建新项目；模型
+          API Key 不随包导出，在另一台电脑单独配置。项目素材最多 960 MB。
+        </p>
+      ) : (
+        <div className="ppt-export-summary">
+          <h3>{project.title}</h3>
+          <p>
+            全部 {project.slides.length} 页 · 16:9 宽屏 ·{" "}
+            {format === "html"
+              ? "离线 HTML 文件"
+              : bundleAvailable
+                ? "ZIP 内含 PPTX 与逐字稿 Markdown"
+                : "PPTX 文件"}
+          </p>
+          <p>
+            图片按原比例完整放入页面，保留原图清晰度。
+            {format === "ppt" && "备注使用每页最新保存的完整讲稿。"}
+          </p>
+          {bundleAvailable && format === "ppt" && (
+            <p>
+              独立逐字稿按当前页序导出，包含插页及改稿，以版本号命名，不使用提炼后的上屏文案。
+            </p>
+          )}
+        </div>
+      )}
       {busy && (
         <p className="export-notice">页面正在制作中，完成或停止后即可导出。</p>
       )}
-      {!!unsegmented && (
+      {!!unsegmented && format !== "project" && (
         <p className="export-notice">
           还有 {unsegmented} 段逐字稿未完成拆分，请先继续制作。
         </p>
       )}
-      {!!missing.length && (
+      {!!missing.length && format !== "project" && (
         <p className="export-notice">
           还有 {missing.length} 页未完成（第 {missing.join("、")}{" "}
           页），请先补齐图片后导出。
@@ -1246,7 +1324,7 @@ function ExportDialog({
           页讲稿已修改，图片尚未更新。本次将使用当前图片，备注采用最新讲稿。
         </p>
       )}
-      {hasDraft && (
+      {hasDraft && format !== "project" && (
         <p className="detail-help">
           输入框中尚未提交生成的草稿不包含在本次导出中。
         </p>
@@ -1275,16 +1353,20 @@ function ExportDialog({
           variant="primary"
           onClick={() => download()}
           loading={exporting}
-          disabled={blocked}
+          disabled={format === "project" ? busy : blocked}
         >
           {!exporting && <DownloadSimple size={18} />}
           {exporting
             ? "正在导出…"
-            : stale
-              ? "使用当前图片与最新备注下载"
-              : bundleAvailable
-                ? "下载 PPT 与逐字稿"
-                : "下载 PPT"}
+            : format === "project"
+              ? "下载项目迁移包"
+              : format === "html"
+                ? "下载静态 HTML"
+                : stale
+                  ? "使用当前图片与最新备注下载"
+                  : bundleAvailable
+                    ? "下载 PPT 与逐字稿"
+                    : "下载 PPT"}
         </Button>
       </div>
     </Modal>
@@ -1776,7 +1858,10 @@ function SlideDetail({
                       copy={slide.plan.screenCopy}
                       stale={slide.stale}
                     />
-                    <RawPromptDetails plan={slide.plan} currentPageNumber={index + 1} />
+                    <RawPromptDetails
+                      plan={slide.plan}
+                      currentPageNumber={index + 1}
+                    />
                     <h4>版面安排</h4>
                     <p>{slide.plan.layout}</p>
                     <h4>视觉表达</h4>

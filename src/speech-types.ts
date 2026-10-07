@@ -16,6 +16,9 @@ export type NarrationPage = {
   number: number;
   title: string;
   notes: string;
+  spokenText?: string;
+  speechTextVersion?: number;
+  silentDuration?: number;
   image: string | null;
   scene: Scene | null;
   stale: boolean;

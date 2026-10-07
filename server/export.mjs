@@ -32,7 +32,7 @@ export async function exportBundle(project, options) {
   return zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
 }
 
-async function pageImage(page) {
+export async function pageImage(page) {
   // Match preview source priority. Retained web scenes are flattened once.
   let data = page.scene
     ? await sharp(

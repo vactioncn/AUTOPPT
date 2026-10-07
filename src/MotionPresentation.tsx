@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { Narration } from "./speech-types";
 import {
   Play,
   DownloadSimple,
@@ -107,6 +108,13 @@ export function MotionPresentation({
     [layerId, setLayerId] = useState(""),
     [compare, setCompare] = useState(true);
   const [previewHtml, setPreviewHtml] = useState<string | undefined>(undefined);
+  const [narrations, setNarrations] = useState<Narration[]>([]),
+    [narration, setNarration] = useState("");
+  useEffect(() => {
+    api<Narration[]>(`/projects/${project.id}/narration`)
+      .then((list) => setNarrations(list.filter((n) => n.status === "ready")))
+      .catch(() => {});
+  }, [project.id]);
   const frame = useRef<HTMLIFrameElement>(null),
     dirty = useRef(false);
   const refresh = useCallback(async () => {
@@ -238,7 +246,7 @@ export function MotionPresentation({
     onClose();
   };
   const playerUrl = deck
-    ? `/api/motion/${deck.id}/html?notes=${notes ? "1" : "0"}`
+    ? `/api/motion/${deck.id}/html?notes=${notes ? "1" : "0"}&narration=${encodeURIComponent(narration)}`
     : "";
   const previewUrl =
     deck && page
@@ -681,7 +689,23 @@ export function MotionPresentation({
                     />
                     HTML 包含演讲备注
                   </label>
-                  <small>默认仅导出画面；内嵌图片和字体，可断网播放。</small>
+                  <Field label="HTML 口播版本">
+                    <select
+                      value={narration}
+                      onChange={(e) => setNarration(e.target.value)}
+                    >
+                      <option value="">仅画面，不包含口播</option>
+                      {narrations.map((n) => (
+                        <option key={n.id} value={n.id}>
+                          {n.voiceName} · 项目版本 {n.sourceRevision} ·{" "}
+                          {new Date(n.createdAt).toLocaleString("zh-CN")}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <small>
+                    内嵌图片、字体与所选口播，断网可播放。选择与此动画画面和讲稿一致的音频；讲完一页自动翻页。浏览器拦截声音时，点击一次开始。
+                  </small>
                 </div>
                 <div className="motion-footer-actions">
                   <label className="btn motion-font">

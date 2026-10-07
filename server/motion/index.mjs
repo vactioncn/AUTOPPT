@@ -17,6 +17,7 @@ import { validateLayers, MOTION_VERSION } from "../../shared/motion/schema.mjs";
 import { analyzeImage, extractLayers } from "./extract.mjs";
 import { renderMotionHtml } from "./render.mjs";
 import { exportFilename } from "../export.mjs";
+import { narrationForExport } from "../speech/export.mjs";
 const controllers = new Map();
 let draining = false;
 const isActive = (d) => ["queued", "running"].includes(d.status);
@@ -394,6 +395,9 @@ export function registerMotion(app) {
       pageId,
       includeNotes: req.query.notes === "1",
       compare: preview,
+      narration: preview
+        ? null
+        : narrationForExport(req.query.narration, d.projectId),
     });
     res.set("Content-Type", "text/html; charset=utf-8");
     if (req.query.download === "1")

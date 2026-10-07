@@ -345,6 +345,9 @@ function ProjectHome({
   onStyles: () => void;
 }) {
   const [deleting, setDeleting] = useState<ProjectSummary | null>(null);
+  const [importing, setImporting] = useState(false),
+    [importError, setImportError] = useState("");
+  const importFile = useRef<HTMLInputElement>(null);
   return (
     <div className="page home">
       {deleting && (
@@ -392,6 +395,40 @@ function ProjectHome({
         </div>
       </section>
       <section className="project-section">
+        <input
+          ref={importFile}
+          hidden
+          type="file"
+          accept=".autoppt.zip,.zip"
+          onChange={async (e) => {
+            const file = e.target.files?.[0];
+            e.target.value = "";
+            if (!file) return;
+            setImporting(true);
+            setImportError("");
+            try {
+              if (file.size > 1024 * 1024 * 1024)
+                throw new Error("项目包不能超过 1 GB。");
+              const body = new FormData();
+              body.append("project", file);
+              const result = await api<{ project: Project }>(
+                "/projects/import",
+                { method: "POST", body },
+              );
+              await refresh();
+              onOpen(result.project.id);
+            } catch (error) {
+              setImportError((error as Error).message);
+            } finally {
+              setImporting(false);
+            }
+          }}
+        />
+        {importError && (
+          <p className="error-text" role="alert">
+            {importError}
+          </p>
+        )}
         <div className="section-heading">
           <div>
             <h2>
@@ -400,12 +437,20 @@ function ProjectHome({
             </h2>
             <p>每一次追加，都离完整的演讲更近一点。</p>
           </div>
-          {projects.length > 0 && (
-            <Button onClick={onCreate}>
-              <Plus size={16} />
-              新建项目
+          <div className="home-project-actions">
+            <Button
+              disabled={importing}
+              onClick={() => importFile.current?.click()}
+            >
+              {importing ? "正在导入项目…" : "导入项目包"}
             </Button>
-          )}
+            {projects.length > 0 && (
+              <Button onClick={onCreate}>
+                <Plus size={16} />
+                新建项目
+              </Button>
+            )}
+          </div>
         </div>
         {projects.length ? (
           <div className="project-grid">

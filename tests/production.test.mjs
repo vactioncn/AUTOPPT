@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readBuildInfo } from "../server/build-info.mjs";
 import {
   currentProduction,
   productionTargetIds,
@@ -198,6 +199,7 @@ test(
         },
       ];
       const bootstrap = {
+        buildInfo: readBuildInfo(),
         projects: [{ id: p.id, title: p.title }],
         styles: [
           {

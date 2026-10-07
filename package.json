@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "node server/index.mjs",
     "start": "node scripts/serve.mjs",
-    "build": "tsc -b && vite build && node scripts/build-intro.mjs",
+    "build": "node scripts/build-info.mjs && tsc -b && vite build && node scripts/build-intro.mjs",
     "test": "node --test tests/*.test.mjs",
     "check": "npm run build && npm test",
     "test:browser": "BROWSER_TEST=1 node --test tests/workflow.test.mjs",
@@ -17,7 +17,7 @@
     "deploy:intro": "node scripts/deploy-intro.mjs",
     "start:hosted": "node server/hosted/index.mjs",
     "desktop": "electron .",
-    "build:mac": "npm run build && node scripts/build-mac.mjs"
+    "build:mac": "node scripts/build-mac.mjs"
   },
   "dependencies": {
     "@fontsource-variable/noto-sans-sc": "^5.3.0",

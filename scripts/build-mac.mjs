@@ -8,6 +8,11 @@ import path from "node:path";
 if (process.platform !== "darwin")
   throw new Error("请在 Mac 上构建并验证安装包。");
 const root = path.resolve(import.meta.dirname, "..");
+execFileSync("npm", ["run", "build"], {
+  cwd: root,
+  stdio: "inherit",
+  env: { ...process.env, AUTOPPT_RUNTIME_MODE: "desktop" },
+});
 const iconset = path.join(root, "release", "AutoPPT.iconset");
 mkdirSync(iconset, { recursive: true });
 for (const size of [16, 32, 128, 256, 512]) {
@@ -31,6 +36,7 @@ const { version } = JSON.parse(
 // Explicit roots prevent workspace data, credentials and test artifacts leaking.
 const allowed = new Set([
   "package.json",
+  "build-info.json",
   "desktop",
   "server",
   "shared",

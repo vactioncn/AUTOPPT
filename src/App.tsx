@@ -32,6 +32,13 @@ import { projectArea } from "./project-journey";
 import { StyleLibrary } from "./StyleLibrary";
 import { SettingsPage } from "./Settings";
 import { Introduction } from "./Introduction";
+import { VersionWorkspace } from "./VersionWorkspace";
+import {
+  frontendBuildInfo,
+  productionBuild,
+  resolveCapabilities,
+} from "./diagnostics";
+import { compareBuildInfo } from "../shared/diagnostics.mjs";
 import { DEFAULT_STYLE_ID, defaultStyleId } from "../shared/styles.mjs";
 
 export default function App() {
@@ -48,8 +55,8 @@ export default function App() {
     try {
       setData(await api("/bootstrap"));
       setError("");
-    } catch (e) {
-      setError((e as Error).message);
+    } catch {
+      setError("无法连接工作区，请检查服务是否启动后重试。");
     }
   }, []);
   useEffect(() => {
@@ -89,7 +96,6 @@ export default function App() {
     ? contentRoute.slice(8).split("/")[0]
     : null;
   const currentArea = projectArea(contentRoute.split("/")[2]);
-  const current = data?.projects.find((p) => p.id === currentId);
   const notify = (text: string) => setToast(text);
   if (!data)
     return (
@@ -106,6 +112,19 @@ export default function App() {
         )}
       </div>
     );
+  const consistency = compareBuildInfo(
+    frontendBuildInfo,
+    data.buildInfo,
+    productionBuild,
+  );
+  if (consistency.blocked)
+    return (
+      <main className="compatibility-gate">
+        <VersionWorkspace data={data} blocked />
+      </main>
+    );
+  const capabilities = resolveCapabilities(data);
+  const current = data.projects.find((p) => p.id === currentId);
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -219,16 +238,19 @@ export default function App() {
             <button onClick={refresh}>重试连接</button>
           </div>
         )}
+        {consistency.status === "mismatch" && (
+          <div className="connection-banner" role="alert">
+            {consistency.message}
+          </div>
+        )}
         {route === "intro" && (
-          <Introduction onBack={() => go(previousRoute.current)} />
+          <Introduction data={data} onBack={() => go(previousRoute.current)} />
         )}
         <div hidden={route === "intro"} className="workspace-content">
           {currentId ? (
             <Workspace
-              insertExportAvailable={!!data.features?.insertAndManuscriptExport}
-              motionAvailable={!!data.features?.motionPresentation}
-              speechAvailable={!!data.features?.speechPresentation}
-              hosted={account.hosted}
+              capabilities={capabilities}
+              dataRootLabel={data.dataRootLabel || "工作区"}
               area={currentArea}
               onAreaChange={(area) => go(`project/${currentId}/${area}`)}
               key={currentId}
@@ -251,12 +273,12 @@ export default function App() {
           ) : contentRoute === "account" ? (
             <AccountPage />
           ) : contentRoute === "settings" ? (
-            account.hosted ? (
+            !capabilities.localModelSettings.enabled ? (
               <section className="page" aria-label="模型与服务">
                 <div className="page-heading">
                   <div>
                     <h1>模型与服务</h1>
-                    <p>托管版的模型由管理员统一配置。</p>
+                    <p>{capabilities.localModelSettings.reason}</p>
                   </div>
                 </div>
                 <p>
@@ -264,9 +286,7 @@ export default function App() {
                     ? "内容与图片服务已配置，可返回项目继续制作。"
                     : "内容与图片服务尚未就绪，请联系管理员配置。"}
                 </p>
-                <p className="detail-help">
-                  当前托管服务未开放演讲播放器与语音功能。演练中心会保留入口并说明可用条件。
-                </p>
+                <p className="detail-help">{capabilities.aiNarration.reason}</p>
                 <Button onClick={() => go("account")}>账号与额度</Button>
               </section>
             ) : (
@@ -278,6 +298,7 @@ export default function App() {
             )
           ) : (
             <ProjectHome
+              packageCapability={capabilities.projectPackages}
               refresh={refresh}
               projects={data.projects}
               styles={data.styles}
@@ -311,6 +332,7 @@ export default function App() {
   );
 }
 function ProjectHome({
+  packageCapability,
   refresh,
   projects,
   styles,
@@ -318,6 +340,7 @@ function ProjectHome({
   onOpen,
   onStyles,
 }: {
+  packageCapability: import("../shared/diagnostics.mjs").Capability;
   refresh: () => Promise<void>;
   projects: ProjectSummary[];
   styles: Style[];
@@ -420,7 +443,8 @@ function ProjectHome({
           </div>
           <div className="home-project-actions">
             <Button
-              disabled={importing}
+              disabled={importing || !packageCapability.enabled}
+              title={packageCapability.reason}
               onClick={() => importFile.current?.click()}
             >
               {importing ? "正在导入项目…" : "导入项目包"}

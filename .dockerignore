@@ -6,6 +6,7 @@ node_modules
 deploy/secrets
 .git
 dist
+build-info.json
 test-results
 *.tsbuildinfo
 **/.env

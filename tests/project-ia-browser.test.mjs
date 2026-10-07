@@ -682,6 +682,21 @@ test(
       const body = await response.json();
       body.features.speechPresentation = false;
       body.features.motionPresentation = false;
+      body.buildInfo.runtimeMode = "hosted";
+      body.capabilities.standardPresentation = {
+        enabled: false,
+        reason:
+          "当前托管服务未开放演讲播放器与语音功能；模型与服务由管理员管理。",
+      };
+      body.capabilities.aiNarration = body.capabilities.standardPresentation;
+      body.capabilities.motionPresentation = {
+        enabled: false,
+        reason: "当前服务未开放动态演示，请检查服务版本。",
+      };
+      body.capabilities.localModelSettings = {
+        enabled: false,
+        reason: "托管版的模型由管理员统一配置。",
+      };
       await route.fulfill({ response, json: body });
     });
     await page.goto(`${base}/#project/ready/rehearsal`);

@@ -275,6 +275,14 @@ test(
       });
       assert.equal(csrf.status, 403);
       const boot = (await request("/api/bootstrap", undefined, first)).data;
+      assert.equal(boot.buildInfo.runtimeMode, "hosted");
+      assert.equal(boot.dataRootLabel, "hosted 账号工作区");
+      assert.equal(boot.capabilities.localModelSettings.enabled, false);
+      assert.match(
+        boot.capabilities.aiNarration.reason,
+        /托管服务未开放.*管理员/,
+      );
+      assert(!JSON.stringify(boot).includes(dir));
       const style = boot.styles.find((s) => s.name === "克制儿童摄影杂志风");
       assert(style);
       assert(style.rules);

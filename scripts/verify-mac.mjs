@@ -2,13 +2,33 @@ import { RELEASE_STYLES } from "../shared/builtin-style-catalog.mjs";
 import { createHash } from "node:crypto";
 import { fork } from "node:child_process";
 import { once } from "node:events";
-import { mkdtempSync, rmSync, existsSync } from "node:fs";
+import {
+  mkdtempSync,
+  rmSync,
+  existsSync,
+  readFileSync,
+  readdirSync,
+} from "node:fs";
+import { readBuildInfo } from "../server/build-info.mjs";
 import path from "node:path";
 import os from "node:os";
 import assert from "node:assert/strict";
 
 export async function verifyMacApp(appPath) {
   const root = path.join(appPath, "Contents/Resources/app");
+  const expectedBuild = readBuildInfo();
+  assert.equal(expectedBuild.runtimeMode, "desktop");
+  assert.deepEqual(readBuildInfo(root), expectedBuild);
+  assert.deepEqual(
+    JSON.parse(readFileSync(path.join(root, "dist/build-info.json"), "utf8")),
+    expectedBuild,
+  );
+  const frontend = readdirSync(path.join(root, "dist/assets"))
+    .filter((n) => /^index-.*\.js$/.test(n))
+    .map((n) => readFileSync(path.join(root, "dist/assets", n), "utf8"))
+    .join("\n");
+  for (const key of ["gitSha", "buildTime", "appVersion"])
+    assert.ok(frontend.includes(expectedBuild[key]), `前端构建缺少 ${key}`);
   for (const privateName of [".local", ".hosted", ".env", "deploy", "tests"])
     assert(
       !existsSync(path.join(root, privateName)),
@@ -55,6 +75,9 @@ export async function verifyMacApp(appPath) {
     const data = await (
       await fetch(url + "/api/bootstrap", { headers })
     ).json();
+    assert.deepEqual(data.buildInfo, expectedBuild);
+    assert.equal(data.dataRootLabel, "Mac App 独立工作区");
+    assert.equal(data.capabilities.localModelSettings.enabled, true);
     assert.equal(data.projects.length, 0);
     assert.ok(data.styles.some((s) => s.name === "克制儿童摄影杂志风"));
     assert.equal(data.styles.length, 13);
@@ -90,6 +113,9 @@ export async function verifyMacApp(appPath) {
     );
     console.log(
       "安装包验证通过：自带运行环境、13 个内置风格及 8 个新增封面逐一校验、免登录、独立空工作区、私有本机接口。",
+    );
+    console.log(
+      `安装包 buildInfo 与源码构建、前端资源、内置后端一致：${JSON.stringify(expectedBuild)}`,
     );
   } finally {
     clearTimeout(timer);

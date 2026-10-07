@@ -6,6 +6,7 @@ import { once } from "node:events";
 import express from "express";
 import { chromium } from "playwright-core";
 import { product } from "../site/intro/content.mjs";
+import { readBuildInfo } from "../server/build-info.mjs";
 
 test("product introduction covers real workflows and ships reproducible demo screenshots", () => {
   const html = readFileSync("dist/intro/index.html", "utf8");
@@ -217,6 +218,7 @@ test(
     );
     app.get("/api/bootstrap", (_req, res) =>
       res.json({
+        buildInfo: readBuildInfo(),
         projects: [],
         styles: [],
         jobs: [],

@@ -3,6 +3,9 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
+      args:
+        AUTOPPT_BUILD_GIT_SHA: ${AUTOPPT_BUILD_GIT_SHA:?Set full release commit SHA}
+        AUTOPPT_BUILD_TIME: ${AUTOPPT_BUILD_TIME:-}
     restart: unless-stopped
     init: true
     environment:

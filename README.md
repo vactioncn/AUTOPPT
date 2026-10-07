@@ -72,6 +72,16 @@ npm start
 
 ## 产品介绍页
 
+在“帮助与介绍”点击“版本与工作区”，可查看前后端版本、12 位短 SHA（悬停可见完整提交）、构建时间、接口版本、运行形态、数据工作区和能力矩阵。浏览器本机版、Mac App 和 hosted 共用这个面板，默认不显示内部绝对目录。Mac App 数据与本机浏览器版分开保存；hosted 数据属于登录账号，由管理员管理。
+
+未配置语音的本机版仍可标准放映，AI 口播生成会说明配置要求；hosted 当前未开放播放器与语音，模型设置由管理员管理。演练、交付和模型设置入口复用服务声明的禁用原因。四区导航与项目包导入导出入口保持原位。
+
+接口版本不兼容（包括服务过旧而未返回版本信息），或生产环境前后端已知 SHA 不一致时，会暂停进入工作台并提供刷新及更新说明。刷新后仍异常时，等制作任务结束再更新 App，或请管理员完整部署同一发布的前后端。开发环境 SHA 差异只提示，`unknown` 表示无法核对提交，不当作冲突。
+
+`npm run build` 生成根目录 `build-info.json`，Vite 将同一清单内嵌网页并输出 `dist/build-info.json`；生产后端只读取打包清单，运行时不读取 Git HEAD。发布目录须同时复制 `build-info.json`、`dist/`、`server/`、`shared/` 和运行依赖。`npm run build:mac` 自动生成 desktop 清单并核对 App 中的网页、清单和内置后端。Docker 使用同一机制，构建参数见[线上部署说明](docs/线上部署.md)。运行形态由实际启动入口声明，账号工作进程返回 `hosted`。
+
+发布构建要求完整 40 位 SHA。Git 工作区会自动读取；源码 ZIP 或不含 `.git` 的构建目录必须先设置 `AUTOPPT_BUILD_GIT_SHA` 为该源码对应的完整提交，不能填写 `main`。可选 `AUTOPPT_BUILD_TIME`（ISO 时间）用于复现构建时间；开发时 `npm run dev` 可在无法取得提交时显示 `unknown`。发布应从干净提交构建。
+
 程序侧栏点击“介绍”，在右侧内容区展示官网式介绍，左侧导航始终保留。点击“返回刚才的页面”回到之前的编辑位置，未提交的表单保持；也可直接使用左侧导航。独立打开 `/intro/` 的本机页面时，顶部提供“返回工作台”。新版以“好内容，自有好画面”为主线，先展示产品用途、实际作品和工作台，再完整介绍风格制作、讲稿拆页、文案提炼、逐页打磨和导出。风格展示区可切换 6 套内置风格封面，支持键盘左右键；全部 13 套风格在产品内使用。功能和具体步骤纵向展开，真实界面截图可放大。桌面、手机与应用内嵌布局分别适配，手机提供展开导航，并尊重系统的减少动态效果设置。开始使用区提供安装说明、源码 ZIP、Word 说明和 Markdown 快速指南；公开下载明确为源码，不把 Mac 内部构建当作公开安装包。浏览不需要配置 API。
 
 介绍页和指南由同一份 `site/intro/content.mjs` 内容源生成，随 `npm run build` 输出到 `dist/intro/`。展示封面由构建脚本从已发布的内置原图转换为轻量 WebP，不修改产品封面或调用模型。界面截图随源码提供；更新截图时运行 `npm run intro:screenshots`，脚本在临时目录启动隔离的演示数据库，使用真实界面、示例讲稿和内置封面，自动采集 8 张截图，不读取私人项目、不调用模型、不重启用户服务。macOS 默认使用已安装的 Google Chrome；其他环境可设置 `CHROMIUM_EXECUTABLE`。更新后重新构建即可。
@@ -246,6 +256,7 @@ Key 仅保存在服务端 `.local/settings.json`（0600），不回传浏览器�
 
 ```sh
 npm run check
+node --test tests/diagnostics-browser.mjs
 CHROMIUM_EXECUTABLE='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' npm run test:browser
 ```
 

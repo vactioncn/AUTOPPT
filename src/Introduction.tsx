@@ -1,8 +1,17 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { Bootstrap } from "./types";
+import { VersionWorkspace } from "./VersionWorkspace";
 import { ArrowLeft } from "@phosphor-icons/react";
 import { Button } from "./components";
 
-export function Introduction({ onBack }: { onBack: () => void }) {
+export function Introduction({
+  onBack,
+  data,
+}: {
+  onBack: () => void;
+  data: Bootstrap;
+}) {
+  const [diagnostics, setDiagnostics] = useState(false);
   const frame = useRef<HTMLIFrameElement>(null);
   useEffect(() => {
     const receive = (event: MessageEvent) => {
@@ -23,9 +32,15 @@ export function Introduction({ onBack }: { onBack: () => void }) {
           <ArrowLeft size={17} />
           返回刚才的页面
         </Button>
-        <span>也可以使用左侧导航继续制作</span>
+        <Button variant="ghost" onClick={() => setDiagnostics(!diagnostics)}>
+          {diagnostics ? "产品介绍" : "版本与工作区"}
+        </Button>
       </div>
-      <iframe ref={frame} title="AutoPPT 产品介绍" src="/intro/?embedded=1" />
+      {diagnostics ? (
+        <VersionWorkspace data={data} />
+      ) : (
+        <iframe ref={frame} title="AutoPPT 产品介绍" src="/intro/?embedded=1" />
+      )}
     </section>
   );
 }

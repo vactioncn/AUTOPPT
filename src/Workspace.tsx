@@ -89,10 +89,8 @@ const SpeechPresentation = lazy(() =>
 );
 
 export function Workspace({
-  insertExportAvailable,
-  motionAvailable,
-  speechAvailable,
-  hosted,
+  capabilities,
+  dataRootLabel,
   area,
   onAreaChange,
   id,
@@ -103,10 +101,8 @@ export function Workspace({
   onSettings,
 }: {
   id: string;
-  insertExportAvailable: boolean;
-  motionAvailable: boolean;
-  speechAvailable: boolean;
-  hosted: boolean;
+  capabilities: import("../shared/diagnostics.mjs").Capabilities;
+  dataRootLabel: string;
   area: ProjectArea;
   onAreaChange: (area: ProjectArea) => void;
   styles: Style[];
@@ -115,6 +111,9 @@ export function Workspace({
   onRefresh: () => Promise<void>;
   onSettings: () => void;
 }) {
+  const insertExportAvailable = capabilities.bundleExport.enabled;
+  const motionAvailable = capabilities.motionPresentation.enabled;
+  const speechAvailable = capabilities.standardPresentation.enabled;
   const [editingOptions, setEditingOptions] = useState<DesignOptions | null>(
     null,
   );
@@ -399,9 +398,7 @@ export function Workspace({
           project={project}
           journey={journey}
           records={records}
-          speechAvailable={speechAvailable}
-          motionAvailable={motionAvailable}
-          hosted={hosted}
+          capabilities={capabilities}
           selectedCount={selected.length}
           onSpeech={() => setSpeechOpen(true)}
           onMotion={() => setMotionOpen(true)}
@@ -413,8 +410,7 @@ export function Workspace({
           project={project}
           journey={journey}
           records={records}
-          motionAvailable={motionAvailable}
-          bundleAvailable={insertExportAvailable}
+          capabilities={capabilities}
           scriptExporting={scriptExporting}
           onReport={() => setReportOpen(true)}
           onExport={setExportOpen}
@@ -981,8 +977,7 @@ export function Workspace({
         )}
         {project.slides.length > 0 && (
           <p className="workspace-bottom">
-            逐字稿与图片自动关联 · 逐段制作，随时调整 ·{" "}
-            {hosted ? "内容保存在你的独立工作区" : "所有内容保存在本机"}
+            逐字稿与图片自动关联 · 逐段制作，随时调整 · {dataRootLabel}
           </p>
         )}
       </section>

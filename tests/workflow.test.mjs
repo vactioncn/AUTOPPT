@@ -2179,6 +2179,7 @@ test(
         const response = await route.fetch();
         const body = await response.json();
         delete body.features.insertAndManuscriptExport;
+        delete body.capabilities.bundleExport;
         await route.fulfill({ response, json: body });
       });
       await page.reload();

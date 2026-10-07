@@ -7,6 +7,9 @@ import { validateScene, renderSceneSvg } from "../shared/slides.mjs";
 import { DEFAULT_STYLE_ID, defaultStyleId } from "../shared/styles.mjs";
 import { productionTargetIds } from "../shared/production.mjs";
 import express from "express";
+import { createBuildInfo, readBuildInfo } from "./build-info.mjs";
+import { diagnostics } from "./diagnostics.mjs";
+import { publicSpeechSettings } from "./speech/settings.mjs";
 import multer from "multer";
 import sharp from "sharp";
 import path from "node:path";
@@ -91,6 +94,10 @@ const app = express();
 app.disable("x-powered-by");
 let port = Number(process.env.PORT || 4317);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const buildInfo =
+  process.env.NODE_ENV === "production"
+    ? readBuildInfo(root)
+    : createBuildInfo();
 app.use((req, res, next) => {
   if (
     process.env.AUTOPPT_DESKTOP_TOKEN &&
@@ -188,17 +195,7 @@ if (process.env.AUTOPPT_DESKTOP_TOKEN)
   );
 app.get("/api/bootstrap", (req, res) =>
   res.json({
-    features: {
-      styleUrlImport: true,
-      unifiedStyleCover: true,
-      directStylePrompt: true,
-      designOptions: true,
-      insertAndManuscriptExport: true,
-      motionPresentation: true,
-      speechPresentation: !process.env.AUTOPPT_WORKER_TOKEN,
-      projectPackages: true,
-      spokenHtml: true,
-    },
+    ...diagnostics(buildInfo, { speechReady: publicSpeechSettings().hasKey }),
     projects: all("project")
       .filter((p) => !p.deletedAt)
       .map((p) => ({

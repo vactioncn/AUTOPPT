@@ -416,7 +416,11 @@ export type Connection = {
 };
 export type Settings = { text: Connection; image: Connection };
 export type Bootstrap = {
+  buildInfo?: import("../shared/diagnostics.mjs").BuildInfo;
+  dataRootLabel?: string;
+  capabilities?: import("../shared/diagnostics.mjs").Capabilities;
   features?: {
+    projectPackages?: boolean;
     styleUrlImport?: boolean;
     insertAndManuscriptExport?: boolean;
     motionPresentation?: boolean;

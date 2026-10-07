@@ -8,6 +8,7 @@ import {
 } from "./HtmlExportOptions";
 import { Button } from "./components";
 import type { Project } from "./types";
+import type { Capabilities } from "../shared/diagnostics.mjs";
 import {
   completePresentation,
   type PresentationRecord,
@@ -182,9 +183,7 @@ export function RehearsalCenter({
   project,
   journey,
   records,
-  speechAvailable,
-  motionAvailable,
-  hosted,
+  capabilities,
   selectedCount,
   onSpeech,
   onMotion,
@@ -193,14 +192,14 @@ export function RehearsalCenter({
   project: Project;
   journey: Journey;
   records: Presentations;
-  speechAvailable: boolean;
-  motionAvailable: boolean;
-  hosted: boolean;
+  capabilities: Capabilities;
   selectedCount: number;
   onSpeech: () => void;
   onMotion: () => void;
   onSettings: () => void;
 }) {
+  const speechAvailable = capabilities.standardPresentation.enabled;
+  const motionAvailable = capabilities.motionPresentation.enabled;
   return (
     <section aria-label="演练中心" className="journey-panel">
       <div className="journey-section-heading">
@@ -213,18 +212,16 @@ export function RehearsalCenter({
           <p>在同一个播放器中翻页演讲、查看讲稿，或生成 AI 口播。</p>
           {!speechAvailable ? (
             <p className="journey-warning">
-              {hosted
-                ? "当前托管服务未开放演讲播放器与语音功能；此版本的语音功能仅在本机提供。"
-                : "当前服务未开放演讲播放器，请检查服务版本。"}
+              {capabilities.standardPresentation.reason}
             </p>
           ) : (
             <>
               <p>标准放映使用当前母版；打开后可选择已有口播版本。</p>
               {records.voice.error ? (
                 <p>{records.voice.error}</p>
-              ) : records.voice.ready === false ? (
+              ) : !capabilities.aiNarration.enabled ? (
                 <p className="journey-warning">
-                  尚未配置语音服务，AI 口播生成不可用；仍可打开播放器手动翻页。
+                  {capabilities.aiNarration.reason}
                 </p>
               ) : records.voice.ready === null ? (
                 <p>正在读取语音服务状态…</p>
@@ -265,7 +262,7 @@ export function RehearsalCenter({
             />
           ) : (
             <p className="journey-warning">
-              当前服务未开放动态演示，请检查服务版本。
+              {capabilities.motionPresentation.reason}
             </p>
           )}
           {!journey.illustrated && <p>需要先生成画面，再创建动态演示。</p>}
@@ -301,8 +298,7 @@ export function DeliveryCenter({
   project,
   journey,
   records,
-  motionAvailable,
-  bundleAvailable,
+  capabilities,
   scriptExporting,
   onReport,
   onExport,
@@ -313,8 +309,7 @@ export function DeliveryCenter({
   project: Project;
   journey: Journey;
   records: Presentations;
-  motionAvailable: boolean;
-  bundleAvailable: boolean;
+  capabilities: Capabilities;
   scriptExporting: boolean;
   onReport: () => void;
   onExport: (format: ExportFormat) => void;
@@ -322,6 +317,8 @@ export function DeliveryCenter({
   onRehearsal: () => void;
   notify: (message: string) => void;
 }) {
+  const motionAvailable = capabilities.motionPresentation.enabled;
+  const bundleAvailable = capabilities.bundleExport.enabled;
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState("");
   const [chosen, setChosen] = useState("");
@@ -348,7 +345,7 @@ export function DeliveryCenter({
           <p>
             {bundleAvailable
               ? "ZIP 包含 PPTX 和完整逐字稿 Markdown。"
-              : "当前服务只支持 PPTX 下载；逐字稿可从旁边入口单独下载。"}
+              : capabilities.bundleExport.reason}
             画面与备注采用当前保存的版本。
           </p>
           <p>
@@ -403,13 +400,25 @@ export function DeliveryCenter({
             包含已保存草稿、讲稿、风格、附件、历史版本、动态演示与口播，用于备份或换电脑继续编辑；不包含模型密钥。
           </p>
           <p>导入请回到项目首页选择“导入项目包”，每次创建新项目。</p>
-          <Button onClick={() => onExport("project")}>导出项目源文件</Button>
+          {!capabilities.projectPackages.enabled && (
+            <p className="journey-warning">
+              {capabilities.projectPackages.reason}
+            </p>
+          )}
+          <Button
+            disabled={!capabilities.projectPackages.enabled}
+            onClick={() => onExport("project")}
+          >
+            导出项目源文件
+          </Button>
         </article>
         <article className="journey-card">
           <h3>动态 HTML</h3>
           <p>下载演练中心已转换的动态演示，保留该演示的版本与页面范围。</p>
           {!motionAvailable ? (
-            <p className="journey-warning">当前服务未开放动态演示下载。</p>
+            <p className="journey-warning">
+              {capabilities.motionPresentation.reason}
+            </p>
           ) : (
             <>
               <RecordStatus

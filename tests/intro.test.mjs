@@ -57,7 +57,7 @@ test(
       const page = await browser.newPage({ reducedMotion: "reduce" });
       const errors = [];
       page.on("pageerror", (e) => errors.push(e.message));
-      mkdirSync(".local/verification/intro", { recursive: true });
+      mkdirSync("test-results/onboarding/intro", { recursive: true });
       for (const [label, width, height] of [
         ["desktop", 1440, 1000],
         ["tablet", 820, 1180],
@@ -76,7 +76,7 @@ test(
           ),
         );
         await page.screenshot({
-          path: `.local/verification/intro/${label}-top.png`,
+          path: `test-results/onboarding/intro/${label}-top.png`,
         });
         if (width < 760) {
           await page.getByRole("button", { name: "打开导航" }).click();
@@ -118,7 +118,7 @@ test(
         await page
           .locator("#style-making")
           .screenshot({
-            path: `.local/verification/intro/${label}-styles.png`,
+            path: `test-results/onboarding/intro/${label}-styles.png`,
           });
         assert.equal(await page.getByRole("tab").count(), 0);
         assert.equal(
@@ -153,11 +153,11 @@ test(
             ),
           );
           await page.screenshot({
-            path: `.local/verification/intro/${label}-${id}-scroll.png`,
+            path: `test-results/onboarding/intro/${label}-${id}-scroll.png`,
           });
         }
         await page.screenshot({
-          path: `.local/verification/intro/${label}-features.png`,
+          path: `test-results/onboarding/intro/${label}-features.png`,
         });
         await page.locator('[data-zoom="screenshots/export.webp"]').click();
         assert(await page.getByRole("dialog").isVisible());
@@ -170,7 +170,7 @@ test(
         );
         assert(await page.locator(".faq-list article p").first().isVisible());
         await page.screenshot({
-          path: `.local/verification/intro/${label}-full.png`,
+          path: `test-results/onboarding/intro/${label}-full.png`,
           fullPage: true,
         });
       }
@@ -257,7 +257,7 @@ test(
       );
       assert(!(await model.isVisible()));
       await page.screenshot({
-        path: ".local/verification/intro/embedded-desktop.png",
+        path: "test-results/onboarding/intro/embedded-desktop.png",
       });
       await page.getByRole("button", { name: "返回刚才的页面" }).click();
       assert.equal(await model.inputValue(), "unsaved-model-draft");
@@ -290,7 +290,7 @@ test(
         ),
       );
       await page.screenshot({
-        path: ".local/verification/intro/embedded-mobile.png",
+        path: "test-results/onboarding/intro/embedded-mobile.png",
       });
       assert.deepEqual(errors, []);
     } finally {

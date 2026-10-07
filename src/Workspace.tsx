@@ -1,3 +1,5 @@
+import { PageConcepts } from "./OnboardingUI";
+import { exampleManuscript, type OnboardingState } from "./onboarding";
 import {
   DesignOptionsEditor,
   emptyDesignOptions,
@@ -93,6 +95,9 @@ const SpeechPresentation = lazy(() =>
 export function Workspace({
   capabilities,
   dataRootLabel,
+  hosted,
+  onboarding,
+  onOnboardingChange,
   area,
   onAreaChange,
   id,
@@ -105,6 +110,9 @@ export function Workspace({
   id: string;
   capabilities: import("../shared/diagnostics.mjs").Capabilities;
   dataRootLabel: string;
+  hosted: boolean;
+  onboarding: OnboardingState;
+  onOnboardingChange: (change: Partial<OnboardingState>) => void;
   area: ProjectArea;
   onAreaChange: (area: ProjectArea) => void;
   styles: Style[];
@@ -122,6 +130,15 @@ export function Workspace({
   const [optionsBusy, setOptionsBusy] = useState(false);
   const [scriptExporting, setScriptExporting] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
+  const [generationDialog, setGenerationDialog] = useState<
+    "confirm" | "models" | null
+  >(null);
+  const [directGeneration, setDirectGeneration] = useState(false);
+  const submitLock = useRef(false);
+  const latestDraft = useRef("");
+  const modelsReady = settings.text.hasKey && settings.image.hasKey;
+  const managedModels = !capabilities.localModelSettings.enabled;
+  const [draftSaveError, setDraftSaveError] = useState(false);
   const [speechOpen, setSpeechOpen] = useState(false);
   const records = usePresentationRecords(id, speechAvailable, motionAvailable);
   const [insertion, setInsertion] = useState<{
@@ -182,7 +199,14 @@ export function Workspace({
     setProject((prev) => (!prev || p.revision >= prev.revision ? p : prev));
     setJobs(j);
     if (!initialized.current) {
-      setDraft(localStorage.getItem("autoppt-draft:" + id) ?? p.draft);
+      let recovered = p.draft;
+      try {
+        recovered = localStorage.getItem("autoppt-draft:" + id) ?? p.draft;
+      } catch {
+        /* Use workspace draft. */
+      }
+      latestDraft.current = recovered;
+      setDraft(recovered);
       initialized.current = true;
     }
   }, [id]);
@@ -208,33 +232,70 @@ export function Workspace({
       setError((e as Error).message);
     }
   };
+  const cacheDraft = (text: string | null) => {
+    try {
+      if (text === null) localStorage.removeItem("autoppt-draft:" + id);
+      else localStorage.setItem("autoppt-draft:" + id, text);
+    } catch {
+      /* Workspace persistence still works when browser storage is denied. */
+    }
+  };
+  const saveDraft = async (text: string) => {
+    if (draftTimer.current) clearTimeout(draftTimer.current);
+    setSaving(true);
+    setDraftSaveError(false);
+    // Serialize autosaves so an older request cannot overwrite a newer draft.
+    const request = draftRequest.current
+      .catch(() => {})
+      .then(() => patch("/projects/" + id, { draft: text }));
+    draftRequest.current = request;
+    try {
+      await request;
+      if (draftRequest.current === request && latestDraft.current === text) {
+        setSaving(false);
+        cacheDraft(null);
+      }
+    } catch (e) {
+      setSaving(false);
+      setDraftSaveError(true);
+      throw e;
+    }
+  };
   function updateDraft(text: string) {
-    localStorage.setItem("autoppt-draft:" + id, text);
+    latestDraft.current = text;
+    cacheDraft(text);
     setDraft(text);
     setSaving(true);
+    setDraftSaveError(false);
     if (draftTimer.current) clearTimeout(draftTimer.current);
     draftTimer.current = setTimeout(() => {
-      draftRequest.current = patch("/projects/" + id, { draft: text })
-        .then(() => {
-          setSaving(false);
-          if (localStorage.getItem("autoppt-draft:" + id) === text)
-            localStorage.removeItem("autoppt-draft:" + id);
-        })
-        .catch((e) => {
-          setSaving(false);
-          setError("草稿保存失败：" + e.message);
-        });
+      void saveDraft(text).catch((e) => setError("草稿保存失败：" + e.message));
     }, 700);
   }
-  const add = async () => {
-    if (!draft.trim()) return;
-    setSubmitting(true);
-    setError("");
-    if (draftTimer.current) clearTimeout(draftTimer.current);
+  const connectModels = async () => {
     try {
-      await draftRequest.current;
+      await saveDraft(draft);
+      setGenerationDialog(null);
+      onSettings();
+    } catch (e) {
+      setError("草稿保存失败，请重试：" + (e as Error).message);
+    }
+  };
+  const submitDraft = async () => {
+    if (!draft.trim() || submitLock.current) return;
+    if (!modelsReady) {
+      setGenerationDialog("models");
+      return;
+    }
+    submitLock.current = true;
+    setSubmitting(true);
+    setGenerationDialog(null);
+    setError("");
+    try {
+      await saveDraft(draft);
       await post("/projects/" + id + "/batches", { text: draft });
-      localStorage.removeItem("autoppt-draft:" + id);
+      cacheDraft(null);
+      latestDraft.current = "";
       setDraft("");
       setSaving(false);
       setFilter("latest");
@@ -243,8 +304,20 @@ export function Workspace({
     } catch (e) {
       setError((e as Error).message);
     } finally {
+      submitLock.current = false;
       setSubmitting(false);
     }
+  };
+  const add = () => {
+    if (!draft.trim() || submitLock.current) return;
+    if (!modelsReady) {
+      setGenerationDialog("models");
+      return;
+    }
+    if (onboarding.generation !== "direct") {
+      setDirectGeneration(false);
+      setGenerationDialog("confirm");
+    } else void submitDraft();
   };
   if (!project)
     return (
@@ -388,15 +461,35 @@ export function Workspace({
           </Button>
         )}
         <span className="draft-state">
-          {saving
-            ? "正在保存草稿…"
-            : draft
-              ? "草稿已保存"
-              : "可以先给一小段，满意后再继续"}
+          {draftSaveError
+            ? "草稿保存失败，请重试"
+            : saving
+              ? "正在保存草稿…"
+              : draft
+                ? "草稿已保存"
+                : "可以先给一小段，满意后再继续"}
         </span>
       </div>
+      {!project.batches.length && !project.slides.length && (
+        <div className="composer-onboarding">
+          <p>粘贴约 100–500 字准备讲的话。系统会自动拆页，完整原稿不会丢失。</p>
+          <p>草稿自动保存；已保存不等于已生成。确认制作后才会调用模型。</p>
+          {!draft.trim() && (
+            <Button
+              variant="ghost"
+              onClick={() => {
+                updateDraft(exampleManuscript);
+                focusComposer();
+              }}
+            >
+              使用示例文字
+            </Button>
+          )}
+        </div>
+      )}
       <textarea
         ref={composer}
+        disabled={submitting}
         aria-label="添加逐字稿"
         value={draft}
         onChange={(e) => updateDraft(e.target.value)}
@@ -413,11 +506,13 @@ export function Workspace({
           }
         }}
       />
-      {(!settings.text.hasKey || !settings.image.hasKey) && (
+      {!modelsReady && (
         <p className="composer-model-help">
-          提交制作前需连接文字与图片模型。
-          <Button variant="ghost" onClick={onSettings}>
-            连接模型
+          {managedModels
+            ? "模型由管理员管理，尚未就绪；可继续保存草稿，生成前请联系管理员。"
+            : "生成前需连接内容与图片模型；现在可以继续保存草稿。"}
+          <Button variant="ghost" onClick={() => void connectModels()}>
+            {managedModels ? "查看模型服务状态" : "连接模型"}
           </Button>
         </p>
       )}
@@ -429,9 +524,7 @@ export function Workspace({
         <Button
           variant="primary"
           onClick={add}
-          disabled={
-            !draft.trim() || !settings.text.hasKey || !settings.image.hasKey
-          }
+          disabled={!draft.trim()}
           loading={submitting}
         >
           提交讲稿并制作
@@ -1280,8 +1373,103 @@ export function Workspace({
           }}
         />
       )}
+      {generationDialog && (
+        <Modal
+          title={
+            generationDialog === "models" || !modelsReady
+              ? "草稿可以先保存"
+              : "生成前，了解这次模型调用"
+          }
+          onClose={() => {
+            setGenerationDialog(null);
+            focusComposer();
+          }}
+        >
+          {generationDialog === "models" || !modelsReady ? (
+            <>
+              <p>
+                生成前需要连接内容和图片模型。草稿会保留，可以继续编辑和保存。
+              </p>
+              {managedModels && (
+                <p>
+                  {capabilities.localModelSettings.reason ||
+                    "模型由管理员管理，请联系管理员配置。"}
+                </p>
+              )}
+              <div className="modal-actions">
+                <Button
+                  onClick={() => {
+                    setGenerationDialog(null);
+                    focusComposer();
+                  }}
+                >
+                  继续保存草稿
+                </Button>
+                <Button variant="primary" onClick={() => void connectModels()}>
+                  {managedModels ? "查看模型服务状态" : "连接模型并继续"}
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p>
+                先调用内容模型拆页，再按实际拆分页调用图片模型。具体页数由拆页结果决定。
+              </p>
+              <p>
+                {hosted
+                  ? "使用管理员提供的图片额度，实际用量以生成结果为准。"
+                  : "费用由已配置服务商按实际调用收取。"}
+              </p>
+              <p>返回修改或关闭不会丢失草稿。</p>
+              <label className="onboarding-check">
+                <input
+                  type="checkbox"
+                  checked={directGeneration}
+                  onChange={(event) =>
+                    setDirectGeneration(event.target.checked)
+                  }
+                />
+                以后直接生成
+              </label>
+              <small>仅适用于提交新讲稿；不影响其他模型操作的确认。</small>
+              <div className="modal-actions">
+                <Button
+                  onClick={() => {
+                    setGenerationDialog(null);
+                    focusComposer();
+                  }}
+                >
+                  返回修改
+                </Button>
+                <Button
+                  variant="primary"
+                  loading={submitting}
+                  onClick={() => {
+                    if (submitLock.current) return;
+                    onOnboardingChange({
+                      generation: directGeneration ? "direct" : "confirmed",
+                    });
+                    void submitDraft();
+                  }}
+                >
+                  开始生成
+                </Button>
+              </div>
+            </>
+          )}
+        </Modal>
+      )}
       {detailSlide && (
         <SlideDetail
+          teaching={
+            onboarding.page === "pending" &&
+            !!(
+              detailSlide.notes.trim() ||
+              detailSlide.image ||
+              detailSlide.scene
+            )
+          }
+          onTaught={() => onOnboardingChange({ page: "done" })}
           slide={detailSlide}
           index={project.slides.indexOf(detailSlide)}
           total={project.slides.length}
@@ -1755,6 +1943,8 @@ function Rename({
   );
 }
 function SlideDetail({
+  teaching,
+  onTaught,
   slide,
   index,
   total,
@@ -1770,6 +1960,8 @@ function SlideDetail({
   onChanged,
   notify,
 }: {
+  teaching: boolean;
+  onTaught: () => void;
   slide: Slide;
   index: number;
   total: number;
@@ -1848,6 +2040,10 @@ function SlideDetail({
     setCopyFeedback("");
     setHistory(null);
   }, [slide.id, slide.notes]);
+  const finishClose = () => {
+    if (teaching) onTaught();
+    onClose();
+  };
   const dirty = notes !== slide.notes;
   const act = async (fn: () => Promise<unknown>) => {
     setLoading(true);
@@ -1867,6 +2063,7 @@ function SlideDetail({
       { notes },
     );
     setNotes(saved.slides.find((s) => s.id === slide.id)!.notes);
+    if (teaching) onTaught();
   };
   const save = () =>
     act(async () => {
@@ -1893,7 +2090,7 @@ function SlideDetail({
       setLeaveAction(action);
       return;
     }
-    if (action === "close") onClose();
+    if (action === "close") finishClose();
     else onNavigate(action);
   };
   const nav = (n: number) => leave(n);
@@ -1912,6 +2109,7 @@ function SlideDetail({
         subtitle={`${index + 1} / ${total} · ${slide.notes.length} 字讲稿`}
         onClose={close}
       >
+        {teaching && <PageConcepts onDismiss={onTaught} />}
         <div className="detail-layout">
           <div className="detail-visual">
             <SlideImage
@@ -2320,7 +2518,7 @@ function SlideDetail({
               onClick={() => {
                 const action = leaveAction;
                 setLeaveAction(null);
-                if (action === "close") onClose();
+                if (action === "close") finishClose();
                 else onNavigate(action);
               }}
             >

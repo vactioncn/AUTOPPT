@@ -226,6 +226,27 @@ export function RehearsalCenter({
 }) {
   const speechAvailable = capabilities.standardPresentation.enabled;
   const motionAvailable = capabilities.motionPresentation.enabled;
+  if (!journey.total)
+    return (
+      <section aria-label="演练中心" className="journey-panel journey-empty">
+        <h2>先写讲稿，生成至少一页</h2>
+        <p>先完成讲稿和画面，再安排演练。</p>
+        <Button variant="primary" onClick={onStudio}>
+          先写讲稿 / 生成至少一页
+        </Button>
+        <details>
+          <summary>之后可以做什么</summary>
+          <p>{speechAvailable ? "标准放映无需语音服务。" : capabilities.standardPresentation.reason}</p>
+          <p>AI 口播和动态演示是有了画面之后的可选功能。</p>
+          {!!records.dynamic.records.length && motionAvailable && (
+            <Button onClick={onMotion}>打开已有动态演示</Button>
+          )}
+          {!!records.narration.records.length && speechAvailable && (
+            <Button onClick={onSpeech}>打开已有口播</Button>
+          )}
+        </details>
+      </section>
+    );
   const action = projectPrimaryAction("rehearsal", journey, {
     speechAvailable,
   });
@@ -382,6 +403,23 @@ export function DeliveryCenter({
     records.dynamic.records[0];
   const ready = deck && completePresentation(deck);
   const action = projectPrimaryAction("delivery", journey, { bundleAvailable });
+  if (!journey.total)
+    return (
+      <section aria-label="交付中心" className="journey-panel journey-empty">
+        <h2>还没有可交付内容</h2>
+        <p>回到制作台写下讲稿，生成页面后再选择交付格式。</p>
+        <Button variant="primary" onClick={() => onAction({ area: "studio", target: "composer", label: "返回制作台" })}>
+          返回制作台
+        </Button>
+        <details>
+          <summary>项目源文件</summary>
+          <p>即使还没有页面，也可以保存项目源文件，用于备份或迁移草稿与项目设置。</p>
+          {capabilities.projectPackages.enabled ? (
+            <Button onClick={() => onExport("project")}>导出项目源文件</Button>
+          ) : <p>{capabilities.projectPackages.reason}</p>}
+        </details>
+      </section>
+    );
   return (
     <section aria-label="交付中心" className="journey-panel">
       <section

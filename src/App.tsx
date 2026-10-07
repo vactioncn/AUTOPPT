@@ -1,3 +1,5 @@
+import { useOnboarding, WorkspaceReadiness } from "./OnboardingUI";
+import { safeWorkspaceLabel } from "./onboarding";
 import { useAccount, AccountFooter, AccountPage } from "./Account";
 import { DeleteItem } from "./DeleteItem";
 import {
@@ -49,6 +51,9 @@ export default function App() {
     [toast, setToast] = useState(""),
     [creating, setCreating] = useState(false),
     [initialStyle, setInitialStyle] = useState(DEFAULT_STYLE_ID);
+  const onboarding = useOnboarding(
+    `${data?.buildInfo?.runtimeMode || (account.hosted ? "hosted" : "local-browser")}:${account.hosted ? account.user?.id || "signed-out" : "local"}`,
+  );
   const previousRoute = useRef(route === "intro" ? "projects" : route);
   const contentRoute = route === "intro" ? previousRoute.current : route;
   const refresh = useCallback(async () => {
@@ -244,13 +249,55 @@ export default function App() {
           </div>
         )}
         {route === "intro" && (
-          <Introduction data={data} onBack={() => go(previousRoute.current)} />
+          <>
+            <div className="onboarding-help">
+              <Button
+                onClick={() =>
+                  onboarding.update({ workspace: "pending", page: "pending" })
+                }
+              >
+                重新查看新手引导
+              </Button>
+              <span>
+                重看工作区准备；下次打开页面详情时会再次显示三点提示。
+              </span>
+            </div>
+            {onboarding.value.workspace === "pending" && (
+              <WorkspaceReadiness
+                data={data}
+                capabilities={capabilities}
+                onStart={() => create()}
+                onSettings={() => go("settings")}
+                onStyles={() => go("styles")}
+                onSkip={() => onboarding.update({ workspace: "skipped" })}
+              />
+            )}
+            <Introduction
+              data={data}
+              onBack={() => go(previousRoute.current)}
+            />
+          </>
         )}
         <div hidden={route === "intro"} className="workspace-content">
+          {contentRoute === "projects" &&
+            route !== "intro" &&
+            onboarding.value.workspace === "pending" && (
+              <WorkspaceReadiness
+                data={data}
+                capabilities={capabilities}
+                onStart={() => create()}
+                onSettings={() => go("settings")}
+                onStyles={() => go("styles")}
+                onSkip={() => onboarding.update({ workspace: "skipped" })}
+              />
+            )}
           {currentId ? (
             <Workspace
               capabilities={capabilities}
-              dataRootLabel={data.dataRootLabel || "工作区"}
+              dataRootLabel={safeWorkspaceLabel(data.dataRootLabel)}
+              hosted={data.buildInfo?.runtimeMode === "hosted"}
+              onboarding={onboarding.value}
+              onOnboardingChange={onboarding.update}
               area={currentArea}
               onAreaChange={(area) => go(`project/${currentId}/${area}`)}
               key={currentId}
@@ -313,11 +360,16 @@ export default function App() {
         <NewProject
           styles={data.styles}
           initialStyle={initialStyle}
+          onStyles={() => {
+            setCreating(false);
+            go("styles");
+          }}
           onClose={() => setCreating(false)}
           onCreated={async (p) => {
             setCreating(false);
             await refresh();
-            go("project/" + p.id);
+            onboarding.update({ workspace: "complete" });
+            go("project/" + p.id + "/studio");
             notify("项目已创建，开始添加第一段逐字稿吧。");
           }}
         />
@@ -467,13 +519,18 @@ function ProjectHome({
                       <SceneView scene={p.coverScene} label={p.title} />
                     ) : p.cover ? (
                       <img src={asset(p.cover)} alt={p.title} />
-                    ) : (
+                    ) : styles.length ? (
                       <StylePreview
                         style={
                           styles.find((s) => s.id === p.styleId) || styles[0]
                         }
                         compact
                       />
+                    ) : (
+                      <div className="style-preview">
+                        <Palette size={30} />
+                        <span>尚未生成画面</span>
+                      </div>
                     )}
                     <span className="project-open">
                       <ArrowUpRight size={20} />
@@ -569,14 +626,17 @@ function ProjectHome({
 function NewProject({
   styles,
   initialStyle,
+  onStyles,
   onClose,
   onCreated,
 }: {
   styles: Style[];
   initialStyle: string;
+  onStyles: () => void;
   onClose: () => void;
   onCreated: (p: Project) => void;
 }) {
+  const [advanced, setAdvanced] = useState(false);
   const [choices, setChoices] = useState(emptyDesignOptions);
   const [optionsBusy, setOptionsBusy] = useState(false);
   const [title, setTitle] = useState(""),
@@ -585,7 +645,14 @@ function NewProject({
     [error, setError] = useState("");
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (optionsBusy || !validDesignOptions(choices)) return;
+    if (
+      busy ||
+      optionsBusy ||
+      !title.trim() ||
+      !validDesignOptions(choices) ||
+      !styles.some((s) => s.id === styleId && s.rules && !s.deletedAt)
+    )
+      return;
     setBusy(true);
     setError("");
     try {
@@ -600,7 +667,7 @@ function NewProject({
   return (
     <Modal
       title="开始一场新的演讲"
-      subtitle="给它一个主题，再选一种你喜欢的表达方式。"
+      subtitle="先写主题就能开始。风格、受众和配色以后都能修改。"
       onClose={onClose}
     >
       <form onSubmit={submit}>
@@ -614,43 +681,76 @@ function NewProject({
             required
           />
         </Field>
-        <div className="field">
-          <span>选择视觉风格</span>
-          <div className="style-choice-grid">
-            {styles
-              .filter((s) => !!s.rules && !s.deletedAt)
-              .map((s) => (
-                <button
-                  type="button"
-                  className={`style-choice ${styleId === s.id ? "chosen" : ""}`}
-                  key={s.id}
-                  aria-pressed={styleId === s.id}
-                  onClick={() => setStyleId(s.id)}
-                >
-                  <StylePreview style={s} compact />
-                  <span>
-                    {s.name}
-                    {s.id === DEFAULT_STYLE_ID && " · 内置默认"}
-                    {styleId === s.id && (
-                      <CheckCircle weight="fill" size={17} />
-                    )}
-                  </span>
-                </button>
-              ))}
+        <div className="new-project-style">
+          <div>
+            <span>当前默认风格</span>
+            <strong>
+              {styles.find((s) => s.id === styleId && s.rules && !s.deletedAt)
+                ?.name || "暂无可用风格"}
+            </strong>
           </div>
-          <small>
-            {styles.some((s) => s.rules && !s.deletedAt)
-              ? "后续添加的页面将沿用这个风格。"
-              : "风格库暂时没有可用风格，请先上传参考图创建风格。"}
-          </small>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => setAdvanced(true)}
+          >
+            更换
+          </Button>
         </div>
-        <DesignOptionsEditor
-          value={choices}
-          onChange={setChoices}
-          styleId={styleId}
-          disabled={busy}
-          onBusyChange={setOptionsBusy}
-        />
+        {!styles.some((s) => s.rules && !s.deletedAt) && (
+          <div className="small-notice">
+            <p>
+              风格库还没有可用风格。填写风格提示词并保存后，即可回来创建演讲。
+            </p>
+            <Button type="button" onClick={onStyles}>
+              前往风格库创建
+            </Button>
+          </div>
+        )}
+        <details
+          className="new-project-options"
+          open={advanced}
+          onToggle={(event) => setAdvanced(event.currentTarget.open)}
+        >
+          <summary>个性化设置，可稍后修改</summary>
+          <div className="field">
+            <span>选择视觉风格</span>
+            <div className="style-choice-grid">
+              {styles
+                .filter((s) => !!s.rules && !s.deletedAt)
+                .map((s) => (
+                  <button
+                    type="button"
+                    className={`style-choice ${styleId === s.id ? "chosen" : ""}`}
+                    key={s.id}
+                    aria-pressed={styleId === s.id}
+                    onClick={() => setStyleId(s.id)}
+                  >
+                    <StylePreview style={s} compact />
+                    <span>
+                      {s.name}
+                      {s.id === DEFAULT_STYLE_ID && " · 内置默认"}
+                      {styleId === s.id && (
+                        <CheckCircle weight="fill" size={17} />
+                      )}
+                    </span>
+                  </button>
+                ))}
+            </div>
+            <small>
+              {styles.some((s) => s.rules && !s.deletedAt)
+                ? "后续添加的页面将沿用这个风格。"
+                : "风格库暂时没有可用风格，请先填写提示词创建风格。"}
+            </small>
+          </div>
+          <DesignOptionsEditor
+            value={choices}
+            onChange={setChoices}
+            styleId={styleId}
+            disabled={busy}
+            onBusyChange={setOptionsBusy}
+          />
+        </details>
         {error && (
           <p className="error-text" role="alert">
             {error}
@@ -671,7 +771,7 @@ function NewProject({
               !styles.some((s) => s.id === styleId && s.rules && !s.deletedAt)
             }
           >
-            创建项目
+            创建并写第一段
             <ArrowRight size={17} />
           </Button>
         </div>

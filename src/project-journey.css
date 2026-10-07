@@ -675,3 +675,8 @@
   width: 100%;
   max-width: 100%;
 }
+
+.journey-empty { display: block; }
+.journey-empty > p { margin: 12px 0 20px; line-height: 1.7; }
+.journey-empty > details { margin-top: 26px; font-size: 13px; line-height: 1.7; }
+.journey-empty > details > summary { cursor: pointer; }

@@ -109,6 +109,13 @@ export function StyleLibrary({
         </div>
         <span className="muted">跨项目使用，持续积累</span>
       </div>
+      {!visibleStyles.length && (
+        <section className="onboarding-card" aria-label="风格库空状态">
+          <h2>从第一个风格开始</h2>
+          <p>打开创建表单，填写风格提示词并保存即可使用；无需先调用模型。也可以按需上传参考图。</p>
+          <Button variant="primary" onClick={() => setCreate(true)}>创建第一个风格</Button>
+        </section>
+      )}
       <div className="style-library-grid">
         {visibleStyles.map((s) => (
           <article className="style-card" key={s.id}>

@@ -1595,7 +1595,11 @@ test(
       const browser = await chromium.launch({
         headless: true,
         args: ["--disable-gpu"],
-        executablePath: process.env.CHROMIUM_EXECUTABLE,
+        executablePath:
+          process.env.CHROMIUM_EXECUTABLE ||
+          (process.platform === "darwin"
+            ? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+            : undefined),
       });
       t.after(() => browser.close());
       const page = await browser.newPage({
@@ -1978,6 +1982,7 @@ test(
       await page
         .getByRole("button", { name: "提交讲稿并制作", exact: true })
         .click();
+      await page.getByRole("button", { name: "开始生成", exact: true }).click();
       await expect(page.getByLabel("添加逐字稿", { exact: true })).toHaveValue(
         "",
       );
@@ -1996,6 +2001,7 @@ test(
         .getByRole("button", { name: "新建演讲项目", exact: true })
         .click();
       const newProjectDialog = page.getByRole("dialog");
+      await newProjectDialog.getByText("个性化设置，可稍后修改", { exact: true }).click();
       await expect(
         newProjectDialog.getByRole("button", {
           name: /克制儿童摄影杂志风 · 内置默认/,
@@ -2058,7 +2064,7 @@ test(
         path: ".impeccable/review/design-options-create.png",
       });
       await newProjectDialog
-        .getByRole("button", { name: "创建项目", exact: true })
+        .getByRole("button", { name: "创建并写第一段", exact: true })
         .click();
       await expect(newProjectDialog).toHaveCount(0);
       assert.equal(
@@ -3082,7 +3088,11 @@ test(
       const { chromium, expect } = await import("@playwright/test");
       const browser = await chromium.launch({
         headless: true,
-        executablePath: process.env.CHROMIUM_EXECUTABLE,
+        executablePath:
+          process.env.CHROMIUM_EXECUTABLE ||
+          (process.platform === "darwin"
+            ? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+            : undefined),
       });
       try {
         const page = await browser.newPage({

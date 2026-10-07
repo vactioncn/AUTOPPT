@@ -384,7 +384,7 @@ test(
     await expect(page.getByRole("dialog")).toBeVisible();
     await page
       .getByRole("dialog")
-      .getByRole("button", { name: "关闭", exact: true })
+      .getByLabel("关闭", { exact: true })
       .click();
     await page.reload();
     await expect(
@@ -680,15 +680,14 @@ test(
       page.getByRole("button", { name: "打开演讲播放器", exact: true }),
     ).toHaveCount(0);
     await expect(page.locator(".workspace .btn.primary:visible")).toHaveText(
-      "返回制作台",
+      "先写讲稿 / 生成至少一页",
     );
     await expect(
       page.getByRole("button", { name: "打开动态演示", exact: true }),
-    ).toBeDisabled();
+    ).toHaveCount(0);
     await goArea("交付中心");
-    await page.getByRole("button", { name: "查看导出检查", exact: true }).click();
-    await expect(page.getByRole("dialog")).toContainText("还没有页面");
-    await page.getByRole("dialog").getByRole("button", { name: "前往制作台处理", exact: true }).click();
+    await expect(page.locator(".journey-panel")).toContainText("还没有可交付内容");
+    await page.getByRole("button", { name: "返回制作台", exact: true }).click();
     await expect(page.getByLabel("添加逐字稿", { exact: true })).toBeFocused();
     // A failed metadata read must never be presented as an empty history or ready delivery.
     await page.route("**/api/projects/complete/motion", (route) =>
@@ -900,7 +899,7 @@ test(
           }
           if (area === "rehearsal") {
             await expect(primary).toHaveText(
-              state === "empty" ? "返回制作台" : "打开演讲播放器",
+              state === "empty" ? "先写讲稿 / 生成至少一页" : "打开演讲播放器",
             );
             if (state === "empty") {
               await expect(page.locator(".journey-panel .btn:enabled")).toHaveCount(1);
@@ -914,10 +913,10 @@ test(
                 .evaluateAll((els) =>
                   els.map((el) => el.dataset.deliverySection),
                 ),
-              ["checks", "primary", "formats", "backup"],
+              state === "empty" ? [] : ["checks", "primary", "formats", "backup"],
             );
             await expect(primary).toHaveText(
-              state === "complete" ? "下载 ZIP 交付包" : "查看导出检查",
+              state === "complete" ? "下载 ZIP 交付包" : state === "empty" ? "返回制作台" : "查看导出检查",
             );
             if (state !== "complete")
               await expect(
@@ -948,7 +947,7 @@ test(
               box.y + box.height <= (width <= 600 ? navBox.y : height),
             "last action can scroll above navigation",
           );
-          if (area === "delivery" && width !== 320) {
+          if (area === "delivery" && width !== 320 && state !== "empty") {
             const backup = page.getByRole("region", { name: "备份与继续编辑", exact: true });
             const backupButton = backup.getByRole("button", { name: "导出项目源文件", exact: true });
             await backupButton.scrollIntoViewIfNeeded();
@@ -1027,7 +1026,7 @@ test(
     await expect(nav().getByRole("button", { name: "演练中心", exact: true })).toHaveAttribute("aria-current", "page");
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await page.goto(`${base}/#project/empty/rehearsal`);
-    await page.getByRole("button", { name: "返回制作台", exact: true }).click();
+    await page.getByRole("button", { name: "先写讲稿 / 生成至少一页", exact: true }).click();
     await expect(nav().getByRole("button", { name: "制作台", exact: true })).toHaveAttribute("aria-current", "page");
     assert.deepEqual(await nav().getByRole("button").allTextContents(), [
       "概览",
@@ -1069,5 +1068,619 @@ test(
       "no model tasks started",
     );
     console.log("UX hierarchy browser evidence:", evidence);
+  },
+);
+
+// This fixture never reads .local and rejects every unlisted write. Model calls
+// are represented only by a counted, intercepted batch endpoint.
+test(
+  "contextual onboarding with isolated local/hosted workspaces",
+  { timeout: 180000 },
+  async (t) => {
+    const evidence = path.resolve("test-results/onboarding");
+    mkdirSync(evidence, { recursive: true });
+    const dir = mkdtempSync(path.join(tmpdir(), "autoppt-onboarding-"));
+    const child = fork("server/index.mjs", [], {
+      silent: true,
+      env: {
+        ...process.env,
+        NODE_ENV: "production",
+        PORT: "0",
+        AUTOPPT_DATA_DIR: dir,
+        AUTOPPT_DESKTOP_TOKEN: "",
+        AUTOPPT_WORKER_TOKEN: "",
+        OPENAI_API_KEY: "",
+      },
+    });
+    let browser, db;
+    t.after(async () => {
+      await browser?.close();
+      child.kill();
+      db?.close();
+    });
+    let startupError = "";
+    child.stderr.on("data", (chunk) => {
+      startupError += chunk;
+    });
+    const [message] = await Promise.race([
+      once(child, "message", { signal: AbortSignal.timeout(15000) }),
+      once(child, "exit").then(([code]) => {
+        throw Error(`Fixture exited (${code}): ${startupError}`);
+      }),
+    ]);
+    const base = `http://127.0.0.1:${message.port}`;
+    db = new DatabaseSync(path.join(dir, "autoppt.sqlite"));
+    mkdirSync(path.join(dir, "assets"), { recursive: true });
+    writeFileSync(
+      path.join(dir, "assets/onboarding-fixture.png"),
+      await sharp(
+        Buffer.from(
+          '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="450"><rect width="800" height="450" fill="#f0f2e6"/><circle cx="660" cy="230" r="90" fill="#cf4d31"/><text x="55" y="190" font-size="44" font-family="sans-serif" fill="#24342a">ONE SMALL STEP</text><text x="55" y="245" font-size="20" font-family="sans-serif" fill="#24342a">Isolated onboarding test fixture</text></svg>',
+        ),
+      )
+        .png()
+        .toBuffer(),
+    );
+    const chrome =
+      "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+    assert(existsSync(chrome), "acceptance requires installed Google Chrome");
+    browser = await chromium.launch({ headless: true, executablePath: chrome });
+    const page = await browser.newPage({
+      viewport: { width: 1280, height: 800 },
+      reducedMotion: "reduce",
+    });
+    const errors = [],
+      unexpected = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+    let modelsReady = false,
+      noStyles = false,
+      hosted = false,
+      incompatible = false,
+      batches = 0,
+      failBatch = false;
+    const readProject = (id) =>
+      JSON.parse(
+        db
+          .prepare("SELECT data FROM records WHERE kind='project' AND id=?")
+          .get(id).data,
+      );
+    const putProject = (p) =>
+      db
+        .prepare("UPDATE records SET data=? WHERE kind='project' AND id=?")
+        .run(JSON.stringify(p), p.id);
+    await page.route("**/api/**", async (route) => {
+      const request = route.request(),
+        url = new URL(request.url()),
+        method = request.method();
+      if (url.pathname === "/api/account")
+        return route.fulfill({
+          status: hosted ? 200 : 404,
+          json: hosted
+            ? {
+                hosted: true,
+                modelReady: modelsReady,
+                user: {
+                  id: "isolated-onboarding",
+                  name: "隔离账号",
+                  role: "user",
+                  balance: 0,
+                  available: 0,
+                  held: 0,
+                },
+              }
+            : {},
+        });
+      if (url.pathname === "/api/bootstrap") {
+        const response = await route.fetch(),
+          body = await response.json();
+        body.settings.text.hasKey = modelsReady;
+        body.settings.image.hasKey = modelsReady;
+        if (noStyles) body.styles = [];
+        body.buildInfo.runtimeMode = hosted ? "hosted" : "local-browser";
+        if (incompatible) body.buildInfo.apiSchemaVersion = 999;
+        body.dataRootLabel = hosted ? "hosted 账号工作区" : "本机浏览器工作区";
+        body.capabilities.localModelSettings = hosted
+          ? { enabled: false, reason: "由管理员统一管理模型。" }
+          : { enabled: true };
+        return route.fulfill({ json: body });
+      }
+      if (
+        method === "POST" &&
+        /\/projects\/[^/]+\/batches$/.test(url.pathname)
+      ) {
+        batches++;
+        if (failBatch)
+          return route.fulfill({
+            status: 503,
+            json: { error: "隔离测试：模型暂时不可用" },
+          });
+        const id = url.pathname.split("/")[3],
+          p = readProject(id),
+          text = request.postDataJSON().text;
+        p.draft = "";
+        p.revision++;
+        p.batches.push({
+          id: `b${batches}`,
+          text,
+          label: "示例段落",
+          slideIds: ["onboarding-page"],
+          createdAt: new Date().toISOString(),
+        });
+        if (!p.slides.length)
+          p.slides.push({
+            id: "onboarding-page",
+            notes: text,
+            plan: { title: "隔离示例页", displayText: ["从一个小行动开始"] },
+            image: "onboarding-fixture.png",
+            status: "ready",
+            stale: false,
+            versions: [],
+            batchIds: [`b${batches}`],
+            styleId: p.styleId,
+          });
+        putProject(p);
+        return route.fulfill({ status: 202, json: { id: "fixture-only" } });
+      }
+      if (
+        ["GET", "HEAD"].includes(method) ||
+        (method === "POST" && url.pathname === "/api/projects") ||
+        (method === "PATCH" &&
+          /^\/api\/projects\/[^/]+(?:\/slides\/[^/]+)?$/.test(url.pathname))
+      )
+        return route.continue();
+      unexpected.push(`${method} ${url.pathname}`);
+      return route.fulfill({
+        status: 409,
+        json: { error: "Unexpected write blocked by isolated onboarding test" },
+      });
+    });
+    const button = (name) => page.getByRole("button", { name, exact: true });
+    const card = page.getByRole("region", { name: "首次工作区准备" });
+    const shot = async (name, locator) => {
+      for (const width of [1280, 390]) {
+        await page.setViewportSize({ width, height: 844 });
+        if (locator) await locator.scrollIntoViewIfNeeded();
+        assert(
+          await page.evaluate(
+            () => document.documentElement.scrollWidth <= innerWidth + 1,
+          ),
+          `${name} overflow at ${width}`,
+        );
+        if (locator)
+          assert(
+            await locator.evaluate(
+              (el) => el.scrollWidth <= el.clientWidth + 1,
+            ),
+            `${name} inner overflow at ${width}`,
+          );
+        await page.screenshot({
+          path: path.join(evidence, `${name}-${width}.png`),
+        });
+      }
+      await page.setViewportSize({ width: 1280, height: 800 });
+    };
+    const reopen = async () => {
+      await button("帮助与介绍").click();
+      await button("重新查看新手引导").click();
+      await expect(card).toBeVisible();
+    };
+    const scenario = async (name, run) => {
+      let failure;
+      await t.test(name, async () => {
+        try {
+          await run();
+        } catch (error) {
+          failure = error;
+          throw error;
+        }
+      });
+      if (failure) throw failure;
+    };
+    let projectId;
+    await scenario(
+      "local missing models, skip persistence, help replay and compatibility gate",
+      async () => {
+        await page.goto(base);
+        await expect(card).toContainText("内容模型：未就绪");
+        await expect(card).toContainText("图片模型：未就绪");
+        await expect(card).toContainText("本机浏览器工作区");
+        await expect(
+          card.getByRole("button", { name: "连接并测试模型" }),
+        ).toBeVisible();
+        await expect(
+          card.getByRole("button", { name: "先写草稿" }),
+        ).toBeVisible();
+        await shot("local-missing", card);
+        await card.getByRole("button", { name: "跳过准备" }).click();
+        await page.reload();
+        await expect(card).toHaveCount(0);
+        await reopen();
+        incompatible = true;
+        await page.reload();
+        await expect(page.locator(".compatibility-gate")).toBeVisible();
+        await expect(card).toHaveCount(0);
+        incompatible = false;
+        modelsReady = true;
+        await page.reload();
+        await expect(
+          card.getByRole("button", { name: "开始第一个演讲" }),
+        ).toBeVisible();
+        await button("返回刚才的页面").click();
+        await shot("local-ready", card);
+      },
+    );
+    await scenario(
+      "minimal project form retains advanced choices and focuses composer after real creation",
+      async () => {
+        await card.getByRole("button", { name: "开始第一个演讲" }).click();
+        const dialog = page.getByRole("dialog");
+        await expect(
+          dialog.getByLabel("演讲主题", { exact: true }),
+        ).toBeVisible();
+        await expect(dialog.locator(".style-choice-grid")).toBeHidden();
+        await expect(dialog.getByLabel("内容倾向（可选）")).toBeHidden();
+        await dialog
+          .getByLabel("演讲主题", { exact: true })
+          .fill("隔离的新手演讲");
+        await shot("create-collapsed", dialog);
+        await dialog.getByRole("button", { name: "更换", exact: true }).click();
+        await expect(dialog.locator(".style-choice-grid")).toBeVisible();
+        await expect(dialog.getByLabel("内容倾向（可选）")).toBeVisible();
+        await expect(dialog.locator(".palette-grid")).toBeVisible();
+        await dialog.evaluate((el) => { el.scrollTop = 0; });
+        await shot("create-expanded", dialog);
+        await dialog.getByLabel("内容倾向（可选）").fill("面向新同事");
+        await dialog.getByText("展开说明（可选）", { exact: true }).click();
+        await expect(
+          dialog.getByRole("button", { name: "AI 完善说明" }),
+        ).toBeVisible();
+        await dialog.locator(".palette-grid").scrollIntoViewIfNeeded();
+        await shot("create-advanced-settings", dialog);
+        await dialog.getByLabel("内容倾向（可选）").fill("");
+        await dialog
+          .getByText("个性化设置，可稍后修改", { exact: true })
+          .click();
+        await dialog.getByRole("button", { name: "创建并写第一段" }).click();
+        await expect(
+          page.getByLabel("添加逐字稿", { exact: true }),
+        ).toBeFocused();
+        projectId = new URL(page.url()).hash.split("/")[1];
+        assert.equal(readProject(projectId).title, "隔离的新手演讲");
+        assert.equal(
+          await page.evaluate(
+            () =>
+              JSON.parse(
+                localStorage.getItem(
+                  "autoppt:onboarding:v1:local-browser%3Alocal",
+                ),
+              ).workspace,
+          ),
+          "complete",
+        );
+        await expect(page.locator(".composer")).toContainText("100–500");
+        await expect(page.locator(".composer")).toContainText(
+          "已保存不等于已生成",
+        );
+        await shot("empty-composer", page.locator(".composer"));
+        await button("使用示例文字").click();
+        assert(
+          (await page.getByLabel("添加逐字稿", { exact: true }).inputValue())
+            .length >= 100,
+        );
+        await expect
+          .poll(() => readProject(projectId).draft.length)
+          .toBeGreaterThan(100);
+        assert.equal(batches, 0);
+      },
+    );
+    await scenario(
+      "missing models preserve drafts, explain actions and never open generation consent",
+      async () => {
+        modelsReady = false;
+        await page.reload();
+        await button("提交讲稿并制作").click();
+        await expect(page.getByRole("dialog")).toContainText(
+          "生成前需要连接内容和图片模型",
+        );
+        await expect(button("开始生成")).toHaveCount(0);
+        await button("继续保存草稿").click();
+        const draft = await page
+          .getByLabel("添加逐字稿", { exact: true })
+          .inputValue();
+        await button("提交讲稿并制作").click();
+        await button("连接模型并继续").click();
+        await expect(page).toHaveURL(/#settings$/);
+        await page.goto(`${base}/#project/${projectId}/studio`);
+        await expect(
+          page.getByLabel("添加逐字稿", { exact: true }),
+        ).toHaveValue(draft);
+        assert.equal(batches, 0);
+      },
+    );
+    await scenario(
+      "consent cancel, single submit, error recovery and explicit direct-generation preference",
+      async () => {
+        modelsReady = true;
+        await page.reload();
+        const input = page.getByLabel("添加逐字稿", { exact: true });
+        const draft = await input.inputValue();
+        await button("提交讲稿并制作").click();
+        await expect(page.getByRole("dialog")).toContainText(
+          "具体页数由拆页结果决定",
+        );
+        await expect(page.getByRole("dialog")).toContainText(
+          "服务商按实际调用收取",
+        );
+        await shot("generation-confirmation", page.getByRole("dialog"));
+        await page.setViewportSize({ width: 390, height: 440 });
+        await button("开始生成").scrollIntoViewIfNeeded();
+        const confirmBox = await button("开始生成").boundingBox();
+        assert(
+          confirmBox.y >= 0 && confirmBox.y + confirmBox.height <= 440,
+          "consent action remains reachable with keyboard viewport",
+        );
+        await page.screenshot({
+          path: path.join(evidence, "generation-keyboard-390.png"),
+        });
+        await page.setViewportSize({ width: 1280, height: 800 });
+        await button("返回修改").click();
+        assert.equal(batches, 0);
+        await expect(input).toHaveValue(draft);
+        await button("提交讲稿并制作").click();
+        await page.keyboard.press("Escape");
+        assert.equal(batches, 0);
+        await expect(input).toHaveValue(draft);
+        failBatch = true;
+        await button("提交讲稿并制作").click();
+        await button("开始生成").click();
+        await expect(
+          page.getByText("隔离测试：模型暂时不可用", { exact: true }),
+        ).toBeVisible();
+        assert.equal(batches, 1);
+        await expect(input).toHaveValue(draft);
+        await expect.poll(() => readProject(projectId).draft).toBe(draft);
+        failBatch = false;
+        await button("提交讲稿并制作").click();
+        await page.getByLabel("以后直接生成").check();
+        // Duplicate activation cannot enqueue two requests.
+        await button("开始生成").evaluate((el) => {
+          el.click();
+          el.click();
+        });
+        await expect(input).toHaveValue("");
+        assert.equal(batches, 2);
+        await input.fill("第二段隔离文字，验证已明确选择的直接生成。");
+        await button("提交讲稿并制作").click();
+        await expect(input).toHaveValue("");
+        assert.equal(batches, 3);
+        await expect(page.getByRole("dialog")).toHaveCount(0);
+      },
+    );
+    await scenario(
+      "three page concepts persist only after closing or saving, and help can replay",
+      async () => {
+        const openPage = async () => {
+          await page.locator(".slide-card .slide-image").first().click();
+        };
+        await openPage();
+        const teaching = page.getByRole("region", { name: "页面三点提示" });
+        await expect(teaching.locator("li")).toHaveCount(3);
+        assert.equal(
+          await page.evaluate(
+            () =>
+              JSON.parse(
+                localStorage.getItem(
+                  "autoppt:onboarding:v1:local-browser%3Alocal",
+                ),
+              ).page,
+          ),
+          "pending",
+          "visiting a page does not complete teaching",
+        );
+        await expect(teaching).toContainText("演讲者说的完整内容");
+        await expect(teaching).toContainText("观众看到的重点");
+        await expect(teaching).toContainText("可能再次调用模型并产生费用");
+        await shot("page-concepts", teaching);
+        await button("知道了，关闭提示").click();
+        await button("关闭").click();
+        await openPage();
+        await expect(teaching).toHaveCount(0);
+        await button("关闭").click();
+        await reopen();
+        await button("返回刚才的页面").click();
+        await openPage();
+        await expect(teaching).toBeVisible();
+        await page
+          .getByLabel("本页逐字稿", { exact: true })
+          .fill("保存后的隔离逐字稿。");
+        await button("保存讲稿").click();
+        await expect(teaching).toHaveCount(0);
+        await button("关闭").click();
+        await page.reload();
+        await openPage();
+        await expect(teaching).toHaveCount(0);
+        await button("关闭").click();
+      },
+    );
+    await scenario(
+      "empty rehearsal and delivery give one next step and retain project source export",
+      async () => {
+        const response = await fetch(`${base}/api/projects`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            title: "空演讲隔离验收",
+            styleId: readProject(projectId).styleId,
+          }),
+        });
+        const empty = await response.json();
+        for (const area of ["rehearsal", "delivery"]) {
+          await page.goto(`${base}/#project/${empty.id}/${area}`);
+          await expect(
+            page.locator(".journey-panel .btn.primary:visible"),
+          ).toHaveCount(1);
+          await expect(
+            page.getByRole("region", { name: "AI 口播", exact: true }),
+          ).toHaveCount(0);
+          await expect(page.locator(".journey-primary-delivery")).toHaveCount(
+            0,
+          );
+          await shot(`empty-${area}`, page.locator(".journey-panel"));
+        }
+        await expect(page.locator(".journey-panel")).toContainText(
+          "还没有可交付内容",
+        );
+        await page.getByText("项目源文件", { exact: true }).click();
+        await page
+          .locator(".journey-panel")
+          .getByRole("button", { name: "导出项目源文件" })
+          .click();
+        await expect(page.getByRole("dialog")).toContainText("迁移");
+        await button("关闭").click();
+        await page
+          .locator(".journey-panel")
+          .getByRole("button", { name: "返回制作台" })
+          .click();
+        await expect(
+          page.getByLabel("添加逐字稿", { exact: true }),
+        ).toBeFocused();
+        await page.setViewportSize({ width: 390, height: 440 });
+        await page
+          .getByLabel("添加逐字稿", { exact: true })
+          .fill("模拟输入法压缩可视区域。");
+        await button("提交讲稿并制作").scrollIntoViewIfNeeded();
+        const box = await button("提交讲稿并制作").boundingBox();
+        assert(
+          box.y >= 0 && box.y + box.height <= 440,
+          "composer action remains reachable above keyboard",
+        );
+        await page.screenshot({
+          path: path.join(evidence, "keyboard-390.png"),
+        });
+        await page.setViewportSize({ width: 1280, height: 800 });
+      },
+    );
+    await scenario(
+      "no styles routes to an executable creation form, and minimal form survives intro roundtrip",
+      async () => {
+        noStyles = true;
+        await page.goto(base);
+        await page.reload();
+        await page
+          .getByRole("complementary")
+          .getByRole("button", { name: "新建演讲项目", exact: true })
+          .click();
+        await page.getByLabel("演讲主题", { exact: true }).fill("保留中的主题");
+        await expect(
+          page
+            .getByRole("dialog")
+            .getByRole("button", { name: "前往风格库创建" }),
+        ).toBeVisible();
+        await page
+          .getByRole("dialog")
+          .getByRole("button", { name: "前往风格库创建", exact: true })
+          .click();
+        await expect(page).toHaveURL(/#styles$/);
+        await expect(
+          page.getByRole("region", { name: "风格库空状态" }),
+        ).toBeVisible();
+        await page
+          .getByRole("region", { name: "风格库空状态" })
+          .getByRole("button", { name: "创建第一个风格" })
+          .click();
+        await expect(page.getByRole("dialog")).toBeVisible();
+        await button("关闭").click();
+        noStyles = false;
+        await page.reload();
+        await page
+          .getByRole("complementary")
+          .getByRole("button", { name: "新建演讲项目", exact: true })
+          .click();
+        await page
+          .getByLabel("演讲主题", { exact: true })
+          .fill("介绍返回保留主题");
+        await page.evaluate(() => {
+          location.hash = "intro";
+        });
+        await page.evaluate(() => {
+          location.hash = "styles";
+        });
+        await expect(page.getByLabel("演讲主题", { exact: true })).toHaveValue(
+          "介绍返回保留主题",
+        );
+        await button("关闭").click();
+      },
+    );
+    await scenario(
+      "hosted uses capability-managed wording and per-account preferences, no key or data path",
+      async () => {
+        hosted = true;
+        modelsReady = false;
+        await page.goto(base);
+        await page.reload();
+        await expect(card).toContainText("由管理员统一管理模型");
+        await expect(
+          card.getByRole("button", { name: "连接并测试模型" }),
+        ).toHaveCount(0);
+        assert(
+          !/API Key|\/Users\/|autoppt-onboarding-/.test(await card.innerText()),
+        );
+        await shot("hosted-missing", card);
+        modelsReady = true;
+        await page.reload();
+        await expect(card).toContainText("内容模型：已就绪");
+        await shot("hosted-ready", card);
+        await page.goto(`${base}/#project/${projectId}/studio`);
+        await button("继续添加讲稿").click();
+        await page
+          .getByLabel("添加逐字稿", { exact: true })
+          .fill("托管服务隔离讲稿。");
+        await button("提交讲稿并制作").click();
+        await expect(page.getByRole("dialog")).toContainText(
+          "管理员提供的图片额度",
+        );
+        assert(
+          !/余额|API Key|服务商按实际/.test(
+            await page.getByRole("dialog").innerText(),
+          ),
+        );
+        await button("返回修改").click();
+      },
+    );
+    await scenario(
+      "storage denial does not break drafting or skip in the current session",
+      async () => {
+        await page.addInitScript(() => {
+          Storage.prototype.getItem = () => {
+            throw Error("storage denied");
+          };
+          Storage.prototype.setItem = () => {
+            throw Error("storage denied");
+          };
+          Storage.prototype.removeItem = () => {
+            throw Error("storage denied");
+          };
+        });
+        hosted = false;
+        await page.goto(base);
+        await page.reload();
+        await card.getByRole("button", { name: "跳过准备" }).click();
+        await expect(card).toHaveCount(0);
+        await page.goto(`${base}/#project/${projectId}/studio`);
+        await button("继续添加讲稿").click();
+        await page
+          .getByLabel("添加逐字稿", { exact: true })
+          .fill("即使浏览器偏好不可用，草稿仍保存到隔离工作区。");
+        await expect
+          .poll(() => readProject(projectId).draft)
+          .toBe("即使浏览器偏好不可用，草稿仍保存到隔离工作区。");
+      },
+    );
+    assert.deepEqual(
+      unexpected,
+      [],
+      "no unexpected model, write or paid requests",
+    );
+    assert.deepEqual(errors, [], "no browser exceptions");
   },
 );

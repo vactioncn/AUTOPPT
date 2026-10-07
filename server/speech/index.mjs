@@ -70,7 +70,7 @@ function assetFile(name) {
   if (!/^[a-f0-9-]{36}\.mp3$/.test(name)) throw new Error("音频路径无效");
   return path.join(audioDir, name);
 }
-async function cachedAudio(config, text, options, signal) {
+async function cachedAudio(config, text, options, signal, onWait) {
   const key = hash([
     "speech-v1",
     providerIdentity(config),
@@ -81,7 +81,13 @@ async function cachedAudio(config, text, options, signal) {
   const cached = get("speech-cache", key);
   if (cached && existsSync(assetFile(cached.file))) return cached;
   signal?.throwIfAborted();
-  const { audio, duration } = await synthesize(config, text, options, signal);
+  const { audio, duration } = await synthesize(
+    config,
+    text,
+    options,
+    signal,
+    onWait,
+  );
   signal?.throwIfAborted();
   const file = id() + ".mp3";
   await writeFile(assetFile(file), audio, { mode: 0o600 });
@@ -121,6 +127,14 @@ async function drain() {
                 clip.text,
                 { ...d.options, emotion: p.emotion },
                 signal,
+                (waiting) => {
+                  d.progress = !waiting
+                    ? `正在生成第 ${p.number} 页口播`
+                    : waiting.reason === "rate-limit"
+                      ? `第 ${p.number} 页遇到 MiniMax 限流，等待 ${Math.ceil(waiting.ms / 1000)} 秒后自动继续（重试 ${waiting.attempt}/${waiting.maxRetries}）`
+                      : `正在控制请求频率，稍后生成第 ${p.number} 页口播`;
+                  save(d);
+                },
               );
               signal.throwIfAborted();
               clip.file = audio.file;

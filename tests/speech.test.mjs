@@ -96,7 +96,7 @@ test("desktop permits only its own main-frame microphone and fullscreen requests
 
 test(
   "narration API preserves snapshots, caches clips, retries failures, clones voices and recovers safely",
-  { timeout: 120000 },
+  { timeout: 360000 },
   async (t) => {
     const temp = mkdtempSync(path.join(tmpdir(), "autoppt-speech-"));
     // Match the default workspace, including its hidden parent directory.
@@ -152,6 +152,7 @@ test(
       uploads = 0,
       clones = 0,
       failAt = 2,
+      failCode = 1008,
       hold = false,
       gates = [];
     const provider = http.createServer(async (req, res) => {
@@ -182,7 +183,7 @@ test(
         return res.end(
           JSON.stringify({
             base_resp: {
-              status_code: 1008,
+              status_code: failCode,
               status_msg: "must not expose sk-secret-provider",
             },
           }),
@@ -254,7 +255,7 @@ test(
       return data;
     };
     const until = async (fn) => {
-      for (let n = 0; n < 250; n++) {
+      for (let n = 0; n < 2000; n++) {
         const value = await fn();
         if (value) return value;
         await new Promise((r) => setTimeout(r, 20));
@@ -397,6 +398,32 @@ test(
         "speaker.wav",
       ),
     );
+    failAt = calls.length + 2;
+    failCode = 1002;
+    const limited = await create(2, { ...SPEECH_DEFAULTS, speed: 1.15 });
+    const waiting = await until(async () => {
+      const current = await get(`/api/narration/${limited.id}`);
+      return current.progress.includes("遇到 MiniMax 限流") && current;
+    });
+    assert.equal(waiting.status, "running");
+    assert(waiting.pages[0].clips[0].file);
+    assert(waiting.progress.includes("60 秒"));
+    assert((await get("/api/activity")).activeJobs > 0);
+    const limitCalls = calls.length;
+    await request(`/api/narration/${limited.id}/cancel`, {});
+    const cancelledLimit = await complete(limited.id);
+    assert.equal(cancelledLimit.status, "cancelled");
+    assert.equal(
+      cancelledLimit.pages[0].clips[0].file,
+      waiting.pages[0].clips[0].file,
+    );
+    assert.equal(calls.length, limitCalls);
+    failAt = -1;
+    failCode = 1008;
+    // The cooldown is shared by this account. Restarting the isolated test
+    // service lets the unrelated cancellation/recovery checks start fresh.
+    await stop();
+    await start();
     hold = true;
     let stopped = await create(2, { ...SPEECH_DEFAULTS, speed: 1.3 });
     await until(() => gates.length);

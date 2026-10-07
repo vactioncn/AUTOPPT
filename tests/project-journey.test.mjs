@@ -104,7 +104,7 @@ test("each area owns its primary action and PPTX readiness reflects export check
     action("rehearsal", journey, { speechAvailable: true }).target,
     "player",
   );
-  assert.equal(action("delivery").label, "下载 PPTX＋逐字稿");
+  assert.equal(action("delivery").label, "下载 ZIP 交付包");
   assert.equal(
     action("delivery", journey, { bundleAvailable: false }).label,
     "下载 PPTX",
@@ -126,9 +126,13 @@ test("each area owns its primary action and PPTX readiness reflects export check
     action("rehearsal", projectJourney(project(), [], false)).label,
     "返回制作台",
   );
-  assert.equal(
-    action("rehearsal", journey, { speechAvailable: false }).target,
-    "pages",
+  assert.deepEqual(
+    action("rehearsal", journey, { speechAvailable: false }),
+    { area: "rehearsal", target: "player", label: "标准放映不可用", disabled: true },
+  );
+  assert.deepEqual(
+    action("rehearsal", projectJourney(project(), [], false), { speechAvailable: false }),
+    { area: "studio", target: "pages", label: "返回制作台" },
   );
 });
 
@@ -156,5 +160,18 @@ test("task queue carries concrete repair destinations and counts", () => {
     const state = projectJourney(project([slide]), [], false);
     assert.equal(projectPrimaryAction("studio", state).label, label);
     assert.equal(projectPrimaryAction("overview", state).label, label);
+  }
+});
+
+test("failed pages with existing artwork require review while missing artwork still blocks delivery", () => {
+  for (const hasImage of [true, false]) {
+    const journey = projectJourney(project([
+      { ...slides[0], status: "error", image: hasImage ? "fixture.png" : null },
+    ]), [], false);
+    assert.equal(journey.failed, 1);
+    assert.equal(journey.needsReview, true);
+    assert.equal(journey.pptxReady, hasImage);
+    assert.deepEqual(journey.missing, hasImage ? [] : [1]);
+    assert.equal(projectPrimaryAction("delivery", journey).label, "查看导出检查");
   }
 });

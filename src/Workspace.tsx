@@ -451,6 +451,46 @@ export function Workspace({
       setScriptExporting(false);
     }
   };
+  const secondaryActions = (
+    <>
+      <Button
+        variant="ghost"
+        disabled={!project.slides.length}
+        onClick={() => setRedesignOpen(true)}
+      >
+        <ArrowsClockwise size={18} />
+        重新设计
+      </Button>
+      {insertExportAvailable && (
+        <Button
+          className="insert-first"
+          variant="ghost"
+          onClick={() => setInsertion({ afterSlideId: null })}
+        >
+          <Plus size={15} /> 在第一页前插入
+        </Button>
+      )}
+      {project.undo && (
+        <Button
+          variant="ghost"
+          disabled={
+            project.undo.replacementIds
+              ? project.undo.replacementIds.some(pageBusy)
+              : !!busy
+          }
+          onClick={() =>
+            run(
+              () => post("/projects/" + id + "/undo"),
+              "已恢复调整前的页面。",
+            )
+          }
+        >
+          <ArrowCounterClockwise size={15} />
+          撤销{project.undo.label}
+        </Button>
+      )}
+    </>
+  );
   return (
     <div className="page workspace">
       <div className="workspace-heading">
@@ -773,28 +813,15 @@ export function Workspace({
                   </div>
                 </div>
                 <div className="gallery-actions">
-            <Button
-              variant="ghost"
-              disabled={!project.slides.length}
-              onClick={() => setRedesignOpen(true)}
-            >
-              <ArrowsClockwise size={18} />
-              重新设计
-            </Button>
-
-                  {insertExportAvailable && (
-                    <Button
-                      className="insert-first"
-                      variant="ghost"
-                      onClick={() => setInsertion({ afterSlideId: null })}
-                    >
-                      <Plus size={15} /> 在第一页前插入
-                    </Button>
-                  )}
+                  <div className="studio-secondary-actions">{secondaryActions}</div>
+                  <details className="studio-more-actions">
+                    <summary>更多操作</summary>
+                    <div>{secondaryActions}</div>
+                  </details>
 
                   {!busy && pending.some((s) => !(s.image || s.scene)) && (
                     <Button
-                      variant="ghost"
+                      className="fill-missing-pages"
                       onClick={() =>
                         run(() =>
                           post("/projects/" + id + "/render", {
@@ -808,25 +835,6 @@ export function Workspace({
                     >
                       <ArrowsClockwise size={15} />
                       补齐未生成页面
-                    </Button>
-                  )}
-                  {project.undo && (
-                    <Button
-                      variant="ghost"
-                      disabled={
-                        project.undo.replacementIds
-                          ? project.undo.replacementIds.some(pageBusy)
-                          : !!busy
-                      }
-                      onClick={() =>
-                        run(
-                          () => post("/projects/" + id + "/undo"),
-                          "已恢复调整前的页面。",
-                        )
-                      }
-                    >
-                      <ArrowCounterClockwise size={15} />
-                      撤销{project.undo.label}
                     </Button>
                   )}
                   {project.batches.length > 1 && (
@@ -1503,15 +1511,24 @@ function ExportDialog({
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState("");
   const [format, setFormat] = useState<ExportFormat>(initialFormat);
+  const [confirmedFailed, setConfirmedFailed] = useState("");
   const html = useHtmlExportOptions(project.id);
   const missing = project.slides.flatMap((s, i) =>
     !s.image && !s.scene ? [i + 1] : [],
   );
   const unsegmented = project.batches.filter((b) => !b.slideIds.length).length;
   const stale = project.slides.filter((s) => s.stale).length;
+  const failedWithImage = project.slides.flatMap((s, i) =>
+    s.status === "error" && (s.image || s.scene) ? [i + 1] : [],
+  );
+  const failedReviewKey = `${project.revision}:${failedWithImage.join(",")}`;
+  const needsFailedReview =
+    !!failedWithImage.length && confirmedFailed !== failedReviewKey;
   const blocked =
     busy || !!missing.length || !!unsegmented || !project.slides.length;
   const download = async (manuscriptOnly = false) => {
+    if (!manuscriptOnly && format !== "project" && (blocked || needsFailedReview))
+      return;
     setExporting(true);
     setError("");
     try {
@@ -1566,7 +1583,7 @@ function ExportDialog({
           disabled={exporting}
           onChange={(e) => setFormat(e.target.value as ExportFormat)}
         >
-          <option value="ppt">PPTX 与逐字稿</option>
+          <option value="ppt">{bundleAvailable ? "ZIP 交付包 · PPTX 与逐字稿" : "PPTX"}</option>
           <option value="html">静态 HTML · 可含口播</option>
           <option value="project">项目迁移包 · 换电脑继续编辑</option>
         </select>
@@ -1635,6 +1652,24 @@ function ExportDialog({
           页讲稿已修改，图片尚未更新。本次将使用当前图片，备注采用最新讲稿。
         </p>
       )}
+      {!!failedWithImage.length && format !== "project" && (
+        <div className="export-notice">
+          <p id="failed-export-reason">
+            有 {failedWithImage.length} 页生成失败（第 {failedWithImage.join("、")} 页），
+            仍保留现有画面。本次将使用这些现有画面，请核对后确认继续。
+          </p>
+          <label className="journey-check">
+            <input
+              type="checkbox"
+              aria-describedby="failed-export-reason"
+              checked={!needsFailedReview}
+              disabled={exporting}
+              onChange={(e) => setConfirmedFailed(e.target.checked ? failedReviewKey : "")}
+            />
+            我已核对失败页，确认使用现有画面继续导出
+          </label>
+        </div>
+      )}
       {hasDraft && format !== "project" && (
         <p className="detail-help">
           输入框中尚未提交生成的草稿不包含在本次导出中。
@@ -1650,7 +1685,7 @@ function ExportDialog({
           {error}
         </p>
       )}
-      {format !== "project" && (blocked || stale || hasDraft || project.proposal) && (
+      {format !== "project" && (blocked || stale || failedWithImage.length || hasDraft || project.proposal) && (
         <Button disabled={exporting} onClick={onStudio}>前往制作台处理</Button>
       )}
       <div className="modal-actions export-actions">
@@ -1667,7 +1702,8 @@ function ExportDialog({
           variant="primary"
           onClick={() => download()}
           loading={exporting}
-          disabled={format === "project" ? busy || packageBusy : blocked}
+          aria-label={format === "ppt" && bundleAvailable && !exporting ? "下载 ZIP 交付包（含 PPTX＋逐字稿）" : undefined}
+          disabled={format === "project" ? busy || packageBusy : blocked || needsFailedReview}
         >
           {!exporting && <DownloadSimple size={18} />}
           {exporting
@@ -1676,10 +1712,8 @@ function ExportDialog({
               ? "下载项目迁移包"
               : format === "html"
                 ? "下载静态 HTML"
-                : stale
-                  ? "使用当前图片与最新备注下载"
-                  : bundleAvailable
-                    ? "下载 PPTX＋逐字稿"
+                : bundleAvailable
+                    ? "下载 ZIP 交付包"
                     : "下载 PPTX"}
         </Button>
       </div>

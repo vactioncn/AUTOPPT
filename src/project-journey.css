@@ -606,6 +606,14 @@
 .project-studio .gallery-actions {
   align-items: center;
 }
+.studio-secondary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.studio-more-actions {
+  display: none;
+}
 @media (max-width: 600px) {
   .project-studio .gallery-actions {
     margin-left: 0;
@@ -613,6 +621,51 @@
   }
   .project-studio .gallery-actions .btn {
     padding: 6px 0;
+  }
+  .workspace button,
+  .workspace summary,
+  .sidebar .main-nav button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .project-studio .insert-page {
+    width: 44px;
+    height: 44px;
+    padding: 12px;
+  }
+  .studio-secondary-actions {
+    display: none;
+  }
+  .studio-more-actions {
+    display: block;
+    order: 1;
+  }
+  .studio-more-actions > summary {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    padding: 0 10px;
+    font-size: 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+  }
+  .studio-more-actions > summary::after {
+    content: "+";
+    margin-left: 8px;
+  }
+  .studio-more-actions[open] > summary::after {
+    content: "−";
+  }
+  .studio-more-actions > div {
+    display: grid;
+    justify-items: start;
+    gap: 4px;
+    padding: 8px 0;
+  }
+  .project-studio .gallery-actions .fill-missing-pages {
+    padding: 10px 12px;
+    color: #354b32;
+    border-color: #9daa8e;
   }
 }
 

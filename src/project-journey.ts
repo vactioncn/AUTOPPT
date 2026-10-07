@@ -169,6 +169,7 @@ export type JourneyAction = {
   area: ProjectArea;
   target: JourneyTarget;
   label: string;
+  disabled?: boolean;
 };
 export type JourneyTask = {
   id: string;
@@ -187,8 +188,13 @@ export function projectPrimaryAction(
 ): JourneyAction {
   if (area === "overview") return journey.next;
   if (area === "rehearsal")
-    return speechAvailable && journey.illustrated
-      ? { area, target: "player", label: "打开演讲播放器" }
+    return journey.illustrated
+      ? {
+          area,
+          target: "player",
+          label: speechAvailable ? "打开演讲播放器" : "标准放映不可用",
+          disabled: !speechAvailable,
+        }
       : { area: "studio", target: "pages", label: "返回制作台" };
   if (area === "delivery")
     return {
@@ -197,7 +203,7 @@ export function projectPrimaryAction(
       label:
         journey.pptxReady && !journey.needsReview
           ? bundleAvailable
-            ? "下载 PPTX＋逐字稿"
+            ? "下载 ZIP 交付包"
             : "下载 PPTX"
           : "查看导出检查",
     };

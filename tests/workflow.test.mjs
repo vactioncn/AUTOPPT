@@ -1663,7 +1663,7 @@ test(
         .getByRole("navigation", { name: "项目区域" })
         .getByRole("button", { name: "交付中心", exact: true })
         .click();
-      await page.locator(".journey-panel .btn.primary").click();
+      await page.getByRole("button", { name: "查看导出检查", exact: true }).click();
       const scriptDownload = page.waitForEvent("download");
       await page
         .getByRole("button", { name: "仅下载逐字稿", exact: true })
@@ -2165,11 +2165,11 @@ test(
         .getByRole("navigation", { name: "项目区域" })
         .getByRole("button", { name: "交付中心", exact: true })
         .click();
-      await page.locator(".journey-panel .btn.primary").click();
+      await page.getByRole("button", { name: "下载 ZIP 交付包（含 PPTX＋逐字稿）", exact: true }).click();
       const initialDownload = page.waitForEvent("download");
       await page
         .getByRole("dialog")
-        .getByRole("button", { name: "下载 PPTX＋逐字稿", exact: true })
+        .getByRole("button", { name: "下载 ZIP 交付包（含 PPTX＋逐字稿）", exact: true })
         .click();
       const initialFile = await initialDownload;
       assert.match(initialFile.suggestedFilename(), /^图片演讲验收-v\d+\.zip$/);
@@ -2198,7 +2198,7 @@ test(
         .getByRole("navigation", { name: "项目区域" })
         .getByRole("button", { name: "交付中心", exact: true })
         .click();
-      await page.locator(".journey-panel .btn.primary").click();
+      await page.getByRole("button", { name: "下载 PPTX", exact: true }).click();
       await expect(
         page.getByRole("button", { name: "仅下载逐字稿", exact: true }),
       ).toBeVisible();
@@ -2224,7 +2224,7 @@ test(
         page.getByRole("link", { name: "保存图片", exact: true }),
       ).toBeVisible();
       await expect(
-        page.getByRole("button", { name: "下载 PPTX＋逐字稿", exact: true }),
+        page.getByRole("button", { name: "下载 ZIP 交付包（含 PPTX＋逐字稿）", exact: true }),
       ).toHaveCount(0);
       await expect(
         page.getByRole("button", { name: "编辑画面", exact: true }),
@@ -2298,7 +2298,7 @@ test(
         .getByRole("navigation", { name: "项目区域" })
         .getByRole("button", { name: "交付中心", exact: true })
         .click();
-      await page.locator(".journey-panel .btn.primary").click();
+      await page.getByRole("button", { name: "查看导出检查", exact: true }).click();
       await expect(
         page.getByText(/图片尚未更新。本次将使用当前图片/),
       ).toBeVisible();
@@ -2312,7 +2312,7 @@ test(
       );
       await page
         .getByRole("button", {
-          name: "使用当前图片与最新备注下载",
+          name: "下载 ZIP 交付包（含 PPTX＋逐字稿）",
           exact: true,
         })
         .click();
@@ -2335,7 +2335,7 @@ test(
       const downloadEvent = page.waitForEvent("download");
       await page
         .getByRole("button", {
-          name: "使用当前图片与最新备注下载",
+          name: "下载 ZIP 交付包（含 PPTX＋逐字稿）",
           exact: true,
         })
         .click();

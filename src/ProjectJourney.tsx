@@ -242,17 +242,20 @@ export function RehearsalCenter({
         </div>
         <Button
           variant="primary"
+          disabled={action.disabled}
+          aria-describedby={!speechAvailable ? "standard-presentation-reason" : undefined}
           onClick={action.target === "player" ? onSpeech : onStudio}
         >
           {action.label}
         </Button>
         {!speechAvailable ? (
-          <p className="journey-warning">
+          <p id="standard-presentation-reason" className="journey-warning">
             {capabilities.standardPresentation.reason}
           </p>
-        ) : !journey.illustrated ? (
+        ) : null}
+        {!journey.illustrated ? (
           <p>先到制作台生成至少一页画面，再开始放映。</p>
-        ) : (
+        ) : speechAvailable && (
           <p>翻页演讲并查看讲稿，无需配置语音服务。</p>
         )}
         {!!journey.missing.length && !!journey.illustrated && (
@@ -265,7 +268,7 @@ export function RehearsalCenter({
             {journey.stale} 页画面待更新，请对照最新讲稿核对。
           </p>
         )}
-        {!!journey.illustrated && !journey.missing.length && !journey.stale && (
+        {speechAvailable && !!journey.illustrated && !journey.missing.length && !journey.stale && (
           <p className="journey-success">画面已齐备，可从头演练。</p>
         )}
       </section>
@@ -422,11 +425,15 @@ export function DeliveryCenter({
         <h2>PPTX＋完整逐字稿</h2>
         <p>
           {bundleAvailable
-            ? "ZIP 包含 PPTX 和完整逐字稿 Markdown；备注使用最新保存的讲稿。"
+            ? "ZIP 交付包包含 PPTX＋完整逐字稿（Markdown）；备注使用最新保存的讲稿。"
             : capabilities.bundleExport.reason}
         </p>
         {journey.pptxReady && !journey.needsReview ? (
-          <Button variant="primary" onClick={() => onExport("ppt")}>
+          <Button
+            variant="primary"
+            aria-label={bundleAvailable ? "下载 ZIP 交付包（含 PPTX＋逐字稿）" : "下载 PPTX"}
+            onClick={() => onExport("ppt")}
+          >
             {action.label}
           </Button>
         ) : (

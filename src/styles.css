@@ -3870,14 +3870,14 @@ textarea::placeholder {
 @media (max-width: 600px) {
   .app-shell:has(.workspace) {
     --project-nav-height: calc(62px + env(safe-area-inset-bottom, 0px));
-    padding-bottom: var(--project-nav-height);
+    padding-bottom: 0;
   }
   .app-shell:has(.workspace) .sidebar {
     height: var(--project-nav-height);
     padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px));
   }
-  .workspace {
-    padding-bottom: 28px;
+  .workspace.page {
+    padding-bottom: calc(28px + var(--project-nav-height));
   }
   .workspace button,
   .workspace textarea {

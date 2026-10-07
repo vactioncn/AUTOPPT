@@ -75,6 +75,13 @@ test(
     unfinished.slides[2].status = "pending";
     const empty = makeProject("empty", 0);
     const complete = makeProject("complete", 2);
+    const failedRetained = makeProject("failed-retained", 3);
+    failedRetained.slides[0].status = "error";
+    failedRetained.slides[2].status = "error";
+    const failedMissing = makeProject("failed-missing", 2);
+    failedMissing.slides[0].status = "error";
+    failedMissing.slides[1].status = "error";
+    failedMissing.slides[1].image = null;
     const db = new DatabaseSync(path.join(dir, "autoppt.sqlite"));
     db.exec(
       "CREATE TABLE records (kind TEXT NOT NULL,id TEXT NOT NULL,data TEXT NOT NULL,PRIMARY KEY(kind,id))",
@@ -83,7 +90,7 @@ test(
       db
         .prepare("INSERT OR REPLACE INTO records VALUES (?,?,?)")
         .run(kind, value.id, JSON.stringify(value));
-    for (const p of [ready, unfinished, empty, complete]) put("project", p);
+    for (const p of [ready, unfinished, empty, complete, failedRetained, failedMissing]) put("project", p);
     const motion = {
       id: "complete-motion",
       projectId: complete.id,
@@ -188,6 +195,7 @@ test(
     });
     const page = await browser.newPage({
       viewport: { width: 1280, height: 800 },
+      hasTouch: true,
     });
     page.setDefaultTimeout(10000);
     const errors = [];
@@ -413,7 +421,7 @@ test(
       .getByRole("button", { name: "查看导出检查", exact: true })
       .click();
     await expect(
-      page.getByRole("button", { name: /使用当前图片与最新备注下载/ }),
+      page.getByRole("button", { name: "下载 ZIP 交付包（含 PPTX＋逐字稿）", exact: true }),
     ).toBeDisabled();
     await expect(page.getByRole("dialog")).toContainText("第 3 页");
     await page
@@ -623,14 +631,46 @@ test(
     assert.equal(importedScript.pages[0].text, "保存独立的口播修改。");
     await page.goto(`${base}/#project/complete/delivery`);
     await page
-      .getByRole("button", { name: "下载 PPTX＋逐字稿", exact: true })
+      .getByRole("button", { name: "下载 ZIP 交付包（含 PPTX＋逐字稿）", exact: true })
       .click();
     const pptDownload = page.waitForEvent("download");
     await page
       .getByRole("dialog")
-      .getByRole("button", { name: "下载 PPTX＋逐字稿", exact: true })
+      .getByRole("button", { name: "下载 ZIP 交付包（含 PPTX＋逐字稿）", exact: true })
       .click();
     assert.match((await pptDownload).suggestedFilename(), /\.zip$/);
+    // Failed generation may retain valid artwork, but it needs explicit review.
+    for (const [id, failureText, missing] of [
+      ["failed-retained", "有 2 页生成失败（第 1、3 页）", false],
+      ["failed-missing", "有 1 页生成失败（第 1 页）", true],
+    ]) {
+      await page.goto(`${base}/#project/${id}/delivery`);
+      await page.getByRole("button", { name: "查看导出检查", exact: true }).click();
+      const dialog = page.getByRole("dialog");
+      await expect(dialog).toContainText(failureText);
+      await expect(dialog).toContainText("本次将使用这些现有画面");
+      const download = dialog.getByRole("button", { name: "下载 ZIP 交付包（含 PPTX＋逐字稿）", exact: true });
+      const confirm = dialog.getByRole("checkbox", { name: "我已核对失败页，确认使用现有画面继续导出", exact: true });
+      await expect(confirm).not.toBeChecked();
+      await expect(download).toBeDisabled();
+      await confirm.check();
+      if (missing) {
+        await expect(dialog).toContainText("还有 1 页未完成（第 2 页）");
+        await expect(download).toBeDisabled();
+        await dialog.getByRole("button", { name: "返回", exact: true }).click();
+      } else {
+        await expect(dialog).not.toContainText("页未完成");
+        await expect(download).toBeEnabled();
+        await confirm.uncheck();
+        await expect(download).toBeDisabled();
+        await confirm.check();
+        const event = page.waitForEvent("download");
+        await download.click();
+        const file = await event;
+        assert.match(file.suggestedFilename(), /\.zip$/);
+        assert.equal(await file.failure(), null);
+      }
+    }
     await page.goto(`${base}/#project/empty`);
     await expect(page.locator(".workspace .btn.primary:visible")).toHaveText(
       "开始写讲稿",
@@ -789,6 +829,29 @@ test(
               );
             } else {
               await expect(page.locator(".composer")).toBeHidden();
+              if (width === 390) {
+                const more = page.getByText("更多操作", { exact: true });
+                await expect(page.getByRole("button", { name: "重新设计", exact: true })).toBeHidden();
+                await expect(page.getByRole("button", { name: "在第一页前插入", exact: true })).toBeHidden();
+                if (state === "unfinished")
+                  await visibleInViewport(page.getByRole("button", { name: "补齐未生成页面", exact: true }));
+                await more.focus();
+                await page.keyboard.press("Enter");
+                await page.getByRole("button", { name: "重新设计", exact: true }).click();
+                await expect(page.getByRole("dialog").getByRole("heading", { name: "重新设计 PPT 页面", exact: true })).toBeVisible();
+                await page.getByRole("dialog").getByRole("button", { name: "关闭", exact: true }).click();
+                await more.click();
+                await expect(page.getByRole("button", { name: "重新设计", exact: true })).toBeHidden();
+                await more.tap();
+                await page.getByRole("button", { name: "在第一页前插入", exact: true }).click();
+                await expect(page.getByRole("dialog")).toBeVisible();
+                await page.getByRole("dialog").getByRole("button", { name: "关闭", exact: true }).click();
+                await more.click();
+                for (const target of [more, page.locator(".insert-page").first(), page.locator(".slide-checkbox").first()]) {
+                  const box = await target.boundingBox();
+                  assert(box.width >= 44 && box.height >= 44, "mobile controls are at least 44 × 44");
+                }
+              }
               assert(
                 await page
                   .locator(".slide-grid")
@@ -851,12 +914,12 @@ test(
               ["checks", "primary", "formats", "backup"],
             );
             await expect(primary).toHaveText(
-              state === "complete" ? "下载 PPTX＋逐字稿" : "查看导出检查",
+              state === "complete" ? "下载 ZIP 交付包" : "查看导出检查",
             );
             if (state !== "complete")
               await expect(
                 page.getByRole("button", {
-                  name: "下载 PPTX＋逐字稿",
+                  name: "下载 ZIP 交付包（含 PPTX＋逐字稿）",
                   exact: true,
                 }),
               ).toHaveCount(0);
@@ -882,10 +945,36 @@ test(
               box.y + box.height <= (width <= 600 ? navBox.y : height),
             "last action can scroll above navigation",
           );
+          if (area === "delivery" && width !== 320) {
+            const backup = page.getByRole("region", { name: "备份与继续编辑", exact: true });
+            const backupButton = backup.getByRole("button", { name: "导出项目源文件", exact: true });
+            await backupButton.scrollIntoViewIfNeeded();
+            const backupBox = await backup.boundingBox();
+            const buttonBox = await backupButton.boundingBox();
+            const bottom = width === 390 ? (await page.locator(".sidebar").boundingBox()).y : height;
+            assert(backupBox.y >= 0 && backupBox.y + backupBox.height <= bottom, "entire backup card clears navigation");
+            assert(buttonBox.y >= 0 && buttonBox.y + buttonBox.height <= bottom, "last delivery button clears navigation");
+            await page.screenshot({ path: path.join(evidence, `${width}-${state}-delivery-end.png`) });
+          }
           await overflow();
         }
       }
     }
+    // Exercise a nonzero safe area, not only desktop Chrome's default zero inset.
+    await page.setViewportSize({ width: 390, height: 844 });
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: { bottom: 34 } });
+    await page.goto(`${base}/#project/complete/delivery`);
+    const safeBackup = page.getByRole("region", { name: "备份与继续编辑", exact: true });
+    await safeBackup.getByRole("button", { name: "导出项目源文件", exact: true }).scrollIntoViewIfNeeded();
+    const safeNavBox = await page.locator(".sidebar").boundingBox();
+    const safeBackupBox = await safeBackup.boundingBox();
+    assert.equal(safeNavBox.height, 96, "navigation includes its 62px content and 34px safe area");
+    assert.equal(await page.locator(".workspace").evaluate((el) => parseFloat(getComputedStyle(el).paddingBottom)), 124);
+    assert(safeBackupBox.y >= 0 && safeBackupBox.y + safeBackupBox.height <= safeNavBox.y, "backup clears navigation with a nonzero safe area");
+    await page.screenshot({ path: path.join(evidence, "390-complete-delivery-safe-area-end.png") });
+    await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: {} });
+    await cdp.detach();
     // Same navigation under hosted feature restrictions; preserve the hosted account entry.
     await page.route("**/api/account", (route) =>
       route.fulfill({
@@ -923,6 +1012,20 @@ test(
     await expect(
       page.getByText(/当前托管服务未开放演讲播放器与语音功能/),
     ).toBeVisible();
+    const unavailable = page.getByRole("button", { name: "标准放映不可用", exact: true });
+    await expect(unavailable).toBeDisabled();
+    await expect(unavailable).toHaveAccessibleDescription(/当前托管服务未开放演讲播放器与语音功能/);
+    await expect(page.getByRole("button", { name: "返回制作台", exact: true })).toHaveCount(0);
+    await expect(page.getByText("画面已齐备，可从头演练。", { exact: true })).toHaveCount(0);
+    // A physical click on the disabled primary action cannot route back to the studio.
+    await unavailable.scrollIntoViewIfNeeded();
+    const unavailableBox = await unavailable.boundingBox();
+    await page.mouse.click(unavailableBox.x + unavailableBox.width / 2, unavailableBox.y + unavailableBox.height / 2);
+    await expect(nav().getByRole("button", { name: "演练中心", exact: true })).toHaveAttribute("aria-current", "page");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await page.goto(`${base}/#project/empty/rehearsal`);
+    await page.getByRole("button", { name: "返回制作台", exact: true }).click();
+    await expect(nav().getByRole("button", { name: "制作台", exact: true })).toHaveAttribute("aria-current", "page");
     assert.deepEqual(await nav().getByRole("button").allTextContents(), [
       "概览",
       "制作台",

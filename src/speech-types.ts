@@ -37,5 +37,5 @@ export type Narration = {
   createdAt: string;
 };
 export const speechAudio = (file: string) =>
-  // Bypass 404 responses cached by versions that rejected the .local directory.
-  "/api/speech/audio/" + encodeURIComponent(file) + "?v=2";
+  // v2 could also cache 404s while the old backend was finishing active jobs.
+  "/api/speech/audio/" + encodeURIComponent(file) + "?v=3";

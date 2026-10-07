@@ -189,9 +189,16 @@ export function registerSpeech(app) {
   app.get("/api/speech/voices", (_req, res) =>
     res.json(voices(speechSettings())),
   );
-  app.get("/api/speech/audio/:file", (req, res) => {
+  app.get("/api/speech/audio/:file", (req, res, next) => {
+    const file = path.basename(assetFile(req.params.file));
     res.set("Cache-Control", "private, max-age=31536000, immutable");
-    res.sendFile(assetFile(req.params.file));
+    // Resolve the validated filename within the audio root. An absolute path
+    // would make sendFile reject a hidden ancestor such as the default .local.
+    res.sendFile(file, { root: audioDir, dotfiles: "deny" }, (err) => {
+      if (!err) return;
+      if (!res.headersSent) res.set("Cache-Control", "no-store");
+      next(err);
+    });
   });
   app.post("/api/speech/preview", async (req, res) => {
     assertIdle();

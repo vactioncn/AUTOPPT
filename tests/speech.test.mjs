@@ -98,7 +98,10 @@ test(
   "narration API preserves snapshots, caches clips, retries failures, clones voices and recovers safely",
   { timeout: 120000 },
   async (t) => {
-    const dir = mkdtempSync(path.join(tmpdir(), "autoppt-speech-"));
+    const temp = mkdtempSync(path.join(tmpdir(), "autoppt-speech-"));
+    // Match the default workspace, including its hidden parent directory.
+    const dir = path.join(temp, ".local");
+    mkdirSync(dir);
     mkdirSync(path.join(dir, "assets"));
     writeFileSync(
       path.join(dir, "assets/sample.png"),
@@ -236,7 +239,7 @@ test(
       provider.closeAllConnections();
       await new Promise((r) => provider.close(r));
       db.close();
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(temp, { recursive: true, force: true });
     });
     await start();
     const get = async (url) => (await fetch(base + url)).json();
@@ -313,6 +316,30 @@ test(
       { headers: { Range: "bytes=0-20" } },
     );
     assert.equal(audio.status, 206);
+    assert.equal(audio.headers.get("content-type"), "audio/mpeg");
+    assert.deepEqual(
+      Buffer.from(await audio.arrayBuffer()),
+      silenceMp3.subarray(0, 21),
+    );
+    const fullAudio = await fetch(
+      base + `/api/speech/audio/${d.pages[0].clips[0].file}`,
+    );
+    assert.equal(fullAudio.status, 200);
+    assert.deepEqual(Buffer.from(await fullAudio.arrayBuffer()), silenceMp3);
+    const missing = await fetch(
+      base + "/api/speech/audio/00000000-0000-0000-0000-000000000000.mp3",
+    );
+    assert.equal(missing.status, 404);
+    assert.equal(missing.headers.get("cache-control"), "no-store");
+    for (const invalid of [
+      "speech-settings.json",
+      "%2e%2e%2fspeech-settings.json",
+      ".private.mp3",
+    ]) {
+      const response = await fetch(base + `/api/speech/audio/${invalid}`);
+      assert.equal(response.status, 400);
+      assert(!(await response.text()).includes(config.apiKey));
+    }
     await request(
       `/api/projects/${project.id}/slides/page-1`,
       { notes: "新的结尾，仍然完整保留。" },
@@ -460,6 +487,16 @@ test(
           };
         });
         page.on("pageerror", (e) => errors.push(e.message));
+        let failAudio = true;
+        await page.route("**/api/speech/audio/**", (route) =>
+          failAudio
+            ? route.fulfill({
+                status: 404,
+                contentType: "application/json",
+                body: '{"error":"Not Found"}',
+              })
+            : route.continue(),
+        );
         await page.goto(base + "/#project/" + project.id);
         await page
           .getByRole("button", { name: "播放演讲", exact: true })
@@ -471,6 +508,36 @@ test(
           .getByRole("button", { name: "开始口播", exact: true })
           .waitFor();
         const callsBeforePlayback = calls.length;
+        await page.getByText(/音频已生成 2\/2 页/).waitFor();
+        await page
+          .getByRole("button", { name: "重新读取音频", exact: true })
+          .waitFor();
+        await page
+          .getByRole("button", { name: "开始口播", exact: true })
+          .click();
+        await page.getByText(/本页音频已生成，但读取失败/).waitFor();
+        assert.equal(
+          await page.getByText(/请重新生成口播|检查音频设备/).count(),
+          0,
+        );
+        failAudio = false;
+        await page
+          .getByRole("button", { name: "重新读取音频", exact: true })
+          .click();
+        await page.waitForFunction(() => {
+          const audio = document.querySelector(".speech-shell > audio");
+          return audio?.readyState >= 2 && audio.duration > 0;
+        });
+        assert.equal(
+          await page.getByText(/本页音频已生成，但读取失败/).count(),
+          0,
+        );
+        assert.equal(calls.length, callsBeforePlayback);
+        assert(
+          (
+            await page.locator(".speech-shell > audio").getAttribute("src")
+          ).includes("retry=1"),
+        );
         await page
           .getByRole("button", { name: "开始口播", exact: true })
           .click();

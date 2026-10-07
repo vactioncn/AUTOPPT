@@ -29,6 +29,8 @@ import "./speech.css";
 
 const time = (value: number) =>
   `${Math.floor(value / 60)}:${String(Math.floor(value % 60)).padStart(2, "0")}`;
+const audioReadError =
+  "本页音频已生成，但读取失败。请重试读取已保存音频；此操作不会重新生成或计费。";
 export function SpeechPresentation({
   projectId,
   onClose,
@@ -56,6 +58,9 @@ export function SpeechPresentation({
     [preview, setPreview] = useState(""),
     [elapsed, setElapsed] = useState(0),
     [duration, setDuration] = useState(0);
+  const [audioError, setAudioError] = useState(""),
+    [audioLoading, setAudioLoading] = useState(false),
+    [audioAttempt, setAudioAttempt] = useState(0);
   const root = useRef<HTMLDivElement>(null),
     audio = useRef<HTMLAudioElement>(null),
     previewAudio = useRef<HTMLAudioElement>(null);
@@ -72,7 +77,9 @@ export function SpeechPresentation({
     [];
   const page = pages[pageIndex];
   const clip = deck?.pages[pageIndex]?.clips[clipIndex];
-  const source = clip?.file ? speechAudio(clip.file) : "";
+  const source = clip?.file
+    ? speechAudio(clip.file) + (audioAttempt ? `&retry=${audioAttempt}` : "")
+    : "";
   const clipKey = `${deck?.id || "manual"}:${pageIndex}:${clipIndex}`;
   const changed =
     !!deck &&
@@ -81,6 +88,20 @@ export function SpeechPresentation({
         (p) => p.emotion !== (pageEmotions[p.id] || options.emotion),
       ));
   const playable = deck?.status === "ready" && !changed;
+  const generatedPages =
+    deck?.pages.filter((p) => p.clips.length && p.clips.every((c) => c.file))
+      .length || 0;
+  const totalDuration =
+    deck?.pages.reduce(
+      (sum, p) =>
+        sum + p.clips.reduce((n, c) => n + (c.file ? c.duration || 0 : 0), 0),
+      0,
+    ) || 0;
+  const pageDuration =
+    deck?.pages[pageIndex]?.clips.reduce(
+      (sum, c) => sum + (c.file ? c.duration || 0 : 0),
+      0,
+    ) || 0;
 
   const selectDeck = useCallback((d: Narration | null) => {
     setPlaying(false);
@@ -161,11 +182,16 @@ export function SpeechPresentation({
     let cancelled = false;
     if (playing && source) {
       previewAudio.current?.pause();
-      el.play().catch(() => {
-        if (!cancelled) {
-          setPlaying(false);
+      el.play().catch((e: DOMException) => {
+        if (cancelled || e.name === "AbortError") return;
+        setPlaying(false);
+        if (el.error || e.name === "NotSupportedError") {
+          setAudioError(audioReadError);
+        } else {
           setError(
-            "浏览器未能播放声音，请点击继续；如仍失败，请检查音频设备。",
+            e.name === "NotAllowedError"
+              ? "浏览器尚未允许播放声音，请再次点击开始口播。"
+              : "浏览器未能播放声音，请再次点击开始口播；如仍失败，请检查音频设备。",
           );
         }
       });
@@ -178,6 +204,8 @@ export function SpeechPresentation({
   useEffect(() => {
     setElapsed(0);
     setDuration(0);
+    setAudioError("");
+    setAudioLoading(!!source);
   }, [source, clipKey]);
   useEffect(() => {
     const pause = () => {
@@ -441,7 +469,7 @@ export function SpeechPresentation({
                   setElapsed(Number(e.target.value));
                 }}
               />
-              <span>{time(duration)}</span>
+              <span>{time(duration || clip?.duration || 0)}</span>
               {(deck?.pages[pageIndex]?.clips.length || 0) > 1 && (
                 <small>
                   片段 {clipIndex + 1}/{deck?.pages[pageIndex]?.clips.length}
@@ -450,6 +478,15 @@ export function SpeechPresentation({
             </div>
           )}
           {notesOpen && <div className="speech-notes">{page?.notes}</div>}
+          {deck && (
+            <p className="speech-audio-status" role="status">
+              音频已生成 {generatedPages}/{deck.pages.length} 页
+              {totalDuration > 0 ? ` · 总时长约 ${time(totalDuration)}` : ""}
+              {source
+                ? ` · 本页 ${time(pageDuration)}${audioLoading ? " · 正在读取…" : ""}`
+                : " · 本页待生成"}
+            </p>
+          )}
           {deck && (
             <p className="speech-caption">
               <SpeakerHigh size={15} />
@@ -462,6 +499,20 @@ export function SpeechPresentation({
             <p role="alert" className="speech-error">
               {error}
             </p>
+          )}
+          {audioError && (
+            <div className="speech-error" role="alert">
+              <p>{audioError}</p>
+              <Button
+                onClick={() => {
+                  setPlaying(false);
+                  setError("");
+                  setAudioAttempt((n) => n + 1);
+                }}
+              >
+                重新读取音频
+              </Button>
+            </div>
           )}
           {message && (
             <p role="status" className="speech-message">
@@ -686,7 +737,7 @@ export function SpeechPresentation({
         )}
       </div>
       <audio
-        key={clipKey}
+        key={`${clipKey}:${audioAttempt}`}
         ref={audio}
         src={source || undefined}
         preload="auto"
@@ -699,10 +750,15 @@ export function SpeechPresentation({
               : 0,
           )
         }
+        onCanPlay={() => {
+          setAudioLoading(false);
+          setAudioError("");
+        }}
         onError={() => {
           if (source) {
             setPlaying(false);
-            setError("本页音频无法读取，请重新生成口播或选择其他已保存版本。");
+            setAudioLoading(false);
+            setAudioError(audioReadError);
           }
         }}
       />

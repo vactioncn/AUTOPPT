@@ -119,6 +119,18 @@
   font-size: 12px;
   margin: 0;
 }
+.speech-audio-status {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #536740;
+}
+.speech-shell.is-presenting .speech-audio-status {
+  color: #c4d6ac;
+}
+.speech-error p {
+  margin: 0 0 10px;
+}
 .speech-timeline {
   display: flex;
   align-items: center;

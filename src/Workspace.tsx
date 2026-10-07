@@ -1646,7 +1646,7 @@ function ExportDialog({
           页），请先补齐图片后导出。
         </p>
       )}
-      {!!stale && (
+      {!!stale && format !== "project" && (
         <p className="export-notice">
           有 {stale}{" "}
           页讲稿已修改，图片尚未更新。本次将使用当前图片，备注采用最新讲稿。

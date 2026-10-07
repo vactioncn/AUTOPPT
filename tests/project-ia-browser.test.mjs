@@ -751,6 +751,9 @@ test(
       .getByLabel("导出格式")
       .selectOption("project");
     await expect(
+      page.getByRole("dialog").getByText(/讲稿已修改，图片尚未更新/),
+    ).toHaveCount(0);
+    await expect(
       page.getByRole("button", { name: "下载项目迁移包", exact: true }),
     ).toBeDisabled();
     await page

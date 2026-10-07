@@ -1136,14 +1136,23 @@ test(
       failDraft = false,
       loseBatchResponse = false,
       accountFailure = null,
+      holdNextAccount = false,
+      resumeAccount,
       holdNextDraft = false,
       resumeDraft;
     // Speed up the real account polling path without changing production timers.
     await page.addInitScript(() => {
       const interval = window.setInterval;
-      window.setInterval = (fn, ms, ...args) => interval(fn, ms === 10000 ? 1000 : ms, ...args);
+      window.setInterval = (fn, ms, ...args) => {
+        if (ms !== 10000) return interval(fn, ms, ...args);
+        window.__refreshAccount = () => fn(...args);
+        return interval(() => {
+          if (!window.__pauseAccountPolling) fn(...args);
+        }, 1000);
+      };
     });
     t.after(() => resumeDraft?.());
+    t.after(() => resumeAccount?.());
     const readProject = (id) =>
       JSON.parse(
         db
@@ -1158,14 +1167,15 @@ test(
       const request = route.request(),
         url = new URL(request.url()),
         method = request.method();
-      if (url.pathname === "/api/account" && accountFailure)
-        return accountFailure === "network"
-          ? route.abort("failed")
-          : route.fulfill({ status: accountFailure, json: { error: "account refresh unavailable" } });
-      if (url.pathname === "/api/account")
-        return route.fulfill({
-          status: hosted ? 200 : 404,
-          json: hosted
+      if (url.pathname === "/api/account") {
+        // Snapshot at request time so a held success can arrive after a newer
+        // failure (and vice versa), through real browser fetches and React.
+        const failure = accountFailure;
+        const response = {
+          status: failure && failure !== "network" ? failure : hosted ? 200 : 404,
+          json: failure
+            ? { error: "account refresh unavailable" }
+            : hosted
             ? {
                 hosted: true,
                 modelReady: modelsReady,
@@ -1179,7 +1189,14 @@ test(
                 },
               }
             : {},
-        });
+        };
+        if (holdNextAccount) {
+          holdNextAccount = false;
+          await new Promise((resolve) => (resumeAccount = resolve));
+          resumeAccount = undefined;
+        }
+        return failure === "network" ? route.abort("failed") : route.fulfill(response);
+      }
       if (url.pathname === "/api/bootstrap") {
         const response = await route.fetch(),
           body = await response.json();
@@ -1914,6 +1931,68 @@ test(
         await button("开始生成").click();
         await expect(input).toHaveValue("");
         assert.equal(batches, before + 1, "only a successful readiness refresh permits the paid batch");
+      },
+    );
+    await scenario(
+      "hosted account refresh is latest-wins when old successes and failures arrive out of order",
+      async () => {
+        modelsReady = true;
+        accountFailure = null;
+        const before = batches;
+        const input = page.getByLabel("添加逐字稿", { exact: true });
+        await input.fill("乱序账号状态不能重新开放生成。");
+        await expect(page.locator(".composer-model-help")).toHaveCount(0);
+        await page.evaluate(() => { window.__pauseAccountPolling = true; });
+        const refreshAccount = () => page.evaluate(() => { window.__refreshAccount(); });
+        const releaseAccount = async (failure) => {
+          const finished = page.waitForEvent(failure === "network" ? "requestfailed" : "requestfinished", {
+            predicate: (request) => new URL(request.url()).pathname === "/api/account",
+          });
+          resumeAccount();
+          await finished;
+          // Let fetch/json and React commit before inspecting the late response.
+          await page.evaluate(() => new Promise((resolve) =>
+            requestAnimationFrame(() => requestAnimationFrame(resolve)),
+          ));
+        };
+        // Hold an older modelReady=true response; a newer failure must close
+        // an already-open confirmation and keep the signed-in identity.
+        await button("提交讲稿并制作").click();
+        await expect(button("开始生成")).toBeVisible();
+        holdNextAccount = true;
+        await refreshAccount();
+        await expect.poll(() => !!resumeAccount).toBe(true);
+        accountFailure = 503;
+        await refreshAccount();
+        await expect(page.getByRole("dialog")).toContainText("暂时无法确认模型状态");
+        await releaseAccount();
+        await expect(page.getByRole("dialog")).toContainText("暂时无法确认模型状态");
+        await expect(button("开始生成")).toHaveCount(0);
+        await expect(page.locator(".account-footer strong")).toHaveText("隔离账号");
+        await button("继续保存草稿").click();
+        await input.press("Control+Enter");
+        await expect(page.getByRole("dialog")).toContainText("暂时无法确认模型状态");
+        assert.equal(batches, before, "late readiness must not start a paid batch");
+        await button("继续保存草稿").click();
+        // Hold an old failure too. Only a fresh success may clear unknown;
+        // the older failure arriving last must not close generation again.
+        for (const failure of [503, 404, "network"]) {
+          accountFailure = failure;
+          holdNextAccount = true;
+          await refreshAccount();
+          await expect.poll(() => !!resumeAccount).toBe(true);
+          accountFailure = null;
+          await refreshAccount();
+          await expect(page.locator(".composer-model-help")).toHaveCount(0);
+          await releaseAccount(failure);
+          await expect(page.locator(".composer-model-help")).toHaveCount(0);
+          await expect(page.locator(".account-footer .account-error")).toHaveCount(0);
+        }
+        await button("提交讲稿并制作").click();
+        await button("开始生成").click();
+        await expect(input).toHaveValue("");
+        assert.equal(batches, before + 1, "only the latest successful refresh restores paid generation");
+        await page.evaluate(() => { window.__pauseAccountPolling = false; });
       },
     );
     await scenario(

@@ -35,10 +35,15 @@ export function AccountGate({ children }: { children: ReactNode }) {
   const [account, setAccount] = useState<Account | null>(null);
   const latestAccount = useRef(account);
   latestAccount.current = account;
+  const mounted = useRef(false);
+  const refreshSequence = useRef(0);
   const [error, setError] = useState("");
   const refresh = async () => {
+    const sequence = ++refreshSequence.current;
+    const isLatest = () => mounted.current && sequence === refreshSequence.current;
     try {
       const res = await fetch("/api/account");
+      if (!isLatest()) return;
       if (res.status === 404) {
         if (latestAccount.current?.hosted)
           throw new Error("账号服务暂时不可用。");
@@ -47,9 +52,12 @@ export function AccountGate({ children }: { children: ReactNode }) {
         return;
       }
       if (!res.ok) throw new Error("账号服务暂时不可用。");
-      setAccount(await res.json());
+      const nextAccount = await res.json();
+      if (!isLatest()) return;
+      setAccount(nextAccount);
       setError("");
     } catch (e) {
+      if (!isLatest()) return;
       setAccount((a) =>
         a?.hosted ? { ...a, modelReady: false, modelStatusUnknown: true } : a,
       );
@@ -57,14 +65,18 @@ export function AccountGate({ children }: { children: ReactNode }) {
     }
   };
   useEffect(() => {
+    mounted.current = true;
     void refresh();
     const expired = () => {
+      refreshSequence.current++;
       setAccount((a) =>
         a?.hosted ? { ...a, user: null, modelReady: false } : a,
       );
     };
     window.addEventListener("autoppt-session-expired", expired);
     return () => {
+      mounted.current = false;
+      refreshSequence.current++;
       window.removeEventListener("autoppt-session-expired", expired);
     };
   }, []);

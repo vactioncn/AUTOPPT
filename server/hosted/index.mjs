@@ -498,12 +498,6 @@ app.use("/internal", (req, res) =>
 // Only checked-in/build assets are public. Uploaded/generated assets are below auth.
 app.use(express.static(path.join(root, "dist"), { dotfiles: "deny" }));
 app.use(["/api", "/assets"], authenticated, async (req, res) => {
-  if (
-    req.method === "POST" &&
-    /^\/api\/projects\/[^/]+\/batches\/?$/.test(req.originalUrl.split("?")[0]) &&
-    !modelsReady()
-  )
-    fail("模型尚未就绪，请联系管理员或稍后查看模型服务状态。草稿可以继续保存。", 503);
   if (req.originalUrl.startsWith("/api/settings") && req.method !== "GET")
     fail("模型由管理员统一配置。", 403);
   if (!["GET", "HEAD"].includes(req.method))
@@ -515,7 +509,12 @@ app.use(["/api", "/assets"], authenticated, async (req, res) => {
     w.requests--;
     w.lastUsed = Date.now();
   });
-  const headers = { "x-autoppt-worker": w.token };
+  // Only the gateway supplies readiness. Keep the body streaming and let the
+  // authenticated worker resolve accepted request IDs before gating new work.
+  const headers = {
+    "x-autoppt-worker": w.token,
+    "x-autoppt-model-ready": modelsReady() ? "1" : "0",
+  };
   for (const key of ["content-type", "content-length", "accept"])
     if (req.headers[key]) headers[key] = req.headers[key];
   let response;

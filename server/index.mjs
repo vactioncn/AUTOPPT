@@ -350,6 +350,16 @@ app.post("/api/projects/:id/batches", (req, res) => {
       .status(202)
       .json({ ...job, accepted: true, batchId: existing.id });
   }
+  // Worker authentication above makes this gateway-owned header trustworthy.
+  // Fail closed for new work, but never block recovery of an accepted request.
+  if (
+    process.env.AUTOPPT_WORKER_TOKEN &&
+    req.headers["x-autoppt-model-ready"] !== "1"
+  )
+    throw Object.assign(
+      new Error("模型尚未就绪，请联系管理员或稍后查看模型服务状态。草稿可以继续保存。"),
+      { status: 503 },
+    );
   styleReady(p.styleId);
   if (typeof text !== "string" || !text.trim())
     throw new Error("请先写下这一段逐字稿。");

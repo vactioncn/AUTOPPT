@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { runInNewContext } from "node:vm";
 import ts from "typescript";
 import { launchGenerationClient, preferenceStorage } from "./helpers/generation-client.mjs";
 const { outputText } = ts.transpileModule(
@@ -28,6 +29,48 @@ const storage = () => {
     removeItem: (k) => entries.delete(k),
   };
 };
+test("AccountGate does not submit account or error state after unmount during fetch or JSON parsing", async () => {
+  const { outputText } = ts.transpileModule(
+    readFileSync(new URL("../src/Account.tsx", import.meta.url), "utf8"),
+    { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } },
+  );
+  for (const stage of ["fetch", "json"]) {
+    for (const rejects of [false, true]) {
+      const effects = [], writes = [], exports = {};
+      const pending = Promise.withResolvers();
+      const parsing = Promise.withResolvers();
+      const response = {
+        ok: true,
+        status: 200,
+        json: () => {
+          parsing.resolve();
+          return pending.promise;
+        },
+      };
+      // Observe attempted state writes, which React otherwise silently drops on
+      // unmounted components. Browser tests below exercise real rendering/races.
+      runInNewContext(outputText, {
+        exports,
+        require: (name) => name === "react" ? {
+          createContext: () => ({}),
+          useRef: (current) => ({ current }),
+          useState: (value) => [value, (next) => writes.push(next)],
+          useEffect: (effect) => effects.push(effect),
+        } : name === "react/jsx-runtime" ? { jsx: () => null, jsxs: () => null } : {},
+        fetch: () => stage === "fetch" ? pending.promise : Promise.resolve(response),
+        window: { addEventListener() {}, removeEventListener() {} },
+      });
+      exports.AccountGate({ children: null });
+      const unmount = effects[0]();
+      if (stage === "json") await parsing.promise;
+      unmount();
+      if (rejects) pending.reject(new Error("late account failure"));
+      else pending.resolve(stage === "fetch" ? response : { hosted: true, modelReady: true });
+      await new Promise(setImmediate);
+      assert.equal(writes.length, 0, `${stage} ${rejects ? "failure" : "success"} after unmount`);
+    }
+  }
+});
 test("onboarding milestones are versioned, independent and scoped to the actual UI account", () => {
   const s = storage();
   const prefs = createOnboardingPreferences("hosted:fixture-one", () => s);

@@ -103,6 +103,7 @@ test(
     let failStatus = 0,
       imageCount = 0,
       textCount = 0,
+      failText = false,
       hold = false;
     const gates = [];
     const provider = http.createServer(async (req, res) => {
@@ -129,6 +130,11 @@ test(
         return;
       }
       textCount++;
+      if (failText) {
+        res.statusCode = 503;
+        res.end(JSON.stringify({ error: { message: "isolated text failure" } }));
+        return;
+      }
       const system = body.messages[0].content;
       const content = JSON.parse(body.messages[1].content[0].text);
       let out;
@@ -206,13 +212,14 @@ test(
         await exited;
       }
     };
-    const request = async (url, body, cookie = "", expected = 200, method) => {
+    const request = async (url, body, cookie = "", expected = 200, method, headers = {}) => {
       const r = await fetch(origin + url, {
         method: method || (body === undefined ? "GET" : "POST"),
         headers: {
           Origin: origin,
           "Content-Type": "application/json",
           Cookie: cookie,
+          ...headers,
         },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
@@ -297,11 +304,30 @@ test(
       ).data;
       await request("/api/projects/" + p.id, undefined, second, 404);
       assert.equal((await request("/api/account", undefined, first)).data.modelReady, false);
-      const blocked = await request(`/api/projects/${p.id}/batches`, { text: "配置未就绪时不可创建付费任务。", requestId: randomUUID() }, first, 503);
-      assert.match(blocked.data.error, /模型尚未就绪/);
-      assert.equal((await request(`/api/projects/${p.id}`, undefined, first)).data.batches.length, 0);
-      assert.equal((await request("/api/jobs", undefined, first)).data.length, 0);
-      assert.equal(textCount + imageCount, 0);
+      await t.test("unconfigured hosted batches reject case, slash, query and forged readiness variants without creating work", async () => {
+        for (const url of [
+          `/api/projects/${p.id}/batches`,
+          `/API/PROJECTS/${p.id}/BATCHES`,
+          `/aPi/PrOjEcTs/${p.id}/bAtChEs/`,
+          `/api/projects/${p.id}/batches?source=retry`,
+          `/API/projects/${p.id}/Batches/?source=retry`,
+        ]) {
+          for (const requestId of [randomUUID(), undefined]) {
+            const blocked = await request(
+              url,
+              { text: "配置未就绪时不可创建付费任务。", requestId },
+              first,
+              503,
+              "POST",
+              { "X-AutoPPT-Model-Ready": "1", "x-autoppt-worker": "untrusted" },
+            );
+            assert.match(blocked.data.error, /模型尚未就绪/);
+            assert.equal((await request(`/api/projects/${p.id}`, undefined, first)).data.batches.length, 0);
+            assert.equal((await request("/api/jobs", undefined, first)).data.length, 0);
+            assert.equal(textCount + imageCount, 0);
+          }
+        }
+      });
       await stop();
       await start();
       assert.equal((await request("/api/account", undefined, first)).data.modelReady, true);
@@ -631,6 +657,54 @@ test(
         (await request("/api/projects/" + p.id, undefined, first)).data.title,
         p.title,
       );
+      await t.test("lost accepted response replays the persisted batch after an unconfigured hosted restart without model calls", async () => {
+        const project = (await request("/api/projects", { title: "幂等恢复隔离项目" }, first, 201)).data;
+        const body = { text: "已经接受的讲稿可以找回。", requestId: randomUUID() };
+        const jobsBefore = (await request("/api/jobs", undefined, first)).data.length;
+        const callsBefore = { text: textCount, image: imageCount };
+        // Accept real work with configured models, then drop the response body
+        // before the caller learns either identity. A mock failure ends the job.
+        failText = true;
+        const lost = await fetch(`${origin}/API/PROJECTS/${project.id}/BATCHES/?source=first`, {
+          method: "POST",
+          headers: {
+            Origin: origin,
+            Cookie: first,
+            "Content-Type": "application/json",
+            "x-autoppt-model-ready": "0",
+          },
+          body: JSON.stringify(body),
+        });
+        assert.equal(lost.status, 202, "the Express case/slash/query variant really reaches the batch route; external readiness cannot override the gateway");
+        await lost.body.cancel();
+        const accepted = (await request(`/api/projects/${project.id}`, undefined, first)).data.batches[0];
+        assert.equal(accepted.requestId, body.requestId);
+        assert.equal((await poll(accepted.jobId)).status, "failed");
+        assert.equal(textCount, callsBefore.text + 1);
+        assert.equal(imageCount, callsBefore.image);
+        failText = false;
+        await stop();
+        await start(false);
+        assert.equal((await request("/api/account", undefined, first)).data.modelReady, false);
+        for (const url of [
+          `/api/projects/${project.id}/batches`,
+          `/API/PROJECTS/${project.id}/BATCHES/?source=retry`,
+        ]) {
+          const replay = (await request(url, body, first, 202)).data;
+          assert.equal(replay.accepted, true);
+          assert.equal(replay.id, accepted.jobId);
+          assert.equal(replay.batchId, accepted.id);
+          assert.equal(replay.status, "failed");
+          await request(url, { ...body, text: "不能偷换已经接受的讲稿。" }, first, 409);
+          await request(url, { ...body, requestId: randomUUID() }, first, 503);
+          await request(url, { text: body.text }, first, 503);
+        }
+        const restored = (await request(`/api/projects/${project.id}`, undefined, first)).data;
+        assert.deepEqual(restored.batches, [accepted]);
+        assert.equal((await request("/api/jobs", undefined, first)).data.length, jobsBefore + 1);
+        assert.equal(textCount, callsBefore.text + 1, "replays make zero duplicate text calls");
+        assert.equal(imageCount, callsBefore.image, "replays make zero image calls");
+      });
       await request(`/api/admin/users/${id}/status`, { disabled: true }, admin);
       await request("/api/bootstrap", undefined, first, 401);
       await request("/api/account/logout", {}, second);
@@ -645,6 +719,50 @@ test(
     }
   },
 );
+
+test("hosted worker requires authentication and explicit readiness before accepting new batches", async (t) => {
+  const dir = mkdtempSync(path.join(tmpdir(), "autoppt-worker-readiness-"));
+  const token = "isolated-worker-token";
+  const child = fork("server/index.mjs", [], {
+    env: {
+      PATH: process.env.PATH,
+      HOME: dir,
+      NODE_ENV: "production",
+      PORT: "0",
+      AUTOPPT_DATA_DIR: dir,
+      AUTOPPT_WORKER_TOKEN: token,
+      AUTOPPT_GATEWAY: "http://127.0.0.1:1",
+    },
+    stdio: ["ignore", "ignore", "ignore", "ipc"],
+  });
+  t.after(async () => {
+    if (child.exitCode === null) {
+      const exited = once(child, "exit");
+      child.kill();
+      await exited;
+    }
+    rmSync(dir, { recursive: true, force: true });
+  });
+  const [ready] = await once(child, "message", { signal: AbortSignal.timeout(15000) });
+  const request = (url, body, headers = {}) => fetch(`http://127.0.0.1:${ready.port}${url}`, {
+    method: body ? "POST" : "GET",
+    headers: { "Content-Type": "application/json", "x-autoppt-worker": token, ...headers },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+  const created = await request("/api/projects", { title: "可信 readiness 边界" });
+  assert.equal(created.status, 201);
+  const project = await created.json();
+  const url = `/API/PROJECTS/${project.id}/BATCHES/?test=internal`;
+  const body = { text: "不可绕过内部边界。", requestId: randomUUID() };
+  assert.equal((await request(url, body, { "x-autoppt-worker": "forged", "x-autoppt-model-ready": "1" })).status, 403);
+  for (const headers of [{}, ...["0", "true", "1, 0"].map((value) => ({ "x-autoppt-model-ready": value }))]) {
+    const response = await request(url, body, headers);
+    assert.equal(response.status, 503);
+    assert.match((await response.json()).error, /模型尚未就绪/);
+  }
+  assert.equal((await (await request(`/api/projects/${project.id}`)).json()).batches.length, 0);
+  assert.deepEqual(await (await request("/api/jobs")).json(), []);
+});
 
 test("hosted process lock detects duplicate startup and recycled container PIDs", async () => {
   const { acquireLock, isLocked } =

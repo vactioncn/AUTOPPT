@@ -1,0 +1,331 @@
+.project-studio[hidden],
+.project-studio [hidden] {
+  display: none;
+}
+.workspace-heading > div {
+  min-width: 0;
+}
+.journey-next {
+  flex-shrink: 0;
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+}
+.journey-next > span {
+  font-size: 11px;
+  color: var(--muted);
+}
+.project-area-nav {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 5px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #eeeee7;
+  margin-bottom: 24px;
+}
+.project-area-nav button {
+  padding: 12px 8px;
+  border-radius: 6px;
+  color: #68745d;
+  font-size: 13px;
+}
+.project-area-nav button[aria-current="page"] {
+  background: #fff;
+  color: var(--accent);
+  box-shadow: 0 1px 3px #0000000d;
+  font-weight: 600;
+}
+.project-area-nav button:hover {
+  color: var(--accent);
+}
+.journey-panel {
+  display: grid;
+  gap: 24px;
+  min-width: 0;
+}
+.journey-panel p {
+  font-size: 13px;
+  line-height: 1.9;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.journey-stage {
+  padding: 26px;
+  background: #eef1e8;
+  border-radius: 12px;
+}
+.journey-eyebrow {
+  color: var(--accent);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+.journey-stage h2 {
+  font-size: 23px;
+  margin: 14px 0 10px;
+}
+.journey-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  margin: 0;
+}
+.journey-stats > div {
+  padding: 20px;
+  min-width: 0;
+}
+.journey-stats > div + div {
+  border-left: 1px solid var(--line);
+}
+.journey-stats dt {
+  font-size: 12px;
+  color: var(--muted);
+}
+.journey-stats dd {
+  font-size: 30px;
+  margin: 12px 0 0;
+  font-variant-numeric: tabular-nums;
+}
+.journey-tasks h3 {
+  font-size: 15px;
+  margin-bottom: 12px;
+}
+.journey-tasks ul {
+  padding-left: 20px;
+  margin: 0;
+  color: #68745d;
+  font-size: 13px;
+  line-height: 2;
+  overflow-wrap: anywhere;
+}
+.journey-section-heading h2 {
+  font-size: 21px;
+  margin-bottom: 8px;
+}
+.journey-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+.journey-card {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 13px;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+}
+.journey-card h3 {
+  font-size: 17px;
+}
+.journey-card > .btn,
+.journey-card-actions {
+  margin-top: auto;
+}
+.journey-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 5px;
+}
+.journey-card .btn {
+  white-space: normal;
+}
+.journey-record {
+  border-left: 2px solid #d4ddc7;
+  padding-left: 12px;
+}
+.journey-panel .journey-warning {
+  color: #98602e;
+}
+.journey-panel .journey-note {
+  font-size: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 18px;
+}
+.journey-field {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  font-size: 12px;
+  color: var(--muted);
+}
+.journey-field select {
+  width: 100%;
+  min-width: 0;
+  font-size: 12px;
+}
+.journey-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.journey-check input {
+  width: auto;
+}
+.studio-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 0;
+  background: var(--bg, #f7f7f2);
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 20px;
+}
+.studio-topbar h2 {
+  font-size: 18px;
+}
+.studio-topbar p {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 5px;
+}
+.studio-topbar > .btn {
+  flex-shrink: 0;
+}
+.project-studio .composer {
+  margin: 0 0 24px;
+  max-width: none;
+  scroll-margin-top: 100px;
+}
+.project-studio .composer h3 {
+  font-size: 15px;
+}
+.project-studio .project-controls {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 12px;
+}
+.project-studio .quiet-meta {
+  margin-left: auto;
+}
+.studio-view-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+}
+.studio-control-group {
+  display: grid;
+  gap: 8px;
+}
+.studio-control-group > span {
+  font-size: 11px;
+  color: var(--muted);
+}
+.project-studio .gallery-toolbar {
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 16px;
+}
+.project-studio .gallery-actions {
+  flex-wrap: wrap;
+}
+.project-studio .selection-bar {
+  max-width: calc(100vw - 32px);
+  flex-wrap: wrap;
+}
+@media (max-width: 850px) {
+  .journey-cards {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 600px) {
+  .workspace .workspace-heading {
+    flex-wrap: wrap;
+  }
+  .journey-next {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .project-area-nav {
+    gap: 2px;
+    padding: 4px;
+  }
+  .project-area-nav button {
+    font-size: 12px;
+    padding: 11px 3px;
+  }
+  .journey-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .journey-stats > div {
+    padding: 16px;
+  }
+  .journey-stats > div:nth-child(3) {
+    border-left: 0;
+  }
+  .journey-stats > div:nth-child(n + 3) {
+    border-top: 1px solid var(--line);
+  }
+  .journey-stage,
+  .journey-card {
+    padding: 20px;
+  }
+  .studio-topbar p {
+    display: none;
+  }
+  .studio-topbar h2 {
+    font-size: 16px;
+  }
+  .studio-topbar > .btn {
+    font-size: 12px;
+    padding: 10px 12px;
+  }
+  .project-studio .project-controls > .btn {
+    font-size: 11px;
+  }
+  .project-studio .quiet-meta {
+    width: 100%;
+    margin: 0;
+  }
+  .project-studio .segmented {
+    max-width: 100%;
+  }
+  .sidebar {
+    padding: 4px 8px;
+    gap: 4px;
+  }
+  .sidebar .main-nav {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0;
+  }
+  .sidebar .main-nav button {
+    padding: 4px 2px;
+    font-size: 10px;
+    white-space: nowrap;
+  }
+  .sidebar .new-project-side {
+    display: none;
+  }
+  .sidebar .sidebar-footer:has(.local-label) {
+    display: none;
+  }
+  .sidebar .account-footer {
+    max-width: 68px;
+    padding: 4px;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .sidebar .account-footer strong {
+    max-width: 60px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .sidebar .account-footer > span {
+    display: none;
+  }
+}

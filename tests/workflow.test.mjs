@@ -1618,7 +1618,7 @@ test(
       );
       await until(() => imageGates.length === uiInsertGate + 1);
       await page.goto(
-        base.replace("/api", "") + "/#project/" + insertProject.id,
+        base.replace("/api", "") + "/#project/" + insertProject.id + "/studio",
       );
       await page.getByLabel("查看段落").selectOption("all");
       await page
@@ -1656,6 +1656,13 @@ test(
         uiInsertedState.slides[1].notes,
         "浏览器插入的这一页。完整讲稿保留。",
       );
+      await expect(page.locator(".workspace-heading")).toContainText(
+        `母版 r${uiInsertedState.revision}`,
+      );
+      await page
+        .getByRole("navigation", { name: "项目区域" })
+        .getByRole("button", { name: "交付中心", exact: true })
+        .click();
       await page.getByRole("button", { name: "导出 PPT", exact: true }).click();
       const scriptDownload = page.waitForEvent("download");
       await page
@@ -1668,7 +1675,16 @@ test(
           uiInsertedState.slides[1].notes,
         ),
       );
+      await page
+        .getByRole("navigation", { name: "项目区域" })
+        .getByRole("button", { name: "制作台", exact: true })
+        .click();
       await page.getByRole("button", { name: "演说稿", exact: true }).click();
+      await expect(page.getByRole("heading", { name: /演说稿/ })).toBeVisible();
+      await page
+        .getByRole("navigation", { name: "项目区域" })
+        .getByRole("button", { name: "交付中心", exact: true })
+        .click();
       const directScriptDownload = page.waitForEvent("download");
       await page
         .getByRole("button", { name: "导出演说稿（Markdown）", exact: true })
@@ -1684,6 +1700,10 @@ test(
       imageGates[uiInsertGate + 1]();
       await poll(uiNeighbourJob);
       await until(async () => (await req(ip)).slides[1].image);
+      await page
+        .getByRole("navigation", { name: "项目区域" })
+        .getByRole("button", { name: "制作台", exact: true })
+        .click();
       await page.reload();
       await page.getByLabel("查看段落").selectOption("all");
       await expect(page.locator(".slide-card")).toHaveCount(5);
@@ -1716,7 +1736,10 @@ test(
       );
       await until(() => imageGates.length === confirmGate + 1);
       await page.goto(
-        base.replace("/api", "") + "/#project/" + concurrentProject.id,
+        base.replace("/api", "") +
+          "/#project/" +
+          concurrentProject.id +
+          "/studio",
       );
       await page.getByLabel("查看段落").selectOption("all");
       await page
@@ -1785,7 +1808,10 @@ test(
       );
       await until(() => imageGates.length === splitUiGate + 1);
       await page.goto(
-        base.replace("/api", "") + "/#project/" + concurrentProject.id,
+        base.replace("/api", "") +
+          "/#project/" +
+          concurrentProject.id +
+          "/studio",
       );
       await page.getByLabel("查看段落").selectOption("all");
       const splitUiCount = (await req(cp)).slides.length;
@@ -1855,7 +1881,10 @@ test(
       holdImages = true;
       const uiGateStart = imageGates.length;
       await page.goto(
-        base.replace("/api", "") + "/#project/" + concurrentProject.id,
+        base.replace("/api", "") +
+          "/#project/" +
+          concurrentProject.id +
+          "/studio",
       );
       await page.getByLabel("查看段落").selectOption("all");
       await page.getByRole("button", { name: /^打开第 1 页/ }).click();
@@ -1937,6 +1966,9 @@ test(
         page.getByRole("button", { name: "重新设计这页", exact: true }),
       ).toBeEnabled();
       await page.getByRole("button", { name: "关闭", exact: true }).click();
+      await page
+        .getByRole("button", { name: "继续添加讲稿", exact: true })
+        .click();
       await page
         .getByLabel("添加逐字稿", { exact: true })
         .fill("浏览器在拆分任务期间提交新的段落。");
@@ -2038,6 +2070,10 @@ test(
       const createdWithOptions = (await req("/bootstrap")).projects.find(
         (p) => p.title === "默认风格浏览器验收",
       );
+      await page
+        .getByRole("navigation", { name: "项目区域" })
+        .getByRole("button", { name: "制作台", exact: true })
+        .click();
       const savedOptions = (await req(`/projects/${createdWithOptions.id}`))
         .designOptions;
       assert.match(savedOptions.audience.description, /自行车/);
@@ -2102,7 +2138,7 @@ test(
         null,
       );
       await page.setViewportSize({ width: 1440, height: 1000 });
-      await page.goto(base.replace("/api", "") + "/#project/" + id);
+      await page.goto(base.replace("/api", "") + "/#project/" + id + "/studio");
       await page.waitForTimeout(500);
       // Route uses the app's actual project path; navigate from homepage if this version differs.
       if (
@@ -2119,6 +2155,10 @@ test(
       await expect(
         page.getByRole("heading", { name: "图片演讲验收", exact: true }),
       ).toBeVisible();
+      await page
+        .getByRole("navigation", { name: "项目区域" })
+        .getByRole("button", { name: "交付中心", exact: true })
+        .click();
       await page.getByRole("button", { name: "导出 PPT", exact: true }).click();
       const initialDownload = page.waitForEvent("download");
       await page
@@ -2146,6 +2186,10 @@ test(
         page.getByRole("heading", { name: "图片演讲验收", exact: true }),
       ).toBeVisible();
       await expect(page.locator(".insert-page")).toHaveCount(0);
+      await page
+        .getByRole("navigation", { name: "项目区域" })
+        .getByRole("button", { name: "交付中心", exact: true })
+        .click();
       await page.getByRole("button", { name: "导出 PPT", exact: true }).click();
       await expect(
         page.getByRole("button", { name: "仅下载逐字稿", exact: true }),
@@ -2158,6 +2202,10 @@ test(
       );
       await page.unroute("**/api/bootstrap");
       await page.reload();
+      await page
+        .getByRole("navigation", { name: "项目区域" })
+        .getByRole("button", { name: "制作台", exact: true })
+        .click();
       await expect(page.locator(".insert-page").first()).toBeVisible();
       const first = page.locator(".slide-card").first();
       await first.locator(".slide-image").click();
@@ -2166,7 +2214,7 @@ test(
       ).toBeVisible();
       await expect(
         page.getByRole("button", { name: "导出 PPT", exact: true }),
-      ).toHaveCount(1);
+      ).toHaveCount(0);
       await expect(
         page.getByRole("button", { name: "编辑画面", exact: true }),
       ).toHaveCount(0);
@@ -2235,6 +2283,10 @@ test(
       mkdirSync(".impeccable/review", { recursive: true });
       await req(`/projects/${id}/export`, undefined, "GET", 409);
       await req(`/projects/${id}/export?allowStale=1`, undefined, "GET", 409);
+      await page
+        .getByRole("navigation", { name: "项目区域" })
+        .getByRole("button", { name: "交付中心", exact: true })
+        .click();
       await page.getByRole("button", { name: "导出 PPT", exact: true }).click();
       await expect(
         page.getByText(/图片尚未更新。本次将使用当前图片/),
@@ -2327,7 +2379,10 @@ test(
       await page.setViewportSize({ width: 1440, height: 1000 });
       await page.getByRole("button", { name: "保存风格", exact: true }).click();
       await expect(
-        page.getByRole("button", { name: "打开风格试做", exact: true }),
+        page.getByRole("button", {
+          name: "生成一页 demo / 调试风格",
+          exact: true,
+        }),
       ).toBeVisible();
       await expect(
         page.getByRole("button", { name: "重新提炼风格", exact: true }),
@@ -2435,7 +2490,7 @@ test(
         page.getByRole("checkbox", { name: "按内容构思（仅当前风格）" }),
       ).toBeChecked();
       await page
-        .getByRole("button", { name: "打开风格试做", exact: true })
+        .getByRole("button", { name: "生成一页 demo / 调试风格", exact: true })
         .click();
       await page
         .getByRole("button", { name: "从正式风格重新开始", exact: true })
@@ -2619,13 +2674,32 @@ test(
         .getByRole("button", { name: "查看风格" })
         .click();
       await page
-        .getByRole("button", { name: "打开风格试做", exact: true })
+        .getByRole("button", { name: "生成一页 demo / 调试风格", exact: true })
         .click();
       await expect(page.getByLabel("试做讲稿", { exact: true })).toHaveValue(
         "这是浏览器图片试做。",
       );
       await browser.close();
       await req(`/styles/${style.id}`, { compositionMode: "direct" }, "PATCH");
+      // The UI intentionally changed notes and style rules. Establish a reviewed
+      // current version before the later attachment-history test asserts reuse.
+      const afterBrowser = await read();
+      assert.equal(
+        (
+          await poll(
+            await req(
+              `/projects/${id}/render`,
+              {
+                slideIds: [afterBrowser.slides[0].id],
+                redesign: true,
+              },
+              "POST",
+              202,
+            ),
+          )
+        ).status,
+        "completed",
+      );
     }
     // Content attachments are actual image inputs, independently of style references.
     project = await read();

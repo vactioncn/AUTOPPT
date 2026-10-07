@@ -524,9 +524,9 @@ test(
               })
             : route.continue(),
         );
-        await page.goto(base + "/#project/" + project.id);
+        await page.goto(base + "/#project/" + project.id + "/rehearsal");
         await page
-          .getByRole("button", { name: "播放演讲", exact: true })
+          .getByRole("button", { name: "打开演讲播放器", exact: true })
           .click();
         await page
           .getByRole("heading", { name: "让演讲，开始讲述。" })

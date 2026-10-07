@@ -226,7 +226,9 @@ test(
           body: JSON.stringify(body),
         });
       });
-      await page.goto(`http://127.0.0.1:${server.address().port}/#project/p`);
+      await page.goto(
+        `http://127.0.0.1:${server.address().port}/#project/p/studio`,
+      );
       await page
         .getByRole("button", { name: "打开第 84 页：s84", exact: true })
         .waitFor();
@@ -237,7 +239,7 @@ test(
       await page
         .getByRole("button", { name: "打开第 77 页：s77", exact: true })
         .waitFor();
-      await page.getByRole("button", { name: /^本次制作/ }).click();
+      await page.getByRole("button", { name: /^最近制作/ }).click();
       await page
         .getByRole("button", { name: "打开第 84 页：s84", exact: true })
         .waitFor();

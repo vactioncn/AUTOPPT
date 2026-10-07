@@ -6,14 +6,7 @@ import {
   validDesignOptions,
 } from "./DesignOptionsEditor";
 import { SceneView } from "./SceneView";
-import {
-  useState,
-  useEffect,
-  useCallback,
-  useRef,
-  lazy,
-  Suspense,
-} from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Trash,
   SquaresFour,
@@ -35,15 +28,11 @@ import { api, post, asset, formatDate, active } from "./api";
 import type { Bootstrap, ProjectSummary, Style, Project } from "./types";
 import { Button, Modal, Field, StylePreview } from "./components";
 import { Workspace } from "./Workspace";
+import { projectArea } from "./project-journey";
 import { StyleLibrary } from "./StyleLibrary";
 import { SettingsPage } from "./Settings";
 import { Introduction } from "./Introduction";
 import { DEFAULT_STYLE_ID, defaultStyleId } from "../shared/styles.mjs";
-const SpeechPresentation = lazy(() =>
-  import("./SpeechPresentation").then((m) => ({
-    default: m.SpeechPresentation,
-  })),
-);
 
 export default function App() {
   const account = useAccount();
@@ -52,7 +41,6 @@ export default function App() {
     [error, setError] = useState(""),
     [toast, setToast] = useState(""),
     [creating, setCreating] = useState(false),
-    [speechProject, setSpeechProject] = useState<string | null>(null),
     [initialStyle, setInitialStyle] = useState(DEFAULT_STYLE_ID);
   const previousRoute = useRef(route === "intro" ? "projects" : route);
   const contentRoute = route === "intro" ? previousRoute.current : route;
@@ -98,8 +86,9 @@ export default function App() {
     setCreating(true);
   };
   const currentId = contentRoute.startsWith("project/")
-    ? contentRoute.slice(8)
+    ? contentRoute.slice(8).split("/")[0]
     : null;
+  const currentArea = projectArea(contentRoute.split("/")[2]);
   const current = data?.projects.find((p) => p.id === currentId);
   const notify = (text: string) => setToast(text);
   if (!data)
@@ -144,7 +133,7 @@ export default function App() {
             onClick={() => go("projects")}
           >
             <SquaresFour size={20} />
-            我的演讲
+            项目
           </button>
           <button
             className={route === "styles" ? "active" : ""}
@@ -161,7 +150,14 @@ export default function App() {
             onClick={() => go("intro")}
           >
             <Info size={20} />
-            介绍
+            帮助与介绍
+          </button>
+          <button
+            className={route === "settings" ? "active" : ""}
+            onClick={() => go("settings")}
+          >
+            <SlidersHorizontal size={20} />
+            模型与服务
           </button>
         </nav>
         <div className="side-projects">
@@ -185,17 +181,6 @@ export default function App() {
             <AccountFooter onOpen={() => go("account")} />
           ) : (
             <>
-              <button
-                className={route === "settings" ? "selected" : ""}
-                onClick={() => go("settings")}
-              >
-                <SlidersHorizontal size={20} />
-                模型设置
-                {(!data.settings.text.hasKey ||
-                  !data.settings.image.hasKey) && (
-                  <span className="connection-dot warning" />
-                )}
-              </button>
               <div className="local-label">
                 <span className="connection-dot" />
                 本机工作空间<span>LOCAL</span>
@@ -218,18 +203,10 @@ export default function App() {
                     : route === "account"
                       ? "账号与额度"
                       : route === "settings"
-                        ? "模型设置"
-                        : "我的演讲")}
+                        ? "模型与服务"
+                        : "项目")}
             </strong>
           </div>
-          {currentId &&
-            route !== "intro" &&
-            data.features?.speechPresentation && (
-              <Button onClick={() => setSpeechProject(currentId)}>
-                <Presentation size={17} />
-                播放演讲
-              </Button>
-            )}
           <span className="top-hint">
             <CheckCircle size={15} />
             {account.hosted ? "内容保存在你的独立工作区" : "内容保存在本机"}
@@ -250,13 +227,17 @@ export default function App() {
             <Workspace
               insertExportAvailable={!!data.features?.insertAndManuscriptExport}
               motionAvailable={!!data.features?.motionPresentation}
+              speechAvailable={!!data.features?.speechPresentation}
+              hosted={account.hosted}
+              area={currentArea}
+              onAreaChange={(area) => go(`project/${currentId}/${area}`)}
               key={currentId}
               id={currentId}
               styles={data.styles}
               settings={data.settings}
               notify={notify}
               onRefresh={refresh}
-              onSettings={() => go(account.hosted ? "account" : "settings")}
+              onSettings={() => go("settings")}
             />
           ) : contentRoute === "styles" ? (
             <StyleLibrary
@@ -267,15 +248,34 @@ export default function App() {
               notify={notify}
               onUse={(styleId) => create(styleId)}
             />
-          ) : contentRoute === "account" ||
-            (account.hosted && contentRoute === "settings") ? (
+          ) : contentRoute === "account" ? (
             <AccountPage />
           ) : contentRoute === "settings" ? (
-            <SettingsPage
-              initial={data.settings}
-              notify={notify}
-              refresh={refresh}
-            />
+            account.hosted ? (
+              <section className="page" aria-label="模型与服务">
+                <div className="page-heading">
+                  <div>
+                    <h1>模型与服务</h1>
+                    <p>托管版的模型由管理员统一配置。</p>
+                  </div>
+                </div>
+                <p>
+                  {account.modelReady
+                    ? "内容与图片服务已配置，可返回项目继续制作。"
+                    : "内容与图片服务尚未就绪，请联系管理员配置。"}
+                </p>
+                <p className="detail-help">
+                  当前托管服务未开放演讲播放器与语音功能。演练中心会保留入口并说明可用条件。
+                </p>
+                <Button onClick={() => go("account")}>账号与额度</Button>
+              </section>
+            ) : (
+              <SettingsPage
+                initial={data.settings}
+                notify={notify}
+                refresh={refresh}
+              />
+            )
           ) : (
             <ProjectHome
               refresh={refresh}
@@ -288,25 +288,6 @@ export default function App() {
           )}
         </div>
       </main>
-      {speechProject && (
-        <Suspense
-          fallback={
-            <div className="connection-banner" role="status">
-              正在载入演讲播放器…
-            </div>
-          }
-        >
-          <SpeechPresentation
-            key={speechProject}
-            projectId={speechProject}
-            onClose={() => setSpeechProject(null)}
-            onSettings={() => {
-              setSpeechProject(null);
-              go("settings");
-            }}
-          />
-        </Suspense>
-      )}
       {creating && (
         <NewProject
           styles={data.styles}

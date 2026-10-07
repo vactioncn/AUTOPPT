@@ -478,6 +478,20 @@ test(
               .count(),
             0,
           );
+          await page
+            .getByRole("button", { name: "模型与服务", exact: true })
+            .click();
+          await page
+            .getByText("托管版的模型由管理员统一配置。", { exact: true })
+            .waitFor();
+          assert.equal(
+            await page.getByLabel("API Key", { exact: true }).count(),
+            0,
+          );
+          await page
+            .getByRole("navigation", { name: "主导航" })
+            .getByRole("button", { name: "项目", exact: true })
+            .click();
           await page.screenshot({
             path: path.join(out, "workspace-desktop.png"),
             fullPage: true,

@@ -1,0 +1,150 @@
+.visual-review-scroll {
+  max-height: 65vh;
+  overflow: auto;
+  padding: 0 2px;
+}
+.visual-review-item {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: 22px;
+  padding: 24px 0;
+  border-bottom: 1px solid #dfe2d7;
+}
+.visual-review-preview {
+  align-self: start;
+  aspect-ratio: 16/9;
+  overflow: hidden;
+  background: #eef0e6;
+  border-radius: 8px;
+}
+.visual-review-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.visual-review-content h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+.visual-review-content p {
+  line-height: 1.8;
+  font-size: 13px;
+}
+.visual-review-content summary {
+  cursor: pointer;
+  font-size: 13px;
+  margin: 12px 0;
+}
+.visual-review-diff {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.visual-review-diff section {
+  background: #f4f5ef;
+  padding: 12px;
+  min-width: 0;
+}
+.visual-review-diff p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 250px;
+  overflow: auto;
+}
+.visual-review-diff h4 {
+  margin: 0;
+}
+@media (max-width: 700px) {
+  .visual-review-item,
+  .visual-review-diff {
+    grid-template-columns: 1fr;
+  }
+  .visual-review-preview {
+    max-width: 220px;
+  }
+}
+.help-page {
+  max-width: 1180px;
+  margin: auto;
+}
+.help-page .page-heading {
+  margin-top: 28px;
+}
+.help-search {
+  display: grid;
+  gap: 8px;
+  max-width: 600px;
+  font-size: 13px;
+}
+.help-search input {
+  border: 1px solid #cdd4c4;
+  padding: 15px 18px;
+  border-radius: 10px;
+  background: white;
+  font: inherit;
+}
+.help-topic-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 24px 0 36px;
+}
+.help-topic-links a {
+  padding: 9px 13px;
+  border-radius: 7px;
+  background: #eef1e7;
+  color: #4a5937;
+  text-decoration: none;
+  font-size: 13px;
+}
+.help-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px;
+  align-items: start;
+}
+.help-topic {
+  background: #fff;
+  border: 1px solid #e1e5da;
+  border-radius: 12px;
+  padding: 24px;
+  scroll-margin-top: 80px;
+}
+.help-topic h2 {
+  font-size: 18px;
+  margin: 0 0 18px;
+}
+.help-topic details {
+  padding: 16px 0;
+  border-top: 1px solid #eef0e8;
+}
+.help-topic summary {
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.7;
+}
+.help-topic p {
+  color: #66705b;
+  font-size: 14px;
+  line-height: 1.9;
+  margin-bottom: 0;
+}
+.help-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 28px;
+}
+.help-diagnostics {
+  border-top: 1px solid #dfe2d7;
+  margin-top: 32px;
+  padding-top: 24px;
+}
+.help-diagnostics > summary {
+  cursor: pointer;
+}
+@media (max-width: 1050px) {
+  .help-layout {
+    grid-template-columns: 1fr;
+  }
+}

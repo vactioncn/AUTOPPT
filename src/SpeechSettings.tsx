@@ -1,3 +1,5 @@
+import { VoiceCapture } from "./VoiceCapture";
+import "./speech.css";
 import { useEffect, useState } from "react";
 import { Button, Field, Status } from "./components";
 import { api } from "./api";
@@ -33,10 +35,10 @@ export function SpeechSettings({ notify }: { notify: (text: string) => void }) {
     }
   }
   return (
-    <section className="connection-form">
+    <section className="connection-form" id="speech-settings">
       <div className="connection-form-heading">
         <div>
-          <h2>演讲语音 · MiniMax</h2>
+          <h2>语音与声音 · MiniMax</h2>
           <p>富有情感的中文口播，支持播音员与演讲者声音复刻。</p>
         </div>
         <Status tone={config?.hasKey ? "good" : "warm"}>
@@ -92,6 +94,11 @@ export function SpeechSettings({ notify }: { notify: (text: string) => void }) {
           </div>
         </>
       )}
+      <VoiceCapture
+        disabled={busy || !config?.hasKey}
+        onRecordingStart={() => setError("")}
+        onVoices={() => notify("声音已保存，可在演播台的声音制作中选择。")}
+      />
       {error && (
         <p className="error-text" role="alert">
           {error}

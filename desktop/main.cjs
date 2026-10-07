@@ -197,12 +197,23 @@ else {
           callback({ requestHeaders: details.requestHeaders });
         },
       );
+      const navigate = (route) => {
+        showWindow();
+        window.webContents.executeJavaScript(
+          `location.hash = ${JSON.stringify(route)}`,
+        );
+      };
       Menu.setApplicationMenu(
         Menu.buildFromTemplate([
           {
             label: "AutoPPT",
             submenu: [
               { role: "about", label: "关于 AutoPPT" },
+              {
+                label: "设置…",
+                accelerator: "CmdOrCtrl+,",
+                click: () => navigate("settings"),
+              },
               { label: "打开工作区", click: showWindow },
               { label: "打开数据文件夹", click: () => shell.openPath(dataDir) },
               { type: "separator" },
@@ -225,10 +236,10 @@ else {
           {
             label: "显示",
             submenu: [
-              { label: "我的演讲", click: () => window.loadURL(origin) },
+              { label: "我的演讲", click: () => navigate("projects") },
               {
                 label: "风格库",
-                click: () => window.loadURL(origin + "/#styles"),
+                click: () => navigate("styles"),
               },
               {
                 label: "返回上一页",
@@ -243,6 +254,14 @@ else {
             ],
           },
           { role: "windowMenu", label: "窗口" },
+          {
+            role: "help",
+            label: "帮助",
+            submenu: [
+              { label: "AutoPPT 使用帮助", click: () => navigate("help") },
+              { label: "产品介绍", click: () => navigate("intro") },
+            ],
+          },
         ]),
       );
       showWindow();

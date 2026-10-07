@@ -39,3 +39,20 @@ test("spoken quotes, meanings, units and linked wording survive formatting clean
     "我说：电脑还能干这个？\n重要观点\n增长 10%，不是 100%。\n我们称它为【光遗传学】。\n1988 年，100 * 2 等于 200。\n（停顿是表达的一部分。）",
   );
 });
+test("speaker draft strips title and menu metadata and standalone actions without deleting spoken discussion", () => {
+  const result = prepareSpeechText(
+    "**主标题：从信息数字化**\n副标题：AI 时代\n一级菜单：行业变化\n二级标题\n如何落地\n一、医学奖：重新理解身体\n停顿\n暂停 3 秒\n环顾四周\n【暂停】各位朋友，大家好。\n（环顾四周）今天我们从一个故事讲起。\n暂停，是为了思考。\n停顿是表达的一部分。\n我们应当保留（成本下降 20%）。",
+  );
+  assert.equal(
+    result.text.replace(/\n+/g, "\n"),
+    "各位朋友，大家好。\n今天我们从一个故事讲起。\n暂停，是为了思考。\n停顿是表达的一部分。\n我们应当保留（成本下降 20%）。",
+  );
+  assert(result.removed.length >= 10);
+});
+test("Unicode paragraph separators and bullet-prefixed headings are recognized", () => {
+  assert.equal(
+    prepareSpeechText("- **主标题：从信息数字化**\u2028正文不变。\u2029暂停")
+      .text,
+    "正文不变。",
+  );
+});

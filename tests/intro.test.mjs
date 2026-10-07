@@ -12,7 +12,7 @@ test("product introduction covers real workflows and ships reproducible demo scr
   const html = readFileSync("dist/intro/index.html", "utf8");
   const guide = readFileSync("dist/intro/guide.md", "utf8");
   assert(!html.includes("{{"));
-  assert.equal(product.modules.length, 2);
+  assert.equal(product.modules.length, 5);
   assert.deepEqual(
     product.modules.flatMap((m) => m.featureIds).sort(),
     product.features.map((f) => f.id).sort(),
@@ -24,13 +24,15 @@ test("product introduction covers real workflows and ships reproducible demo scr
   for (const f of product.features) {
     assert(html.includes(`panel-${f.id}`));
     assert(guide.includes(f.label));
-    assert(existsSync(`public/intro/screenshots/${f.shot}.webp`));
+    if (f.shot) assert(existsSync(`public/intro/screenshots/${f.shot}.webp`));
   }
   const manifest = JSON.parse(
     readFileSync("public/intro/screenshots/manifest.json", "utf8"),
   );
   assert.equal(manifest.modelCalls, 0);
   assert.equal(manifest.privateData, false);
+  assert(!html.includes('id="faq"'));
+  assert(readFileSync("dist/intro/help.html", "utf8").includes("常见问题"));
   assert(guide.includes("PPTX 是整页图片"));
   assert(guide.includes("实际输出取决于服务商"));
 });
@@ -115,11 +117,9 @@ test(
         );
         await page.keyboard.press("Escape");
         assert(!(await page.getByRole("dialog").isVisible()));
-        await page
-          .locator("#style-making")
-          .screenshot({
-            path: `test-results/onboarding/intro/${label}-styles.png`,
-          });
+        await page.locator("#style-making").screenshot({
+          path: `test-results/onboarding/intro/${label}-styles.png`,
+        });
         assert.equal(await page.getByRole("tab").count(), 0);
         assert.equal(
           await page
@@ -135,7 +135,7 @@ test(
           await panel.evaluate((el) =>
             el.scrollIntoView({ behavior: "instant", block: "start" }),
           );
-          await panel.locator("img").evaluate((i) => i.decode());
+          if (f.shot) await panel.locator("img").evaluate((i) => i.decode());
           const bounds = await panel.evaluate((el) => {
             const r = el.getBoundingClientRect();
             return { top: r.top + scrollY, bottom: r.bottom + scrollY };
@@ -163,7 +163,7 @@ test(
         assert(await page.getByRole("dialog").isVisible());
         await page.getByRole("button", { name: "关闭截图" }).click();
         assert(!(await page.getByRole("dialog").isVisible()));
-        await page.locator("#faq").scrollIntoViewIfNeeded();
+        await page.goto(base + "/intro/help.html");
         assert.equal(
           await page.locator(".faq-list article").count(),
           product.faqs.length,
@@ -245,9 +245,7 @@ test(
       await page.goto(base + "/#settings");
       const model = page.getByLabel("模型名称", { exact: true }).first();
       await model.fill("unsaved-model-draft");
-      await page
-        .getByRole("button", { name: "帮助与介绍", exact: true })
-        .click();
+      await page.getByRole("button", { name: "产品介绍", exact: true }).click();
       const frame = page.frameLocator('iframe[title="AutoPPT 产品介绍"]');
       await frame.getByRole("heading", { level: 1 }).waitFor();
       assert.equal(context.pages().length, 1);
@@ -261,16 +259,12 @@ test(
       });
       await page.getByRole("button", { name: "返回刚才的页面" }).click();
       assert.equal(await model.inputValue(), "unsaved-model-draft");
-      await page
-        .getByRole("button", { name: "帮助与介绍", exact: true })
-        .click();
+      await page.getByRole("button", { name: "产品介绍", exact: true }).click();
       await frame.locator("#open-workspace").click();
       await model.waitFor({ state: "visible" });
       assert.equal(new URL(page.url()).hash, "#settings");
       assert.equal(await model.inputValue(), "unsaved-model-draft");
-      await page
-        .getByRole("button", { name: "帮助与介绍", exact: true })
-        .click();
+      await page.getByRole("button", { name: "产品介绍", exact: true }).click();
       await page.getByRole("button", { name: /^风格库/ }).click();
       await page
         .getByRole("heading", { name: "把喜欢的，变成你的风格。" })
@@ -280,9 +274,7 @@ test(
       await page.getByRole("button", { name: "返回刚才的页面" }).click();
       await page.getByRole("heading", { name: /让讲述.*自然成页/ }).waitFor();
       await page.setViewportSize({ width: 390, height: 844 });
-      await page
-        .getByRole("button", { name: "帮助与介绍", exact: true })
-        .click();
+      await page.getByRole("button", { name: "产品介绍", exact: true }).click();
       await frame.getByRole("heading", { level: 1 }).waitFor();
       assert(
         await page.evaluate(

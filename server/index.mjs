@@ -358,7 +358,9 @@ app.post("/api/projects/:id/batches", (req, res) => {
     req.headers["x-autoppt-model-ready"] !== "1"
   )
     throw Object.assign(
-      new Error("模型尚未就绪，请联系管理员或稍后查看模型服务状态。草稿可以继续保存。"),
+      new Error(
+        "模型尚未就绪，请联系管理员或稍后查看模型服务状态。草稿可以继续保存。",
+      ),
       { status: 503 },
     );
   styleReady(p.styleId);
@@ -466,6 +468,23 @@ app.patch("/api/projects/:id/slides/:sid", (req, res) => {
     delete s.pendingPlan;
     delete s.pendingPlanStyle;
     if (p.proposal?.sourceIds.includes(s.id)) p.proposal = null;
+    p.undo = null;
+    saveProject(p);
+  }
+  res.json(p);
+});
+// Acknowledgement only: keep the current artwork and manuscript intact.
+app.post("/api/projects/:id/slides/:sid/keep-visual", (req, res) => {
+  const p = projectOrThrow(req.params.id);
+  if (req.body.revision !== p.revision)
+    return res.status(409).json({ error: "项目已更新，请重新查看后确认。" });
+  assertIdle(p.id, [req.params.sid]);
+  const s = p.slides.find((slide) => slide.id === req.params.sid);
+  if (!s || !(s.image || s.scene))
+    return res.status(400).json({ error: "该页还没有可保留的画面。" });
+  if (s.stale) {
+    s.versions.push(snapshot(s));
+    s.stale = false;
     p.undo = null;
     saveProject(p);
   }

@@ -1406,3 +1406,31 @@ dialog::backdrop {
     font-size: 28px;
   }
 }
+
+.feature-process {
+  background: #f2f4ef;
+  border-radius: 20px;
+  padding: 36px;
+  align-self: center;
+}
+.feature-process > span {
+  color: #78806e;
+  font-size: 13px;
+}
+.feature-process > div {
+  display: flex;
+  gap: 20px;
+  align-items: baseline;
+  border-bottom: 1px solid #d9dfd3;
+  padding: 22px 0;
+}
+.feature-process b {
+  font-size: 28px;
+  color: #61764f;
+  font-weight: 400;
+}
+.feature-process p {
+  font-size: 16px;
+  line-height: 1.8;
+  margin: 0;
+}

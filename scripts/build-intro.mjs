@@ -30,7 +30,7 @@ const panels = (features) =>
     <div class="feature-main">
       <div class="feature-copy" data-reveal><h3 id="feature-${f.id}">${esc(f.title).replaceAll("\n", "<br>")}</h3><p>${esc(f.description)}</p>
         <ul class="capabilities">${f.capabilities.map((c) => `<li>${esc(c)}</li>`).join("")}</ul>${extraShot(f.extraShot)}</div>
-      <figure class="feature-visual" data-reveal><button class="shot-button" data-zoom="screenshots/${f.shot}.webp" data-caption="${esc(f.alt)}" aria-label="放大${f.label}截图"><img src="screenshots/${f.shot}.webp" alt="${esc(f.alt)}" loading="lazy" width="1440" height="1040"></button><figcaption><span>真实界面 · 演示资料</span><span>点击放大 ↗</span></figcaption></figure>
+      ${f.shot ? `<figure class="feature-visual" data-reveal><button class="shot-button" data-zoom="screenshots/${f.shot}.webp" data-caption="${esc(f.alt)}" aria-label="放大${f.label}截图"><img src="screenshots/${f.shot}.webp" alt="${esc(f.alt)}" loading="lazy" width="1440" height="1040"></button><figcaption><span>真实界面 · 演示资料</span><span>点击放大 ↗</span></figcaption></figure>` : `<div class="feature-process" data-reveal><span>从准备到交付</span>${f.steps.map((step, i) => `<div><b>0${i + 1}</b><p>${esc(step)}</p></div>`).join("")}</div>`}
     </div>
     <div class="how-to"><h4>这样开始</h4><ol>${f.steps.map((step) => `<li>${esc(step)}</li>`).join("")}</ol></div><p class="feature-note">${esc(f.note)}</p>
   </section>`,
@@ -61,7 +61,7 @@ const features = product.modules
       m,
     ) => `<section class="product-module ${m.id === "speech-making" ? "speech-module" : ""}" id="${m.id}" aria-labelledby="heading-${m.id}">
   <div class="section-heading wrap" data-reveal><p class="eyebrow">${esc(m.label)}</p><h2 id="heading-${m.id}">${esc(m.title)}</h2><p>${esc(m.description)}</p><div class="module-path">${esc(m.sequence)}</div></div>
-  <div class="wrap">${m.id === "style-making" ? gallery : copyStory}${panels(m.featureIds.map((id) => product.features.find((f) => f.id === id)))}</div>
+  <div class="wrap">${m.id === "style-making" ? gallery : m.id === "speech-making" ? copyStory : ""}${panels(m.featureIds.map((id) => product.features.find((f) => f.id === id)))}</div>
 </section>`,
   )
   .join("");
@@ -97,6 +97,10 @@ await Promise.all(
   ),
 );
 writeFileSync(path.join(out, "index.html"), html);
+writeFileSync(
+  path.join(out, "help.html"),
+  `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AutoPPT 使用帮助</title><link rel="stylesheet" href="intro.css"></head><body><main class="wrap section"><a class="text-link" href="index.html">← 产品介绍</a><h1>AutoPPT 使用帮助</h1><p>Mac App · 常见问题与操作说明</p><div class="faq-list">${faq}</div><a href="guide.md">下载完整快速指南</a></main></body></html>`,
+);
 for (const file of ["intro.css", "intro.js"])
   copyFileSync(path.join(root, "site/intro", file), path.join(out, file));
 const md = [

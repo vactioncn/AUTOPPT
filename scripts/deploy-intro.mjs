@@ -85,6 +85,7 @@ export function prepareIntroduction(output) {
 
   return [
     "index.html",
+    "help.html",
     "intro.css",
     "intro.js",
     "guide.md",

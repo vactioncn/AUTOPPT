@@ -25,11 +25,31 @@ export function SettingsPage({
     <div className="page settings-page">
       <div className="page-heading">
         <div>
-          <h1>连接你的创作能力。</h1>
+          <h1>设置</h1>
           <p>一次设置，供所有演讲项目和风格使用。</p>
         </div>
       </div>
-      <div className="settings-intro">
+      <div className="help-actions">
+        <Button
+          onClick={() =>
+            document
+              .getElementById("model-settings")
+              ?.scrollIntoView({ behavior: "smooth" })
+          }
+        >
+          模型服务
+        </Button>
+        <Button
+          onClick={() =>
+            document
+              .getElementById("speech-settings")
+              ?.scrollIntoView({ behavior: "smooth" })
+          }
+        >
+          语音与声音 · 采集演讲者声音
+        </Button>
+      </div>
+      <div className="settings-intro" id="model-settings">
         <Info size={20} />
         <p>
           内容模型负责理解讲稿与设计画面，图片模型按完整设计方案出图。参考图只用于提炼风格。密钥仅保存在本机服务端，不会展示给浏览器。

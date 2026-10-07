@@ -126,12 +126,16 @@ test("each area owns its primary action and PPTX readiness reflects export check
     action("rehearsal", projectJourney(project(), [], false)).label,
     "返回制作台",
   );
+  assert.deepEqual(action("rehearsal", journey, { speechAvailable: false }), {
+    area: "rehearsal",
+    target: "player",
+    label: "标准放映不可用",
+    disabled: true,
+  });
   assert.deepEqual(
-    action("rehearsal", journey, { speechAvailable: false }),
-    { area: "rehearsal", target: "player", label: "标准放映不可用", disabled: true },
-  );
-  assert.deepEqual(
-    action("rehearsal", projectJourney(project(), [], false), { speechAvailable: false }),
+    action("rehearsal", projectJourney(project(), [], false), {
+      speechAvailable: false,
+    }),
     { area: "studio", target: "pages", label: "返回制作台" },
   );
 });
@@ -154,7 +158,7 @@ test("task queue carries concrete repair destinations and counts", () => {
   }
   for (const [slide, label] of [
     [{ ...slides[0], image: null }, "补齐 1 页画面"],
-    [{ ...slides[0], stale: true }, "更新 1 页画面"],
+    [{ ...slides[0], stale: true }, "核对 1 页画面"],
     [{ ...slides[0], status: "error" }, "检查 1 页失败页面"],
   ]) {
     const state = projectJourney(project([slide]), [], false);
@@ -165,13 +169,24 @@ test("task queue carries concrete repair destinations and counts", () => {
 
 test("failed pages with existing artwork require review while missing artwork still blocks delivery", () => {
   for (const hasImage of [true, false]) {
-    const journey = projectJourney(project([
-      { ...slides[0], status: "error", image: hasImage ? "fixture.png" : null },
-    ]), [], false);
+    const journey = projectJourney(
+      project([
+        {
+          ...slides[0],
+          status: "error",
+          image: hasImage ? "fixture.png" : null,
+        },
+      ]),
+      [],
+      false,
+    );
     assert.equal(journey.failed, 1);
     assert.equal(journey.needsReview, true);
     assert.equal(journey.pptxReady, hasImage);
     assert.deepEqual(journey.missing, hasImage ? [] : [1]);
-    assert.equal(projectPrimaryAction("delivery", journey).label, "查看导出检查");
+    assert.equal(
+      projectPrimaryAction("delivery", journey).label,
+      "查看导出检查",
+    );
   }
 });

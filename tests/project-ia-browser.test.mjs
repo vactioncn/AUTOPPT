@@ -394,16 +394,20 @@ test(
     await expect(page.locator(".journey-stats")).toContainText("已有画面2");
     await expect(page.locator(".journey-stats")).toContainText("待生成1");
     await expect(page.locator(".journey-stats")).toContainText(
-      "内容已改待更新1",
+      "讲稿已改待核对1",
     );
     for (const [label, number] of [
       ["补齐 1 页画面", 3],
-      ["更新 1 页画面", 2],
+      ["核对 1 页画面", 2],
     ]) {
       await page
         .locator(".journey-tasks")
         .getByRole("button", { name: label, exact: true })
         .click();
+      if (label.startsWith("核对")) {
+        await expect(page.getByRole("dialog")).toContainText("画面核对");
+        await page.getByRole("button", {name:"查看并修改画面",exact:true}).click();
+      }
       await expect(
         page.getByRole("dialog").getByLabel("本页逐字稿", { exact: true }),
       ).toHaveValue(`第 ${number} 页完整测试讲稿。`);
@@ -538,7 +542,7 @@ test(
     const playerDownload = page.waitForEvent("download");
     playerDownload.catch(() => {});
     await page
-      .getByRole("button", { name: "导出静态 HTML · 含口播", exact: true })
+      .getByRole("button", { name: "导出此版本 HTML · 含口播", exact: true })
       .click({ timeout: 5000 });
     const playerResult = await playerResponse;
     assert(playerResult.ok(), await playerResult.text());
@@ -546,6 +550,7 @@ test(
       readFileSync(await (await playerDownload).path(), "utf8"),
       /data:audio\/mpeg;base64,/,
     );
+    await page.getByRole("tab", {name:"1 · 口播文本",exact:true}).click();
     await page
       .getByLabel("实际口播文本", { exact: true })
       .fill("保存独立的口播修改。");
@@ -564,7 +569,7 @@ test(
     ).json();
     assert.equal(sourceProject.slides[0].notes, complete.slides[0].notes);
     await expect(
-      page.getByRole("button", { name: "导出静态 HTML · 含口播", exact: true }),
+      page.getByRole("button", { name: "导出此版本 HTML · 含口播", exact: true }),
     ).toHaveCount(0);
     await page
       .getByRole("button", { name: "关闭演讲播放器", exact: true })
@@ -1038,13 +1043,13 @@ test(
           .getByRole("button")
           .allTextContents()
       ).map((s) => s.replace(/\d+/g, "")),
-      ["项目", "风格库", "帮助与介绍", "模型与服务"],
+      ["项目", "风格库", "产品介绍", "使用帮助", "设置"],
     );
     await expect(
       page.getByRole("button", { name: /隔离验收.*账号与额度/ }),
     ).toBeVisible();
     await overflow();
-    await page.getByRole("button", { name: "模型与服务", exact: true }).click();
+    await page.getByRole("button", { name: "设置", exact: true }).click();
     await expect(
       page.getByRole("heading", { name: "模型与服务" }),
     ).toBeVisible();
@@ -1325,7 +1330,7 @@ test(
       await page.setViewportSize({ width: 1280, height: 800 });
     };
     const reopen = async () => {
-      await button("帮助与介绍").click();
+      await button("使用帮助").click();
       await button("重新查看新手引导").click();
       await expect(card).toBeVisible();
     };
@@ -1919,7 +1924,7 @@ test(
         await expect(page.getByRole("dialog")).toContainText("暂时无法确认模型状态");
         assert.equal(batches, before);
         await button("继续保存草稿").click();
-        await button("帮助与介绍").click();
+        await button("使用帮助").click();
         await button("重新查看新手引导").click();
         await expect(card).toContainText("内容模型：未就绪");
         await expect(card).toContainText("暂时无法确认模型状态");

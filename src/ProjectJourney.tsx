@@ -104,7 +104,7 @@ export function ProjectOverview({
         <h2>{journey.tasks.length ? "当前待办" : "页面已齐备"}</h2>
         <p>
           {journey.tasks.length
-            ? "从当前障碍开始，继续这场演讲。"
+            ? "查看下面的具体原因，选择现在处理或稍后继续。"
             : "打开播放器核对画面与讲稿，再检查交付文件。"}
         </p>
         <Button variant="primary" onClick={() => onAction(action)}>
@@ -117,7 +117,7 @@ export function ProjectOverview({
           ["总页数", journey.total],
           ["已有画面", journey.illustrated],
           ["待生成", journey.missing.length],
-          ["内容已改待更新", journey.stale],
+          ["讲稿已改待核对", journey.stale],
         ].map(([label, count]) => (
           <div key={label}>
             <dt>{label}</dt>
@@ -236,7 +236,11 @@ export function RehearsalCenter({
         </Button>
         <details>
           <summary>之后可以做什么</summary>
-          <p>{speechAvailable ? "标准放映无需语音服务。" : capabilities.standardPresentation.reason}</p>
+          <p>
+            {speechAvailable
+              ? "标准放映无需语音服务。"
+              : capabilities.standardPresentation.reason}
+          </p>
           <p>AI 口播和动态演示是有了画面之后的可选功能。</p>
           {!!records.dynamic.records.length && motionAvailable && (
             <Button onClick={onMotion}>打开已有动态演示</Button>
@@ -264,7 +268,9 @@ export function RehearsalCenter({
         <Button
           variant="primary"
           disabled={action.disabled}
-          aria-describedby={!speechAvailable ? "standard-presentation-reason" : undefined}
+          aria-describedby={
+            !speechAvailable ? "standard-presentation-reason" : undefined
+          }
           onClick={action.target === "player" ? onSpeech : onStudio}
         >
           {action.label}
@@ -276,8 +282,8 @@ export function RehearsalCenter({
         ) : null}
         {!journey.illustrated ? (
           <p>先到制作台生成至少一页画面，再开始放映。</p>
-        ) : speechAvailable && (
-          <p>翻页演讲并查看讲稿，无需配置语音服务。</p>
+        ) : (
+          speechAvailable && <p>翻页演讲并查看讲稿，无需配置语音服务。</p>
         )}
         {!!journey.missing.length && !!journey.illustrated && (
           <p className="journey-warning">
@@ -286,12 +292,16 @@ export function RehearsalCenter({
         )}
         {!!journey.stale && (
           <p className="journey-warning">
-            {journey.stale} 页画面待更新，请对照最新讲稿核对。
+            {journey.stale}{" "}
+            页讲稿修改后尚未核对画面，可在项目概览查看明细并确认保留。
           </p>
         )}
-        {speechAvailable && !!journey.illustrated && !journey.missing.length && !journey.stale && (
-          <p className="journey-success">画面已齐备，可从头演练。</p>
-        )}
+        {speechAvailable &&
+          !!journey.illustrated &&
+          !journey.missing.length &&
+          !journey.stale && (
+            <p className="journey-success">画面已齐备，可从头演练。</p>
+          )}
       </section>
       <section className="journey-secondary" aria-label="AI 口播">
         <h3>
@@ -302,7 +312,9 @@ export function RehearsalCenter({
         ) : records.voice.error ? (
           <p className="journey-warning">{records.voice.error}</p>
         ) : records.voice.ready === false ? (
-          <p className="journey-warning">尚未配置语音服务，AI 口播生成不可用。</p>
+          <p className="journey-warning">
+            尚未配置语音服务，AI 口播生成不可用。
+          </p>
         ) : !capabilities.aiNarration.enabled ? (
           <p className="journey-warning">{capabilities.aiNarration.reason}</p>
         ) : records.voice.ready === null ? (
@@ -311,7 +323,11 @@ export function RehearsalCenter({
           <p>语音服务已配置，可在播放器内选择音色并生成口播。</p>
         )}
         {speechAvailable && (
-          <p>{journey.illustrated ? "普通放映仍可使用。打开上方播放器，可选择已有口播或制作新口播。" : "先制作至少一页画面，即可普通放映；无需配置语音服务。"}</p>
+          <p>
+            {journey.illustrated
+              ? "普通放映仍可使用。打开上方播放器，可选择已有口播或制作新口播。"
+              : "先制作至少一页画面，即可普通放映；无需配置语音服务。"}
+          </p>
         )}
         {speechAvailable && (
           <RecordStatus
@@ -320,7 +336,8 @@ export function RehearsalCenter({
             kind="口播"
           />
         )}
-        {speechAvailable && !!journey.illustrated &&
+        {speechAvailable &&
+          !!journey.illustrated &&
           (records.voice.ready === false || records.voice.error) && (
             <Button onClick={onSettings}>配置语音服务</Button>
           )}
@@ -408,15 +425,28 @@ export function DeliveryCenter({
       <section aria-label="交付中心" className="journey-panel journey-empty">
         <h2>还没有可交付内容</h2>
         <p>回到制作台写下讲稿，生成页面后再选择交付格式。</p>
-        <Button variant="primary" onClick={() => onAction({ area: "studio", target: "composer", label: "返回制作台" })}>
+        <Button
+          variant="primary"
+          onClick={() =>
+            onAction({
+              area: "studio",
+              target: "composer",
+              label: "返回制作台",
+            })
+          }
+        >
           返回制作台
         </Button>
         <details>
           <summary>项目源文件</summary>
-          <p>即使还没有页面，也可以保存项目源文件，用于备份或迁移草稿与项目设置。</p>
+          <p>
+            即使还没有页面，也可以保存项目源文件，用于备份或迁移草稿与项目设置。
+          </p>
           {capabilities.projectPackages.enabled ? (
             <Button onClick={() => onExport("project")}>导出项目源文件</Button>
-          ) : <p>{capabilities.projectPackages.reason}</p>}
+          ) : (
+            <p>{capabilities.projectPackages.reason}</p>
+          )}
         </details>
       </section>
     );
@@ -469,7 +499,11 @@ export function DeliveryCenter({
         {journey.pptxReady && !journey.needsReview ? (
           <Button
             variant="primary"
-            aria-label={bundleAvailable ? "下载 ZIP 交付包（含 PPTX＋逐字稿）" : "下载 PPTX"}
+            aria-label={
+              bundleAvailable
+                ? "下载 ZIP 交付包（含 PPTX＋逐字稿）"
+                : "下载 PPTX"
+            }
             onClick={() => onExport("ppt")}
           >
             {action.label}

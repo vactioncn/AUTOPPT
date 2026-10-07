@@ -1,3 +1,4 @@
+import { Help } from "./Help";
 import { useOnboarding, WorkspaceReadiness } from "./OnboardingUI";
 import {
   onboardingReadiness,
@@ -61,8 +62,11 @@ export default function App() {
     null,
   );
   const [styleRepair, setStyleRepair] = useState(false);
-  const previousRoute = useRef(route === "intro" ? "projects" : route);
-  const contentRoute = route === "intro" ? previousRoute.current : route;
+  const previousRoute = useRef(
+    ["intro", "help"].includes(route) ? "projects" : route,
+  );
+  const informationRoute = ["intro", "help"].includes(route);
+  const contentRoute = informationRoute ? previousRoute.current : route;
   const refresh = useCallback(async () => {
     try {
       setData(await api("/bootstrap"));
@@ -80,7 +84,7 @@ export default function App() {
         setCreationDraft(null);
         setStyleRepair(false);
       }
-      if (next !== "intro") previousRoute.current = next;
+      if (!["intro", "help"].includes(next)) previousRoute.current = next;
       setRoute(next);
     };
     window.addEventListener("hashchange", hash);
@@ -99,7 +103,7 @@ export default function App() {
       setCreationDraft(null);
       setStyleRepair(false);
     }
-    if (to !== "intro") previousRoute.current = to;
+    if (!["intro", "help"].includes(to)) previousRoute.current = to;
     location.hash = to;
     setRoute(to);
   };
@@ -168,7 +172,7 @@ export default function App() {
         <nav className="main-nav" aria-label="主导航">
           <button
             className={
-              route !== "intro" && (route === "projects" || currentId)
+              !informationRoute && (route === "projects" || currentId)
                 ? "active"
                 : ""
             }
@@ -192,14 +196,21 @@ export default function App() {
             onClick={() => go("intro")}
           >
             <Info size={20} />
-            帮助与介绍
+            产品介绍
+          </button>
+          <button
+            className={route === "help" ? "active" : ""}
+            onClick={() => go("help")}
+          >
+            <Info size={20} />
+            使用帮助
           </button>
           <button
             className={route === "settings" ? "active" : ""}
             onClick={() => go("settings")}
           >
             <SlidersHorizontal size={20} />
-            模型与服务
+            设置
           </button>
         </nav>
         <div className="side-projects">
@@ -239,14 +250,16 @@ export default function App() {
             <strong>
               {route === "intro"
                 ? "产品介绍"
-                : current?.title ||
-                  (route === "styles"
-                    ? "风格库"
-                    : route === "account"
-                      ? "账号与额度"
-                      : route === "settings"
-                        ? "模型与服务"
-                        : "项目")}
+                : route === "help"
+                  ? "使用帮助"
+                  : current?.title ||
+                    (route === "styles"
+                      ? "风格库"
+                      : route === "account"
+                        ? "账号与额度"
+                        : route === "settings"
+                          ? "设置"
+                          : "项目")}
             </strong>
           </div>
           <span className="top-hint">
@@ -267,19 +280,13 @@ export default function App() {
           </div>
         )}
         {route === "intro" && (
+          <Introduction
+            onHelp={() => go("help")}
+            onBack={() => go(previousRoute.current)}
+          />
+        )}
+        {route === "help" && (
           <>
-            <div className="onboarding-help">
-              <Button
-                onClick={() =>
-                  onboarding.update({ workspace: "pending", page: "pending" })
-                }
-              >
-                重新查看新手引导
-              </Button>
-              <span>
-                重看工作区准备；下次打开页面详情时会再次显示三点提示。
-              </span>
-            </div>
             {onboarding.value.workspace === "pending" && (
               <WorkspaceReadiness
                 data={data}
@@ -294,15 +301,24 @@ export default function App() {
                 onSkip={() => onboarding.update({ workspace: "skipped" })}
               />
             )}
-            <Introduction
+            <Help
               data={data}
               onBack={() => go(previousRoute.current)}
+              onSettings={() => go("settings")}
+              onGuide={() => {
+                onboarding.update({ workspace: "pending", page: "pending" });
+                requestAnimationFrame(() =>
+                  document
+                    .querySelector('[aria-label="首次工作区准备"]')
+                    ?.scrollIntoView({ behavior: "smooth" }),
+                );
+              }}
             />
           </>
         )}
-        <div hidden={route === "intro"} className="workspace-content">
+        <div hidden={informationRoute} className="workspace-content">
           {contentRoute === "projects" &&
-            route !== "intro" &&
+            !informationRoute &&
             onboarding.value.workspace === "pending" && (
               <WorkspaceReadiness
                 data={data}
@@ -343,9 +359,7 @@ export default function App() {
             <StyleLibrary
               promptRepair={styleRepair}
               onReturn={
-                creationDraft
-                  ? (styleId) => create(styleId, true)
-                  : undefined
+                creationDraft ? (styleId) => create(styleId, true) : undefined
               }
               urlImportAvailable={!!data.features?.styleUrlImport}
               styles={data.styles}

@@ -9,7 +9,10 @@ import {
   X,
 } from "@phosphor-icons/react";
 import { api, asset, post, active, downloadFile } from "./api";
-import { prepareSpeechText } from "../shared/speech-text.mjs";
+import {
+  prepareSpeechText,
+  SPEECH_TEXT_VERSION,
+} from "../shared/speech-text.mjs";
 import { Button, Field } from "./components";
 import { SceneView } from "./SceneView";
 import type { Project } from "./types";
@@ -19,7 +22,6 @@ import {
   type SpeechOptions,
 } from "../shared/speech.mjs";
 import { speakerNotes } from "../shared/manuscript.mjs";
-import { VoiceCapture } from "./VoiceCapture";
 import {
   speechAudio,
   type Narration,
@@ -48,6 +50,10 @@ export function SpeechPresentation({
     [deck, setDeck] = useState<Narration | null>(null);
   const [options, setOptions] = useState<SpeechOptions>({ ...SPEECH_DEFAULTS }),
     [pageEmotions, setPageEmotions] = useState<Record<string, string>>({});
+  const [editPageId, setEditPageId] = useState("");
+  const [panel, setPanel] = useState<"play" | "text" | "voice">("play");
+  const [playbackRate, setPlaybackRate] = useState(1);
+  const [pendingDeck, setPendingDeck] = useState<Narration | null>(null);
   const [pageTexts, setPageTexts] = useState<Record<string, string>>({});
   const [textReviewed, setTextReviewed] = useState(false),
     [textFeedback, setTextFeedback] = useState<{
@@ -72,21 +78,25 @@ export function SpeechPresentation({
     audio = useRef<HTMLAudioElement>(null),
     previewAudio = useRef<HTMLAudioElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
-  const polling = !!deck && active(deck.status);
-  const pages =
-    deck?.pages ||
+  const job = pendingDeck || deck;
+  const polling = !!job && active(job.status);
+  const draftPages =
     project?.slides.map((s, i) => ({
       ...s,
       number: i + 1,
       title: s.plan?.title || `第 ${i + 1} 页`,
       notes: speakerNotes(s),
-    })) ||
-    [];
+    })) || [];
+  const pages = deck?.pages || draftPages;
   const page = pages[pageIndex];
+  const scriptPage =
+    draftPages.find((p) => p.id === (editPageId || page?.id)) ||
+    draftPages[0] ||
+    page;
   const textFor = (p: { id: string; notes: string }) =>
     pageTexts[p.id] ?? prepareSpeechText(p.notes).text;
-  const spokenText = page ? textFor(page) : "";
-  const removed = prepareSpeechText(page?.notes || "").removed;
+  const spokenText = scriptPage ? textFor(scriptPage) : "";
+  const removed = prepareSpeechText(scriptPage?.notes || "").removed;
   const clip = deck?.pages[pageIndex]?.clips[clipIndex];
   const source = clip?.file
     ? speechAudio(clip.file) + (audioAttempt ? `&retry=${audioAttempt}` : "")
@@ -100,12 +110,14 @@ export function SpeechPresentation({
     );
   const changed =
     !!deck &&
-    (JSON.stringify(options) !== JSON.stringify(deck.options) ||
+    (deck.sourceRevision !== project?.revision ||
+      JSON.stringify(options) !== JSON.stringify(deck.options) ||
       deck.pages.some(
         (p) => p.emotion !== (pageEmotions[p.id] || options.emotion),
       ) ||
       textChanged);
-  const playable = deck?.status === "ready" && !changed;
+  // Draft edits never invalidate saved audio.
+  const playable = deck?.status === "ready";
   const generatedPages =
     deck?.pages.filter(
       (p) => p.status === "ready" && p.clips.every((c) => c.file),
@@ -122,7 +134,7 @@ export function SpeechPresentation({
       0,
     ) || 0;
 
-  const selectDeck = useCallback((d: Narration | null) => {
+  const selectDeck = useCallback((d: Narration | null, loadDraft = true) => {
     setPlaying(false);
     setPageIndex(0);
     setClipIndex(0);
@@ -131,6 +143,7 @@ export function SpeechPresentation({
     setMessage("");
     setTextReviewed(false);
     setTextFeedback(null);
+    if (!loadDraft) return;
     if (d) {
       setPageTexts(
         Object.fromEntries(
@@ -171,12 +184,17 @@ export function SpeechPresentation({
         setConfig(c);
         setHistory(h);
         const selected =
-          h.find((d) => active(d.status)) ||
-          h.find((d) => d.sourceRevision === p.revision) ||
+          h.find(
+            (d) => d.status === "ready" && d.sourceRevision === p.revision,
+          ) ||
+          h.find((d) => d.status === "ready") ||
+          h[0] ||
           null;
-        selectDeck(selected);
+        setPendingDeck(h.find((d) => active(d.status)) || null);
+        selectDeck(selected, selected?.sourceRevision === p.revision);
         if (
           !selected ||
+          selected.sourceRevision !== p.revision ||
           (!active(selected.status) && script.pages.some((p) => p.edited))
         )
           setPageTexts(
@@ -197,14 +215,15 @@ export function SpeechPresentation({
     };
   }, [projectId, selectDeck]);
   useEffect(() => {
-    if (!polling || !deck) return;
+    if (!polling || !job) return;
     let stopped = false,
       timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
       try {
-        const d = await api<Narration>(`/narration/${deck.id}`);
+        const d = await api<Narration>(`/narration/${job.id}`);
         if (!stopped) {
-          setDeck(d);
+          setPendingDeck(d);
+          if (!deck || deck.status !== "ready") setDeck(d);
           setHistory((h) => [d, ...h.filter((x) => x.id !== d.id)]);
         }
       } catch (e) {
@@ -217,7 +236,7 @@ export function SpeechPresentation({
       stopped = true;
       clearTimeout(timer);
     };
-  }, [deck?.id, polling]);
+  }, [job?.id, polling, deck?.status]);
   useEffect(() => {
     const el = audio.current;
     if (!el) return;
@@ -244,13 +263,19 @@ export function SpeechPresentation({
     };
   }, [source, playing, clipKey]);
   useEffect(() => {
+    if (audio.current) {
+      audio.current.playbackRate = playbackRate;
+      audio.current.preservesPitch = true;
+    }
+  }, [playbackRate, source, clipKey, audioAttempt]);
+  useEffect(() => {
     if (!playing || !playable || source || !deck) return;
     const timer = setTimeout(
       ended,
-      (deck.pages[pageIndex].silentDuration || 3) * 1000,
+      ((deck.pages[pageIndex].silentDuration || 3) * 1000) / playbackRate,
     );
     return () => clearTimeout(timer);
-  }, [playing, playable, source, deck, pageIndex, clipIndex]);
+  }, [playing, playable, source, deck, pageIndex, clipIndex, playbackRate]);
   useEffect(() => {
     setElapsed(0);
     setDuration(0);
@@ -271,6 +296,7 @@ export function SpeechPresentation({
     (index: number) => {
       if (index < 0 || index >= pages.length) return;
       setPageIndex(index);
+      setEditPageId("");
       setClipIndex(0);
       setMessage("");
       if (index === pageIndex) {
@@ -335,9 +361,12 @@ export function SpeechPresentation({
         revision: project.revision,
         options,
         pageEmotions,
-        pageTexts: Object.fromEntries(pages.map((p) => [p.id, textFor(p)])),
+        pageTexts: Object.fromEntries(
+          draftPages.map((p) => [p.id, textFor(p)]),
+        ),
       });
-      selectDeck(d);
+      setPendingDeck(d);
+      if (!playable) setDeck(d);
       setHistory((h) => [d, ...h]);
     } catch (e) {
       setError((e as Error).message);
@@ -354,7 +383,7 @@ export function SpeechPresentation({
       const data = await post<{ file: string }>("/speech/preview", {
         options: {
           ...options,
-          emotion: pageEmotions[page?.id] || options.emotion,
+          emotion: pageEmotions[scriptPage?.id] || options.emotion,
         },
         prepared: true,
         text: Array.from(spokenText).slice(0, 180).join(""),
@@ -368,11 +397,11 @@ export function SpeechPresentation({
     }
   }
   async function jobAction(action: string) {
-    if (!deck) return;
+    if (!job) return;
     setBusy(true);
     setError("");
     try {
-      setDeck(await post<Narration>(`/narration/${deck.id}/${action}`));
+      setPendingDeck(await post<Narration>(`/narration/${job.id}/${action}`));
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -388,7 +417,9 @@ export function SpeechPresentation({
         ),
       ]);
       setProject(p);
-      selectDeck(null);
+      setTextFeedback({
+        text: "已载入当前项目的口播文本。已保存音频仍可播放；新文字需要生成新口播版本。",
+      });
       setPageTexts(Object.fromEntries(script.pages.map((p) => [p.id, p.text])));
     } catch (e) {
       setError((e as Error).message);
@@ -434,7 +465,7 @@ export function SpeechPresentation({
                 setPresenting(false);
               }}
             >
-              口播设置
+              返回演播台
             </Button>
           )}
           <Button
@@ -493,15 +524,30 @@ export function SpeechPresentation({
               <ArrowRight size={18} />
             </Button>
             <div className="speech-transport-gap" />
-            {playable && (
+            <label className="speech-rate">
+              播放倍速
+              <select
+                aria-label="实时播放倍速"
+                value={playbackRate}
+                onChange={(e) => setPlaybackRate(Number(e.target.value))}
+              >
+                {[0.75, 1, 1.25, 1.5, 1.75, 2].map((rate) => (
+                  <option key={rate} value={rate}>
+                    {rate}×
+                  </option>
+                ))}
+              </select>
+            </label>
+            {
               <Button
+                disabled={!playable}
                 variant="primary"
                 onClick={() => (playing ? setPlaying(false) : start())}
               >
                 {playing ? <Pause size={18} /> : <Play size={18} />}
                 {playing ? "暂停口播" : "开始口播"}
               </Button>
-            )}
+            }
             <Button onClick={() => setNotesOpen((v) => !v)}>
               {notesOpen ? "收起讲稿" : "查看讲稿"}
             </Button>
@@ -531,6 +577,13 @@ export function SpeechPresentation({
               )}
             </div>
           )}
+          {!playable && (
+            <p className="speech-subtle">
+              {polling
+                ? "口播正在生成，完成后即可播放。"
+                : "尚未选择可播放的口播。可选择已保存版本，或制作新口播。"}
+            </p>
+          )}
           {notesOpen && <div className="speech-notes">{page?.notes}</div>}
           {deck && (
             <p className="speech-audio-status" role="status">
@@ -548,7 +601,7 @@ export function SpeechPresentation({
               <SpeakerHigh size={15} />
               AI 合成口播 · {deck.voiceName} · 保存于项目版本{" "}
               {deck.sourceRevision}
-              {changed ? " · 设置已修改，请重新生成" : ""}
+              {changed ? " · 播放已保存音频，草稿修改尚未生成" : ""}
             </p>
           )}
           {error && (
@@ -598,22 +651,79 @@ export function SpeechPresentation({
         </main>
         {!presenting && (
           <aside className="speech-setup">
-            <h2>让演讲，开始讲述。</h2>
-            <p>
-              按逐页讲稿口播，讲完自动翻页。选择一个声音，先听听它如何讲你的故事。
-            </p>
-            {!config?.hasKey && (
+            <div className="speech-panel-heading">
+              <span className="speech-eyebrow">演播台</span>
+              <h2>
+                {panel === "play"
+                  ? "准备好，开始讲述。"
+                  : panel === "text"
+                    ? "只念你要说的话。"
+                    : "让声音贴合表达。"}
+              </h2>
+            </div>
+            <div className="speech-tabs" role="tablist" aria-label="演播工作区">
+              {(
+                [
+                  ["play", "放映"],
+                  ["text", "1 · 口播文本"],
+                  ["voice", "2 · 声音制作"],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  role="tab"
+                  aria-selected={panel === id}
+                  onClick={() => setPanel(id)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {panel === "play" && (
+              <div className="speech-play-guide">
+                <h3>{playable ? "已有口播，随时开播" : "先制作一份口播"}</h3>
+                <p>
+                  {playable
+                    ? "点击画面下方“开始口播”，讲完自动翻页。倍速在播放中随时可调，无需重新生成。"
+                    : "检查口播文本，再选择声音生成。也可以先仅放映画面。"}
+                </p>
+                <Button onClick={() => setPanel("text")}>
+                  检查或重新识别口播文本
+                </Button>
+                <p className="speech-subtle">
+                  ← → 翻页 · 空格播放/暂停 · Esc 返回
+                </p>
+              </div>
+            )}
+            {panel !== "play" && (
+              <p className="speech-subtle">
+                文字和声音设置属于制作草稿，已保存的音频仍可从左侧播放。
+              </p>
+            )}
+            {panel === "voice" && !config?.hasKey && (
               <div className="speech-callout">
                 <p>连接语音服务后，即可试听和生成口播。</p>
                 <Button onClick={onSettings}>配置语音服务</Button>
               </div>
             )}
-            <fieldset disabled={busy || polling || playing}>
-              {page && (
-                <details className="speech-text-review" open>
-                  <summary>第 {pageIndex + 1} 页 · 实际口播文本</summary>
+            <fieldset hidden={panel === "play"} disabled={busy || polling}>
+              {panel === "text" && scriptPage && (
+                <section className="speech-text-review">
+                  <Field label="查看口播页">
+                    <select
+                      value={scriptPage.id}
+                      onChange={(e) => setEditPageId(e.target.value)}
+                    >
+                      {draftPages.map((p) => (
+                        <option value={p.id} key={p.id}>
+                          第 {p.number} 页 · {p.title}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <h3>实际口播文本</h3>
                   <p className="speech-subtle">
-                    自动过滤章节、图片标记和舞台提示。请检查后生成；留空表示本页不口播，停留
+                    过滤主副标题、菜单、章节和动作提示；保留正文。请检查后生成；留空表示本页不口播，停留
                     3 秒。
                   </p>
                   <textarea
@@ -623,7 +733,7 @@ export function SpeechPresentation({
                     onChange={(e) => {
                       setPageTexts((t) => ({
                         ...t,
-                        [page.id]: e.target.value,
+                        [scriptPage.id]: e.target.value,
                       }));
                       setPreview("");
                       setTextFeedback(null);
@@ -631,7 +741,7 @@ export function SpeechPresentation({
                   />
                   <details>
                     <summary>查看原稿与过滤说明（{removed.length} 处）</summary>
-                    <div className="speech-notes">{page.notes}</div>
+                    <div className="speech-notes">{scriptPage?.notes}</div>
                     {removed.map((r, i) => (
                       <p key={i} className="speech-subtle">
                         {r.reason}：{r.text}
@@ -641,11 +751,21 @@ export function SpeechPresentation({
                   <div className="speech-inline">
                     <Button
                       onClick={() => {
-                        const results = pages.map((p) => ({
+                        const results = draftPages.map((p) => ({
                           id: p.id,
                           before: textFor(p),
                           ...prepareSpeechText(p.notes),
                         }));
+                        const firstChanged = results.findIndex(
+                          (p) => p.text !== p.before,
+                        );
+                        if (firstChanged >= 0) {
+                          const index = pages.findIndex(
+                            (p) => p.id === results[firstChanged].id,
+                          );
+                          if (index >= 0) jump(index);
+                          setEditPageId(results[firstChanged].id);
+                        }
                         const updated = results.filter(
                           (p) => p.text !== p.before,
                         ).length;
@@ -662,17 +782,13 @@ export function SpeechPresentation({
                         setPreview("");
                         setTextReviewed(true);
                         setTextFeedback({
-                          text: `已重新识别 ${pages.length} 页，过滤 ${omitted} 处非口播内容。${updated ? `已更新 ${updated} 页文本，请逐页检查后保存或生成口播。` : "当前文本与识别结果一致，无需修改。"} 本次仅处理文本，不生成音频、不计费。`,
+                          text: `已重新识别 ${draftPages.length} 页，过滤 ${omitted} 处非口播内容。${updated ? `已更新 ${updated} 页文本，请逐页检查后保存或生成口播。` : "当前文本与识别结果一致，无需修改。"} 本次仅处理文本，不生成音频、不计费。`,
                         });
                       }}
                     >
                       重新识别整场口播
                     </Button>
                     <Button
-                      disabled={
-                        deck?.sourceRevision !== undefined &&
-                        deck.sourceRevision !== project?.revision
-                      }
                       onClick={async () => {
                         setBusy(true);
                         setTextFeedback(null);
@@ -682,7 +798,7 @@ export function SpeechPresentation({
                             body: JSON.stringify({
                               revision: project?.revision,
                               pageTexts: Object.fromEntries(
-                                pages.map((p) => [p.id, textFor(p)]),
+                                draftPages.map((p) => [p.id, textFor(p)]),
                               ),
                             }),
                           });
@@ -712,91 +828,111 @@ export function SpeechPresentation({
                       {textFeedback.text}
                     </p>
                   )}
-                  {deck?.pages.some((p) => !p.speechTextVersion) && (
+                  {deck?.pages.some(
+                    (p) => (p.speechTextVersion || 0) < SPEECH_TEXT_VERSION,
+                  ) && (
                     <p className="speech-callout">
                       {textReviewed || textChanged
-                        ? "当前音频仍是旧版。检查口播文本后，点击下方“生成整场口播”，才能更新声音；生成会使用语音服务额度。"
+                        ? "当前音频仍是旧版。检查口播文本后，前往“2 · 声音制作”生成新版本，才能更新声音；生成会使用语音服务额度。"
                         : "这是旧版音频。点击“重新识别整场口播”并检查文本后，生成新的口播版本，才能去除已录入声音的提示文字。"}
                     </p>
                   )}
-                </details>
+                  <Button onClick={() => setPanel("voice")}>
+                    下一步 · 选择声音
+                  </Button>
+                </section>
               )}
-              <Field label="演讲声音">
-                <select
-                  value={options.voiceId}
-                  onChange={(e) => {
-                    setOptions({ ...options, voiceId: e.target.value });
-                    setPreview("");
-                  }}
-                >
-                  {voices.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.custom ? "我的声音 · " : ""}
-                      {v.name}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <p className="speech-subtle">
-                {voices.find((v) => v.id === options.voiceId)?.description}
-              </p>
-              <div className="speech-options">
-                <Field label="整体情绪">
-                  <select
-                    value={options.emotion}
-                    onChange={(e) =>
-                      setOptions({ ...options, emotion: e.target.value })
-                    }
+              {panel === "voice" && (
+                <>
+                  <Field label="演讲声音">
+                    <select
+                      value={options.voiceId}
+                      onChange={(e) => {
+                        setOptions({ ...options, voiceId: e.target.value });
+                        setPreview("");
+                      }}
+                    >
+                      {voices.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.custom ? "我的声音 · " : ""}
+                          {v.name}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <p className="speech-subtle">
+                    {voices.find((v) => v.id === options.voiceId)?.description}
+                  </p>
+                  <div className="speech-options">
+                    <Field label="整体情绪">
+                      <select
+                        value={options.emotion}
+                        onChange={(e) =>
+                          setOptions({ ...options, emotion: e.target.value })
+                        }
+                      >
+                        {SPEECH_EMOTIONS.map((e) => (
+                          <option value={e.id} key={e.id}>
+                            {e.name}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label={`生成语速 · ${options.speed.toFixed(1)}×`}>
+                      <input
+                        type="range"
+                        aria-label="生成口播语速"
+                        min="0.5"
+                        max="2"
+                        step="0.1"
+                        value={options.speed}
+                        onChange={(e) =>
+                          setOptions({
+                            ...options,
+                            speed: Number(e.target.value),
+                          })
+                        }
+                      />
+                    </Field>
+                  </div>
+                  {scriptPage && (
+                    <Field
+                      label={`第 ${draftPages.findIndex((p) => p.id === scriptPage.id) + 1} 页的情绪`}
+                    >
+                      <select
+                        value={pageEmotions[scriptPage.id] || ""}
+                        onChange={(e) =>
+                          setPageEmotions({
+                            ...pageEmotions,
+                            [scriptPage.id]: e.target.value,
+                          })
+                        }
+                      >
+                        <option value="">跟随整体设置</option>
+                        {SPEECH_EMOTIONS.map((e) => (
+                          <option value={e.id} key={e.id}>
+                            {e.name}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                  )}
+                  <Button
+                    disabled={!config?.hasKey || !spokenText.trim()}
+                    onClick={audition}
                   >
-                    {SPEECH_EMOTIONS.map((e) => (
-                      <option value={e.id} key={e.id}>
-                        {e.name}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label={`语速 · ${options.speed.toFixed(1)}×`}>
-                  <input
-                    type="range"
-                    aria-label="口播语速"
-                    min="0.5"
-                    max="2"
-                    step="0.1"
-                    value={options.speed}
-                    onChange={(e) =>
-                      setOptions({ ...options, speed: Number(e.target.value) })
-                    }
-                  />
-                </Field>
-              </div>
-              {page && (
-                <Field label={`第 ${pageIndex + 1} 页的情绪`}>
-                  <select
-                    value={pageEmotions[page.id] || ""}
-                    onChange={(e) =>
-                      setPageEmotions({
-                        ...pageEmotions,
-                        [page.id]: e.target.value,
-                      })
-                    }
-                  >
-                    <option value="">跟随整体设置</option>
-                    {SPEECH_EMOTIONS.map((e) => (
-                      <option value={e.id} key={e.id}>
-                        {e.name}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
+                    试听本页开头
+                  </Button>
+                  <p className="speech-subtle">
+                    生成语速决定新音频的表达。放映时可用左侧“播放倍速”即时调整。
+                  </p>
+                  <Button variant="ghost" onClick={onSettings}>
+                    管理声音与采集 → 设置
+                  </Button>
+                </>
               )}
-              <Button
-                disabled={!config?.hasKey || !spokenText.trim()}
-                onClick={audition}
-              >
-                试听本页开头
-              </Button>
             </fieldset>
-            {preview && (
+            {panel === "voice" && preview && (
               <audio
                 ref={previewAudio}
                 controls
@@ -805,15 +941,11 @@ export function SpeechPresentation({
                 aria-label="合成口播试听"
               />
             )}
-            <div className="speech-generate">
+            <div className="speech-generate" hidden={panel !== "voice"}>
               <Button
                 variant="primary"
                 disabled={
-                  busy ||
-                  polling ||
-                  !config?.hasKey ||
-                  !pages.length ||
-                  !!(deck && deck.sourceRevision !== project?.revision)
+                  busy || polling || !config?.hasKey || !draftPages.length
                 }
                 onClick={generate}
               >
@@ -825,7 +957,7 @@ export function SpeechPresentation({
                 试听与生成使用语音服务额度。讲稿发送至已配置的服务，已生成音频保存在本机；重复内容自动复用。
               </small>
             </div>
-            {playable && deck && (
+            {panel === "play" && playable && deck && (
               <Button
                 disabled={busy}
                 onClick={async () => {
@@ -844,30 +976,41 @@ export function SpeechPresentation({
                   }
                 }}
               >
-                导出静态 HTML · 含口播
+                导出此版本 HTML · 含口播
               </Button>
             )}
-            {deck && (
+            {job && (polling || job.status !== "ready" || pendingDeck) && (
               <div className="speech-job" role="status">
-                <strong>{deck.progress}</strong>
+                <strong>{job.progress}</strong>
                 <span>
-                  {deck.pages.filter((p) => p.status === "ready").length} /{" "}
-                  {deck.pages.length} 页完成
+                  {job.pages.filter((p) => p.status === "ready").length} /{" "}
+                  {job.pages.length} 页完成
                 </span>
                 {polling ? (
                   <Button disabled={busy} onClick={() => jobAction("cancel")}>
                     停止生成
                   </Button>
+                ) : job.status !== "ready" ? (
+                  <Button disabled={busy} onClick={() => jobAction("retry")}>
+                    继续未完成的页面
+                  </Button>
                 ) : (
-                  deck.status !== "ready" && (
-                    <Button disabled={busy} onClick={() => jobAction("retry")}>
-                      继续未完成的页面
+                  pendingDeck && (
+                    <Button
+                      onClick={() => {
+                        selectDeck(pendingDeck, false);
+                        setPendingDeck(null);
+                        setPanel("play");
+                      }}
+                    >
+                      使用新口播版本
                     </Button>
                   )
                 )}
               </div>
             )}
             <Button
+              hidden={panel !== "play"}
               disabled={!pages.length}
               onClick={() => {
                 setPlaying(false);
@@ -877,16 +1020,17 @@ export function SpeechPresentation({
             >
               仅放映 PPT
             </Button>
-            {!!history.length && (
+            {panel === "play" && !!history.length && (
               <Field label="已保存的口播">
                 <select
                   value={deck?.id || ""}
                   disabled={busy || polling}
-                  onChange={(e) =>
+                  onChange={(e) => {
                     selectDeck(
                       history.find((d) => d.id === e.target.value) || null,
-                    )
-                  }
+                      false,
+                    );
+                  }}
                 >
                   <option value="">当前项目 · 未生成口播</option>
                   {history.map((d) => (
@@ -898,7 +1042,7 @@ export function SpeechPresentation({
                 </select>
               </Field>
             )}
-            {deck && (
+            {panel !== "play" && deck && (
               <p className="speech-subtle">
                 播放使用生成时的画面与讲稿。
                 {deck.sourceRevision !== project?.revision
@@ -914,18 +1058,6 @@ export function SpeechPresentation({
                 本页画面早于当前讲稿，请检查内容是否一致。
               </p>
             )}
-            <VoiceCapture
-              onRecordingStart={() => {
-                setPlaying(false);
-                previewAudio.current?.pause();
-              }}
-              disabled={busy || polling || !config?.hasKey}
-              onVoices={(v) => {
-                setVoices(v);
-                const newest = v.at(-1);
-                if (newest) setOptions((o) => ({ ...o, voiceId: newest.id }));
-              }}
-            />
           </aside>
         )}
       </div>
@@ -936,13 +1068,14 @@ export function SpeechPresentation({
         preload="auto"
         onEnded={ended}
         onTimeUpdate={() => setElapsed(audio.current?.currentTime || 0)}
-        onLoadedMetadata={() =>
+        onLoadedMetadata={() => {
+          if (audio.current) audio.current.playbackRate = playbackRate;
           setDuration(
             Number.isFinite(audio.current?.duration)
               ? audio.current!.duration
               : 0,
-          )
-        }
+          );
+        }}
         onCanPlay={() => {
           setAudioLoading(false);
           setAudioError("");

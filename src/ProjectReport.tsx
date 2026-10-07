@@ -208,7 +208,7 @@ export function ProjectReport({
           )}
           {!!report.stalePages && (
             <p className="report-explanation">
-              {report.stalePages} 页讲稿已修改、画面待更新；报告统计最新备注。
+              {report.stalePages} 页讲稿已修改、画面待核对；报告统计最新备注。
             </p>
           )}
           {report.perPage.length > 0 && (

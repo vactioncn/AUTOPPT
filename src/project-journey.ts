@@ -80,8 +80,8 @@ export function projectJourney(
   task(
     stale,
     "stale",
-    `更新 ${stale} 页画面`,
-    "讲稿已修改，画面仍是旧版本；请打开页面更新或核对后交付。",
+    `核对 ${stale} 页画面`,
+    "这些页面生成后修改过讲稿，不代表画面有错。查看每页变化，决定修改画面或确认保留。",
   );
   task(
     unsegmented,

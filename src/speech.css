@@ -511,3 +511,119 @@
   max-height: 240px;
   overflow: auto;
 }
+/* Explicitly honour hidden when section layouts use flex. */
+.speech-shell [hidden] {
+  display: none !important;
+}
+.speech-setup {
+  width: 380px;
+  min-width: 340px;
+  padding: 24px;
+  gap: 20px;
+}
+.speech-panel-heading h2 {
+  font-size: 22px;
+  margin-top: 7px;
+}
+.speech-tabs {
+  display: flex;
+  padding: 4px;
+  border: 1px solid #dee3d6;
+  border-radius: 10px;
+  background: #ebeee5;
+  gap: 3px;
+}
+.speech-tabs button {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: #65705b;
+  font: inherit;
+  font-size: 12px;
+  padding: 10px 5px;
+  border-radius: 7px;
+  white-space: nowrap;
+}
+.speech-tabs button[aria-selected="true"] {
+  background: white;
+  color: #29351f;
+  box-shadow: 0 1px 4px #22331114;
+  font-weight: 600;
+}
+.speech-play-guide {
+  display: grid;
+  gap: 16px;
+  padding: 24px 0;
+}
+.speech-play-guide h3,
+.speech-text-review h3 {
+  font-size: 15px;
+  margin: 0 0 12px;
+}
+.speech-rate {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.speech-rate select {
+  background: #f3f5ee;
+  color: #29351f;
+  border: 1px solid #cbd3c0;
+  padding: 8px 4px;
+  border-radius: 7px;
+  font: inherit;
+}
+.speech-transport {
+  flex-wrap: wrap;
+}
+.speech-text-review {
+  margin-bottom: 0;
+}
+.speech-text-review textarea {
+  box-sizing: border-box;
+  font-size: 14px;
+  min-height: 180px;
+}
+.speech-text-review > .btn {
+  margin-top: 18px;
+  width: 100%;
+}
+.is-presenting .speech-rate select {
+  background: #2b3024;
+  color: #e4e9da;
+  border-color: #454d39;
+}
+#speech-settings .voice-capture {
+  margin-top: 26px;
+}
+#speech-settings .voice-capture > audio {
+  display: block;
+}
+#speech-settings
+  .voice-capture
+  input:not([type="checkbox"]):not([type="file"]) {
+  padding: 10px;
+  border: 1px solid #d2d7c9;
+  border-radius: 7px;
+}
+@media (max-width: 1100px) {
+  .speech-stage-area {
+    padding: 18px;
+  }
+  .speech-setup {
+    width: 330px;
+    min-width: 300px;
+    padding: 20px;
+  }
+  .speech-transport {
+    gap: 8px;
+  }
+}
+@media (max-width: 900px) {
+  .speech-setup {
+    width: auto;
+    min-width: 0;
+  }
+}

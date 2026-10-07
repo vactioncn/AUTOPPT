@@ -529,7 +529,7 @@ test(
           .getByRole("button", { name: "打开演讲播放器", exact: true })
           .click();
         await page
-          .getByRole("heading", { name: "让演讲，开始讲述。" })
+          .getByRole("heading", { name: "准备好，开始讲述。" })
           .waitFor();
         await page
           .getByRole("button", { name: "开始口播", exact: true })
@@ -586,14 +586,15 @@ test(
             .evaluate((el) => el.paused),
         );
         await page
-          .getByRole("button", { name: "口播设置", exact: true })
+          .getByRole("button", { name: "返回演播台", exact: true })
           .click();
+        await page.getByRole("tab", {name:"2 · 声音制作",exact:true}).click();
         await page.getByLabel("整体情绪", { exact: true }).selectOption("sad");
         assert.equal(
           await page
             .getByRole("button", { name: "开始口播", exact: true })
-            .count(),
-          0,
+            .isEnabled(),
+          true,
         );
         await page
           .getByLabel("整体情绪", { exact: true })
@@ -606,6 +607,7 @@ test(
             animations: "disabled",
           });
         }
+        await page.getByRole("tab", {name:"放映",exact:true}).click();
         await page
           .getByRole("button", { name: "仅放映 PPT", exact: true })
           .click();
@@ -620,8 +622,10 @@ test(
           });
         await page.evaluate(() => document.exitFullscreen());
         await page
-          .getByRole("button", { name: "口播设置", exact: true })
+          .getByRole("button", { name: "返回演播台", exact: true })
           .click();
+        await page.getByRole("button", {name:"关闭演讲播放器",exact:true}).click();
+        await page.getByRole("button", {name:"设置",exact:true}).click();
         await page.getByText("采集演讲者的声音", { exact: true }).click();
         await page.getByLabel("上传演讲者录音").setInputFiles({
           name: "test.wav",
@@ -642,7 +646,7 @@ test(
         await page.setViewportSize({ width: 390, height: 844 });
         assert(
           await page
-            .locator(".speech-shell")
+            .locator(".settings-page")
             .evaluate((el) => el.scrollWidth <= innerWidth),
         );
         if (out)
@@ -661,10 +665,8 @@ test(
             ),
           ),
         );
-        await page
-          .getByRole("button", { name: "关闭演讲播放器", exact: true })
-          .click();
-        assert.equal(await page.locator(".speech-shell").count(), 0);
+        await page.getByRole("button", {name:"项目",exact:true}).click();
+        assert.equal(await page.locator(".voice-capture").count(), 0);
         assert(
           await page.evaluate(() =>
             window.testMicrophoneTracks.every(

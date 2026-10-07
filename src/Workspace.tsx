@@ -1,3 +1,4 @@
+import { VisualReview } from "./VisualReview";
 import { PageConcepts } from "./OnboardingUI";
 import {
   createGenerationRequest,
@@ -160,6 +161,7 @@ export function Workspace({
   const managedModels = !capabilities.localModelSettings.enabled;
   const [draftSaveError, setDraftSaveError] = useState(false);
   const [speechOpen, setSpeechOpen] = useState(false);
+  const [visualReviewOpen, setVisualReviewOpen] = useState(false);
   const records = usePresentationRecords(id, speechAvailable, motionAvailable);
   const [insertion, setInsertion] = useState<{
     afterSlideId: string | null;
@@ -445,6 +447,10 @@ export function Workspace({
   const followAction = (action: JourneyAction) => {
     onAreaChange(action.area);
     if (action.area !== "studio") return;
+    if (action.target === "stale") {
+      setVisualReviewOpen(true);
+      return;
+    }
     setFilter("all");
     if (
       action.target === "composer" ||
@@ -664,7 +670,7 @@ export function Workspace({
                 journey.missing.length
                   ? `${journey.missing.length} 页缺图`
                   : "",
-                journey.stale ? `${journey.stale} 页待更新` : "",
+                journey.stale ? `${journey.stale} 页待核对` : "",
                 journey.failed ? `${journey.failed} 页失败` : "",
                 journey.working ? `${journey.working} 项制作中` : "",
               ]
@@ -957,7 +963,9 @@ export function Workspace({
                   </div>
                 </div>
                 <div className="gallery-actions">
-                  <div className="studio-secondary-actions">{secondaryActions}</div>
+                  <div className="studio-secondary-actions">
+                    {secondaryActions}
+                  </div>
                   <details className="studio-more-actions">
                     <summary>更多操作</summary>
                     <div>{secondaryActions}</div>
@@ -1101,7 +1109,9 @@ export function Workspace({
                         ) : s.status === "error" ? (
                           <span className="page-state error">制作失败</span>
                         ) : s.stale ? (
-                          <span className="page-state warning">画面待更新</span>
+                          <span className="page-state warning">
+                            讲稿已改 · 待核对
+                          </span>
                         ) : s.image || s.scene ? (
                           <CheckCircle className="ready-check" size={17} />
                         ) : (
@@ -1285,6 +1295,17 @@ export function Workspace({
           </p>
         )}
       </section>
+      {visualReviewOpen && (
+        <VisualReview
+          project={project}
+          onClose={() => setVisualReviewOpen(false)}
+          onUpdated={setProject}
+          onEdit={(sid) => {
+            setVisualReviewOpen(false);
+            setDetail(sid);
+          }}
+        />
+      )}
       {speechOpen && (
         <Suspense
           fallback={
@@ -1774,7 +1795,11 @@ function ExportDialog({
   const blocked =
     busy || !!missing.length || !!unsegmented || !project.slides.length;
   const download = async (manuscriptOnly = false) => {
-    if (!manuscriptOnly && format !== "project" && (blocked || needsFailedReview))
+    if (
+      !manuscriptOnly &&
+      format !== "project" &&
+      (blocked || needsFailedReview)
+    )
       return;
     setExporting(true);
     setError("");
@@ -1830,7 +1855,9 @@ function ExportDialog({
           disabled={exporting}
           onChange={(e) => setFormat(e.target.value as ExportFormat)}
         >
-          <option value="ppt">{bundleAvailable ? "ZIP 交付包 · PPTX 与逐字稿" : "PPTX"}</option>
+          <option value="ppt">
+            {bundleAvailable ? "ZIP 交付包 · PPTX 与逐字稿" : "PPTX"}
+          </option>
           <option value="html">静态 HTML · 可含口播</option>
           <option value="project">项目迁移包 · 换电脑继续编辑</option>
         </select>
@@ -1880,7 +1907,9 @@ function ExportDialog({
         </p>
       )}
       {!project.slides.length && format !== "project" && (
-        <p className="export-notice">还没有页面，请先添加讲稿并完成拆页与画面制作。</p>
+        <p className="export-notice">
+          还没有页面，请先添加讲稿并完成拆页与画面制作。
+        </p>
       )}
       {!!unsegmented && format !== "project" && (
         <p className="export-notice">
@@ -1902,7 +1931,8 @@ function ExportDialog({
       {!!failedWithImage.length && format !== "project" && (
         <div className="export-notice">
           <p id="failed-export-reason">
-            有 {failedWithImage.length} 页生成失败（第 {failedWithImage.join("、")} 页），
+            有 {failedWithImage.length} 页生成失败（第{" "}
+            {failedWithImage.join("、")} 页），
             仍保留现有画面。本次将使用这些现有画面，请核对后确认继续。
           </p>
           <label className="journey-check">
@@ -1911,7 +1941,9 @@ function ExportDialog({
               aria-describedby="failed-export-reason"
               checked={!needsFailedReview}
               disabled={exporting}
-              onChange={(e) => setConfirmedFailed(e.target.checked ? failedReviewKey : "")}
+              onChange={(e) =>
+                setConfirmedFailed(e.target.checked ? failedReviewKey : "")
+              }
             />
             我已核对失败页，确认使用现有画面继续导出
           </label>
@@ -1932,9 +1964,16 @@ function ExportDialog({
           {error}
         </p>
       )}
-      {format !== "project" && (blocked || stale || failedWithImage.length || hasDraft || project.proposal) && (
-        <Button disabled={exporting} onClick={onStudio}>前往制作台处理</Button>
-      )}
+      {format !== "project" &&
+        (blocked ||
+          stale ||
+          failedWithImage.length ||
+          hasDraft ||
+          project.proposal) && (
+          <Button disabled={exporting} onClick={onStudio}>
+            前往制作台处理
+          </Button>
+        )}
       <div className="modal-actions export-actions">
         <Button onClick={onClose} disabled={exporting}>
           返回
@@ -1949,8 +1988,16 @@ function ExportDialog({
           variant="primary"
           onClick={() => download()}
           loading={exporting}
-          aria-label={format === "ppt" && bundleAvailable && !exporting ? "下载 ZIP 交付包（含 PPTX＋逐字稿）" : undefined}
-          disabled={format === "project" ? busy || packageBusy : blocked || needsFailedReview}
+          aria-label={
+            format === "ppt" && bundleAvailable && !exporting
+              ? "下载 ZIP 交付包（含 PPTX＋逐字稿）"
+              : undefined
+          }
+          disabled={
+            format === "project"
+              ? busy || packageBusy
+              : blocked || needsFailedReview
+          }
         >
           {!exporting && <DownloadSimple size={18} />}
           {exporting
@@ -1960,8 +2007,8 @@ function ExportDialog({
               : format === "html"
                 ? "下载静态 HTML"
                 : bundleAvailable
-                    ? "下载 ZIP 交付包"
-                    : "下载 PPTX"}
+                  ? "下载 ZIP 交付包"
+                  : "下载 PPTX"}
         </Button>
       </div>
     </Modal>
@@ -2366,7 +2413,10 @@ function SlideDetail({
               </div>
               <Button
                 variant="primary"
-                onClick={() => { setError(""); setConfirmRedesign(true); }}
+                onClick={() => {
+                  setError("");
+                  setConfirmRedesign(true);
+                }}
                 loading={loading}
                 disabled={
                   busy ||
@@ -2425,7 +2475,7 @@ function SlideDetail({
                     {dirty
                       ? " · 未保存"
                       : slide.stale
-                        ? " · 画面待更新"
+                        ? " · 讲稿已改 · 待核对"
                         : " · 已保存"}
                   </span>
                   <Button
@@ -2570,15 +2620,36 @@ function SlideDetail({
         </div>
       </Modal>
       {confirmRedesign && (
-        <Modal title="确认重新设计这页" onClose={() => !loading && setConfirmRedesign(false)}>
-          <p>{hosted
-            ? "重新设计会再次调用模型，并使用管理员提供的图片额度。"
-            : "重新设计会再次调用模型，服务商按实际调用收取费用。"}</p>
+        <Modal
+          title="确认重新设计这页"
+          onClose={() => !loading && setConfirmRedesign(false)}
+        >
+          <p>
+            {hosted
+              ? "重新设计会再次调用模型，并使用管理员提供的图片额度。"
+              : "重新设计会再次调用模型，服务商按实际调用收取费用。"}
+          </p>
           <p>使用当前讲稿、调整要求和附件重新制作，旧版本会保留。</p>
-          {error && <p className="error-text" role="alert">{error}</p>}
+          {error && (
+            <p className="error-text" role="alert">
+              {error}
+            </p>
+          )}
           <div className="modal-actions">
-            <Button disabled={loading} onClick={() => setConfirmRedesign(false)}>返回修改</Button>
-            <Button variant="primary" loading={loading} disabled={busy || uploading} onClick={redesign}>确认重新设计</Button>
+            <Button
+              disabled={loading}
+              onClick={() => setConfirmRedesign(false)}
+            >
+              返回修改
+            </Button>
+            <Button
+              variant="primary"
+              loading={loading}
+              disabled={busy || uploading}
+              onClick={redesign}
+            >
+              确认重新设计
+            </Button>
           </div>
         </Modal>
       )}

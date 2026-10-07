@@ -16,6 +16,9 @@ import sharp from "sharp";
 import { silenceMp3 } from "./helpers/speech-audio.mjs";
 import { expect } from "@playwright/test";
 
+const reviewScreenshot = (page, options) =>
+  process.env.UPDATE_REVIEW_SCREENSHOTS === "1" ? page.screenshot(options) : Promise.resolve();
+
 test(
   "four project areas preserve editing, own rehearsal/delivery, and fit desktop/mobile in local and hosted shells",
   { timeout: 180000 },
@@ -272,7 +275,7 @@ test(
     await expect(
       page.locator(".topbar").getByRole("button", { name: "播放演讲" }),
     ).toHaveCount(0);
-    await page.screenshot({
+    await reviewScreenshot(page, {
       path: path.join(evidence, "regression-1280-overview.png"),
     });
     await goArea("制作台");
@@ -296,7 +299,7 @@ test(
       .fill("保留这个未提交草稿。");
     await expect(page.getByRole("group", { name: "内容视图" })).toBeVisible();
     await expect(page.getByRole("group", { name: "范围筛选" })).toBeVisible();
-    await page.screenshot({
+    await reviewScreenshot(page, {
       path: path.join(evidence, "regression-1280-studio.png"),
     });
     await goArea("演练中心");
@@ -333,7 +336,7 @@ test(
     await expect(
       nav().getByRole("button", { name: "演练中心", exact: true }),
     ).toHaveAttribute("aria-current", "page");
-    await page.screenshot({
+    await reviewScreenshot(page, {
       path: path.join(evidence, "regression-1280-rehearsal.png"),
     });
     await goArea("概览");
@@ -422,7 +425,7 @@ test(
       .getByRole("dialog")
       .getByRole("button", { name: "关闭", exact: true })
       .click();
-    await page.screenshot({
+    await reviewScreenshot(page, {
       path: path.join(evidence, "regression-1280-delivery.png"),
     });
     await page.goto(`${base}/#project/complete`);
@@ -924,10 +927,10 @@ test(
           if (area === "rehearsal" || area === "delivery")
             await visibleInViewport(primary);
           if (width !== 320) {
-            await page.screenshot({
+            await reviewScreenshot(page, {
               path: path.join(evidence, `${width}-${state}-${area}-first.png`),
             });
-            await page.screenshot({
+            await reviewScreenshot(page, {
               path: path.join(evidence, `${width}-${state}-${area}-full.png`),
               fullPage: true,
             });
@@ -950,7 +953,7 @@ test(
             const bottom = width === 390 ? (await page.locator(".sidebar").boundingBox()).y : height;
             assert(backupBox.y >= 0 && backupBox.y + backupBox.height <= bottom, "entire backup card clears navigation");
             assert(buttonBox.y >= 0 && buttonBox.y + buttonBox.height <= bottom, "last delivery button clears navigation");
-            await page.screenshot({ path: path.join(evidence, `${width}-${state}-delivery-end.png`) });
+            await reviewScreenshot(page, { path: path.join(evidence, `${width}-${state}-delivery-end.png`) });
           }
           await overflow();
         }
@@ -968,7 +971,7 @@ test(
     assert.equal(safeNavBox.height, 96, "navigation includes its 62px content and 34px safe area");
     assert.equal(await page.locator(".workspace").evaluate((el) => parseFloat(getComputedStyle(el).paddingBottom)), 124);
     assert(safeBackupBox.y >= 0 && safeBackupBox.y + safeBackupBox.height <= safeNavBox.y, "backup clears navigation with a nonzero safe area");
-    await page.screenshot({ path: path.join(evidence, "390-complete-delivery-safe-area-end.png") });
+    await reviewScreenshot(page, { path: path.join(evidence, "390-complete-delivery-safe-area-end.png") });
     await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: {} });
     await cdp.detach();
     // Same navigation under hosted feature restrictions; preserve the hosted account entry.
@@ -1131,7 +1134,16 @@ test(
       batches = 0,
       failBatch = false,
       failDraft = false,
-      loseBatchResponse = false;
+      loseBatchResponse = false,
+      accountFailure = null,
+      holdNextDraft = false,
+      resumeDraft;
+    // Speed up the real account polling path without changing production timers.
+    await page.addInitScript(() => {
+      const interval = window.setInterval;
+      window.setInterval = (fn, ms, ...args) => interval(fn, ms === 10000 ? 1000 : ms, ...args);
+    });
+    t.after(() => resumeDraft?.());
     const readProject = (id) =>
       JSON.parse(
         db
@@ -1146,6 +1158,10 @@ test(
       const request = route.request(),
         url = new URL(request.url()),
         method = request.method();
+      if (url.pathname === "/api/account" && accountFailure)
+        return accountFailure === "network"
+          ? route.abort("failed")
+          : route.fulfill({ status: accountFailure, json: { error: "account refresh unavailable" } });
       if (url.pathname === "/api/account")
         return route.fulfill({
           status: hosted ? 200 : 404,
@@ -1238,6 +1254,11 @@ test(
           },
         });
       }
+      if (holdNextDraft && method === "PATCH" && /^\/api\/projects\/[^/]+$/.test(url.pathname)) {
+        holdNextDraft = false;
+        await new Promise((resolve) => { resumeDraft = resolve; });
+        resumeDraft = undefined;
+      }
       if (
         failDraft &&
         method === "PATCH" &&
@@ -1280,7 +1301,7 @@ test(
             ),
             `${name} inner overflow at ${width}`,
           );
-        await page.screenshot({
+        await reviewScreenshot(page, {
           path: path.join(evidence, `${name}-${width}.png`),
         });
       }
@@ -1390,7 +1411,7 @@ test(
         const lastBox = await lastInput.boundingBox(),
           actionsBox = await dialog.locator(".modal-actions").boundingBox();
         assert(lastBox.y + lastBox.height <= actionsBox.y);
-        await page.screenshot({
+        await reviewScreenshot(page, {
           path: path.join(evidence, "390-create-expanded-end.png"),
         });
         await dialog.evaluate((el) =>
@@ -1488,7 +1509,7 @@ test(
           confirmBox.y >= 0 && confirmBox.y + confirmBox.height <= 440,
           "consent action remains reachable with keyboard viewport",
         );
-        await page.screenshot({
+        await reviewScreenshot(page, {
           path: path.join(evidence, "generation-keyboard-390.png"),
         });
         await page.setViewportSize({ width: 1280, height: 800 });
@@ -1539,6 +1560,9 @@ test(
         ).toBeVisible();
         assert.equal(readProject(projectId).batches.length, 1);
         assert.equal(await preference(), "pending");
+        const pendingKey = await page.evaluate(() => Object.keys(localStorage).find((key) => key.startsWith("autoppt-generation-request:v1:")));
+        assert.equal(decodeURIComponent(pendingKey.split(":v1:")[1]), JSON.stringify(["local-browser:local", projectId]));
+        await page.evaluate(() => sessionStorage.clear());
         await page.reload();
         await button("继续添加讲稿").click();
         await expect(input).toHaveValue(draft);
@@ -1664,7 +1688,7 @@ test(
           box.y >= 0 && box.y + box.height <= 440,
           "composer action remains reachable above keyboard",
         );
-        await page.screenshot({
+        await reviewScreenshot(page, {
           path: path.join(evidence, "keyboard-390.png"),
         });
         await page.setViewportSize({ width: 1280, height: 800 });
@@ -1703,13 +1727,15 @@ test(
         );
         await button("更换").click();
         await page.getByLabel("内容倾向（可选）").fill("新同事的受众草稿");
-        await button("前往风格库创建").click();
+        await page.getByRole("dialog").getByRole("button", { name: "前往风格库创建", exact: true }).click();
         await page.getByLabel("风格名称", { exact: true }).fill("隔离手写风格");
         await page
           .getByLabel("风格提示词", { exact: true })
           .fill("留白充足，深绿字色，清晰布局。");
         noStyles = false;
         await button("保存风格").click();
+        await expect(page.getByRole("dialog")).toHaveCount(0);
+        await button("返回新建演讲").click();
         await expect(page.getByLabel("演讲主题", { exact: true })).toHaveValue(
           "保留中的主题",
         );
@@ -1732,6 +1758,47 @@ test(
           "介绍返回保留主题",
         );
         await button("关闭").click();
+      },
+    );
+    await scenario(
+      "abandoning style repair clears the new-project draft and never reopens old repair",
+      async () => {
+        noStyles = true;
+        await page.goto(base);
+        await page.reload();
+        const newProject = () => page.getByRole("complementary").getByRole("button", { name: "新建演讲项目", exact: true }).click();
+        await newProject();
+        await page.getByLabel("演讲主题", { exact: true }).fill("应当放弃的主题");
+        await button("更换").click();
+        await page.getByLabel("内容倾向（可选）").fill("应当放弃的高级选项");
+        await page.getByRole("dialog").getByRole("button", { name: "前往风格库创建", exact: true }).click();
+        await button("关闭").click();
+        await button("返回新建演讲").click();
+        await expect(page.getByLabel("演讲主题", { exact: true })).toHaveValue("应当放弃的主题");
+        await expect(page.getByLabel("内容倾向（可选）")).toHaveValue("应当放弃的高级选项");
+        await page.getByRole("dialog").getByRole("button", { name: "前往风格库创建", exact: true }).click();
+        await button("关闭").click();
+        await page.getByRole("navigation", { name: "主导航" }).getByRole("button", { name: "项目", exact: true }).click();
+        await newProject();
+        await expect(page.getByLabel("演讲主题", { exact: true })).toHaveValue("");
+        await expect(page.getByLabel("内容倾向（可选）")).toBeHidden();
+        await button("更换").click();
+        await expect(page.getByLabel("内容倾向（可选）")).toHaveValue("");
+        await button("关闭").click();
+        await page.getByRole("navigation", { name: "主导航" }).getByRole("button", { name: /风格库/ }).click();
+        await expect(page.locator(".styles-page")).toBeVisible();
+        await expect(page.getByRole("dialog")).toHaveCount(0);
+        await expect(button("返回新建演讲")).toHaveCount(0);
+        // Ordinary new-project from the repair library also discards the draft.
+        await newProject();
+        await page.getByLabel("演讲主题", { exact: true }).fill("第二次放弃的主题");
+        await page.getByRole("dialog").getByRole("button", { name: "前往风格库创建", exact: true }).click();
+        await button("关闭").click();
+        await newProject();
+        await expect(page.getByLabel("演讲主题", { exact: true })).toHaveValue("");
+        await button("关闭").click();
+        await expect(button("返回新建演讲")).toHaveCount(0);
+        noStyles = false;
       },
     );
     await scenario(
@@ -1802,6 +1869,54 @@ test(
       },
     );
     await scenario(
+      "hosted refresh failure after readiness blocks preparation, open consent and in-flight draft saves until recovery",
+      async () => {
+        modelsReady = true;
+        const before = batches;
+        const input = page.getByLabel("添加逐字稿", { exact: true });
+        await expect(page.locator(".composer-model-help")).toHaveCount(0);
+        for (const failure of [503, 404, "network"]) {
+          await button("提交讲稿并制作").click();
+          await expect(button("开始生成")).toBeVisible();
+          accountFailure = failure;
+          await expect(page.getByRole("dialog")).toContainText("暂时无法确认模型状态");
+          await expect(button("开始生成")).toHaveCount(0);
+          await expect(page.locator(".account-footer strong")).toHaveText("隔离账号");
+          assert(!/API Key|余额|服务商|等待管理员配置/.test(await page.getByRole("dialog").innerText()));
+          await button("继续保存草稿").click();
+          await input.press("Control+Enter");
+          await expect(page.getByRole("dialog")).toContainText("暂时无法确认模型状态");
+          assert.equal(batches, before);
+          await button("继续保存草稿").click();
+          accountFailure = null;
+          await expect(page.locator(".composer-model-help")).toHaveCount(0);
+        }
+        // If readiness changes while submitDraft awaits PATCH, the POST must not run.
+        await button("提交讲稿并制作").click();
+        holdNextDraft = true;
+        await button("开始生成").click();
+        await expect.poll(() => !!resumeDraft).toBe(true);
+        accountFailure = 503;
+        await expect(page.locator(".composer-model-help")).toContainText("暂时无法确认模型状态");
+        resumeDraft();
+        await expect(page.getByRole("dialog")).toContainText("暂时无法确认模型状态");
+        assert.equal(batches, before);
+        await button("继续保存草稿").click();
+        await button("帮助与介绍").click();
+        await button("重新查看新手引导").click();
+        await expect(card).toContainText("内容模型：未就绪");
+        await expect(card).toContainText("暂时无法确认模型状态");
+        await expect(card.getByRole("button", { name: "开始第一个演讲" })).toHaveCount(0);
+        await button("返回刚才的页面").click();
+        accountFailure = null;
+        await expect(page.locator(".composer-model-help")).toHaveCount(0);
+        await button("提交讲稿并制作").click();
+        await button("开始生成").click();
+        await expect(input).toHaveValue("");
+        assert.equal(batches, before + 1, "only a successful readiness refresh permits the paid batch");
+      },
+    );
+    await scenario(
       "storage denial does not break drafting or skip in the current session",
       async () => {
         await page.addInitScript(() => {
@@ -1828,6 +1943,16 @@ test(
         await expect
           .poll(() => readProject(projectId).draft)
           .toBe("即使浏览器偏好不可用，草稿仍保存到隔离工作区。");
+        await expect(page.locator(".composer")).toContainText("重启后无法识别未确认的提交");
+        const before = batches;
+        failBatch = true;
+        for (let attempt = 0; attempt < 2; attempt++) {
+          await button("提交讲稿并制作").click();
+          await button("开始生成").click();
+          await expect(page.getByText("隔离测试：模型暂时不可用", { exact: true })).toBeVisible();
+        }
+        assert.equal(batches, before + 2);
+        failBatch = false;
       },
     );
     assert.deepEqual(

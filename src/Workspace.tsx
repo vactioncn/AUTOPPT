@@ -2,6 +2,7 @@ import { PageConcepts } from "./OnboardingUI";
 import {
   createGenerationRequest,
   exampleManuscript,
+  unknownModelStatus,
   type OnboardingState,
 } from "./onboarding";
 import {
@@ -101,6 +102,8 @@ export function Workspace({
   dataRootLabel,
   hosted,
   modelsReady,
+  modelStatusUnknown,
+  generationScope,
   onboarding,
   onOnboardingChange,
   area,
@@ -117,6 +120,8 @@ export function Workspace({
   dataRootLabel: string;
   hosted: boolean;
   modelsReady: boolean;
+  modelStatusUnknown: boolean;
+  generationScope: string;
   onboarding: OnboardingState;
   onOnboardingChange: (change: Partial<OnboardingState>) => void;
   area: ProjectArea;
@@ -141,12 +146,17 @@ export function Workspace({
   >(null);
   const [directGeneration, setDirectGeneration] = useState(false);
   const submitLock = useRef(false);
+  const latestModelsReady = useRef(modelsReady);
+  latestModelsReady.current = modelsReady;
   const latestDraft = useRef("");
   const generationRequest = useRef<ReturnType<
     typeof createGenerationRequest
   > | null>(null);
   if (!generationRequest.current)
-    generationRequest.current = createGenerationRequest(id);
+    generationRequest.current = createGenerationRequest(generationScope);
+  const [generationPersistent, setGenerationPersistent] = useState(
+    generationRequest.current.isPersistent(),
+  );
   const managedModels = !capabilities.localModelSettings.enabled;
   const [draftSaveError, setDraftSaveError] = useState(false);
   const [speechOpen, setSpeechOpen] = useState(false);
@@ -304,7 +314,13 @@ export function Workspace({
     let acceptedSubmission = false;
     try {
       const requestId = await generationRequest.current!.forText(draft);
+      setGenerationPersistent(generationRequest.current!.isPersistent());
       await saveDraft(draft);
+      // Account polling may invalidate readiness while the draft is saving.
+      if (!latestModelsReady.current) {
+        setGenerationDialog("models");
+        return;
+      }
       const accepted = await post<{
         id: string;
         batchId: string;
@@ -537,12 +553,19 @@ export function Workspace({
       )}
       {!modelsReady && (
         <p className="composer-model-help">
-          {managedModels
-            ? "模型由管理员管理，尚未就绪；可继续保存草稿，生成前请联系管理员。"
-            : "生成前需连接内容与图片模型；现在可以继续保存草稿。"}
+          {modelStatusUnknown
+            ? unknownModelStatus
+            : managedModels
+              ? "模型由管理员管理，尚未就绪；可继续保存草稿，生成前请联系管理员。"
+              : "生成前需连接内容与图片模型；现在可以继续保存草稿。"}
           <Button variant="ghost" onClick={() => void connectModels()}>
             {managedModels ? "查看模型服务状态" : "连接模型"}
           </Button>
+        </p>
+      )}
+      {!generationPersistent && (
+        <p className="composer-save-help" role="status">
+          无法保存生成请求标识；本次会话可继续使用，但重启后无法识别未确认的提交。若提交结果不明，请先查看项目状态再重试。
         </p>
       )}
       <div className="composer-footer">
@@ -1186,9 +1209,11 @@ export function Workspace({
             <div className="inline-notice">
               <WarningCircle size={20} />
               <span>
-                {managedModels
-                  ? "模型尚未就绪，请等待管理员配置；可以先保存草稿。"
-                  : "先连接模型，即可自动分析文稿和生成画面。草稿可以先写下来。"}
+                {modelStatusUnknown
+                  ? unknownModelStatus
+                  : managedModels
+                    ? "模型尚未就绪，请等待管理员配置；可以先保存草稿。"
+                    : "先连接模型，即可自动分析文稿和生成画面。草稿可以先写下来。"}
               </span>
               <Button onClick={onSettings}>
                 {managedModels ? "查看模型服务状态" : "连接模型"}
@@ -1420,11 +1445,13 @@ export function Workspace({
           {generationDialog === "models" || !modelsReady ? (
             <>
               <p>
-                {managedModels
-                  ? "模型尚未就绪，请联系管理员或等待管理员配置。草稿会保留，可以继续编辑和保存。"
-                  : "生成前需要连接内容和图片模型。草稿会保留，可以继续编辑和保存。"}
+                {modelStatusUnknown
+                  ? unknownModelStatus
+                  : managedModels
+                    ? "模型尚未就绪，请联系管理员或等待管理员配置。草稿会保留，可以继续编辑和保存。"
+                    : "生成前需要连接内容和图片模型。草稿会保留，可以继续编辑和保存。"}
               </p>
-              {managedModels && (
+              {managedModels && !modelStatusUnknown && (
                 <p>
                   {capabilities.localModelSettings.reason ||
                     "模型由管理员管理，请联系管理员配置。"}

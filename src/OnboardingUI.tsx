@@ -7,6 +7,7 @@ import {
   createOnboardingPreferences,
   onboardingReadiness,
   safeWorkspaceLabel,
+  unknownModelStatus,
   type OnboardingState,
 } from "./onboarding";
 
@@ -31,7 +32,11 @@ export function WorkspaceReadiness({
 }: {
   data: Bootstrap;
   capabilities: Capabilities;
-  account: { hosted: boolean; modelReady?: boolean };
+  account: {
+    hosted: boolean;
+    modelReady?: boolean;
+    modelStatusUnknown?: boolean;
+  };
   onStart: () => void;
   onSettings: () => void;
   onStyles: () => void;
@@ -65,8 +70,12 @@ export function WorkspaceReadiness({
       </ul>
       {state.managed && (
         <p>
-          {capabilities.localModelSettings.reason || "模型由管理员统一管理。"}
-          {!state.modelsReady && " 请联系管理员准备模型。"}
+          {account.modelStatusUnknown ? unknownModelStatus : (
+            <>
+              {capabilities.localModelSettings.reason || "模型由管理员统一管理。"}
+              {!state.modelsReady && " 请联系管理员准备模型。"}
+            </>
+          )}
         </p>
       )}
       {!state.modelsReady && <p>可以先写草稿并保存，生成前才需要模型。</p>}

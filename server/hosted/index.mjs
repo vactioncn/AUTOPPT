@@ -288,6 +288,7 @@ const authenticated = (req, res, next) => {
     next(e);
   }
 };
+const modelsReady = () => !!providers.text.apiKey && !!providers.image.apiKey;
 const admin = (req, res, next) =>
   req.user?.role === "admin"
     ? next()
@@ -311,7 +312,7 @@ app.get("/api/account", (req, res) => {
   res.json({
     hosted: true,
     user,
-    modelReady: !!providers.text.apiKey && !!providers.image.apiKey,
+    modelReady: modelsReady(),
   });
 });
 const authLimit = (req, res, next) => {
@@ -360,7 +361,7 @@ app.use("/api/admin", authenticated, admin, parse);
 app.get("/api/admin", (req, res) =>
   res.json({
     ...accounts.overview(),
-    modelReady: !!providers.text.apiKey && !!providers.image.apiKey,
+    modelReady: modelsReady(),
     limits: { concurrency: maxCalls, dailyCalls, perUserCalls, maxWorkers },
     activity: {
       modelCalls: calls,
@@ -497,6 +498,12 @@ app.use("/internal", (req, res) =>
 // Only checked-in/build assets are public. Uploaded/generated assets are below auth.
 app.use(express.static(path.join(root, "dist"), { dotfiles: "deny" }));
 app.use(["/api", "/assets"], authenticated, async (req, res) => {
+  if (
+    req.method === "POST" &&
+    /^\/api\/projects\/[^/]+\/batches\/?$/.test(req.originalUrl.split("?")[0]) &&
+    !modelsReady()
+  )
+    fail("模型尚未就绪，请联系管理员或稍后查看模型服务状态。草稿可以继续保存。", 503);
   if (req.originalUrl.startsWith("/api/settings") && req.method !== "GET")
     fail("模型由管理员统一配置。", 403);
   if (!["GET", "HEAD"].includes(req.method))

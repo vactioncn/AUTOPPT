@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import ts from "typescript";
+import { launchGenerationClient, preferenceStorage } from "./helpers/generation-client.mjs";
 const { outputText } = ts.transpileModule(
   readFileSync(new URL("../src/onboarding.ts", import.meta.url), "utf8"),
   {
@@ -16,6 +17,7 @@ const {
   createOnboardingPreferences,
   onboardingReadiness,
   safeWorkspaceLabel,
+  clearWorkspacePreferences,
 } = await import(`data:text/javascript,${encodeURIComponent(outputText)}`);
 const storage = () => {
   const entries = new Map();
@@ -182,4 +184,41 @@ test("unacknowledged generation identity survives retries and reloads; acceptanc
     throw Error("denied");
   });
   assert.equal(await denied.forText("草稿"), await denied.forText("草稿"));
+  assert.equal(denied.isPersistent(), false);
+});
+
+test("pending request survives a fresh client and is isolated by runtime, real account and project", async () => {
+  const persistent = preferenceStorage();
+  const scope = JSON.stringify(["hosted:real-user-one", "same-project"]);
+  const first = launchGenerationClient(scope, persistent);
+  const id = await first.request.forText("只持久化摘要，不持久化原稿");
+  first.sessionStorage.setItem("old-session", "discarded");
+  const restarted = launchGenerationClient(scope, persistent);
+  assert.equal(restarted.sessionStorage.length, 0);
+  assert.equal(await restarted.request.forText("只持久化摘要，不持久化原稿"), id);
+  assert.equal(restarted.request.isPersistent(), true);
+  const stored = JSON.parse([...persistent.entries.values()][0]);
+  assert.deepEqual(Object.keys(stored), ["digest", "requestId"]);
+  assert.match(stored.digest, /^[a-f0-9]{64}$/);
+  for (const other of [
+    ["hosted:real-user-two", "same-project"],
+    ["desktop:local", "same-project"],
+    ["local-browser:local", "same-project"],
+    ["hosted:real-user-one", "different-project"],
+  ]) assert.notEqual(await launchGenerationClient(JSON.stringify(other), persistent).request.forText("只持久化摘要，不持久化原稿"), id);
+  restarted.request.accepted();
+  assert.notEqual(await launchGenerationClient(scope, persistent).request.forText("只持久化摘要，不持久化原稿"), id);
+});
+
+test("workspace cleanup removes pending generations and drafts but preserves account-scoped onboarding", async () => {
+  const s = preferenceStorage();
+  createOnboardingPreferences("hosted:one", () => s).update({ workspace: "complete" });
+  s.setItem("autoppt-draft:project", "legacy draft");
+  s.setItem("unrelated", "keep");
+  await createGenerationRequest(JSON.stringify(["hosted:one", "project"]), () => s).forText("草稿");
+  clearWorkspacePreferences(() => s);
+  assert.equal([...s.entries.keys()].some((key) => key.startsWith("autoppt-")), false);
+  assert.equal(createOnboardingPreferences("hosted:one", () => s).read().workspace, "complete");
+  assert.equal(s.getItem("unrelated"), "keep");
+  assert.doesNotThrow(() => clearWorkspacePreferences(() => { throw Error("denied"); }));
 });

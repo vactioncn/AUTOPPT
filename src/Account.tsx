@@ -8,6 +8,7 @@ import {
 } from "react";
 import { api, post, asset } from "./api";
 import { Button, Field } from "./components";
+import { clearWorkspacePreferences } from "./onboarding";
 import "./account.css";
 type User = {
   id: string;
@@ -18,21 +19,29 @@ type User = {
   held: number;
   disabled: number;
 };
-type Account = { hosted: boolean; user: User | null; modelReady?: boolean };
+type Account = {
+  hosted: boolean;
+  user: User | null;
+  modelReady?: boolean;
+  modelStatusUnknown?: boolean;
+};
 const Context = createContext<Account>({ hosted: false, user: null });
 export const useAccount = () => useContext(Context);
 function forgetWorkspace() {
-  for (const key of Object.keys(localStorage))
-    if (key.startsWith("autoppt-")) localStorage.removeItem(key);
+  clearWorkspacePreferences();
   location.hash = "projects";
 }
 export function AccountGate({ children }: { children: ReactNode }) {
   const [account, setAccount] = useState<Account | null>(null);
+  const latestAccount = useRef(account);
+  latestAccount.current = account;
   const [error, setError] = useState("");
   const refresh = async () => {
     try {
       const res = await fetch("/api/account");
       if (res.status === 404) {
+        if (latestAccount.current?.hosted)
+          throw new Error("账号服务暂时不可用。");
         setAccount({ hosted: false, user: null });
         setError("");
         return;
@@ -41,13 +50,18 @@ export function AccountGate({ children }: { children: ReactNode }) {
       setAccount(await res.json());
       setError("");
     } catch (e) {
+      setAccount((a) =>
+        a?.hosted ? { ...a, modelReady: false, modelStatusUnknown: true } : a,
+      );
       setError((e as Error).message);
     }
   };
   useEffect(() => {
     void refresh();
     const expired = () => {
-      setAccount((a) => (a?.hosted ? { ...a, user: null } : a));
+      setAccount((a) =>
+        a?.hosted ? { ...a, user: null, modelReady: false } : a,
+      );
     };
     window.addEventListener("autoppt-session-expired", expired);
     return () => {
@@ -183,14 +197,18 @@ function Login({ onDone }: { onDone: () => Promise<void> }) {
   );
 }
 export function AccountFooter({ onOpen }: { onOpen: () => void }) {
-  const { user, modelReady } = useAccount();
+  const { user, modelReady, modelStatusUnknown } = useAccount();
   return (
     <button onClick={onOpen} className="account-footer">
       <strong>{user?.name}</strong>
       <span>
         可用 {user?.available} 张{user?.held ? ` · 预留 ${user.held} 张` : ""}
       </span>
-      {!modelReady && <span className="account-error">等待管理员配置模型</span>}
+      {!modelReady && (
+        <span className="account-error">
+          {modelStatusUnknown ? "暂时无法确认模型状态" : "等待管理员配置模型"}
+        </span>
+      )}
       <small>账号与额度 →</small>
     </button>
   );

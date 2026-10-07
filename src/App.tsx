@@ -1,5 +1,9 @@
 import { useOnboarding, WorkspaceReadiness } from "./OnboardingUI";
-import { onboardingReadiness, safeWorkspaceLabel } from "./onboarding";
+import {
+  onboardingReadiness,
+  safeWorkspaceLabel,
+  unknownModelStatus,
+} from "./onboarding";
 import { useAccount, AccountFooter, AccountPage } from "./Account";
 import { DeleteItem } from "./DeleteItem";
 import {
@@ -51,9 +55,8 @@ export default function App() {
     [toast, setToast] = useState(""),
     [creating, setCreating] = useState(false),
     [initialStyle, setInitialStyle] = useState(DEFAULT_STYLE_ID);
-  const onboarding = useOnboarding(
-    `${data?.buildInfo?.runtimeMode || (account.hosted ? "hosted" : "local-browser")}:${account.hosted ? account.user?.id || "signed-out" : "local"}`,
-  );
+  const onboardingScope = `${data?.buildInfo?.runtimeMode || (account.hosted ? "hosted" : "local-browser")}:${account.hosted ? account.user?.id || "signed-out" : "local"}`;
+  const onboarding = useOnboarding(onboardingScope);
   const [creationDraft, setCreationDraft] = useState<NewProjectDraft | null>(
     null,
   );
@@ -73,6 +76,10 @@ export default function App() {
     const timer = setInterval(refresh, 2500);
     const hash = () => {
       const next = location.hash.slice(1) || "projects";
+      if (next !== "styles") {
+        setCreationDraft(null);
+        setStyleRepair(false);
+      }
       if (next !== "intro") previousRoute.current = next;
       setRoute(next);
     };
@@ -87,12 +94,18 @@ export default function App() {
     const t = setTimeout(() => setToast(""), 4500);
     return () => clearTimeout(t);
   }, [toast]);
-  const go = (to: string) => {
+  const go = (to: string, continueCreation = false) => {
+    if (!continueCreation) {
+      setCreationDraft(null);
+      setStyleRepair(false);
+    }
     if (to !== "intro") previousRoute.current = to;
     location.hash = to;
     setRoute(to);
   };
-  const create = (styleId = DEFAULT_STYLE_ID) => {
+  const create = (styleId = DEFAULT_STYLE_ID, restoreDraft = false) => {
+    if (!restoreDraft) setCreationDraft(null);
+    setStyleRepair(false);
     const available = data?.styles.filter((s) => !s.deletedAt && s.rules) || [];
     setInitialStyle(
       available.some((s) => s.id === styleId)
@@ -276,7 +289,7 @@ export default function App() {
                 onSettings={() => go("settings")}
                 onStyles={() => {
                   setStyleRepair(true);
-                  go("styles");
+                  go("styles", true);
                 }}
                 onSkip={() => onboarding.update({ workspace: "skipped" })}
               />
@@ -299,7 +312,7 @@ export default function App() {
                 onSettings={() => go("settings")}
                 onStyles={() => {
                   setStyleRepair(true);
-                  go("styles");
+                  go("styles", true);
                 }}
                 onSkip={() => onboarding.update({ workspace: "skipped" })}
               />
@@ -312,11 +325,13 @@ export default function App() {
                 account.hosted || data.buildInfo?.runtimeMode === "hosted"
               }
               modelsReady={readiness.modelsReady}
+              modelStatusUnknown={!!account.modelStatusUnknown}
+              generationScope={JSON.stringify([onboardingScope, currentId])}
               onboarding={onboarding.value}
               onOnboardingChange={onboarding.update}
               area={currentArea}
               onAreaChange={(area) => go(`project/${currentId}/${area}`)}
-              key={currentId}
+              key={JSON.stringify([onboardingScope, currentId])}
               id={currentId}
               styles={data.styles}
               settings={data.settings}
@@ -329,10 +344,7 @@ export default function App() {
               promptRepair={styleRepair}
               onReturn={
                 creationDraft
-                  ? () => {
-                      setStyleRepair(false);
-                      create();
-                    }
+                  ? (styleId) => create(styleId, true)
                   : undefined
               }
               urlImportAvailable={!!data.features?.styleUrlImport}
@@ -340,11 +352,7 @@ export default function App() {
               jobs={data.jobs}
               refresh={refresh}
               notify={notify}
-              onUse={(styleId) => {
-                setStyleRepair(false);
-                setInitialStyle(styleId);
-                setCreating(true);
-              }}
+              onUse={(styleId) => create(styleId)}
             />
           ) : contentRoute === "account" ? (
             <AccountPage />
@@ -358,9 +366,11 @@ export default function App() {
                   </div>
                 </div>
                 <p>
-                  {account.modelReady
-                    ? "内容与图片服务已配置，可返回项目继续制作。"
-                    : "内容与图片服务尚未就绪，请联系管理员配置。"}
+                  {account.modelStatusUnknown
+                    ? unknownModelStatus
+                    : account.modelReady
+                      ? "内容与图片服务已配置，可返回项目继续制作。"
+                      : "内容与图片服务尚未就绪，请联系管理员配置。"}
                 </p>
                 <p className="detail-help">{capabilities.aiNarration.reason}</p>
                 <Button onClick={() => go("account")}>账号与额度</Button>
@@ -394,11 +404,12 @@ export default function App() {
             setCreationDraft(draft);
             setStyleRepair(true);
             setCreating(false);
-            go("styles");
+            go("styles", true);
           }}
           onClose={() => {
             setCreating(false);
             setCreationDraft(null);
+            setStyleRepair(false);
           }}
           onCreated={async (p) => {
             setCreating(false);

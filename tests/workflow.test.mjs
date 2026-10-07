@@ -18,6 +18,7 @@ import {
 } from "./fixtures/style-creation.mjs";
 import { compositionFixture } from "./fixtures/composition.mjs";
 import { copyFixture, reviewFixture } from "./fixtures/screen-copy.mjs";
+import { launchGenerationClient, preferenceStorage } from "./helpers/generation-client.mjs";
 
 test(
   "image workflow: verbatim styles, independent copy, append, retry, split/merge, history, image PPT with notes",
@@ -442,7 +443,11 @@ test(
       id = project.id;
     const read = () => req("/projects/" + id);
     const text = "第一句话。第二句话。第三句话。第四句话。第五句话。";
-    const appendRequestId = crypto.randomUUID();
+    const persistentPreferences = preferenceStorage();
+    const generationScope = JSON.stringify(["local-browser:local", id]);
+    let client = launchGenerationClient(generationScope, persistentPreferences);
+    const submittedText = "# 撰写时的大标题\n\n## 本节内容\n\n" + text;
+    const appendRequestId = await client.request.forText(submittedText);
     await req(
       `/projects/${id}/batches`,
       { requestId: appendRequestId, text: "# 只有大标题\n\n## 没有正文" },
@@ -450,7 +455,6 @@ test(
       400,
     );
     assert.equal((await read()).batches.length, 0);
-    const submittedText = "# 撰写时的大标题\n\n## 本节内容\n\n" + text;
     // Drop the first accepted response before the caller learns the batch/job ID.
     const lost = await fetch(base + `/projects/${id}/batches`, {
       method: "POST",
@@ -459,13 +463,20 @@ test(
     });
     assert.equal(lost.status, 202);
     await lost.body.cancel();
+    client.sessionStorage.setItem("old-session", "discarded on restart");
+    client = launchGenerationClient(generationScope, persistentPreferences);
+    assert.equal(client.sessionStorage.length, 0);
+    const retriedRequestId = await client.request.forText(submittedText);
+    assert.equal(retriedRequestId, appendRequestId, "a fresh client reuses the unacknowledged request");
     let job = await req(
       `/projects/${id}/batches`,
-      { text: submittedText, requestId: appendRequestId },
+      { text: submittedText, requestId: retriedRequestId },
       "POST",
       202,
     );
     assert.equal(job.accepted, true);
+    client.request.accepted();
+    assert.equal(persistentPreferences.length, 0, "only explicit acceptance clears the persisted identity");
     const duplicate = await req(
       `/projects/${id}/batches`,
       { text: submittedText, requestId: appendRequestId },

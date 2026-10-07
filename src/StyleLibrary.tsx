@@ -35,7 +35,7 @@ export function StyleLibrary({
   onUse,
 }: {
   promptRepair?: boolean;
-  onReturn?: () => void;
+  onReturn?: (styleId?: string) => void;
   urlImportAvailable: boolean;
   styles: Style[];
   jobs: Job[];
@@ -44,11 +44,13 @@ export function StyleLibrary({
   onUse: (id: string) => void;
 }) {
   const [deleting, setDeleting] = useState<Style | null>(null);
+  const [repairedStyle, setRepairedStyle] = useState<string>();
   const [create, setCreate] = useState(promptRepair),
     [studio, setStudio] = useState<string | null>(null),
     [detail, setDetail] = useState<string | null>(null);
   useEffect(() => {
-    if (promptRepair) setCreate(true);
+    setCreate(promptRepair);
+    if (!promptRepair) setRepairedStyle(undefined);
   }, [promptRepair]);
   const visibleStyles = styles.filter((s) => !s.deletedAt);
   const selected = visibleStyles.find((s) => s.id === detail);
@@ -65,7 +67,9 @@ export function StyleLibrary({
     );
   return (
     <div className="page styles-page">
-      {onReturn && <Button onClick={onReturn}>返回新建演讲</Button>}
+      {onReturn && (
+        <Button onClick={() => onReturn(repairedStyle)}>返回新建演讲</Button>
+      )}
       {deleting && (
         <DeleteItem
           kind="style"
@@ -187,7 +191,8 @@ export function StyleLibrary({
           onDone={async (s) => {
             setCreate(false);
             await refresh();
-            if (promptRepair) onUse(s.id);
+            if (promptRepair && onReturn) setRepairedStyle(s.id);
+            else if (promptRepair) onUse(s.id);
             else setDetail(s.id);
             notify(
               s.status === "ready"

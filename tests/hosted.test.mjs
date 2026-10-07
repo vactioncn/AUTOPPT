@@ -165,7 +165,7 @@ test(
     const origin = `http://127.0.0.1:${port}`;
     writeFileSync(path.join(dir, "admin-password"), pass, { mode: 0o600 });
     let child;
-    const start = async () => {
+    const start = async (configured = true) => {
       child = fork("server/hosted/index.mjs", [], {
         env: {
           ...process.env,
@@ -177,8 +177,8 @@ test(
           AUTOPPT_ADMIN_PASSWORD_FILE: path.join(dir, "admin-password"),
           AUTOPPT_TEXT_BASE_URL: `http://127.0.0.1:${provider.address().port}/v1`,
           AUTOPPT_IMAGE_BASE_URL: `http://127.0.0.1:${provider.address().port}/v1`,
-          AUTOPPT_TEXT_API_KEY: "test-provider-secret",
-          AUTOPPT_IMAGE_API_KEY: "test-provider-secret",
+          AUTOPPT_TEXT_API_KEY: configured ? "test-provider-secret" : "",
+          AUTOPPT_IMAGE_API_KEY: configured ? "test-provider-secret" : "",
         },
         stdio: ["ignore", "pipe", "pipe", "ipc"],
       });
@@ -228,7 +228,7 @@ test(
       };
     };
     try {
-      await start();
+      await start(false);
       assert.equal((await request("/api/account")).data.hosted, true);
       await request("/api/bootstrap", undefined, "", 401);
       await request("/assets/private.png", undefined, "", 401);
@@ -296,6 +296,15 @@ test(
         )
       ).data;
       await request("/api/projects/" + p.id, undefined, second, 404);
+      assert.equal((await request("/api/account", undefined, first)).data.modelReady, false);
+      const blocked = await request(`/api/projects/${p.id}/batches`, { text: "配置未就绪时不可创建付费任务。", requestId: randomUUID() }, first, 503);
+      assert.match(blocked.data.error, /模型尚未就绪/);
+      assert.equal((await request(`/api/projects/${p.id}`, undefined, first)).data.batches.length, 0);
+      assert.equal((await request("/api/jobs", undefined, first)).data.length, 0);
+      assert.equal(textCount + imageCount, 0);
+      await stop();
+      await start();
+      assert.equal((await request("/api/account", undefined, first)).data.modelReady, true);
       assert.equal(
         (await request("/api/bootstrap", undefined, second)).data.projects
           .length,

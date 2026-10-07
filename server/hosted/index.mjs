@@ -498,7 +498,12 @@ app.use("/internal", (req, res) =>
 // Only checked-in/build assets are public. Uploaded/generated assets are below auth.
 app.use(express.static(path.join(root, "dist"), { dotfiles: "deny" }));
 app.use(["/api", "/assets"], authenticated, async (req, res) => {
-  if (req.originalUrl.startsWith("/api/settings") && req.method !== "GET")
+  // Express routes are case-insensitive by default. Normalize policy checks too,
+  // otherwise a mixed-case URL could reach the worker with hosted restrictions bypassed.
+  if (
+    req.originalUrl.split("?", 1)[0].toLowerCase().startsWith("/api/settings") &&
+    req.method !== "GET"
+  )
     fail("模型由管理员统一配置。", 403);
   if (!["GET", "HEAD"].includes(req.method))
     accounts.limit(`mutation:${req.user.id}`, 120, 60000);

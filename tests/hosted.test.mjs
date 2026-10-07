@@ -343,6 +343,13 @@ test(
         403,
         "PUT",
       );
+      await request(
+        "/API/SETTINGS?source=mixed-case",
+        { text: { baseUrl: "https://evil.example", apiKey: "x", model: "x" } },
+        first,
+        403,
+        "PUT",
+      );
       await request("/internal/reserve", { id: randomUUID() }, first, 403);
       const trial = async () =>
         (

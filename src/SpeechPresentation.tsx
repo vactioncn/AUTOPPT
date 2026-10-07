@@ -49,6 +49,11 @@ export function SpeechPresentation({
   const [options, setOptions] = useState<SpeechOptions>({ ...SPEECH_DEFAULTS }),
     [pageEmotions, setPageEmotions] = useState<Record<string, string>>({});
   const [pageTexts, setPageTexts] = useState<Record<string, string>>({});
+  const [textReviewed, setTextReviewed] = useState(false),
+    [textFeedback, setTextFeedback] = useState<{
+      error?: boolean;
+      text: string;
+    } | null>(null);
   const [pageIndex, setPageIndex] = useState(0),
     [clipIndex, setClipIndex] = useState(0),
     [playing, setPlaying] = useState(false);
@@ -87,16 +92,19 @@ export function SpeechPresentation({
     ? speechAudio(clip.file) + (audioAttempt ? `&retry=${audioAttempt}` : "")
     : "";
   const clipKey = `${deck?.id || "manual"}:${pageIndex}:${clipIndex}`;
+  const textChanged =
+    !!deck &&
+    deck.pages.some(
+      (p) =>
+        textFor(p) !== (p.spokenText ?? p.clips.map((c) => c.text).join("")),
+    );
   const changed =
     !!deck &&
     (JSON.stringify(options) !== JSON.stringify(deck.options) ||
       deck.pages.some(
         (p) => p.emotion !== (pageEmotions[p.id] || options.emotion),
       ) ||
-      deck.pages.some(
-        (p) =>
-          textFor(p) !== (p.spokenText ?? p.clips.map((c) => c.text).join("")),
-      ));
+      textChanged);
   const playable = deck?.status === "ready" && !changed;
   const generatedPages =
     deck?.pages.filter(
@@ -121,6 +129,8 @@ export function SpeechPresentation({
     setDeck(d);
     setError("");
     setMessage("");
+    setTextReviewed(false);
+    setTextFeedback(null);
     if (d) {
       setPageTexts(
         Object.fromEntries(
@@ -616,6 +626,7 @@ export function SpeechPresentation({
                         [page.id]: e.target.value,
                       }));
                       setPreview("");
+                      setTextFeedback(null);
                     }}
                   />
                   <details>
@@ -629,16 +640,31 @@ export function SpeechPresentation({
                   </details>
                   <div className="speech-inline">
                     <Button
-                      onClick={() =>
+                      onClick={() => {
+                        const results = pages.map((p) => ({
+                          id: p.id,
+                          before: textFor(p),
+                          ...prepareSpeechText(p.notes),
+                        }));
+                        const updated = results.filter(
+                          (p) => p.text !== p.before,
+                        ).length;
+                        const omitted = results.reduce(
+                          (n, p) => n + p.removed.length,
+                          0,
+                        );
                         setPageTexts(
                           Object.fromEntries(
-                            pages.map((p) => [
-                              p.id,
-                              prepareSpeechText(p.notes).text,
-                            ]),
+                            results.map((p) => [p.id, p.text]),
                           ),
-                        )
-                      }
+                        );
+                        previewAudio.current?.pause();
+                        setPreview("");
+                        setTextReviewed(true);
+                        setTextFeedback({
+                          text: `已重新识别 ${pages.length} 页，过滤 ${omitted} 处非口播内容。${updated ? `已更新 ${updated} 页文本，请逐页检查后保存或生成口播。` : "当前文本与识别结果一致，无需修改。"} 本次仅处理文本，不生成音频、不计费。`,
+                        });
+                      }}
                     >
                       重新识别整场口播
                     </Button>
@@ -649,7 +675,7 @@ export function SpeechPresentation({
                       }
                       onClick={async () => {
                         setBusy(true);
-                        setError("");
+                        setTextFeedback(null);
                         try {
                           await api(`/projects/${projectId}/speech-script`, {
                             method: "PUT",
@@ -660,9 +686,14 @@ export function SpeechPresentation({
                               ),
                             }),
                           });
-                          setMessage("口播文本已保存，原稿保持不变。");
+                          setTextFeedback({
+                            text: "口播文本已保存，原稿保持不变。已有音频不会随文本修改；请生成新的口播版本以应用修改。",
+                          });
                         } catch (e) {
-                          setError((e as Error).message);
+                          setTextFeedback({
+                            error: true,
+                            text: (e as Error).message,
+                          });
                         } finally {
                           setBusy(false);
                         }
@@ -671,9 +702,21 @@ export function SpeechPresentation({
                       保存口播文本
                     </Button>
                   </div>
+                  {textFeedback && (
+                    <p
+                      role={textFeedback.error ? "alert" : "status"}
+                      className={
+                        textFeedback.error ? "speech-error" : "speech-callout"
+                      }
+                    >
+                      {textFeedback.text}
+                    </p>
+                  )}
                   {deck?.pages.some((p) => !p.speechTextVersion) && (
                     <p className="speech-callout">
-                      这是旧版音频。点击“重新识别整场口播”并检查文本后，生成新的口播版本，才能去除已录入声音的提示文字。
+                      {textReviewed || textChanged
+                        ? "当前音频仍是旧版。检查口播文本后，点击下方“生成整场口播”，才能更新声音；生成会使用语音服务额度。"
+                        : "这是旧版音频。点击“重新识别整场口播”并检查文本后，生成新的口播版本，才能去除已录入声音的提示文字。"}
                     </p>
                   )}
                 </details>

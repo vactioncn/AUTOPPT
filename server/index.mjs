@@ -8,6 +8,7 @@ import { DEFAULT_STYLE_ID, defaultStyleId } from "../shared/styles.mjs";
 import { productionTargetIds } from "../shared/production.mjs";
 import express from "express";
 import { createBuildInfo, readBuildInfo } from "./build-info.mjs";
+import { frontendRelease } from "./frontend-release.mjs";
 import { diagnostics } from "./diagnostics.mjs";
 import { publicSpeechSettings } from "./speech/settings.mjs";
 import multer from "multer";
@@ -1049,10 +1050,11 @@ app.use((err, req, res, next) => {
   });
 });
 if (process.env.NODE_ENV === "production") {
-  app.use(express.static(path.join(root, "dist")));
-  app.get("/{*path}", (req, res) =>
-    res.sendFile(path.join(root, "dist/index.html")),
-  );
+  if (!process.env.AUTOPPT_WORKER_TOKEN) {
+    const frontend = frontendRelease(root, buildInfo);
+    app.use(frontend.assets);
+    app.get("/{*path}", frontend.index);
+  }
 } else {
   const { createServer } = await import("vite");
   const vite = await createServer({

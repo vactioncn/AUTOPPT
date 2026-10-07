@@ -208,6 +208,30 @@ for (const mode of ["local-browser", "desktop", "hosted"]) {
           ...readBuildInfo(),
           runtimeMode: mode,
         });
+        if (mode !== "hosted") {
+          const page = await fetch(`http://127.0.0.1:${ready.port}/`, {
+            headers,
+          });
+          assert.equal(
+            page.headers.get("x-autoppt-release"),
+            readBuildInfo().gitSha,
+          );
+          assert.match(page.headers.get("content-type"), /text\/html/);
+          assert.equal(page.headers.get("cache-control"), "no-store");
+          const asset = (await page.text()).match(
+            /src="(\/assets\/[^\"]+\.js)"/,
+          )?.[1];
+          assert.ok(asset, "built entry script is present");
+          const script = await fetch(`http://127.0.0.1:${ready.port}${asset}`, {
+            headers,
+          });
+          assert.equal(script.status, 200);
+          assert.match(script.headers.get("content-type"), /javascript/);
+          assert.equal(
+            script.headers.get("x-autoppt-release"),
+            readBuildInfo().gitSha,
+          );
+        }
         assert.equal(body.dataRootLabel, dataRootLabels[mode]);
         assert.deepEqual(body.features, {
           styleUrlImport: true,

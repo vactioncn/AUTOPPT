@@ -8,6 +8,8 @@ import {
 } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { readBuildInfo } from "../server/build-info.mjs";
+import { compareBuildInfo } from "../shared/diagnostics.mjs";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const port = Number(process.env.PORT || 4317),
   url = `http://127.0.0.1:${port}`;
@@ -26,6 +28,16 @@ const browse = () => {
     spawn("open", [url], { stdio: "ignore", detached: true }).unref();
 };
 if (await healthy()) {
+  const current = await fetch(url + "/api/bootstrap", {
+    signal: AbortSignal.timeout(5000),
+  }).then((r) => r.json());
+  const comparison = compareBuildInfo(readBuildInfo(root), current.buildInfo);
+  if (comparison.blocked) {
+    console.error(
+      `AutoPPT 后台仍在运行旧发布：${url}。已保留当前服务与任务；请等待生成结束，停止旧后台后重新启动，才能启用新版。`,
+    );
+    process.exit(1);
+  }
   console.log(`AutoPPT 已在运行：${url}`);
   browse();
   process.exit(0);

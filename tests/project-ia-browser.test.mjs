@@ -1,11 +1,11 @@
 import test from "node:test";
+import { launchBrowser } from "./helpers/browser.mjs";
 import assert from "node:assert/strict";
 import {
   mkdtempSync,
   mkdirSync,
   writeFileSync,
   readFileSync,
-  existsSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -14,7 +14,7 @@ import { fork } from "node:child_process";
 import { DatabaseSync } from "node:sqlite";
 import sharp from "sharp";
 import { silenceMp3 } from "./helpers/speech-audio.mjs";
-import { chromium, expect } from "@playwright/test";
+import { expect } from "@playwright/test";
 
 test(
   "four project areas preserve editing, own rehearsal/delivery, and fit desktop/mobile in local and hosted shells",
@@ -185,14 +185,8 @@ test(
       }),
     ]);
     const base = `http://127.0.0.1:${message.port}`;
-    const chrome =
-      "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-    browser = await chromium.launch({
-      headless: true,
-      executablePath:
-        process.env.CHROMIUM_EXECUTABLE ||
-        (existsSync(chrome) ? chrome : undefined),
-    });
+    browser = await launchBrowser(t);
+    if (!browser) return;
     const page = await browser.newPage({
       viewport: { width: 1280, height: 800 },
       hasTouch: true,
@@ -1077,7 +1071,7 @@ test(
   "contextual onboarding with isolated local/hosted workspaces",
   { timeout: 180000 },
   async (t) => {
-    const evidence = path.resolve("test-results/onboarding");
+    const evidence = path.resolve("test-results/onboarding-review");
     mkdirSync(evidence, { recursive: true });
     const dir = mkdtempSync(path.join(tmpdir(), "autoppt-onboarding-"));
     const child = fork("server/index.mjs", [], {
@@ -1121,10 +1115,8 @@ test(
         .png()
         .toBuffer(),
     );
-    const chrome =
-      "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-    assert(existsSync(chrome), "acceptance requires installed Google Chrome");
-    browser = await chromium.launch({ headless: true, executablePath: chrome });
+    browser = await launchBrowser(t);
+    if (!browser) return;
     const page = await browser.newPage({
       viewport: { width: 1280, height: 800 },
       reducedMotion: "reduce",
@@ -1137,7 +1129,9 @@ test(
       hosted = false,
       incompatible = false,
       batches = 0,
-      failBatch = false;
+      failBatch = false,
+      failDraft = false,
+      loseBatchResponse = false;
     const readProject = (id) =>
       JSON.parse(
         db
@@ -1173,8 +1167,8 @@ test(
       if (url.pathname === "/api/bootstrap") {
         const response = await route.fetch(),
           body = await response.json();
-        body.settings.text.hasKey = modelsReady;
-        body.settings.image.hasKey = modelsReady;
+        body.settings.text.hasKey = hosted || modelsReady;
+        body.settings.image.hasKey = hosted || modelsReady;
         if (noStyles) body.styles = [];
         body.buildInfo.runtimeMode = hosted ? "hosted" : "local-browser";
         if (incompatible) body.buildInfo.apiSchemaVersion = 999;
@@ -1196,11 +1190,23 @@ test(
           });
         const id = url.pathname.split("/")[3],
           p = readProject(id),
-          text = request.postDataJSON().text;
+          { text, requestId } = request.postDataJSON();
+        assert.match(requestId, /^[\w-]{16,80}$/);
+        const existing = p.batches.find(
+          (batch) => batch.requestId === requestId,
+        );
+        if (existing) {
+          assert.equal(existing.text, text);
+          return route.fulfill({
+            status: 202,
+            json: { accepted: true, id: "fixture-only", batchId: existing.id },
+          });
+        }
         p.draft = "";
         p.revision++;
         p.batches.push({
           id: `b${batches}`,
+          requestId,
           text,
           label: "示例段落",
           slideIds: ["onboarding-page"],
@@ -1219,11 +1225,32 @@ test(
             styleId: p.styleId,
           });
         putProject(p);
-        return route.fulfill({ status: 202, json: { id: "fixture-only" } });
+        if (loseBatchResponse) {
+          loseBatchResponse = false;
+          return route.abort("failed");
+        }
+        return route.fulfill({
+          status: 202,
+          json: {
+            accepted: true,
+            id: "fixture-only",
+            batchId: p.batches.at(-1).id,
+          },
+        });
       }
       if (
+        failDraft &&
+        method === "PATCH" &&
+        /^\/api\/projects\/[^/]+$/.test(url.pathname)
+      )
+        return route.fulfill({
+          status: 503,
+          json: { error: "隔离测试：草稿保存失败" },
+        });
+      if (
         ["GET", "HEAD"].includes(method) ||
-        (method === "POST" && url.pathname === "/api/projects") ||
+        (method === "POST" &&
+          ["/api/projects", "/api/styles"].includes(url.pathname)) ||
         (method === "PATCH" &&
           /^\/api\/projects\/[^/]+(?:\/slides\/[^/]+)?$/.test(url.pathname))
       )
@@ -1327,8 +1354,49 @@ test(
         await expect(dialog.locator(".style-choice-grid")).toBeVisible();
         await expect(dialog.getByLabel("内容倾向（可选）")).toBeVisible();
         await expect(dialog.locator(".palette-grid")).toBeVisible();
-        await dialog.evaluate((el) => { el.scrollTop = 0; });
+        await dialog.locator(".new-project-scroll").evaluate((el) => {
+          el.scrollTop = 0;
+        });
         await shot("create-expanded", dialog);
+        await page.setViewportSize({ width: 390, height: 844 });
+        // Exercise the same CSS safe-area variable with a non-zero device inset.
+        await dialog.evaluate((el) =>
+          el.style.setProperty("--new-project-safe-bottom", "34px"),
+        );
+        const cta = dialog.getByRole("button", { name: "创建并写第一段" });
+        const assertCta = async () => {
+          await expect(dialog.locator(".modal-actions")).toHaveCSS(
+            "padding-bottom",
+            "50px",
+          );
+          await expect
+            .poll(async () => {
+              const box = await cta.boundingBox();
+              return box.y >= 0 && box.y + box.height <= 844 - 34;
+            })
+            .toBe(true);
+        };
+        await assertCta();
+        await dialog.locator(".new-project-scroll").evaluate((el) => {
+          el.scrollTop = el.scrollHeight;
+        });
+        await assertCta();
+        const lastInput = dialog
+          .locator(
+            ".new-project-scroll input, .new-project-scroll textarea, .new-project-scroll button",
+          )
+          .last();
+        await lastInput.scrollIntoViewIfNeeded();
+        const lastBox = await lastInput.boundingBox(),
+          actionsBox = await dialog.locator(".modal-actions").boundingBox();
+        assert(lastBox.y + lastBox.height <= actionsBox.y);
+        await page.screenshot({
+          path: path.join(evidence, "390-create-expanded-end.png"),
+        });
+        await dialog.evaluate((el) =>
+          el.style.removeProperty("--new-project-safe-bottom"),
+        );
+        await page.setViewportSize({ width: 1280, height: 800 });
         await dialog.getByLabel("内容倾向（可选）").fill("面向新同事");
         await dialog.getByText("展开说明（可选）", { exact: true }).click();
         await expect(
@@ -1361,6 +1429,7 @@ test(
         await expect(page.locator(".composer")).toContainText(
           "已保存不等于已生成",
         );
+        await expect(button("继续添加讲稿")).toHaveCount(0);
         await shot("empty-composer", page.locator(".composer"));
         await button("使用示例文字").click();
         assert(
@@ -1430,16 +1499,49 @@ test(
         await page.keyboard.press("Escape");
         assert.equal(batches, 0);
         await expect(input).toHaveValue(draft);
+        const preference = () =>
+          page.evaluate(
+            () =>
+              JSON.parse(
+                localStorage.getItem(
+                  "autoppt:onboarding:v1:local-browser%3Alocal",
+                ),
+              ).generation,
+          );
+        failDraft = true;
+        await button("提交讲稿并制作").click();
+        await page.getByLabel("以后直接生成").check();
+        await button("开始生成").click();
+        await expect(
+          page.getByText("隔离测试：草稿保存失败", { exact: true }),
+        ).toBeVisible();
+        assert.equal(batches, 0);
+        assert.equal(await preference(), "pending");
+        failDraft = false;
         failBatch = true;
         await button("提交讲稿并制作").click();
+        await page.getByLabel("以后直接生成").check();
         await button("开始生成").click();
         await expect(
           page.getByText("隔离测试：模型暂时不可用", { exact: true }),
         ).toBeVisible();
         assert.equal(batches, 1);
+        assert.equal(await preference(), "pending");
         await expect(input).toHaveValue(draft);
         await expect.poll(() => readProject(projectId).draft).toBe(draft);
         failBatch = false;
+        loseBatchResponse = true;
+        await button("提交讲稿并制作").click();
+        await page.getByLabel("以后直接生成").check();
+        await button("开始生成").click();
+        await expect(
+          page.getByText("Failed to fetch", { exact: true }),
+        ).toBeVisible();
+        assert.equal(readProject(projectId).batches.length, 1);
+        assert.equal(await preference(), "pending");
+        await page.reload();
+        await button("继续添加讲稿").click();
+        await expect(input).toHaveValue(draft);
         await button("提交讲稿并制作").click();
         await page.getByLabel("以后直接生成").check();
         // Duplicate activation cannot enqueue two requests.
@@ -1448,11 +1550,14 @@ test(
           el.click();
         });
         await expect(input).toHaveValue("");
-        assert.equal(batches, 2);
+        assert.equal(batches, 3);
+        assert.equal(readProject(projectId).batches.length, 1);
+        assert.equal(await preference(), "direct");
         await input.fill("第二段隔离文字，验证已明确选择的直接生成。");
         await button("提交讲稿并制作").click();
         await expect(input).toHaveValue("");
-        assert.equal(batches, 3);
+        assert.equal(batches, 4);
+        assert.equal(readProject(projectId).batches.length, 2);
         await expect(page.getByRole("dialog")).toHaveCount(0);
       },
     );
@@ -1479,9 +1584,14 @@ test(
         );
         await expect(teaching).toContainText("演讲者说的完整内容");
         await expect(teaching).toContainText("观众看到的重点");
-        await expect(teaching).toContainText("可能再次调用模型并产生费用");
+        await expect(teaching).toContainText("按当前讲稿和风格重新制作画面");
+        await expect(teaching).not.toContainText("费用");
         await shot("page-concepts", teaching);
-        await button("知道了，关闭提示").click();
+        await button("知道了").click();
+        await button("重新设计这页").click();
+        await expect(page.getByRole("dialog").filter({ hasText: "确认重新设计这页" })).toContainText("收取费用");
+        await button("返回修改").click();
+        assert.equal(unexpected.length, 0, "cancelling redesign sends no model request");
         await button("关闭").click();
         await openPage();
         await expect(teaching).toHaveCount(0);
@@ -1581,21 +1691,34 @@ test(
           .getByRole("button", { name: "前往风格库创建", exact: true })
           .click();
         await expect(page).toHaveURL(/#styles$/);
-        await expect(
-          page.getByRole("region", { name: "风格库空状态" }),
-        ).toBeVisible();
-        await page
-          .getByRole("region", { name: "风格库空状态" })
-          .getByRole("button", { name: "创建第一个风格" })
-          .click();
         await expect(page.getByRole("dialog")).toBeVisible();
+        await expect(button("手动填写")).toHaveAttribute(
+          "aria-pressed",
+          "true",
+        );
         await button("关闭").click();
-        noStyles = false;
-        await page.reload();
+        await button("返回新建演讲").click();
+        await expect(page.getByLabel("演讲主题", { exact: true })).toHaveValue(
+          "保留中的主题",
+        );
+        await button("更换").click();
+        await page.getByLabel("内容倾向（可选）").fill("新同事的受众草稿");
+        await button("前往风格库创建").click();
+        await page.getByLabel("风格名称", { exact: true }).fill("隔离手写风格");
         await page
-          .getByRole("complementary")
-          .getByRole("button", { name: "新建演讲项目", exact: true })
-          .click();
+          .getByLabel("风格提示词", { exact: true })
+          .fill("留白充足，深绿字色，清晰布局。");
+        noStyles = false;
+        await button("保存风格").click();
+        await expect(page.getByLabel("演讲主题", { exact: true })).toHaveValue(
+          "保留中的主题",
+        );
+        await expect(page.getByLabel("内容倾向（可选）")).toHaveValue(
+          "新同事的受众草稿",
+        );
+        await expect(page.locator(".new-project-style")).toContainText(
+          "隔离手写风格",
+        );
         await page
           .getByLabel("演讲主题", { exact: true })
           .fill("介绍返回保留主题");
@@ -1625,7 +1748,34 @@ test(
         assert(
           !/API Key|\/Users\/|autoppt-onboarding-/.test(await card.innerText()),
         );
+        await expect(card).toContainText("内容模型：未就绪");
+        await expect(card).toContainText("图片模型：未就绪");
+        const contract = await page.evaluate(async () => ({
+          bootstrap: await (await fetch("/api/bootstrap")).json(),
+          account: await (await fetch("/api/account")).json(),
+        }));
+        assert.equal(contract.bootstrap.settings.text.hasKey, true);
+        assert.equal(contract.bootstrap.settings.image.hasKey, true);
+        assert.equal(contract.account.modelReady, false);
         await shot("hosted-missing", card);
+        const requestsBefore = batches;
+        await page.goto(`${base}/#project/${projectId}/studio`);
+        await button("继续添加讲稿").click();
+        await page
+          .getByLabel("添加逐字稿", { exact: true })
+          .fill("未配置管理员模型时只保存草稿。");
+        await button("提交讲稿并制作").click();
+        await expect(page.getByRole("dialog")).toContainText("等待管理员配置");
+        await expect(button("开始生成")).toHaveCount(0);
+        assert(
+          !/余额|API Key|服务商|费用/.test(
+            await page.getByRole("dialog").innerText(),
+          ),
+        );
+        assert.equal(batches, requestsBefore);
+        await shot("hosted-missing-generation", page.getByRole("dialog"));
+        await button("继续保存草稿").click();
+        await page.goto(base);
         modelsReady = true;
         await page.reload();
         await expect(card).toContainText("内容模型：已就绪");
@@ -1644,7 +1794,11 @@ test(
             await page.getByRole("dialog").innerText(),
           ),
         );
-        await button("返回修改").click();
+        modelsReady = false;
+        await expect(page.getByRole("dialog")).toContainText("等待管理员配置", { timeout: 15000 });
+        await expect(button("开始生成")).toHaveCount(0);
+        assert.equal(batches, requestsBefore, "readiness changes also block an already-open confirmation");
+        await button("继续保存草稿").click();
       },
     );
     await scenario(

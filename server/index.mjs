@@ -319,8 +319,38 @@ app.patch("/api/projects/:id", (req, res) => {
 });
 app.post("/api/projects/:id/batches", (req, res) => {
   const p = projectOrThrow(req.params.id);
+  const { text, requestId } = req.body;
+  // Legacy clients may omit the ID. New clients retain it until acceptance.
+  if (
+    requestId !== undefined &&
+    (typeof requestId !== "string" || !/^[\w-]{16,80}$/.test(requestId))
+  )
+    throw new Error("生成请求无效，请重新提交。");
+  const existing =
+    requestId && p.batches.find((b) => b.requestId === requestId);
+  if (existing) {
+    if (existing.text !== text)
+      throw Object.assign(
+        new Error("这次请求已提交，请使用新的请求提交修改后的讲稿。"),
+        { status: 409 },
+      );
+    const job = get("job", existing.jobId);
+    if (!job || job.projectId !== p.id || job.payload.batchId !== existing.id)
+      throw Object.assign(
+        new Error("已提交批次的任务记录不可用，请检查项目任务。"),
+        { status: 409 },
+      );
+    // A retry may have autosaved the submitted draft after losing the response.
+    // Clear only that exact text; never discard newer edits.
+    if (p.draft === text) {
+      p.draft = "";
+      put("project", p);
+    }
+    return res
+      .status(202)
+      .json({ ...job, accepted: true, batchId: existing.id });
+  }
   styleReady(p.styleId);
-  const text = req.body.text;
   if (typeof text !== "string" || !text.trim())
     throw new Error("请先写下这一段逐字稿。");
   if (text.length > 200000)
@@ -330,6 +360,7 @@ app.post("/api/projects/:id/batches", (req, res) => {
   const batch = {
     id: id(),
     text,
+    ...(requestId ? { requestId } : {}),
     label: `第 ${p.batches.length + 1} 段`,
     createdAt: now(),
     slideIds: [],
@@ -344,7 +375,7 @@ app.post("/api/projects/:id/batches", (req, res) => {
     batch.jobId = j.id;
     put("project", p);
   });
-  res.status(202).json(j);
+  res.status(202).json({ ...j, accepted: true, batchId: batch.id });
 });
 // Anchor by stable page ID, never by an index that can shift during generation.
 app.post("/api/projects/:id/slides", (req, res) => {

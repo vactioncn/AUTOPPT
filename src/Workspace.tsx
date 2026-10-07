@@ -1,5 +1,9 @@
 import { PageConcepts } from "./OnboardingUI";
-import { exampleManuscript, type OnboardingState } from "./onboarding";
+import {
+  createGenerationRequest,
+  exampleManuscript,
+  type OnboardingState,
+} from "./onboarding";
 import {
   DesignOptionsEditor,
   emptyDesignOptions,
@@ -96,6 +100,7 @@ export function Workspace({
   capabilities,
   dataRootLabel,
   hosted,
+  modelsReady,
   onboarding,
   onOnboardingChange,
   area,
@@ -111,6 +116,7 @@ export function Workspace({
   capabilities: import("../shared/diagnostics.mjs").Capabilities;
   dataRootLabel: string;
   hosted: boolean;
+  modelsReady: boolean;
   onboarding: OnboardingState;
   onOnboardingChange: (change: Partial<OnboardingState>) => void;
   area: ProjectArea;
@@ -136,7 +142,11 @@ export function Workspace({
   const [directGeneration, setDirectGeneration] = useState(false);
   const submitLock = useRef(false);
   const latestDraft = useRef("");
-  const modelsReady = settings.text.hasKey && settings.image.hasKey;
+  const generationRequest = useRef<ReturnType<
+    typeof createGenerationRequest
+  > | null>(null);
+  if (!generationRequest.current)
+    generationRequest.current = createGenerationRequest(id);
   const managedModels = !capabilities.localModelSettings.enabled;
   const [draftSaveError, setDraftSaveError] = useState(false);
   const [speechOpen, setSpeechOpen] = useState(false);
@@ -281,7 +291,7 @@ export function Workspace({
       setError("草稿保存失败，请重试：" + (e as Error).message);
     }
   };
-  const submitDraft = async () => {
+  const submitDraft = async (rememberDirect = false) => {
     if (!draft.trim() || submitLock.current) return;
     if (!modelsReady) {
       setGenerationDialog("models");
@@ -291,9 +301,23 @@ export function Workspace({
     setSubmitting(true);
     setGenerationDialog(null);
     setError("");
+    let acceptedSubmission = false;
     try {
+      const requestId = await generationRequest.current!.forText(draft);
       await saveDraft(draft);
-      await post("/projects/" + id + "/batches", { text: draft });
+      const accepted = await post<{
+        id: string;
+        batchId: string;
+        accepted: boolean;
+      }>("/projects/" + id + "/batches", { text: draft, requestId });
+      if (!accepted.accepted || !accepted.id || !accepted.batchId)
+        throw new Error("尚未确认服务端接受，请重试；相同讲稿不会重复提交。");
+      acceptedSubmission = true;
+      generationRequest.current!.accepted();
+      if (onboarding.generation !== "direct")
+        onOnboardingChange({
+          generation: rememberDirect ? "direct" : "confirmed",
+        });
       cacheDraft(null);
       latestDraft.current = "";
       setDraft("");
@@ -302,6 +326,7 @@ export function Workspace({
       await refresh();
       await onRefresh();
     } catch (e) {
+      if (!acceptedSubmission) cacheDraft(draft);
       setError((e as Error).message);
     } finally {
       submitLock.current = false;
@@ -472,8 +497,7 @@ export function Workspace({
       </div>
       {!project.batches.length && !project.slides.length && (
         <div className="composer-onboarding">
-          <p>粘贴约 100–500 字准备讲的话。系统会自动拆页，完整原稿不会丢失。</p>
-          <p>草稿自动保存；已保存不等于已生成。确认制作后才会调用模型。</p>
+          <p>粘贴约 100–500 字准备讲的话即可。</p>
           {!draft.trim() && (
             <Button
               variant="ghost"
@@ -506,6 +530,11 @@ export function Workspace({
           }
         }}
       />
+      {!project.batches.length && !project.slides.length && (
+        <p className="composer-save-help">
+          草稿已保存不等于已生成，提交后才开始制作。
+        </p>
+      )}
       {!modelsReady && (
         <p className="composer-model-help">
           {managedModels
@@ -572,10 +601,7 @@ export function Workspace({
               : !!busy
           }
           onClick={() =>
-            run(
-              () => post("/projects/" + id + "/undo"),
-              "已恢复调整前的页面。",
-            )
+            run(() => post("/projects/" + id + "/undo"), "已恢复调整前的页面。")
           }
         >
           <ArrowCounterClockwise size={15} />
@@ -719,10 +745,12 @@ export function Workspace({
                   {primaryAction.label}
                 </Button>
               )}
-            <Button onClick={focusComposer}>
-              <Plus size={17} />
-              继续添加讲稿
-            </Button>
+            {(!!project.slides.length || !!project.batches.length) && (
+              <Button onClick={focusComposer}>
+                <Plus size={17} />
+                继续添加讲稿
+              </Button>
+            )}
           </div>
         </div>
         {!project.slides.length && !project.batches.length && composerPanel}
@@ -1154,13 +1182,17 @@ export function Workspace({
               </span>
             </div>
           )}
-          {(!settings.text.hasKey || !settings.image.hasKey) && (
+          {!modelsReady && (
             <div className="inline-notice">
               <WarningCircle size={20} />
               <span>
-                先连接模型，即可自动分析文稿和生成画面。草稿可以先写下来。
+                {managedModels
+                  ? "模型尚未就绪，请等待管理员配置；可以先保存草稿。"
+                  : "先连接模型，即可自动分析文稿和生成画面。草稿可以先写下来。"}
               </span>
-              <Button onClick={onSettings}>连接模型</Button>
+              <Button onClick={onSettings}>
+                {managedModels ? "查看模型服务状态" : "连接模型"}
+              </Button>
             </div>
           )}
         </details>
@@ -1388,7 +1420,9 @@ export function Workspace({
           {generationDialog === "models" || !modelsReady ? (
             <>
               <p>
-                生成前需要连接内容和图片模型。草稿会保留，可以继续编辑和保存。
+                {managedModels
+                  ? "模型尚未就绪，请联系管理员或等待管理员配置。草稿会保留，可以继续编辑和保存。"
+                  : "生成前需要连接内容和图片模型。草稿会保留，可以继续编辑和保存。"}
               </p>
               {managedModels && (
                 <p>
@@ -1446,10 +1480,7 @@ export function Workspace({
                   loading={submitting}
                   onClick={() => {
                     if (submitLock.current) return;
-                    onOnboardingChange({
-                      generation: directGeneration ? "direct" : "confirmed",
-                    });
-                    void submitDraft();
+                    void submitDraft(directGeneration);
                   }}
                 >
                   开始生成
@@ -1461,6 +1492,7 @@ export function Workspace({
       )}
       {detailSlide && (
         <SlideDetail
+          hosted={hosted}
           teaching={
             onboarding.page === "pending" &&
             !!(
@@ -1943,6 +1975,7 @@ function Rename({
   );
 }
 function SlideDetail({
+  hosted,
   teaching,
   onTaught,
   slide,
@@ -1960,6 +1993,7 @@ function SlideDetail({
   onChanged,
   notify,
 }: {
+  hosted: boolean;
   teaching: boolean;
   onTaught: () => void;
   slide: Slide;
@@ -1989,6 +2023,7 @@ function SlideDetail({
   );
   const [uploading, setUploading] = useState(false);
   const [leaveAction, setLeaveAction] = useState<number | "close" | null>(null);
+  const [confirmRedesign, setConfirmRedesign] = useState(false);
   const attachmentInput = useRef<HTMLInputElement>(null);
   const savedAttachmentKey = (
     slide.pendingAttachments ??
@@ -2080,6 +2115,7 @@ function SlideDetail({
         copyFeedback,
         attachmentIds: attachments.map((a) => a.id),
       });
+      setConfirmRedesign(false);
       setFeedback("");
       setCopyFeedback("");
       notify("修改已提交到后台，可以继续编辑下一页；旧版本会保留。");
@@ -2303,7 +2339,7 @@ function SlideDetail({
               </div>
               <Button
                 variant="primary"
-                onClick={redesign}
+                onClick={() => { setError(""); setConfirmRedesign(true); }}
                 loading={loading}
                 disabled={
                   busy ||
@@ -2506,6 +2542,19 @@ function SlideDetail({
           </div>
         </div>
       </Modal>
+      {confirmRedesign && (
+        <Modal title="确认重新设计这页" onClose={() => !loading && setConfirmRedesign(false)}>
+          <p>{hosted
+            ? "重新设计会再次调用模型，并使用管理员提供的图片额度。"
+            : "重新设计会再次调用模型，服务商按实际调用收取费用。"}</p>
+          <p>使用当前讲稿、调整要求和附件重新制作，旧版本会保留。</p>
+          {error && <p className="error-text" role="alert">{error}</p>}
+          <div className="modal-actions">
+            <Button disabled={loading} onClick={() => setConfirmRedesign(false)}>返回修改</Button>
+            <Button variant="primary" loading={loading} disabled={busy || uploading} onClick={redesign}>确认重新设计</Button>
+          </div>
+        </Modal>
+      )}
       {leaveAction !== null && (
         <Modal
           title="有修改尚未提交"

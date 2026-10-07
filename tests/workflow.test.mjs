@@ -38,6 +38,7 @@ test(
     let failImage = false;
     let transparentImage = false;
     let rejectCopyReview = false;
+    let segmentCalls = 0;
     let imageCalls = 0,
       failDesign = false,
       failSegment = false,
@@ -168,6 +169,7 @@ test(
           })),
         };
       } else if (system.includes("演讲内容编辑")) {
+        segmentCalls++;
         if (failSegment) {
           failSegment = false;
           res.statusCode = 503;
@@ -440,22 +442,83 @@ test(
       id = project.id;
     const read = () => req("/projects/" + id);
     const text = "第一句话。第二句话。第三句话。第四句话。第五句话。";
+    const appendRequestId = crypto.randomUUID();
     await req(
       `/projects/${id}/batches`,
-      { text: "# 只有大标题\n\n## 没有正文" },
+      { requestId: appendRequestId, text: "# 只有大标题\n\n## 没有正文" },
       "POST",
       400,
     );
     assert.equal((await read()).batches.length, 0);
     const submittedText = "# 撰写时的大标题\n\n## 本节内容\n\n" + text;
+    // Drop the first accepted response before the caller learns the batch/job ID.
+    const lost = await fetch(base + `/projects/${id}/batches`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: submittedText, requestId: appendRequestId }),
+    });
+    assert.equal(lost.status, 202);
+    await lost.body.cancel();
     let job = await req(
       `/projects/${id}/batches`,
-      { text: submittedText },
+      { text: submittedText, requestId: appendRequestId },
       "POST",
       202,
     );
+    assert.equal(job.accepted, true);
+    const duplicate = await req(
+      `/projects/${id}/batches`,
+      { text: submittedText, requestId: appendRequestId },
+      "POST",
+      202,
+    );
+    assert.equal(duplicate.id, job.id);
+    assert.equal(duplicate.batchId, job.batchId);
     assert.equal((await poll(job)).status, "completed");
+    const callsAfterAcceptance = calls.length,
+      imagesAfterAcceptance = imageCalls;
+    // A transport drops the successful response before the caller can read it.
+    // Retrying after a server restart proves the identity lives in the database.
+    const droppedResponse = await fetch(base + `/projects/${id}/batches`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: submittedText, requestId: appendRequestId }),
+    });
+    await droppedResponse.body.cancel();
+    await shutdown();
+    await boot();
+    await req(`/projects/${id}`, { draft: submittedText }, "PATCH");
+    const recovered = await req(
+      `/projects/${id}/batches`,
+      { text: submittedText, requestId: appendRequestId },
+      "POST",
+      202,
+    );
+    assert.equal(recovered.id, job.id);
+    assert.equal(recovered.batchId, job.batchId);
+    await req(
+      `/projects/${id}/batches`,
+      { text: "不可偷换已接受的内容", requestId: appendRequestId },
+      "POST",
+      409,
+    );
+    assert.equal(
+      (await req("/jobs")).filter(
+        (j) => j.projectId === id && j.type === "append",
+      ).length,
+      1,
+    );
+    assert.equal(calls.length, callsAfterAcceptance);
+    assert.equal(imageCalls, imagesAfterAcceptance);
+    assert.equal(segmentCalls, 1, "one accepted batch segments exactly once");
+    assert.equal(
+      imagesAfterAcceptance,
+      1,
+      "one batch renders one fixture page exactly once",
+    );
     project = await read();
+    assert.equal(project.batches.length, 1);
+    assert.equal(project.draft, "");
     assert.equal(project.slides[0].notes, text);
     assert.equal(project.batches[0].text, submittedText);
     const initialRevision = project.revision;
@@ -1898,6 +1961,7 @@ test(
       await page
         .getByRole("button", { name: "重新设计这页", exact: true })
         .click();
+      await page.getByRole("button", { name: "确认重新设计", exact: true }).click();
       await until(() => imageGates.length === uiGateStart + 1);
       await expect(
         page.getByRole("button", { name: "正在制作中", exact: true }),
@@ -1915,6 +1979,7 @@ test(
       await page
         .getByRole("button", { name: "按新稿重新设计", exact: true })
         .click();
+      await page.getByRole("button", { name: "确认重新设计", exact: true }).click();
       await until(() => imageGates.length === uiGateStart + 2);
       await page.getByRole("button", { name: "下一页", exact: true }).click();
       await expect(

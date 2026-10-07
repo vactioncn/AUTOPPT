@@ -23,6 +23,7 @@ export function useOnboarding(scope: string) {
 export function WorkspaceReadiness({
   data,
   capabilities,
+  account,
   onStart,
   onSettings,
   onStyles,
@@ -30,18 +31,19 @@ export function WorkspaceReadiness({
 }: {
   data: Bootstrap;
   capabilities: Capabilities;
+  account: { hosted: boolean; modelReady?: boolean };
   onStart: () => void;
   onSettings: () => void;
   onStyles: () => void;
   onSkip: () => void;
 }) {
-  const state = onboardingReadiness(data, capabilities);
+  const state = onboardingReadiness(data, capabilities, account);
   return (
     <section className="onboarding-card" aria-label="首次工作区准备">
       <div className="onboarding-heading">
         <div>
           <span className="eyebrow">第一次使用</span>
-          <h2>先确认工作区，再开始一小段</h2>
+          <h2>准备工作区</h2>
         </div>
         <Button variant="ghost" onClick={onSkip}>
           跳过准备
@@ -57,7 +59,7 @@ export function WorkspaceReadiness({
         <li>
           视觉风格：
           {state.styleReady
-            ? "已有可用风格，推荐直接从默认风格开始"
+            ? "已就绪，可先用默认风格"
             : "暂无可用风格"}
         </li>
       </ul>
@@ -102,11 +104,11 @@ export function PageConcepts({ onDismiss }: { onDismiss: () => void }) {
           <strong>上屏文案</strong>：观众看到的重点。
         </li>
         <li>
-          <strong>重新设计</strong>：可能再次调用模型并产生费用。
+          <strong>重新设计</strong>：按当前讲稿和风格重新制作画面。
         </li>
       </ol>
       <Button variant="ghost" onClick={onDismiss}>
-        知道了，关闭提示
+        知道了
       </Button>
     </section>
   );

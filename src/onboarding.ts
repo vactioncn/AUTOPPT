@@ -50,9 +50,17 @@ export function createOnboardingPreferences(
 export function onboardingReadiness(
   data: Bootstrap,
   capabilities: Capabilities,
+  account?: { hosted: boolean; modelReady?: boolean },
 ) {
-  const textReady = !!data.settings.text.hasKey;
-  const imageReady = !!data.settings.image.hasKey;
+  const hosted = account?.hosted || data.buildInfo?.runtimeMode === "hosted";
+  // Worker credentials only authenticate internal requests; they say nothing
+  // about the administrator's provider configuration. Fail closed in hosted.
+  const textReady = hosted
+    ? account?.modelReady === true
+    : !!data.settings.text.hasKey;
+  const imageReady = hosted
+    ? account?.modelReady === true
+    : !!data.settings.image.hasKey;
   const styleReady = data.styles.some(
     (style) => !style.deletedAt && !!style.rules?.trim(),
   );
@@ -70,3 +78,49 @@ export function safeWorkspaceLabel(label?: string) {
 }
 export const exampleManuscript =
   "今天，我想和大家聊聊如何开始一件新事情。面对一个陌生的任务，我们常常希望先做好所有准备，才愿意迈出第一步。但更容易坚持的方法，是先完成一个小行动。比如，读一本书，可以先读两页；准备一次分享，可以先写下一段最想说的话。完成之后，再看看哪里需要调整。今天不必一次做到完美，只要找到一个足够小、现在就能开始的行动。让我们从这一步开始，慢慢把想法变成看得见的成果。";
+
+// Keep the identity of an unacknowledged submission across retries and reloads.
+// Store only a content digest and random ID, never manuscript text or credentials.
+export function createGenerationRequest(
+  scope: string,
+  storage: () => Pick<Storage, "getItem" | "setItem" | "removeItem"> = () =>
+    sessionStorage,
+) {
+  const key = `autoppt-generation-request:${scope}`;
+  let pending: { digest: string; requestId: string } | null = null;
+  try {
+    pending = JSON.parse(storage().getItem(key) || "null");
+  } catch {
+    /* Session fallback. */
+  }
+  return {
+    async forText(text: string) {
+      const digest = Array.from(
+        new Uint8Array(
+          await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)),
+        ),
+        (byte) => byte.toString(16).padStart(2, "0"),
+      ).join("");
+      if (
+        pending?.digest !== digest ||
+        !/^[\w-]{16,80}$/.test(pending.requestId)
+      ) {
+        pending = { digest, requestId: crypto.randomUUID() };
+        try {
+          storage().setItem(key, JSON.stringify(pending));
+        } catch {
+          /* Session fallback. */
+        }
+      }
+      return pending.requestId;
+    },
+    accepted() {
+      pending = null;
+      try {
+        storage().removeItem(key);
+      } catch {
+        /* Session fallback. */
+      }
+    },
+  };
+}

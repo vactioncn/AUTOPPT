@@ -11,14 +11,19 @@ const { outputText } = ts.transpileModule(
     },
   },
 );
-const { createOnboardingPreferences, onboardingReadiness, safeWorkspaceLabel } =
-  await import(`data:text/javascript,${encodeURIComponent(outputText)}`);
+const {
+  createGenerationRequest,
+  createOnboardingPreferences,
+  onboardingReadiness,
+  safeWorkspaceLabel,
+} = await import(`data:text/javascript,${encodeURIComponent(outputText)}`);
 const storage = () => {
   const entries = new Map();
   return {
     entries,
     getItem: (k) => entries.get(k) ?? null,
     setItem: (k, v) => entries.set(k, v),
+    removeItem: (k) => entries.delete(k),
   };
 };
 test("onboarding milestones are versioned, independent and scoped to the actual UI account", () => {
@@ -52,7 +57,11 @@ test("onboarding milestones are versioned, independent and scoped to the actual 
   // Account login removes legacy autoppt- caches; preferences must survive.
   for (const key of s.entries.keys())
     if (key.startsWith("autoppt-")) s.entries.delete(key);
-  assert.equal(createOnboardingPreferences("hosted:fixture-one", () => s).read().generation, "direct");
+  assert.equal(
+    createOnboardingPreferences("hosted:fixture-one", () => s).read()
+      .generation,
+    "direct",
+  );
   assert.match([...s.entries.keys()][0], /^autoppt:onboarding:v1:/);
   assert.deepEqual(Object.keys(JSON.parse([...s.entries.values()][0])), [
     "workspace",
@@ -120,4 +129,57 @@ test("readiness uses bootstrap readiness and capability policy, with no invented
   assert.equal(safeWorkspaceLabel("/Users/private/data"), "工作区");
   assert.equal(safeWorkspaceLabel("C:\\private\\data"), "工作区");
   assert.equal(safeWorkspaceLabel("Mac App 独立工作区"), "Mac App 独立工作区");
+});
+
+test("hosted readiness uses the account contract even when worker hasKey is true", () => {
+  const data = {
+    buildInfo: { runtimeMode: "hosted" },
+    settings: { text: { hasKey: true }, image: { hasKey: true } },
+    styles: [{ rules: "ready" }],
+  };
+  const capabilities = { localModelSettings: { enabled: false } };
+  for (const account of [
+    undefined,
+    { hosted: true },
+    { hosted: true, modelReady: false },
+  ]) {
+    const ready = onboardingReadiness(data, capabilities, account);
+    assert.equal(ready.textReady, false);
+    assert.equal(ready.imageReady, false);
+    assert.equal(ready.ready, false);
+  }
+  assert.equal(
+    onboardingReadiness(data, capabilities, { hosted: true, modelReady: true })
+      .ready,
+    true,
+  );
+  assert.equal(
+    onboardingReadiness(
+      { ...data, buildInfo: { runtimeMode: "desktop" } },
+      { localModelSettings: { enabled: true } },
+      { hosted: false },
+    ).ready,
+    true,
+  );
+});
+
+test("unacknowledged generation identity survives retries and reloads; acceptance starts a new request", async () => {
+  const s = storage();
+  let request = createGenerationRequest("project-one", () => s);
+  const original = await request.forText("同一段讲稿");
+  assert.equal(await request.forText("同一段讲稿"), original);
+  request = createGenerationRequest("project-one", () => s);
+  assert.equal(await request.forText("同一段讲稿"), original);
+  assert(!JSON.stringify([...s.entries]).includes("同一段讲稿"));
+  assert.notEqual(
+    await createGenerationRequest("project-two", () => s).forText("同一段讲稿"),
+    original,
+  );
+  request.accepted();
+  assert.notEqual(await request.forText("同一段讲稿"), original);
+  assert.notEqual(await request.forText("修改后的讲稿"), original);
+  const denied = createGenerationRequest("denied", () => {
+    throw Error("denied");
+  });
+  assert.equal(await denied.forText("草稿"), await denied.forText("草稿"));
 });

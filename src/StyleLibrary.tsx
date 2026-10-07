@@ -25,6 +25,8 @@ import { StyleVersions } from "./StyleVersions";
 import { StyleAnalysis } from "./StyleAnalysis";
 import { DEFAULT_STYLE_ID } from "../shared/styles.mjs";
 export function StyleLibrary({
+  promptRepair = false,
+  onReturn,
   urlImportAvailable,
   styles,
   jobs,
@@ -32,6 +34,8 @@ export function StyleLibrary({
   notify,
   onUse,
 }: {
+  promptRepair?: boolean;
+  onReturn?: () => void;
   urlImportAvailable: boolean;
   styles: Style[];
   jobs: Job[];
@@ -40,9 +44,12 @@ export function StyleLibrary({
   onUse: (id: string) => void;
 }) {
   const [deleting, setDeleting] = useState<Style | null>(null);
-  const [create, setCreate] = useState(false),
+  const [create, setCreate] = useState(promptRepair),
     [studio, setStudio] = useState<string | null>(null),
     [detail, setDetail] = useState<string | null>(null);
+  useEffect(() => {
+    if (promptRepair) setCreate(true);
+  }, [promptRepair]);
   const visibleStyles = styles.filter((s) => !s.deletedAt);
   const selected = visibleStyles.find((s) => s.id === detail);
   const studioStyle = visibleStyles.find((s) => s.id === studio);
@@ -58,6 +65,7 @@ export function StyleLibrary({
     );
   return (
     <div className="page styles-page">
+      {onReturn && <Button onClick={onReturn}>返回新建演讲</Button>}
       {deleting && (
         <DeleteItem
           kind="style"
@@ -173,12 +181,14 @@ export function StyleLibrary({
       </div>
       {create && (
         <CreateStyle
+          initialSource={promptRepair || !styles.some((s) => !s.deletedAt && s.rules?.trim()) ? "prompt" : "upload"}
           urlImportAvailable={urlImportAvailable}
           onClose={() => setCreate(false)}
           onDone={async (s) => {
             setCreate(false);
             await refresh();
-            setDetail(s.id);
+            if (promptRepair) onUse(s.id);
+            else setDetail(s.id);
             notify(
               s.status === "ready"
                 ? "风格提示词已原样保存，可以直接试做。"
@@ -224,6 +234,7 @@ export function StyleLibrary({
   );
 }
 function CreateStyle({
+  initialSource,
   urlImportAvailable,
   onClose,
   onDone,
@@ -231,9 +242,10 @@ function CreateStyle({
   urlImportAvailable: boolean;
   onClose: () => void;
   onDone: (s: Style) => Promise<void>;
+  initialSource: "upload" | "prompt";
 }) {
   const [name, setName] = useState(""),
-    [source, setSource] = useState<"upload" | "url" | "prompt">("upload"),
+    [source, setSource] = useState<"upload" | "url" | "prompt">(initialSource),
     [rules, setRules] = useState(""),
     [url, setUrl] = useState(""),
     [fetching, setFetching] = useState(false),

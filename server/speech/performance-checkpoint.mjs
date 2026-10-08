@@ -5,7 +5,10 @@ import {
   validateDelivery,
 } from "../../shared/speech-performance.mjs";
 
-// Bump this when the director prompt or batching semantics change.
+import { readDirectorState } from "./performance-director.mjs";
+
+// Input identity is independent of request grouping: old validated cues remain
+// reusable. The new global director state has its own schema version.
 const CHECKPOINT_VERSION = 1;
 export function performanceFingerprint(pages, config, model) {
   return createHash("sha256")
@@ -34,14 +37,16 @@ export function readPerformanceCheckpoint(
     !checkpoint ||
     checkpoint.fingerprint !== fingerprint ||
     !Array.isArray(checkpoint.entries) ||
-    !checkpoint.entries.length ||
     checkpoint.entries.length > pages.length
   )
     return null;
   let completed = 0,
     savedUnits = 0;
   const entries = [];
+  let director;
   try {
+    director = readDirectorState(checkpoint.director, pages);
+    if (!checkpoint.entries.length && !director?.parts.length) return null;
     for (let i = 0; i < checkpoint.entries.length; i++) {
       const entry = checkpoint.entries[i],
         page = pages[i],
@@ -68,5 +73,5 @@ export function readPerformanceCheckpoint(
   } catch {
     return null;
   }
-  return { entries, completed, savedUnits };
+  return { entries, completed, savedUnits, director };
 }

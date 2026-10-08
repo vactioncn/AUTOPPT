@@ -1,4 +1,5 @@
 import test from "node:test";
+import { mockGlobalPlan } from "./helpers/performance-model.mjs";
 import sharp from "sharp";
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
@@ -99,17 +100,19 @@ test(
             choices: [
               {
                 message: {
-                  content: JSON.stringify({
-                    units: input.units.map((u, i) => ({
-                      id: u.id,
-                      emotion: i ? "happy" : "calm",
-                      pace: 1,
-                      pauseAfter: 0.6,
-                      emphasis: !i,
-                      sound: i ? "chuckle" : "",
-                      reason: i ? "故事转向轻松" : "回顾困难，语气沉稳",
-                    })),
-                  }),
+                  content: JSON.stringify(
+                    mockGlobalPlan(input) || {
+                      units: input.units.map((u, i) => ({
+                        id: u.id,
+                        emotion: i ? "happy" : "calm",
+                        pace: 1,
+                        pauseAfter: 0.6,
+                        emphasis: !i,
+                        sound: i ? "chuckle" : "",
+                        reason: i ? "故事转向轻松" : "回顾困难，语气沉稳",
+                      })),
+                    },
+                  ),
                 },
               },
             ],
@@ -210,7 +213,7 @@ test(
       return s.performanceTask.status === "ready" && s;
     });
     const plan = done.performance;
-    assert.equal(requests.length, 1);
+    assert.equal(requests.length, 2);
     assert.equal(speech.length, 0);
     assert.equal(plan.pages[1].units.length, 0);
     assert.equal(

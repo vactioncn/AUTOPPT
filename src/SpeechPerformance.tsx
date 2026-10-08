@@ -154,7 +154,8 @@ export function SpeechPerformance({
             : "推荐：AI 编排演讲表达"}
       </h3>
       <p className="speech-subtle">
-        AI 结合上下文编排情绪、停顿与重点句。正文不改写，表达提示不会被念出来。
+        AI
+        先通读全文统一规划，再将连续多页分批编排情绪、停顿与重点句。正文不改写，表达提示不会被念出来。
       </p>
       <details className="speech-expression-settings" open={!matches}>
         <summary>编排设置{matches ? " · 修改后需重新编排" : ""}</summary>
@@ -252,7 +253,7 @@ export function SpeechPerformance({
           <p role="status" className="speech-callout">
             {task.progress}
             {running
-              ? ` · 已完成 ${task.completed} / ${task.total} 页，无需重复点击。`
+              ? ` · 已保存 ${task.completed} / ${task.total} 页，无需重复点击。`
               : ""}
           </p>
         )
@@ -265,6 +266,17 @@ export function SpeechPerformance({
             ? "继续编排只处理剩余内容。"
             : "当前内容、设置或模型与保存进度不一致，需从头编排。"}
         </p>
+      )}
+      {matches && plan?.direction && (
+        <details className="speech-expression-settings">
+          <summary>全场表达思路</summary>
+          <p className="speech-subtle">{plan.direction.overview}</p>
+          {plan.direction.sections.map((section) => (
+            <p className="speech-subtle" key={section.startPage}>
+              第 {section.startPage}–{section.endPage} 页：{section.direction}
+            </p>
+          ))}
+        </details>
       )}
       {error && (
         <p role="alert" className="speech-error">

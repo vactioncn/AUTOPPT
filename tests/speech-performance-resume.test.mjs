@@ -1,4 +1,5 @@
 import test from "node:test";
+import { mockGlobalPlan } from "./helpers/performance-model.mjs";
 import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, rmSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -39,7 +40,7 @@ test(
       batches: [],
       slides: [
         "第一段。",
-        Array.from({ length: 29 }, (_, i) => `第${i + 1}句。`).join(""),
+        Array.from({ length: 69 }, (_, i) => `第${i + 1}句。`).join(""),
         "最后一段。",
         "",
       ].map((notes, i) => ({
@@ -76,7 +77,11 @@ test(
         input = JSON.parse(body.messages[1].content[0].text);
       requests.push(input);
       res.setHeader("content-type", "application/json");
-      if (input.page === 2 && input.units[0].id === "25") {
+      if (
+        input.stage === "delivery" &&
+        input.pageStart === 2 &&
+        input.units[0].id === "2:65"
+      ) {
         if (mode === "hold")
           await new Promise((r) => {
             release = r;
@@ -96,17 +101,19 @@ test(
           choices: [
             {
               message: {
-                content: JSON.stringify({
-                  units: input.units.map((u) => ({
-                    id: u.id,
-                    emotion: "calm",
-                    pace: 1,
-                    pauseAfter: 0.4,
-                    emphasis: true,
-                    sound: "chuckle",
-                    reason: "连贯表达",
-                  })),
-                }),
+                content: JSON.stringify(
+                  mockGlobalPlan(input) || {
+                    units: input.units.map((u) => ({
+                      id: u.id,
+                      emotion: "calm",
+                      pace: 1,
+                      pauseAfter: 0.4,
+                      emphasis: true,
+                      sound: "chuckle",
+                      reason: "连贯表达",
+                    })),
+                  },
+                ),
               },
             },
           ],
@@ -214,12 +221,12 @@ test(
       "partial work is never a usable plan",
     );
     assert.equal(failed.performanceTask.completed, 1);
-    assert.equal(failed.performanceTask.savedUnits, 25);
+    assert.equal(failed.performanceTask.savedUnits, 65);
     assert.equal(failed.performanceTask.canResume, true);
     assert(!("performanceCheckpoint" in failed), "checkpoint stays private");
-    assert.equal(requests.length, 3);
+    assert.equal(requests.length, 4);
     const checkpoint = stored().performanceCheckpoint;
-    assert.equal(checkpoint.entries[1].units.length, 24);
+    assert.equal(checkpoint.entries[1].units.length, 64);
 
     // Changed input must fail before updating the saved draft or discarding progress.
     const before = stored();
@@ -271,10 +278,10 @@ test(
     mode = "hold";
     await arrange(true);
     await waitFor(() => release);
-    assert.equal(requests.at(-1).units[0].id, "25");
+    assert.equal(requests.at(-1).units[0].id, "2:65");
     assert.deepEqual(
       requests.at(-1).previousDelivery,
-      requests[2].previousDelivery,
+      requests[3].previousDelivery,
     );
     await api("/projects/resume/speech-performance/cancel", {});
     await waitFor(
@@ -364,10 +371,33 @@ test(
             path: path.join(out, "resume-mobile.png"),
             fullPage: true,
           });
-        mode = "ok";
+        mode = "hold";
         await button.click();
+        await waitFor(() => release);
+        await page.getByText(/正在批量编排剩余内容 · 第 1\/1 批/).waitFor();
+        assert.match(
+          await page.locator("body").innerText(),
+          /第 2–3\/4 页 · 本批 6 句/,
+        );
+        if (out)
+          await page.screenshot({
+            path: path.join(out, "batch-mobile.png"),
+            fullPage: true,
+          });
+        await page.setViewportSize({ width: 1280, height: 900 });
+        if (out)
+          await page.screenshot({
+            path: path.join(out, "batch-desktop.png"),
+            fullPage: true,
+          });
+        release();
+        release = null;
         await page
           .getByText("演绎编排已完成，请逐页检查后生成口播", { exact: true })
+          .waitFor();
+        await page.getByText("全场表达思路", { exact: true }).click();
+        await page
+          .getByText("先讲故事，再推进论点，最后平稳收束。", { exact: true })
           .waitFor();
         assert.equal(errors.length, 0, errors.join("\n"));
       } finally {
@@ -385,11 +415,13 @@ test(
       return s.performanceTask.status === "ready" && s;
     });
     const later = requests.slice(callsBeforeRestart);
-    assert(later.every((r) => r.page >= 2));
+    assert(later.every((r) => r.stage === "delivery" && r.pageStart >= 2));
     assert(
-      later.filter((r) => r.page === 2).every((r) => r.units[0].id === "25"),
+      later
+        .filter((r) => r.pageStart === 2)
+        .every((r) => r.units[0].id === "2:65"),
     );
-    assert.equal(ready.performance.pages[1].units.length, 29);
+    assert.equal(ready.performance.pages[1].units.length, 69);
     assert.equal(
       ready.performance.pages[1].units.filter((u) => u.emphasis).length,
       1,
@@ -413,7 +445,7 @@ test(
     await waitFor(
       async () => (await script()).performanceTask.status === "failed",
     );
-    assert.equal(requests[restartIndex].page, 1);
+    assert.equal(requests[restartIndex].stage, "planning");
     assert.deepEqual((await script()).performance, ready.performance);
   },
 );

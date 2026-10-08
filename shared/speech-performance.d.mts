@@ -23,6 +23,10 @@ export type SpeechPerformance = {
   createdAt: string;
   settings: PerformanceSettings;
   pages: PerformancePage[];
+  direction?: {
+    overview: string;
+    sections: { startPage: number; endPage: number; direction: string }[];
+  };
 };
 export type PerformanceTask = {
   id: string;

@@ -182,6 +182,62 @@ test(
       store.get("project", "project").slides.every((s) => !s.image),
       true,
     );
+    // A retry on an original 17-page batch scopes its counters to the two missing pages.
+    const partial = store.get("project", "project");
+    partial.slides.slice(0, 15).forEach((s) => {
+      s.image = "saved.png";
+      s.status = "ready";
+    });
+    store.put("project", partial);
+    const existingVersions = partial.slides
+      .slice(0, 15)
+      .map((s) => structuredClone(s));
+    round = 4;
+    retry(job.id);
+    saved = await finished();
+    assert.equal(saved.pageProgress.total, 2);
+    assert.equal(saved.pageProgress.preserved, 15);
+    assert.equal(saved.pageProgress.failed.length, 2);
+    assert.equal(saved.pageProgress.succeeded, 0);
+    assert.equal(saved.pageProgress.current, null);
+    assert.equal(saved.done, 2);
+    assert.equal(saved.total, 2);
+    assert.deepEqual(
+      saved.pageProgress.failed.map((p) => p.page),
+      [16, 17],
+    );
+    assert.deepEqual(
+      store.get("project", "project").slides.slice(0, 15),
+      existingVersions,
+      "saved pages are never submitted or modified by retry",
+    );
+    // The live job exposes the same bounded connection wait as the request policy.
+    let designCalls = 0;
+    fetchMock.mock.mockImplementation(async () => {
+      designCalls++;
+      return designCalls === 1 ? response(500, handshake) : response(400, { error: "fixture stops before image generation" });
+    });
+    retry(job.id);
+    let waitingJob;
+    for (let i = 0; i < 300; i++) {
+      waitingJob = store.get("job", job.id);
+      if (waitingJob.autoRetry) break;
+      await delay(10);
+    }
+    assert.equal(waitingJob.autoRetry.attempt, 1);
+    assert.equal(waitingJob.autoRetry.seconds, 2);
+    assert.equal(waitingJob.pageProgress.current.page, 16);
+    assert.equal(waitingJob.pageProgress.failed.length, 0, "prior attempt failures must clear on retry");
+    saved = await finished();
+    assert.equal(saved.autoRetry, undefined);
+    assert.equal(saved.pageProgress.failed.length, 2);
+    // Restore valid analysis responses for the cancellation checkpoint below.
+    fetchMock.mock.mockImplementation(async (url, options) => {
+      const body = JSON.parse(options.body);
+      const { pages } = JSON.parse(body.messages[1].content[0].text);
+      requested.push({ round: 5, ids: pages.map((p) => p.id) });
+      return response(200, { choices: [{ message: { content: JSON.stringify({ pages: pages.map((p) => ({ id: p.id, claim: "原文观点", relationship: "statement", evidence: p.notes, entities: ["内容"], visualTask: "呈现观点", mustNotImply: [] })) }) } }] });
+    });
     const controller = new AbortController();
     const before = requested.length;
     let checkpoints = 0;

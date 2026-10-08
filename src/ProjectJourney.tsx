@@ -219,7 +219,7 @@ export function RehearsalCenter({
   records: Presentations;
   capabilities: Capabilities;
   selectedCount: number;
-  onSpeech: () => void;
+  onSpeech: (prepare?: boolean) => void;
   onMotion: () => void;
   onSettings: () => void;
   onStudio: () => void;
@@ -246,7 +246,7 @@ export function RehearsalCenter({
             <Button onClick={onMotion}>打开已有动态演示</Button>
           )}
           {!!records.narration.records.length && speechAvailable && (
-            <Button onClick={onSpeech}>打开已有口播</Button>
+            <Button onClick={() => onSpeech()}>打开已有口播</Button>
           )}
         </details>
       </section>
@@ -271,7 +271,7 @@ export function RehearsalCenter({
           aria-describedby={
             !speechAvailable ? "standard-presentation-reason" : undefined
           }
-          onClick={action.target === "player" ? onSpeech : onStudio}
+          onClick={action.target === "player" ? () => onSpeech() : onStudio}
         >
           {action.label}
         </Button>
@@ -307,6 +307,9 @@ export function RehearsalCenter({
         <h3>
           AI 口播 <span>可选增强</span>
         </h3>
+        {speechAvailable && !!journey.illustrated && (
+          <Button onClick={() => onSpeech(true)}>制作 AI 口播</Button>
+        )}
         {!speechAvailable ? (
           <p>当前服务尚未开放 AI 口播，可在模型与服务中查看服务能力。</p>
         ) : records.voice.error ? (
@@ -320,12 +323,12 @@ export function RehearsalCenter({
         ) : records.voice.ready === null ? (
           <p role="status">正在读取语音服务状态…</p>
         ) : (
-          <p>语音服务已配置，可在播放器内选择音色并生成口播。</p>
+          <p>语音服务已配置。检查正文 → 选择演讲表达 → 试听并生成声音。</p>
         )}
         {speechAvailable && (
           <p>
             {journey.illustrated
-              ? "普通放映仍可使用。打开上方播放器，可选择已有口播或制作新口播。"
+              ? "已有口播可直接播放；制作新口播会保留旧版本。"
               : "先制作至少一页画面，即可普通放映；无需配置语音服务。"}
           </p>
         )}

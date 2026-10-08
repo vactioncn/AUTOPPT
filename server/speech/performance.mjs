@@ -1,4 +1,5 @@
 import { withUsage } from "../usage/index.mjs";
+import { withModelRequestProgress } from "../model-request-policy.mjs";
 import { all, get, put, id, now, settings, projectOrThrow } from "../store.mjs";
 import { jsonModel } from "../models.mjs";
 import { saveSpeechScript, speechScript } from "./scripts.mjs";
@@ -147,23 +148,38 @@ export function registerPerformance(app, assertIdle) {
     const model = settings().text.model;
     res.status(202).json(speechScript(project));
     void (async () => {
+      let stageBeforeRetry;
       try {
         const annotated = await withUsage(
           { projectId: project.id, taskId: job.id, feature: "演绎编排" },
           () =>
-            analyzePerformance(
-              pages,
-              config,
-              controller.signal,
-              (progress, completed) => {
-                job.progress = progress;
-                job.completed = completed;
+            withModelRequestProgress(
+              (waiting) => {
+                if (waiting) {
+                  stageBeforeRetry ??= job.progress;
+                  job.progress = `${stageBeforeRetry}；连接中断，${Math.ceil(waiting.ms / 1000)} 秒后自动重试（${waiting.attempt}/${waiting.maxRetries}）`;
+                } else if (stageBeforeRetry !== undefined) {
+                  job.progress = stageBeforeRetry;
+                  stageBeforeRetry = undefined;
+                }
                 update(project.id, job);
               },
+              () =>
+                analyzePerformance(
+                  pages,
+                  config,
+                  controller.signal,
+                  (progress, completed) => {
+                    job.progress = progress;
+                    job.completed = completed;
+                    update(project.id, job);
+                  },
+                ),
             ),
         );
         controller.signal.throwIfAborted();
         job.status = "ready";
+        job.completed = pages.length;
         job.progress = "演绎编排已完成，请逐页检查后生成口播";
         update(project.id, job, {
           id: job.id,

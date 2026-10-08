@@ -15,6 +15,7 @@ import {
 } from "../shared/speech-text.mjs";
 import { Button, Field } from "./components";
 import { SceneView } from "./SceneView";
+import { failureAdvice } from "../shared/job-feedback.mjs";
 import type { Project } from "./types";
 import {
   SPEECH_DEFAULTS,
@@ -46,10 +47,12 @@ export function SpeechPresentation({
   projectId,
   onClose,
   onSettings,
+  initialPanel = "play",
 }: {
   projectId: string;
   onClose: () => void;
   onSettings: () => void;
+  initialPanel?: "play" | "text";
 }) {
   const [project, setProject] = useState<Project | null>(null),
     [voices, setVoices] = useState<Voice[]>([]);
@@ -59,7 +62,9 @@ export function SpeechPresentation({
   const [options, setOptions] = useState<SpeechOptions>({ ...SPEECH_DEFAULTS }),
     [pageEmotions, setPageEmotions] = useState<Record<string, string>>({});
   const [editPageId, setEditPageId] = useState("");
-  const [panel, setPanel] = useState<"play" | "text" | "voice">("play");
+  const [panel, setPanel] = useState<"play" | "text" | "expression" | "voice">(
+    initialPanel,
+  );
   const [playbackRate, setPlaybackRate] = useState(1);
   const [pendingDeck, setPendingDeck] = useState<Narration | null>(null);
   const [pageTexts, setPageTexts] = useState<Record<string, string>>({});
@@ -255,7 +260,7 @@ export function SpeechPresentation({
     };
   }, [projectId, selectDeck]);
   useEffect(() => {
-    if (!performanceBusy || panel === "text") return;
+    if (!performanceBusy || panel === "expression") return;
     let stopped = false;
     const timer = setInterval(() => {
       api<{
@@ -437,6 +442,30 @@ export function SpeechPresentation({
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [jump, pageIndex, playable, presenting, onClose]);
+  async function saveTexts(advance: boolean) {
+    setBusy(true);
+    setTextFeedback(null);
+    try {
+      await api(`/projects/${projectId}/speech-script`, {
+        method: "PUT",
+        body: JSON.stringify({
+          revision: project?.revision,
+          pageTexts: Object.fromEntries(
+            draftPages.map((p) => [p.id, textFor(p)]),
+          ),
+        }),
+      });
+      setTextReviewed(true);
+      setTextFeedback({
+        text: "口播文本已保存，原稿保持不变。已有音频不会随文本修改；请生成新的口播版本以应用修改。",
+      });
+      if (advance) setPanel("expression");
+    } catch (e) {
+      setTextFeedback({ error: true, text: (e as Error).message });
+    } finally {
+      setBusy(false);
+    }
+  }
   async function generate() {
     if (!project) return;
     setBusy(true);
@@ -730,13 +759,14 @@ export function SpeechPresentation({
         {!presenting && (
           <aside className="speech-setup">
             <div className="speech-panel-heading">
-              <span className="speech-eyebrow">演播台</span>
               <h2>
                 {panel === "play"
                   ? "准备好，开始讲述。"
                   : panel === "text"
                     ? "只念你要说的话。"
-                    : "让声音贴合表达。"}
+                    : panel === "expression"
+                      ? "为正文安排表达。"
+                      : "试听，再生成口播。"}
               </h2>
             </div>
             <div className="speech-tabs" role="tablist" aria-label="演播工作区">
@@ -744,7 +774,8 @@ export function SpeechPresentation({
                 [
                   ["play", "放映"],
                   ["text", "1 · 口播文本"],
-                  ["voice", "2 · 声音制作"],
+                  ["expression", "2 · 演讲表达"],
+                  ["voice", "3 · 声音制作"],
                 ] as const
               ).map(([id, label]) => (
                 <button
@@ -763,7 +794,7 @@ export function SpeechPresentation({
                 <p>
                   {playable
                     ? "点击画面下方“开始口播”，讲完自动翻页。倍速在播放中随时可调，无需重新生成。"
-                    : "检查口播文本，再选择声音生成。也可以先仅放映画面。"}
+                    : "按三个步骤完成：检查正文、选择演讲表达、试听并生成声音。也可以先仅放映画面。"}
                 </p>
                 <Button onClick={() => setPanel("text")}>
                   检查或重新识别口播文本
@@ -775,7 +806,13 @@ export function SpeechPresentation({
             )}
             {panel !== "play" && (
               <p className="speech-subtle">
-                文字和声音设置属于制作草稿，已保存的音频仍可从左侧播放。
+                {panel === "text"
+                  ? textReviewed
+                    ? "正文已保存或重新识别，请核对后继续。"
+                    : "已从原稿提取正文，先检查各页是否只包含要说的话。"
+                  : panel === "expression"
+                    ? "选择 AI 编排或普通口播，完成后进入声音制作。"
+                    : "先试听本页，满意后生成整场口播；完成后切换到放映。"}
               </p>
             )}
             {panel === "voice" && !config?.hasKey && (
@@ -786,7 +823,7 @@ export function SpeechPresentation({
             )}
             {panel === "voice" && performanceBusy && (
               <p role="status" className="speech-callout">
-                演绎编排进行中，请回到“口播文本”查看进度或停止。
+                演绎编排进行中，请到“2 · 演讲表达”查看进度或停止。
               </p>
             )}
             <fieldset hidden={panel === "play"} disabled={busy || polling}>
@@ -818,6 +855,7 @@ export function SpeechPresentation({
                         ...t,
                         [scriptPage.id]: e.target.value,
                       }));
+                      setTextReviewed(false);
                       setTextFeedback(null);
                     }}
                   />
@@ -869,33 +907,7 @@ export function SpeechPresentation({
                     >
                       重新识别整场口播
                     </Button>
-                    <Button
-                      onClick={async () => {
-                        setBusy(true);
-                        setTextFeedback(null);
-                        try {
-                          await api(`/projects/${projectId}/speech-script`, {
-                            method: "PUT",
-                            body: JSON.stringify({
-                              revision: project?.revision,
-                              pageTexts: Object.fromEntries(
-                                draftPages.map((p) => [p.id, textFor(p)]),
-                              ),
-                            }),
-                          });
-                          setTextFeedback({
-                            text: "口播文本已保存，原稿保持不变。已有音频不会随文本修改；请生成新的口播版本以应用修改。",
-                          });
-                        } catch (e) {
-                          setTextFeedback({
-                            error: true,
-                            text: (e as Error).message,
-                          });
-                        } finally {
-                          setBusy(false);
-                        }
-                      }}
-                    >
+                    <Button variant="ghost" onClick={() => saveTexts(false)}>
                       保存口播文本
                     </Button>
                   </div>
@@ -909,34 +921,53 @@ export function SpeechPresentation({
                       {textFeedback.text}
                     </p>
                   )}
-                  {project && (
-                    <SpeechPerformance
-                      projectId={projectId}
-                      revision={project.revision}
-                      pages={performancePages}
-                      pageId={scriptPage.id}
-                      model={config?.model || ""}
-                      plan={performance}
-                      enabled={usePerformance}
-                      disabled={busy || polling}
-                      onPlan={setPerformance}
-                      onEnabled={setUsePerformance}
-                      onWorking={setPerformanceBusy}
-                      onTexts={setPageTexts}
-                    />
-                  )}
                   {deck?.pages.some(
                     (p) => (p.speechTextVersion || 0) < SPEECH_TEXT_VERSION,
                   ) && (
                     <p className="speech-callout">
                       {textReviewed || textChanged
-                        ? "当前音频仍是旧版。检查口播文本后，前往“2 · 声音制作”生成新版本，才能更新声音；生成会使用语音服务额度。"
+                        ? "当前音频仍是旧版。检查口播文本后，前往“3 · 声音制作”生成新版本，才能更新声音；生成会使用语音服务额度。"
                         : "这是旧版音频。点击“重新识别整场口播”并检查文本后，生成新的口播版本，才能去除已录入声音的提示文字。"}
                     </p>
                   )}
-                  <Button onClick={() => setPanel("voice")}>
-                    下一步 · 选择声音
+                  <Button variant="primary" onClick={() => saveTexts(true)}>
+                    保存并继续 · 选择演讲表达
                   </Button>
+                  <p className="speech-subtle">
+                    文本识别与保存不调用模型。下一步可选 AI
+                    编排，或直接使用普通口播。
+                  </p>
+                </section>
+              )}
+              {panel === "expression" && project && scriptPage && (
+                <section>
+                  <Field label="查看演绎页">
+                    <select
+                      value={scriptPage.id}
+                      onChange={(e) => setEditPageId(e.target.value)}
+                    >
+                      {draftPages.map((p) => (
+                        <option value={p.id} key={p.id}>
+                          第 {p.number} 页 · {p.title}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <SpeechPerformance
+                    projectId={projectId}
+                    revision={project.revision}
+                    pages={performancePages}
+                    pageId={scriptPage.id}
+                    model={config?.model || ""}
+                    plan={performance}
+                    enabled={usePerformance}
+                    disabled={busy || polling}
+                    onPlan={setPerformance}
+                    onEnabled={setUsePerformance}
+                    onWorking={setPerformanceBusy}
+                    onTexts={setPageTexts}
+                    onNext={() => setPanel("voice")}
+                  />
                 </section>
               )}
               {panel === "voice" && (
@@ -959,22 +990,26 @@ export function SpeechPresentation({
                   <p className="speech-subtle">
                     {voices.find((v) => v.id === options.voiceId)?.description}
                   </p>
-                  <div className="speech-options">
-                    <Field label="整体情绪">
-                      <select
-                        disabled={usePerformance}
-                        value={options.emotion}
-                        onChange={(e) =>
-                          setOptions({ ...options, emotion: e.target.value })
-                        }
-                      >
-                        {SPEECH_EMOTIONS.map((e) => (
-                          <option value={e.id} key={e.id}>
-                            {e.name}
-                          </option>
-                        ))}
-                      </select>
-                    </Field>
+                  <div
+                    className={`speech-options ${usePerformance ? "speech-options-single" : ""}`}
+                  >
+                    <div hidden={usePerformance}>
+                      <Field label="整体情绪">
+                        <select
+                          disabled={usePerformance}
+                          value={options.emotion}
+                          onChange={(e) =>
+                            setOptions({ ...options, emotion: e.target.value })
+                          }
+                        >
+                          {SPEECH_EMOTIONS.map((e) => (
+                            <option value={e.id} key={e.id}>
+                              {e.name}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                    </div>
                     <Field label={`生成语速 · ${options.speed.toFixed(1)}×`}>
                       <input
                         type="range"
@@ -992,7 +1027,7 @@ export function SpeechPresentation({
                       />
                     </Field>
                   </div>
-                  {scriptPage && (
+                  {scriptPage && !usePerformance && (
                     <Field
                       label={`第 ${draftPages.findIndex((p) => p.id === scriptPage.id) + 1} 页的情绪`}
                     >
@@ -1020,6 +1055,14 @@ export function SpeechPresentation({
             </fieldset>
             {panel === "voice" && (
               <>
+                <p className="speech-callout">
+                  {usePerformance
+                    ? "情绪、停顿与重点表达由 AI 演绎方案接管。"
+                    : "当前使用普通口播，情绪与语速由下方设置决定。"}{" "}
+                  <button onClick={() => setPanel("expression")}>
+                    调整演讲表达
+                  </button>
+                </p>
                 <SpeechPreview
                   body={{
                     projectId,
@@ -1050,18 +1093,13 @@ export function SpeechPresentation({
                             : performanceBusy
                               ? "演绎编排进行中，完成后可试听。"
                               : performanceBlocked
-                                ? "演绎方案尚未就绪、正文已改变或模型不支持辅助声音，请回到口播文本检查。"
+                                ? "演绎方案尚未就绪、正文已改变或模型不支持辅助声音，请回到“2 · 演讲表达”检查。"
                                 : ""
                   }
                   audioRef={previewAudio}
                   onBusy={setPreviewBusy}
                   onStart={() => setPlaying(false)}
                 />
-                {usePerformance && !performanceBlocked && (
-                  <p className="speech-callout">
-                    将按演绎方案逐段生成情绪、停顿和重点表达；整体与逐页情绪由编排接管。
-                  </p>
-                )}
                 <p className="speech-subtle">
                   生成语速决定新音频的表达。放映时可用左侧“播放倍速”即时调整。
                 </p>
@@ -1120,6 +1158,31 @@ export function SpeechPresentation({
                   {job.pages.filter((p) => p.status === "ready").length} /{" "}
                   {job.pages.length} 页完成
                 </span>
+                <p className="speech-subtle">
+                  {polling
+                    ? "已生成片段会立即保存；任务正在处理，无需再次提交。明确限流会显示等待与有限重试。"
+                    : job.status !== "ready"
+                      ? "任务已停止，不会自动继续。检查原因后点击继续，已完成片段不重发。"
+                      : "新口播已保存，选择后即可放映。"}
+                </p>
+                {job.pages.some((p) => p.error) && (
+                  <details>
+                    <summary>查看未完成页的原因</summary>
+                    {job.pages.flatMap((p, i) =>
+                      p.error
+                        ? [
+                            <div key={p.id}>
+                              <strong>
+                                第 {i + 1} 页 · {failureAdvice(p.error).reason}
+                              </strong>
+                              <p>{failureAdvice(p.error).action}</p>
+                              <p className="job-raw-error">{p.error}</p>
+                            </div>,
+                          ]
+                        : [],
+                    )}
+                  </details>
+                )}
                 {polling ? (
                   <Button disabled={busy} onClick={() => jobAction("cancel")}>
                     停止生成

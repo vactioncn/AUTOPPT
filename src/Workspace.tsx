@@ -1,4 +1,5 @@
 import { VisualReview } from "./VisualReview";
+import { JobFeedback } from "./JobFeedback";
 import { PageConcepts } from "./OnboardingUI";
 import {
   createGenerationRequest,
@@ -161,6 +162,9 @@ export function Workspace({
   const managedModels = !capabilities.localModelSettings.enabled;
   const [draftSaveError, setDraftSaveError] = useState(false);
   const [speechOpen, setSpeechOpen] = useState(false);
+  const [speechInitialPanel, setSpeechInitialPanel] = useState<"play" | "text">(
+    "play",
+  );
   const [visualReviewOpen, setVisualReviewOpen] = useState(false);
   const records = usePresentationRecords(id, speechAvailable, motionAvailable);
   const [insertion, setInsertion] = useState<{
@@ -716,7 +720,10 @@ export function Workspace({
           records={records}
           capabilities={capabilities}
           selectedCount={selected.length}
-          onSpeech={() => setSpeechOpen(true)}
+          onSpeech={(prepare) => {
+            setSpeechInitialPanel(prepare ? "text" : "play");
+            setSpeechOpen(true);
+          }}
           onMotion={() => setMotionOpen(true)}
           onSettings={onSettings}
           onStudio={() =>
@@ -798,57 +805,75 @@ export function Workspace({
             </p>
           )}
           {activeJobs.map((busy) => (
-            <div className="job-banner" role="status" key={busy.id}>
-              <SpinnerGap className="spin" size={22} />
-              <div>
-                <strong>
-                  {busy.slideIds?.length === 1
-                    ? `第 ${project.slides.findIndex((s) => s.id === busy.slideIds![0]) + 1} 页 · `
-                    : ""}
-                  {busy.stage}
-                </strong>
-                <span>已完成的内容会自动保存，可以继续编辑其他空闲页面。</span>
+            <section
+              className="job-task"
+              key={busy.id}
+              aria-label="本次制作进度"
+            >
+              <div className="job-banner" role="status">
+                <SpinnerGap className="spin" size={22} />
+                <div>
+                  <strong>
+                    {!busy.pageProgress && busy.slideIds?.length === 1
+                      ? `第 ${project.slides.findIndex((s) => s.id === busy.slideIds![0]) + 1} 页 · `
+                      : ""}
+                    {busy.stage}
+                  </strong>
+                  <span>
+                    {busy.status === "queued"
+                      ? "正在排队，轮到后自动开始。"
+                      : "完成一页就保存一页；失败页先跳过，其余页面继续。"}
+                  </span>
+                </div>
+                {busy.total > 0 && (
+                  <span className="job-count">
+                    {busy.pageProgress?.phase === "analysis"
+                      ? "正在分析内容"
+                      : `已处理 ${busy.done} / ${busy.total}`}
+                  </span>
+                )}
+                <Button
+                  variant="ghost"
+                  onClick={() =>
+                    run(() => post("/jobs/" + busy.id + "/cancel"))
+                  }
+                >
+                  <Stop size={15} />
+                  停止
+                </Button>
+                {busy.total > 0 && (
+                  <div
+                    className="job-progress"
+                    style={{
+                      transform: `scaleX(${Math.max(0.03, busy.done / busy.total)})`,
+                    }}
+                  />
+                )}
               </div>
-              {busy.total > 0 && (
-                <span className="job-count">
-                  {busy.done} / {busy.total}
-                </span>
-              )}
-              <Button
-                variant="ghost"
-                onClick={() => run(() => post("/jobs/" + busy.id + "/cancel"))}
-              >
-                <Stop size={15} />
-                停止
-              </Button>
-              {busy.total > 0 && (
-                <div
-                  className="job-progress"
-                  style={{
-                    transform: `scaleX(${Math.max(0.03, busy.done / busy.total)})`,
-                  }}
-                />
-              )}
-            </div>
+              <JobFeedback job={busy} />
+            </section>
           ))}
           {!busy &&
             lastJob &&
             ["failed", "interrupted", "cancelled"].includes(lastJob.status) && (
-              <div className="inline-notice warm">
-                <WarningCircle size={20} />
-                <div>
-                  <strong>{lastJob.stage}</strong>
-                  <p>{lastJob.error}</p>
+              <section className="job-task">
+                <div className="inline-notice warm">
+                  <WarningCircle size={20} />
+                  <div>
+                    <strong>{lastJob.stage}</strong>
+                    <p>{lastJob.error}</p>
+                  </div>
+                  <Button
+                    onClick={() =>
+                      run(() => post("/jobs/" + lastJob.id + "/retry"))
+                    }
+                  >
+                    继续未完成任务
+                    <ArrowRight size={16} />
+                  </Button>
                 </div>
-                <Button
-                  onClick={() =>
-                    run(() => post("/jobs/" + lastJob.id + "/retry"))
-                  }
-                >
-                  继续未完成任务
-                  <ArrowRight size={16} />
-                </Button>
-              </div>
+                <JobFeedback job={lastJob} />
+              </section>
             )}
           {!busy &&
             incomplete
@@ -1315,6 +1340,7 @@ export function Workspace({
           }
         >
           <SpeechPresentation
+            initialPanel={speechInitialPanel}
             projectId={id}
             onClose={() => {
               setSpeechOpen(false);

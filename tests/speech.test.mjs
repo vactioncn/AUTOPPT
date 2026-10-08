@@ -588,7 +588,9 @@ test(
         await page
           .getByRole("button", { name: "返回演播台", exact: true })
           .click();
-        await page.getByRole("tab", {name:"2 · 声音制作",exact:true}).click();
+        await page
+          .getByRole("tab", { name: "3 · 声音制作", exact: true })
+          .click();
         await page.getByLabel("整体情绪", { exact: true }).selectOption("sad");
         assert.equal(
           await page

@@ -308,7 +308,7 @@ test(
       page.locator('[aria-label="AI 口播"]').getByText(/尚未配置语音服务/),
     ).toBeVisible();
     await expect(page.locator('[aria-label="AI 口播"]')).toContainText(
-      "普通放映仍可使用",
+      "已有口播可直接播放",
     );
     await expect(page.locator(".workspace .btn.primary:visible")).toHaveText(
       "打开演讲播放器",
@@ -729,7 +729,13 @@ test(
             slideIds: ["page-1"],
             stage: "隔离后台制作",
             done: 0,
-            total: 1,
+            total: 2,
+            pageProgress: {
+              total: 2, preserved: 109, succeeded: 0,
+              current: { id: "page-1", page: 1 },
+              failed: [{ id: "page-2", page: 2, error: "模型服务返回 408：stream disconnected before completion" }],
+            },
+            autoRetry: { attempt: 1, maxRetries: 3, seconds: 2 },
           },
         ],
       }),
@@ -741,6 +747,13 @@ test(
       .click();
     await expect(page.locator(".job-banner")).toContainText("隔离后台制作");
     await expect(page.locator(".studio-tasks")).toBeFocused();
+    await expect(page.locator(".job-outcomes")).toContainText("本次 2 页");
+    await expect(page.locator(".job-outcomes")).toContainText("另有 109 页已保存，本次跳过");
+    await expect(page.locator(".job-recovery")).toContainText("自动重试");
+    await page.getByText("1 页未完成 · 查看原因与处理方式", { exact: true }).click();
+    await expect(page.locator(".job-issues")).toContainText("原第 2 页 · 模型响应中断或超时");
+    await expect(page.locator(".job-issues")).toContainText("失败页不会自动再次提交");
+    await reviewScreenshot(page, { path: evidence + "/task-recovery.png" });
     await goArea("交付中心");
     await expect(page.getByText(/1 项后台制作任务进行中/)).toBeVisible();
     await page

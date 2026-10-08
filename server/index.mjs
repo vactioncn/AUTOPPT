@@ -163,17 +163,28 @@ app.use("/api", (req, res, next) => {
   next();
 });
 registerUsage(app);
-const safeJob = (j) => ({
-  ...j,
-  styleId: j.payload.styleId || j.payload.styleSnapshot?.id,
-  slideIds: jobSlideIds(j),
-  targetSlideIds: productionTargetIds(
-    j,
-    j.type === "append" && j.projectId ? get("project", j.projectId) : null,
-  ),
-  batchId: j.type === "append" ? j.payload.batchId : undefined,
-  payload: undefined,
-});
+const safeJob = (j) => {
+  const project = j.projectId ? get("project", j.projectId) : null;
+  const targets = productionTargetIds(j, project);
+  return {
+    ...j,
+    styleId: j.payload.styleId || j.payload.styleSnapshot?.id,
+    slideIds: jobSlideIds(j),
+    targetSlideIds: targets,
+    // Older tasks did not record per-attempt counters. Show known page failures
+    // without inventing a count for their historical attempt.
+    failures:
+      !j.pageProgress && project
+        ? project.slides.flatMap((s, i) =>
+            targets.includes(s.id) && s.status === "error" && s.error
+              ? [{ id: s.id, page: i + 1, error: s.error }]
+              : [],
+          )
+        : undefined,
+    batchId: j.type === "append" ? j.payload.batchId : undefined,
+    payload: undefined,
+  };
+};
 const styleReady = (styleId) => {
   const s = get("style", styleId);
   if (!s?.rules || s.deletedAt)

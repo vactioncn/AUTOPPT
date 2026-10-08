@@ -1235,6 +1235,52 @@ img {
   transform-origin: left;
   transition: transform 0.3s;
 }
+.job-feedback {
+  font-size: 12px;
+  line-height: 1.7;
+  color: #4b5545;
+}
+.job-outcomes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin: 12px 0;
+  font-variant-numeric: tabular-nums;
+}
+.job-failed-count {
+  color: #9b322b;
+  font-weight: 600;
+}
+.job-issues {
+  padding: 12px 16px;
+  border: 1px solid #ead7c2;
+  border-radius: 8px;
+  background: #fcf6ed;
+}
+.job-issues summary {
+  cursor: pointer;
+  color: #855120;
+  font-weight: 600;
+}
+.job-issues ul {
+  padding-left: 20px;
+}
+.job-issues li + li {
+  margin-top: 16px;
+}
+.job-issues p {
+  margin: 6px 0;
+}
+.job-issues details summary {
+  font-weight: 400;
+}
+.job-raw-error {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.job-recovery {
+  color: #4c673d;
+}
 .inline-notice {
   background: #ecede5;
   font-size: 12px;

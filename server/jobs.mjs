@@ -195,6 +195,10 @@ export function retry(jobId) {
   }
   j.status = "queued";
   j.error = null;
+  delete j.pageProgress;
+  delete j.autoRetry;
+  j.done = 0;
+  j.total = 0;
   j.stage = "准备继续";
   j.updatedAt = now();
   put("job", j);
@@ -311,6 +315,22 @@ async function renderSlides(j, ids, signal, redesign = false) {
       !(j.payload.finishedIds?.includes(s.id) && (s.image || s.scene)) &&
       (redesign || s.stale || !(s.image || s.scene)),
   );
+  j.pageProgress = {
+    total: pending.length,
+    preserved: ids.length - pending.length,
+    succeeded: 0,
+    failed: [],
+    current: null,
+    phase: "analysis",
+  };
+  progress(
+    j,
+    pending.length
+      ? `本次制作 ${pending.length} 页`
+      : "全部页面已保存，无需重复制作",
+    0,
+    pending.length,
+  );
   if (!pending.length) return;
   const briefs = await prepareContent(
     j,
@@ -323,20 +343,15 @@ async function renderSlides(j, ids, signal, redesign = false) {
     context(initial, pending[0].id),
     signal,
   );
-  for (const sid of ids) {
+  j.pageProgress.phase = "images";
+  for (const { id: sid } of pending) {
     usageScope({ pageId: sid });
     signal.throwIfAborted();
     let p = projectOrThrow(j.projectId);
     let s = p.slides.find((x) => x.id === sid);
     if (!s) throw new Error("原页面已经调整，请在当前页面重新发起制作。");
-    if (j.payload.finishedIds?.includes(sid) && (s.image || s.scene)) {
-      completed++;
-      continue;
-    }
-    if (!redesign && (s.image || s.scene) && !s.stale) {
-      completed++;
-      continue;
-    }
+    const pageNumber = p.slides.findIndex((x) => x.id === sid) + 1;
+    j.pageProgress.current = { id: sid, page: pageNumber };
     try {
       s.status = "generating";
       s.error = null;
@@ -367,9 +382,9 @@ async function renderSlides(j, ids, signal, redesign = false) {
       ) {
         progress(
           j,
-          `正在重新构思第 ${completed + 1} / ${ids.length} 页`,
+          `正在构思原第 ${pageNumber} 页 · 本次 ${completed + 1} / ${pending.length}`,
           completed,
-          ids.length,
+          pending.length,
         );
         plan = await design(
           s.notes,
@@ -385,9 +400,9 @@ async function renderSlides(j, ids, signal, redesign = false) {
             onProgress: (stage) =>
               progress(
                 j,
-                `${stage} · ${completed + 1} / ${ids.length}`,
+                `${stage} · 原第 ${pageNumber} 页 · 本次 ${completed + 1} / ${pending.length}`,
                 completed,
-                ids.length,
+                pending.length,
               ),
             attachments,
             recentCompositions: nearbyDirections(p.slides, s.id, style.id),
@@ -410,9 +425,9 @@ async function renderSlides(j, ids, signal, redesign = false) {
       saveProject(p);
       progress(
         j,
-        `正在生成第 ${completed + 1} / ${ids.length} 页画面`,
+        `正在生成原第 ${pageNumber} 页画面 · 本次 ${completed + 1} / ${pending.length}`,
         completed,
-        ids.length,
+        pending.length,
       );
       const image = await generateImage(plan, style, signal, attachments);
       signal.throwIfAborted();
@@ -439,11 +454,13 @@ async function renderSlides(j, ids, signal, redesign = false) {
       saveProject(p);
       j.payload.finishedIds = [...(j.payload.finishedIds || []), sid];
       completed++;
+      j.pageProgress.succeeded++;
+      j.pageProgress.current = null;
       progress(
         j,
-        `已生成 ${completed} / ${ids.length} 页`,
+        `本次已生成 ${j.pageProgress.succeeded} 页`,
         completed,
-        ids.length,
+        pending.length,
       );
     } catch (e) {
       if (signal.aborted) throw e;
@@ -454,6 +471,18 @@ async function renderSlides(j, ids, signal, redesign = false) {
       saveProject(p);
       failures++;
       completed++;
+      j.pageProgress.failed.push({
+        id: sid,
+        page: pageNumber,
+        error: e.message,
+      });
+      j.pageProgress.current = null;
+      progress(
+        j,
+        `原第 ${pageNumber} 页未完成，继续处理其他页面`,
+        completed,
+        pending.length,
+      );
     }
   }
   if (failures)
@@ -643,12 +672,18 @@ async function execute(j, controller) {
         withModelRequestProgress(
           (waiting) => {
             if (waiting) {
+              j.autoRetry = {
+                attempt: waiting.attempt,
+                maxRetries: waiting.maxRetries,
+                seconds: Math.ceil(waiting.ms / 1000),
+              };
               stageBeforeRetry ??= j.stage;
               progress(
                 j,
                 `${stageBeforeRetry}；模型连接中断，${Math.ceil(waiting.ms / 1000)} 秒后自动重试（${waiting.attempt}/${waiting.maxRetries}）`,
               );
             } else if (stageBeforeRetry !== undefined) {
+              delete j.autoRetry;
               progress(j, stageBeforeRetry);
               stageBeforeRetry = undefined;
             }
@@ -666,6 +701,9 @@ async function execute(j, controller) {
       : e.message;
     progress(j, controller.signal.aborted ? "已停止" : "需要处理");
   } finally {
+    delete j.autoRetry;
+    if (j.pageProgress) j.pageProgress.current = null;
+    put("job", j);
     // Never clear another concurrent job's generating marker.
     if (j.projectId) {
       const p = get("project", j.projectId);

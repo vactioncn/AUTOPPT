@@ -372,10 +372,21 @@ test(
             throw e;
           });
         await page
-          .getByRole("button", { name: "打开演讲播放器", exact: true })
+          .getByRole("button", { name: "制作 AI 口播", exact: true })
           .click();
+        assert.equal(
+          await page
+            .getByRole("tab", { name: "1 · 口播文本", exact: true })
+            .getAttribute("aria-selected"),
+          "true",
+        );
+        const out = process.env.PERFORMANCE_SCREENSHOT_DIR;
+        if (out) {
+          mkdirSync(out, { recursive: true });
+          await page.screenshot({ path: path.join(out, "speech-text.png") });
+        }
         await page
-          .getByRole("tab", { name: "1 · 口播文本", exact: true })
+          .getByRole("tab", { name: "2 · 演讲表达", exact: true })
           .click();
         await page
           .getByRole("button", { name: "重新编排演讲", exact: true })
@@ -388,14 +399,23 @@ test(
             .getByRole("button", { name: "开始口播", exact: true })
             .isEnabled(),
         );
+        await page
+          .getByRole("tab", { name: "1 · 口播文本", exact: true })
+          .click();
         assert.equal(
           await page.getByLabel("实际口播文本", { exact: true }).inputValue(),
           cleanTexts.first,
         );
         await page
+          .getByRole("button", {
+            name: "保存并继续 · 选择演讲表达",
+            exact: true,
+          })
+          .click();
+        await page
           .getByText("重点句 · 稍慢、略增强", { exact: true })
           .waitFor();
-        const out = process.env.PERFORMANCE_SCREENSHOT_DIR;
+
         if (out) {
           mkdirSync(out, { recursive: true });
           await page.screenshot({
@@ -404,9 +424,22 @@ test(
           });
         }
         await page
-          .getByRole("tab", { name: "2 · 声音制作", exact: true })
+          .getByRole("button", { name: "使用方案 · 选择声音", exact: true })
           .click();
         assert(await page.getByLabel("整体情绪", { exact: true }).isDisabled());
+        if (out) {
+          await page.screenshot({ path: path.join(out, "speech-voice.png") });
+          await page.setViewportSize({ width: 800, height: 900 });
+          await page.locator(".speech-setup").scrollIntoViewIfNeeded();
+          await page.screenshot({ path: path.join(out, "speech-narrow.png") });
+          assert.equal(
+            await page.evaluate(
+              () => document.documentElement.scrollWidth > innerWidth,
+            ),
+            false,
+          );
+          await page.setViewportSize({ width: 1280, height: 820 });
+        }
         await verifySpeechPreview(page, ready.pages[0].clips[0].file, out);
         await page
           .getByRole("button", { name: "生成整场口播 · 2 页", exact: true })
@@ -458,15 +491,85 @@ test(
         await page
           .getByLabel("实际口播文本", { exact: true })
           .fill("临时改稿。");
+        await page
+          .getByRole("button", {
+            name: "保存并继续 · 选择演讲表达",
+            exact: true,
+          })
+          .click();
         await page.getByText(/正文已修改，编排需要更新/).waitFor();
         await page
-          .getByRole("tab", { name: "2 · 声音制作", exact: true })
+          .getByRole("tab", { name: "3 · 声音制作", exact: true })
           .click();
         assert(
           await page
             .getByRole("button", { name: "生成整场口播 · 2 页", exact: true })
             .isDisabled(),
         );
+        const requestsBeforeSkip = requests.length;
+        await page
+          .getByRole("tab", { name: "2 · 演讲表达", exact: true })
+          .click();
+        await page
+          .getByRole("button", {
+            name: "跳过 AI 编排 · 使用普通口播",
+            exact: true,
+          })
+          .click();
+        assert(await page.getByLabel("整体情绪", { exact: true }).isEnabled());
+        assert(
+          await page
+            .getByRole("button", { name: "生成整场口播 · 2 页", exact: true })
+            .isEnabled(),
+        );
+        assert.equal(
+          requests.length,
+          requestsBeforeSkip,
+          "ordinary branch must not invoke AI arrangement",
+        );
+        await page.getByRole("tab", { name: "放映", exact: true }).click();
+        assert(
+          await page
+            .getByRole("button", { name: "开始口播", exact: true })
+            .isEnabled(),
+          "saved audio survives all preparation steps",
+        );
+        // A failed AI step must expose a recovery path, while the existing recording stays playable.
+        fail = true;
+        await page
+          .getByRole("tab", { name: "2 · 演讲表达", exact: true })
+          .click();
+        await page
+          .getByRole("button", { name: "重新编排演讲", exact: true })
+          .click();
+        await page
+          .getByRole("alert")
+          .filter({ hasText: "编排已停止，不会自动重试" })
+          .waitFor();
+        assert(
+          await page
+            .getByRole("button", {
+              name: "跳过 AI 编排 · 使用普通口播",
+              exact: true,
+            })
+            .isEnabled(),
+        );
+        assert(
+          await page
+            .getByRole("button", { name: "开始口播", exact: true })
+            .isEnabled(),
+        );
+        if (out)
+          await page.screenshot({
+            path: path.join(out, "speech-arrange-failed.png"),
+          });
+        await page
+          .getByRole("button", {
+            name: "跳过 AI 编排 · 使用普通口播",
+            exact: true,
+          })
+          .click();
+        fail = false;
         const offline = await browser.newPage();
         await offline.setContent(html);
         await offline

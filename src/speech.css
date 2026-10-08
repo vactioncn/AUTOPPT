@@ -260,6 +260,7 @@
   accent-color: #637645;
 }
 .speech-setup .field {
+  margin-bottom: 0;
   gap: 6px;
 }
 .speech-setup .field > span {
@@ -526,7 +527,8 @@
   margin-top: 7px;
 }
 .speech-tabs {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   padding: 4px;
   border: 1px solid #dee3d6;
   border-radius: 10px;
@@ -549,6 +551,34 @@
   color: #29351f;
   box-shadow: 0 1px 4px #22331114;
   font-weight: 600;
+}
+.speech-tabs button:first-child {
+  grid-column: 1 / -1;
+  padding: 7px;
+}
+.speech-setup > .speech-subtle {
+  margin: 0;
+}
+.speech-step-next {
+  display: grid;
+  gap: 10px;
+  margin-top: 24px;
+}
+.speech-step-next p {
+  margin: 0;
+}
+.speech-text-review > .btn.primary {
+  width: 100%;
+  margin-top: 18px;
+}
+.speech-callout button {
+  background: transparent;
+  border: 0;
+  color: #334731;
+  text-decoration: underline;
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
 }
 .speech-play-guide {
   display: grid;
@@ -629,10 +659,34 @@
 }
 
 .speech-performance {
-  border-top: 1px solid var(--line, #ddd);
-  margin-top: 24px;
-  padding-top: 20px;
+  margin: 0;
 }
+.speech-performance > h3 {
+  font-size: 15px;
+  margin: 0 0 10px;
+}
+.speech-expression-settings {
+  margin: 16px 0;
+}
+.speech-expression-settings summary {
+  cursor: pointer;
+  margin-bottom: 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.speech-options-single {
+  grid-template-columns: 1fr;
+}
+.speech-check input {
+  accent-color: #637645;
+}
+.speech-subtle {
+  color: #626d55;
+}
+.speech-setup small {
+  color: #626d55;
+}
+
 .speech-check {
   display: flex;
   align-items: flex-start;

@@ -393,6 +393,16 @@ export type ProjectSummary = {
   coverScene?: Scene;
 };
 export type Job = {
+  failures?: { id: string; page: number; error: string }[];
+  pageProgress?: {
+    phase?: "analysis" | "images";
+    total: number;
+    preserved: number;
+    succeeded: number;
+    current: { id: string; page: number } | null;
+    failed: { id: string; page: number; error: string }[];
+  };
+  autoRetry?: { attempt: number; maxRetries: number; seconds: number };
   slideIds?: string[] | null;
   targetSlideIds?: string[];
   batchId?: string;

@@ -207,11 +207,10 @@ export async function verifySpeechPreview(page, savedFile, screenshotDir) {
   assert.equal(await preview.count(), 0);
 
   // The same playback path also works without a performance plan.
-  const usePerformance = page.getByLabel("使用这份演绎编排生成口播", {
-    exact: true,
-  });
-  await usePerformance.uncheck();
-  await page.getByRole("tab", { name: "2 · 声音制作", exact: true }).click();
+  await page.getByRole("tab", { name: "2 · 演讲表达", exact: true }).click();
+  await page
+    .getByRole("button", { name: "改用普通口播 · 选择声音", exact: true })
+    .click();
   await page.route("**/api/speech/preview", async (route) => {
     assert.equal(route.request().postDataJSON().performanceId, undefined);
     await route.fulfill({ json: { file: savedFile } });
@@ -219,8 +218,9 @@ export async function verifySpeechPreview(page, savedFile, screenshotDir) {
   await area.getByRole("button", { name: "试听本页开头", exact: true }).click();
   await playing();
   await page.unroute("**/api/speech/preview");
-  await page.getByRole("tab", { name: "1 · 口播文本", exact: true }).click();
-  await usePerformance.check();
-  await page.getByRole("tab", { name: "2 · 声音制作", exact: true }).click();
+  await page.getByRole("tab", { name: "2 · 演讲表达", exact: true }).click();
+  await page
+    .getByRole("button", { name: "使用方案 · 选择声音", exact: true })
+    .click();
   await voice.selectOption(originalVoice);
 }

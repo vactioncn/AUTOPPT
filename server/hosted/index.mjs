@@ -157,7 +157,7 @@ function reconcile(userId, stopped = false) {
           readFileSync(path.join(folder, file), "utf8"),
         );
         if (
-          /^[a-f0-9-]{36}\.png$/.test(receipt.filename) &&
+          /^[a-f0-9-]{36}\.(?:png|jpg)$/.test(receipt.filename) &&
           existsSync(path.join(folder, "assets", receipt.filename))
         ) {
           accounts.finish(userId, receipt.id, "complete", receipt.filename);
@@ -409,7 +409,7 @@ app.post("/internal/reserve", parse, (req, res) =>
 app.post("/internal/finish", parse, (req, res) => {
   if (
     req.body.status === "complete" &&
-    (!/^[a-f0-9-]{36}\.png$/.test(req.body.filename || "") ||
+    (!/^[a-f0-9-]{36}\.(?:png|jpg)$/.test(req.body.filename || "") ||
       !existsSync(
         path.join(userDir(req.workerUser), "assets", req.body.filename),
       ))

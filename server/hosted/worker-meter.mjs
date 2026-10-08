@@ -40,7 +40,7 @@ export async function meteredImage(fn) {
       }).catch(() => {});
       throw e;
     }
-    // The PNG is durable before settlement. A sidecar lets the gateway recover
+    // The image is durable before settlement. A sidecar lets the gateway recover
     // settlement after a network/process interruption without a second debit.
     const { writeFileSync } = await import("node:fs");
     const { dataDir } = await import("../store.mjs");

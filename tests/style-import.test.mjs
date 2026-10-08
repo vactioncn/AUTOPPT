@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import express from "express";
 import sharp from "sharp";
+import { screenImage } from "../server/image-storage.mjs";
 import { mkdtemp, mkdir, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -271,7 +272,7 @@ test("URL style workflow previews before saving, enqueues only selected referenc
   assert.equal(result.data.style.source.url, "https://example.org/work");
   assert.deepEqual(
     await readFile(path.join(dir, "assets", result.data.style.refs[0])),
-    image,
+    (await screenImage(image, { width: 1600, height: 1600, force: true })).data,
   );
   assert.equal(
     (

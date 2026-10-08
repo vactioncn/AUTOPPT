@@ -1,7 +1,8 @@
 import { load } from "cheerio";
 import sharp from "sharp";
+import { screenImage } from "./image-storage.mjs";
 import path from "node:path";
-import { mkdir, rm, copyFile } from "node:fs/promises";
+import { mkdir, rm, readFile, writeFile } from "node:fs/promises";
 import { randomUUID, createHash } from "node:crypto";
 import { publicFetch, publicUrl } from "./public-fetch.mjs";
 
@@ -397,11 +398,12 @@ export function registerStyleImports(
     const refs = [];
     try {
       for (const image of selected) {
-        const filename = id() + ".png";
-        await copyFile(
-          path.join(root, value.id, image.id + ".png"),
-          assetPath(filename),
+        const stored = await screenImage(
+          await readFile(path.join(root, value.id, image.id + ".png")),
+          { width: 1600, height: 1600, force: true },
         );
+        const filename = id() + "." + stored.extension;
+        await writeFile(assetPath(filename), stored.data);
         refs.push(filename);
       }
       const style = put("style", {

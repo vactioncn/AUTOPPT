@@ -213,7 +213,7 @@ export const product = {
       ],
       capabilities: [
         "整页图片 PPTX 与逐页讲稿备注",
-        "PPT 与最新逐字稿一起打包",
+        "高质量 JPG 页面与最新逐字稿一起打包为 PPT 交付包",
         "按页编号的独立 Markdown 全文",
         "单张图片保存",
         "本机项目、素材与历史记录保存",

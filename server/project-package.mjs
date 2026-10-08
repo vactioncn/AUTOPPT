@@ -24,6 +24,7 @@ import {
   transaction,
 } from "./store.mjs";
 import { exportFilename } from "./export.mjs";
+import { screenImage } from "./image-storage.mjs";
 import { validateLayers } from "../shared/motion/schema.mjs";
 import { validateScene } from "../shared/slides.mjs";
 import {
@@ -146,11 +147,41 @@ function collect(project) {
   );
   return records;
 }
+// Filenames participate in snapshot identity. Translate snapshots together with
+// asset references so existing narration and motion remain compatible.
+function remapSnapshots(records, remap) {
+  const fingerprints = new Map();
+  function collectFingerprints(value) {
+    if (!value || typeof value !== "object") return;
+    if (typeof value.notes === "string" && (value.image || value.scene)) {
+      const snapshot = {
+        image: value.image,
+        scene: value.scene,
+        notes: value.notes,
+      };
+      fingerprints.set(
+        hash(JSON.stringify(snapshot)),
+        hash(JSON.stringify(remap(snapshot))),
+      );
+    }
+    Object.values(value).forEach(collectFingerprints);
+  }
+  collectFingerprints(records);
+  return walk(remap(records), (v, k) =>
+    ["fingerprint", "sourceFingerprint"].includes(k) && fingerprints.has(v)
+      ? fingerprints.get(v)
+      : v,
+  );
+}
 export async function exportProjectPackage(project, assertIdle = () => {}) {
   assertIdle(project.id);
-  const records = collect(project),
-    files = [];
-  for (const name of assetsOf(records)) {
+  const source = collect(project),
+    files = [],
+    names = new Map(),
+    paths = new Set(),
+    originals = [],
+    zip = new JSZip();
+  for (const name of assetsOf(source)) {
     let bytes;
     try {
       bytes = await readFile(filePath(name));
@@ -159,13 +190,36 @@ export async function exportProjectPackage(project, assertIdle = () => {}) {
     }
     if (bytes.length > MAX_FILE)
       throw new Error("单个素材超过 64 MB，暂不支持迁移");
-    files.push({ path: name, size: bytes.length, sha256: hash(bytes) });
+    let dest = name,
+      converted = false;
+    if (name.startsWith("assets/")) {
+      // Keep editor/motion coordinates and evidence attachments at their actual
+      // dimensions. New page images are already capped by the screen profile.
+      const stored = await screenImage(bytes, { resize: false });
+      if (stored.data !== bytes) {
+        bytes = stored.data;
+        const filename = `image-${hash(bytes)}.${stored.extension}`;
+        names.set(path.posix.basename(name), filename);
+        dest = "assets/" + filename;
+        converted = true;
+      }
+    }
+    if (paths.has(dest)) continue;
+    paths.add(dest);
+    files.push({ path: dest, size: bytes.length, sha256: hash(bytes) });
+    if (converted) zip.file(dest, bytes, { compression: "STORE" });
+    else originals.push({ name, dest });
   }
   if (
     files.length > 20000 ||
     files.reduce((n, f) => n + f.size, 0) > 960 * 1024 * 1024
   )
     throw new Error("项目素材超过 960 MB，请精简后再导出迁移包");
+  const records = remapSnapshots(source, (value) =>
+    walk(value, (v, k) =>
+      assetKeys.has(k) && names.has(v) ? names.get(v) : v,
+    ),
+  );
   const manifest = {
     format: "AutoPPT-project",
     version: 1,
@@ -177,15 +231,13 @@ export async function exportProjectPackage(project, assertIdle = () => {}) {
   const json = JSON.stringify(manifest);
   if (Buffer.byteLength(json) > 32 * 1024 * 1024)
     throw new Error("项目历史记录超过 32 MB，暂不支持迁移");
-  const zip = new JSZip();
   zip.file("manifest.json", json);
-  for (const file of files)
-    zip.file(file.path, createReadStream(filePath(file.path)), {
-      compression: "STORE",
-    });
   assertIdle(project.id);
   if (projectOrThrow(project.id).revision !== project.revision)
     throw new Error("打包期间项目已更新，请重新导出");
+  // Open streams only after validation, avoiding leaked handles on a failed export.
+  for (const { name, dest } of originals)
+    zip.file(dest, createReadStream(filePath(name)), { compression: "STORE" });
   return zip;
 }
 async function boundedRead(entry, max) {
@@ -455,31 +507,9 @@ export async function importProjectPackage(buffer) {
         if (idKeys.has(k) && ids.has(v)) return ids.get(v);
         return v;
       });
-    // Snapshot hashes include local filenames. Translate known snapshots too,
-    // so a new voice generated after migration still matches its motion deck.
-    const fingerprints = new Map();
-    function collectFingerprints(value) {
-      if (!value || typeof value !== "object") return;
-      if (typeof value.notes === "string" && (value.image || value.scene)) {
-        const snapshot = {
-          image: value.image,
-          scene: value.scene,
-          notes: value.notes,
-        };
-        fingerprints.set(
-          hash(JSON.stringify(snapshot)),
-          hash(JSON.stringify(remap(snapshot))),
-        );
-      }
-      Object.values(value).forEach(collectFingerprints);
-    }
-    collectFingerprints(m.records);
-    for (const r of records) {
-      r.value = walk(remap(r.value), (v, k) =>
-        ["fingerprint", "sourceFingerprint"].includes(k) && fingerprints.has(v)
-          ? fingerprints.get(v)
-          : v,
-      );
+    const remapped = remapSnapshots(m.records, remap);
+    for (const [index, r] of records.entries()) {
+      r.value = remapped[index].value;
       const v = r.value;
       // Unit IDs are sentence ordinals, not database identities.
       if (["speech-script", "narration"].includes(r.kind) && v.performance)

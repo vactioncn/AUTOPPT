@@ -17,7 +17,8 @@ import { frontendRelease } from "./frontend-release.mjs";
 import { diagnostics } from "./diagnostics.mjs";
 import { publicSpeechSettings } from "./speech/settings.mjs";
 import multer from "multer";
-import sharp from "sharp";
+import { screenImage } from "./image-storage.mjs";
+import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -146,6 +147,18 @@ app.use("/api", (req, res, next) => {
 });
 app.use(express.json({ limit: "4mb" }));
 app.use(usageMiddleware);
+// Explicit download variants leave saved originals and asset URLs untouched.
+app.get("/assets/:filename", async (req, res, next) => {
+  if (req.query.download !== "screen") return next();
+  const image = await screenImage(
+    await readFile(assetPath(req.params.filename)),
+  );
+  res.set("Cache-Control", "no-store");
+  res.attachment(
+    req.params.filename.replace(/\.[^.]+$/, "." + image.extension),
+  );
+  res.type(image.mime).send(image.data);
+});
 app.use(
   "/assets",
   express.static(assetsDir, {
@@ -886,17 +899,13 @@ app.post("/api/styles", upload.array("images", 12), async (req, res) => {
     throw new Error("请填写风格提示词，或上传 PNG、JPG、WebP 参考图。");
   const refs = [];
   for (const file of req.files) {
-    const filename = id() + ".png";
-    await sharp(file.buffer, { limitInputPixels: 40000000 })
-      .rotate()
-      .resize({
-        width: 1600,
-        height: 1600,
-        fit: "inside",
-        withoutEnlargement: true,
-      })
-      .png()
-      .toFile(assetPath(filename));
+    const stored = await screenImage(file.buffer, {
+      width: 1600,
+      height: 1600,
+      force: true,
+    });
+    const filename = id() + "." + stored.extension;
+    await writeFile(assetPath(filename), stored.data);
     refs.push(filename);
   }
   const style = put("style", {
@@ -1004,17 +1013,13 @@ app.post(
     if (s.refs.length + req.files.length > 12)
       throw new Error("每个风格最多保存 12 张参考图。");
     for (const file of req.files) {
-      const filename = id() + ".png";
-      await sharp(file.buffer, { limitInputPixels: 40000000 })
-        .rotate()
-        .resize({
-          width: 1600,
-          height: 1600,
-          fit: "inside",
-          withoutEnlargement: true,
-        })
-        .png()
-        .toFile(assetPath(filename));
+      const stored = await screenImage(file.buffer, {
+        width: 1600,
+        height: 1600,
+        force: true,
+      });
+      const filename = id() + "." + stored.extension;
+      await writeFile(assetPath(filename), stored.data);
       s.refs.push(filename);
     }
     s.updatedAt = now();

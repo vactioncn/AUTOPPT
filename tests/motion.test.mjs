@@ -391,10 +391,15 @@ test(
       .raw()
       .toBuffer();
     const originalPixels = await sharp(source).ensureAlpha().raw().toBuffer();
-    assert.deepEqual(
-      bg.subarray(0, 800 * 4),
-      originalPixels.subarray(0, 800 * 4),
-      "unchanged pixels outside repair regions",
+    assert.match(d.pages[0].background, /\.jpg$/);
+    const error =
+      bg
+        .subarray(0, 800 * 4)
+        .reduce((sum, v, i) => sum + Math.abs(v - originalPixels[i]), 0) /
+      (800 * 4);
+    assert(
+      error < 2,
+      "outside repair regions only small JPEG encoding differences remain",
     );
     const circle = d.pages[0].layers.find((l) => l.type === "image");
     const crop = await sharp(

@@ -281,7 +281,7 @@ export function StyleStudio({
                 ? "输入已有调整，当前显示上一次生成的图片。"
                 : "图片已保存"}{" "}
               ·{" "}
-              <a href={asset(selected.image)} download="风格试做.png">
+              <a href={asset(selected.image) + "?download=screen"} download>
                 保存图片
               </a>
             </p>

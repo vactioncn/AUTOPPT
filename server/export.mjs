@@ -5,6 +5,7 @@ import { readFile } from "node:fs/promises";
 import { assetPath } from "./store.mjs";
 import { renderSceneSvg } from "../shared/slides.mjs";
 import { speakerNotes, exportManuscript } from "./manuscript.mjs";
+import { screenImage } from "./image-storage.mjs";
 
 const WIDTH = 40 / 3;
 const HEIGHT = 7.5;
@@ -34,7 +35,7 @@ export async function exportBundle(project, options) {
 
 export async function pageImage(page) {
   // Match preview source priority. Retained web scenes are flattened once.
-  let data = page.scene
+  const data = page.scene
     ? await sharp(
         Buffer.from(
           renderSceneSvg(page.scene).replace(
@@ -46,18 +47,9 @@ export async function pageImage(page) {
         .png()
         .toBuffer()
     : await readFile(assetPath(page.image));
-  let meta = await sharp(data).metadata();
-  // Preserve original PNG/JPEG bytes and resolution. Convert WebP and bake
-  // in EXIF rotation for compatibility with PowerPoint and Keynote.
-  if (
-    !["png", "jpeg"].includes(meta.format) ||
-    (meta.orientation && meta.orientation !== 1)
-  ) {
-    data = await sharp(data).rotate().png().toBuffer();
-    meta = await sharp(data).metadata();
-  }
-  if (!meta.width || !meta.height) throw new Error("无法读取图片尺寸");
-  return { data, ...meta };
+  const result = await screenImage(data);
+  if (!result.width || !result.height) throw new Error("无法读取图片尺寸");
+  return result;
 }
 
 export async function exportPresentation(project, { allowStale = false } = {}) {

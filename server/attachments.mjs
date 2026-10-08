@@ -1,5 +1,5 @@
 import multer from "multer";
-import sharp from "sharp";
+import { screenImage } from "./image-storage.mjs";
 import { unlink, writeFile } from "node:fs/promises";
 import {
   id,
@@ -80,13 +80,13 @@ export function registerAttachments(app, { assertIdle }) {
         records = [];
       try {
         for (const file of req.files) {
-          const filename = id() + ".png";
-          const { data, info } = await sharp(file.buffer, {
-            limitInputPixels: 40000000,
-          })
-            .rotate()
-            .png()
-            .toBuffer({ resolveWithObject: true });
+          // Reference screenshots may contain fine data; keep their source
+          // dimensions while using the same high-quality JPEG encoding.
+          const { data, extension, width, height } = await screenImage(
+            file.buffer,
+            { resize: false, force: true },
+          );
+          const filename = id() + "." + extension;
           if (data.length > 30 * 1024 * 1024)
             throw new Error("附件解码后过大，请适当缩小图片再添加。");
           await writeFile(assetPath(filename), data);
@@ -102,8 +102,8 @@ export function registerAttachments(app, { assertIdle }) {
             projectId: req.params.id,
             filename,
             name,
-            width: info.width,
-            height: info.height,
+            width,
+            height,
             createdAt: now(),
           });
         }

@@ -6,6 +6,7 @@ import { assetPath } from "../store.mjs";
 import { embeddedFonts } from "./fonts.mjs";
 import { pageImage } from "../export.mjs";
 import { readExportAudio, matchNarrationPage } from "../speech/export.mjs";
+import { screenImage } from "../image-storage.mjs";
 const escape = (str) =>
   String(str).replace(
     /[&<>"']/g,
@@ -68,17 +69,16 @@ export async function* motionHtmlChunks(
     yield "</script>";
   }
   const image = (name) =>
-    embed(`image:${name}`, async () => ({
-      data: await readFile(assetPath(name)),
-      mime: "image/png",
-    }));
+    embed(`image:${name}`, async () =>
+      screenImage(await readFile(assetPath(name)), { resize: false }),
+    );
   for (const p of selected) {
     const n = narration ? matchNarrationPage(narration, p, !staticMode) : null;
     const still = staticMode ? await pageImage(p) : null;
     let background;
     if (still) {
-      // Conversion/rotation follows PPT export, retaining original PNG/JPEG
-      // bytes. Hold only the current page's pixels, never all pages' base64.
+      // Share the screen JPEG profile with PPT export. Hold only the current
+      // page's pixels, never all pages' base64.
       const key = p.scene ? `scene:${p.id}` : `still:${p.image}`;
       yield* embed(key, async () => ({
         data: still.data,

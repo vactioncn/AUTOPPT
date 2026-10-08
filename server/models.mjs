@@ -10,6 +10,7 @@ import { settings, assetPath, id } from "./store.mjs";
 import { sentences, unitsFromEnds, styleStamp } from "./core.mjs";
 import { composePage, usesComposition } from "./composition.mjs";
 import sharp from "sharp";
+import { screenImage, imageMime } from "./image-storage.mjs";
 import { attachmentKey } from "./attachments.mjs";
 import { spokenManuscript } from "./manuscript.mjs";
 import { prepareScreenCopy, reusableScreenCopy } from "./screen-copy.mjs";
@@ -131,7 +132,7 @@ export async function jsonModel(system, user, refs = [], signal) {
     ...refs.map((ref) => ({
       type: "image_url",
       image_url: {
-        url: `data:image/png;base64,${readFileSync(assetPath(ref)).toString("base64")}`,
+        url: `data:${imageMime(ref)};base64,${readFileSync(assetPath(ref)).toString("base64")}`,
       },
     })),
   ];
@@ -392,7 +393,9 @@ async function generateImageOutput(plan, style, signal, attachments = []) {
     for (const a of attachments)
       form.append(
         "image[]",
-        new Blob([readFileSync(assetPath(a.filename))], { type: "image/png" }),
+        new Blob([readFileSync(assetPath(a.filename))], {
+          type: imageMime(a.filename),
+        }),
         a.filename,
       );
     try {
@@ -456,7 +459,10 @@ async function generateImageOutput(plan, style, signal, attachments = []) {
     throw new ProviderError(
       `图片服务返回了 ${width}×${height}，不符合横向 16:9 要求（请求 ${IMAGE_OUTPUT_SIZE}）。本次结果未保存为成品，原有图片和封面保留。请检查图片服务是否支持指定画幅后再重试；重试会再次调用模型。`,
     );
-  const filename = id() + ".png";
-  writeFileSync(assetPath(filename), normalized);
+  const stored = await screenImage(normalized, { force: true });
+  plan.imageResponse.width = stored.width;
+  plan.imageResponse.height = stored.height;
+  const filename = id() + ".jpg";
+  writeFileSync(assetPath(filename), stored.data);
   return filename;
 }

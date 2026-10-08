@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import sharp from "sharp";
 import JSZip from "jszip";
+import { screenImage } from "../server/image-storage.mjs";
 import {
   defaultSystem,
   composeScene,
@@ -71,7 +72,7 @@ test("export bundle includes a separate current manuscript in page order, matchi
   );
 });
 
-test("image PPT preserves PNG/JPEG bytes, order, aspect ratio, complete notes and input records", async () => {
+test("image PPT uses screen JPEGs, preserving order, aspect ratio, complete notes and source files", async () => {
   const sources = [
     await picture(1600, 900, "#d43528").png().toBuffer(),
     await picture(600, 900, "#126631").jpeg().toBuffer(),
@@ -92,11 +93,19 @@ test("image PPT preserves PNG/JPEG bytes, order, aspect ratio, complete notes an
   const p = project(slides),
     before = structuredClone(p);
   const images = await inspectPresentation(await exportPresentation(p), slides);
-  images.forEach((data, i) => assert.deepEqual(data, sources[i]));
+  for (const [i, data] of images.entries()) {
+    assert.deepEqual(data, (await screenImage(sources[i])).data);
+    assert.equal((await sharp(data).metadata()).format, "jpeg");
+  }
+  assert.deepEqual(
+    images[1],
+    sources[1],
+    "suitable JPEG is never recompressed",
+  );
   assert.deepEqual(p, before);
 });
 
-test("WebP and EXIF orientation are converted to compatible images; historical scenes flatten to one PNG", async () => {
+test("WebP and EXIF orientation are converted to compatible images; historical scenes flatten to one screen image", async () => {
   const webp = await picture(400, 200, "#334488").webp().toBuffer();
   const rotated = await picture(300, 200, "#445588")
     .withMetadata({ orientation: 6 })
@@ -122,11 +131,8 @@ test("WebP and EXIF orientation are converted to compatible images; historical s
     await exportPresentation(project(slides)),
     slides,
   );
-  assert.equal((await sharp(images[0]).metadata()).format, "png");
-  assert.deepEqual(
-    await sharp(images[0]).raw().toBuffer(),
-    await sharp(webp).raw().toBuffer(),
-  );
+  assert.equal((await sharp(images[0]).metadata()).format, "jpeg");
+  assert.deepEqual(images[0], (await screenImage(webp)).data);
   assert.equal((await sharp(images[1]).metadata()).width, 200);
   assert.equal((await sharp(images[1]).metadata()).height, 300);
   const expected = await sharp(
@@ -139,7 +145,7 @@ test("WebP and EXIF orientation are converted to compatible images; historical s
   )
     .png()
     .toBuffer();
-  assert.deepEqual(images[2], expected);
+  assert.deepEqual(images[2], (await screenImage(expected)).data);
 });
 
 test("export reports empty, missing, unreadable, unsegmented and stale pages without omitting content", async () => {

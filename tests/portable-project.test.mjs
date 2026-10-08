@@ -13,6 +13,7 @@ import path from "node:path";
 import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
 import sharp from "sharp";
+import { screenImage } from "../server/image-storage.mjs";
 import JSZip from "jszip";
 import express from "express";
 import { once } from "node:events";
@@ -44,6 +45,17 @@ const image = await sharp({
   .png()
   .toBuffer();
 writeFileSync(assetPath("fixture.png"), image);
+const transparent = await sharp({
+  create: {
+    width: 32,
+    height: 32,
+    channels: 4,
+    background: { r: 200, g: 60, b: 20, alpha: 0.25 },
+  },
+})
+  .png()
+  .toBuffer();
+writeFileSync(assetPath("transparent.png"), transparent);
 mkdirSync(path.join(dir, "speech-audio"));
 const file = "11111111-1111-4111-8111-111111111111.mp3";
 writeFileSync(path.join(dir, "speech-audio", file), silenceMp3);
@@ -54,6 +66,7 @@ writeFileSync(
 put("style", {
   id: "portable-style",
   name: "迁移风格",
+  cover: "transparent.png",
   rules: "保留风格提示词。",
   refs: ["fixture.png"],
   colors: ["#faf4e6"],
@@ -285,6 +298,11 @@ test("project packages round-trip editable history, assets, narration and drafts
   const { project: copy } = await importProjectPackage(archive);
   assert.notEqual(copy.id, p.id);
   assert.notEqual(copy.styleId, p.styleId);
+  assert.deepEqual(
+    readFileSync(assetPath(get("style", copy.styleId).cover)),
+    transparent,
+    "transparent graphics keep their original alpha",
+  );
   assert.notEqual(copy.slides[0].id, slide.id);
   assert.equal(copy.slides[0].notes, slide.notes);
   assert.equal(copy.slides[0].versions[0].notes, "原来的讲稿。");
@@ -295,7 +313,16 @@ test("project packages round-trip editable history, assets, narration and drafts
   );
   assert.equal(copy.undo.sourceSlides[0].id, copy.slides[0].id);
   assert.equal(copy.draft, p.draft);
-  assert.deepEqual(readFileSync(assetPath(copy.slides[0].image)), image);
+  assert.match(copy.slides[0].image, /\.jpg$/);
+  assert.deepEqual(
+    readFileSync(assetPath(copy.slides[0].image)),
+    (await screenImage(image)).data,
+  );
+  assert.deepEqual(
+    readFileSync(assetPath("fixture.png")),
+    image,
+    "local original remains untouched",
+  );
   const imported = all("narration").find((d) => d.projectId === copy.id);
   assert(imported);
   assert.deepEqual(
@@ -343,7 +370,13 @@ test("project packages round-trip editable history, assets, narration and drafts
   const again = await (
     await exportProjectPackage(copy)
   ).generateAsync({ type: "nodebuffer" });
-  assert((await importProjectPackage(again)).project.slides.length === 2);
+  const repeated = (await importProjectPackage(again)).project;
+  assert.equal(repeated.slides.length, 2);
+  assert.deepEqual(
+    readFileSync(assetPath(repeated.slides[0].image)),
+    readFileSync(assetPath(copy.slides[0].image)),
+    "repeated migration preserves JPEG bytes",
+  );
 });
 test("corrupt, missing, foreign and unsupported package content is rejected without partial records or files", async () => {
   const before = all("project").length,

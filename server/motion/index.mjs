@@ -17,12 +17,12 @@ import {
   assetPath,
   settings,
 } from "../store.mjs";
-import { renderSceneSvg } from "../../shared/slides.mjs";
 import { validateLayers, MOTION_VERSION } from "../../shared/motion/schema.mjs";
 import { analyzeImage, extractLayers } from "./extract.mjs";
 import { renderMotionHtml, writeMotionHtml } from "./render.mjs";
 import { sendHtmlDownload } from "../html-download.mjs";
-import { exportFilename } from "../export.mjs";
+import { exportFilename, pageImage } from "../export.mjs";
+import { screenImage } from "../image-storage.mjs";
 import { narrationForExport } from "../speech/export.mjs";
 const controllers = new Map();
 let draining = false;
@@ -222,29 +222,16 @@ export function registerMotion(app) {
     for (const s of selected) {
       let image = s.image;
       if (s.scene) {
-        image = id() + ".png";
-        await writeFile(
-          assetPath(image),
-          await sharp(
-            Buffer.from(
-              renderSceneSvg(s.scene).replace(
-                'width="100%" height="100%"',
-                'width="1600" height="900"',
-              ),
-            ),
-          )
-            .png()
-            .toBuffer(),
-        );
+        const stored = await pageImage(s);
+        image = id() + "." + stored.extension;
+        await writeFile(assetPath(image), stored.data);
       }
-      const metadata = await sharp(await readFile(assetPath(image))).metadata();
+      const bytes = await readFile(assetPath(image));
+      const metadata = await sharp(bytes).metadata();
       if (metadata.orientation && metadata.orientation !== 1) {
-        const name = id() + ".png";
-        await sharp(await readFile(assetPath(image)))
-          .rotate()
-          .png()
-          .toFile(assetPath(name));
-        image = name;
+        const stored = await screenImage(bytes, { resize: false });
+        image = id() + "." + stored.extension;
+        await writeFile(assetPath(image), stored.data);
       }
       pages.push({
         id: s.id,

@@ -302,7 +302,7 @@ export class Accounts {
       if (old.status === "uncertain" && status === "failed" && !reviewed)
         return old;
       if (status === "complete") {
-        if (!/^[a-f0-9-]{36}\.png$/.test(filename || ""))
+        if (!/^[a-f0-9-]{36}\.(?:png|jpg)$/.test(filename || ""))
           fail("生成文件无效。");
         this.db
           .prepare("UPDATE users SET balance=balance-1 WHERE id=?")

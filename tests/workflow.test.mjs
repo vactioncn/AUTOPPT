@@ -940,7 +940,17 @@ test(
     assert.equal((await poll({ id: trial.jobId })).status, "completed");
     const trials = () => req(route);
     trial = (await trials()).trials.find((t) => t.id === trial.id);
-    assert(trial.image);
+    assert.match(trial.image, /\.jpg$/);
+    const downloadedImage = await fetch(
+      base.replace(/\/api$/, "") + "/assets/" + trial.image + "?download=screen",
+    );
+    assert.equal(downloadedImage.status, 200);
+    assert.match(downloadedImage.headers.get("content-type"), /^image\/jpeg/);
+    assert.match(downloadedImage.headers.get("content-disposition"), /\.jpg/);
+    assert.deepEqual(
+      Buffer.from(await downloadedImage.arrayBuffer()),
+      readFileSync(path.join(dir, "assets", trial.image)),
+    );
     assert.equal(trial.scene, null);
     assert.equal(trial.plan.promptMode, "verbatim-style-v5");
     assert.equal(trial.plan.styleRules, style.rules);

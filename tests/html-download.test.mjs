@@ -7,6 +7,7 @@ import { constants } from "node:buffer";
 import { once } from "node:events";
 import express from "express";
 import sharp from "sharp";
+import { screenImage } from "../server/image-storage.mjs";
 import { sendHtmlDownload } from "../server/html-download.mjs";
 import { htmlPayload } from "./helpers/html-payload.mjs";
 
@@ -59,7 +60,7 @@ const absent = async (file) => {
   assert.fail(`temporary file was not removed: ${file}`);
 };
 
-test("HTML download preserves pages and original pixels, then removes the temporary file", async (t) => {
+test("HTML download preserves pages with compact screen images, then removes the temporary file", async (t) => {
   let temporary;
   const url = await server(t, async (file, signal) => {
     temporary = file;
@@ -80,11 +81,11 @@ test("HTML download preserves pages and original pixels, then removes the tempor
   );
   assert.deepEqual(
     Buffer.from(data.pages[0].background.split(",")[1], "base64"),
-    png,
+    (await screenImage(png)).data,
   );
   assert.equal(data.pages[0].background, data.pages[1].background);
   assert.equal(
-    html.match(/data:image\/png;base64,/g).length,
+    html.match(/data:image\/jpeg;base64,/g).length,
     1,
     "shared images are embedded once",
   );
@@ -155,17 +156,17 @@ test(
   "offline HTML exports beyond the V8 single-string limit",
   { skip: process.env.LARGE_HTML_EXPORT_TEST !== "1", timeout: 120000 },
   async () => {
-    // Valid PNG plus harmless trailing padding simulates many original large
+    // Valid JPEG plus harmless trailing padding simulates many original large
     // images without model calls or retaining hundreds of MB of test fixtures.
     const padded = Buffer.alloc(4 * 1024 * 1024);
-    png.copy(padded);
-    await writeFile(assetPath("large.png"), padded);
+    (await screenImage(png)).data.copy(padded);
+    await writeFile(assetPath("large.jpg"), padded);
     const count =
       Math.ceil(constants.MAX_STRING_LENGTH / ((padded.length * 4) / 3)) + 1;
     const slides = [];
     for (let i = 0; i < count; i++) {
-      const image = `large-${i}.png`;
-      await link(assetPath("large.png"), assetPath(image));
+      const image = `large-${i}.jpg`;
+      await link(assetPath("large.jpg"), assetPath(image));
       slides.push({ id: `page-${i}`, image, notes: "" });
     }
     const filename = path.join(directory, "large.html");

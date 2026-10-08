@@ -376,7 +376,7 @@ test(
         await request(`/api/styles/${style.id}/trials`, undefined, first)
       ).data.trials;
       const image = trials.find((x) => x.id === tr.id).image;
-      assert(image);
+      assert.match(image, /\.jpg$/);
       const ownImage = await fetch(origin + "/assets/" + image, {
         headers: { Cookie: first },
       });

@@ -1914,7 +1914,8 @@ function ExportDialog({
                 : "PPTX 文件"}
           </p>
           <p>
-            图片按原比例完整放入页面，保留原图清晰度。
+            图片按原比例完整放入页面，使用适合屏幕播放的高质量
+            JPG，减小文件体积。
             {format === "ppt" && "备注使用每页最新保存的完整讲稿。"}
           </p>
           {bundleAvailable && format === "ppt" && (
@@ -2326,8 +2327,8 @@ function SlideDetail({
             {displayed.image && (
               <a
                 className="btn secondary"
-                href={asset(displayed.image)}
-                download={`第${index + 1}页.png`}
+                href={asset(displayed.image) + "?download=screen"}
+                download
               >
                 保存图片
               </a>

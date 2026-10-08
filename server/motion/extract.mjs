@@ -1,5 +1,6 @@
 import { rgb, distance, regionBox, textRemoval } from "./pixels.mjs";
 import sharp from "sharp";
+import { screenImage } from "../image-storage.mjs";
 import { readFile, writeFile } from "node:fs/promises";
 import { id, assetPath, settings } from "../store.mjs";
 import { jsonModel, request } from "../models.mjs";
@@ -28,8 +29,10 @@ export async function analyzeImage(source, signal) {
   };
 }
 async function writeAsset(bytes) {
-  const name = id() + ".png";
-  await writeFile(assetPath(name), bytes);
+  // Geometry belongs to the analyzed source canvas; never resize cutouts or backgrounds.
+  const stored = await screenImage(bytes, { resize: false });
+  const name = id() + "." + stored.extension;
+  await writeFile(assetPath(name), stored.data);
   return name;
 }
 export async function repairBackground(original, mask, layers, signal) {
@@ -80,7 +83,10 @@ export async function repairBackground(original, mask, layers, signal) {
       .removeAlpha()
       .png()
       .toBuffer();
-    return writeAsset(png);
+    // Intermediate repair stays lossless; encode only the final composed background.
+    const name = id() + ".png";
+    await writeFile(assetPath(name), png);
+    return name;
   });
 }
 export async function extractLayers(
@@ -251,7 +257,7 @@ export async function extractLayers(
       .ensureAlpha()
       .raw()
       .toBuffer();
-    // Preserve every original pixel outside the approved removal regions.
+    // Compose unchanged regions before the final screen-image encoding.
     for (let i = 0; i < background.length; i += 4)
       if (mask[i + 3] === 0) {
         background[i] = repaired[i];

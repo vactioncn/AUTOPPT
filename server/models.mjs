@@ -17,6 +17,7 @@ import { DIRECT_PROMPT_MODE, directImagePrompt } from "./direct-image.mjs";
 import { PLANNING_VERSION, validateBriefs } from "./content-planning.mjs";
 import { imageContentPrompt } from "./image-content.mjs";
 import { createStyleFromReferences } from "./style-creation.mjs";
+import { IMAGE_OUTPUT_SIZE, isSlideAspect } from "../shared/image-output.mjs";
 
 export class ProviderError extends Error {}
 const safeError = (message) =>
@@ -316,7 +317,6 @@ export async function analyzeStyle(
 }
 export const imagePrompt = directImagePrompt;
 
-const IMAGE_OUTPUT_SIZE = "2560x1440";
 export async function generateImage(plan, style, signal, attachments = []) {
   return meteredImage(() =>
     generateImageOutput(plan, style, signal, attachments),
@@ -422,6 +422,10 @@ async function generateImageOutput(plan, style, signal, attachments = []) {
     revisedPrompt:
       typeof item.revised_prompt === "string" ? item.revised_prompt : null,
   };
+  if (!isSlideAspect(width, height))
+    throw new ProviderError(
+      `图片服务返回了 ${width}×${height}，不符合横向 16:9 要求（请求 ${IMAGE_OUTPUT_SIZE}）。本次结果未保存为成品，原有图片和封面保留。请检查图片服务是否支持指定画幅后再重试；重试会再次调用模型。`,
+    );
   const filename = id() + ".png";
   writeFileSync(assetPath(filename), normalized);
   return filename;

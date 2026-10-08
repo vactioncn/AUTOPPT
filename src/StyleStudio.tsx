@@ -22,6 +22,7 @@ import { CopyReview } from "./CopyReview";
 import { TrialCopyPreview } from "./TrialCopyPreview";
 import { StyleVersions } from "./StyleVersions";
 import { STYLE_DEMOS, STYLE_COVER } from "../shared/style-demo.mjs";
+import { isSlideAspect } from "../shared/image-output.mjs";
 export function StyleStudio({
   style,
   onBack,
@@ -45,6 +46,11 @@ export function StyleStudio({
     initial.designOptions || emptyDesignOptions,
   );
   const [optionsBusy, setOptionsBusy] = useState(false);
+  const [loadedImage, setLoadedImage] = useState<{
+    image: string;
+    width: number;
+    height: number;
+  } | null>(null);
   const [notes, setNotes] = useState<string>(
       initial.notes ?? STYLE_DEMOS[0].notes,
     ),
@@ -113,6 +119,12 @@ export function StyleStudio({
   const selected = trials.find((t) => t.id === selectedId),
     running = trials.find((t) => active(t.status)),
     disabled = busy || optionsBusy || !!running || loading;
+  const imageSize =
+    selected?.image && loadedImage?.image === selected.image
+      ? loadedImage
+      : selected?.plan?.imageResponse;
+  const wrongAspect =
+    !!imageSize && !isSlideAspect(imageSize.width, imageSize.height);
   const edited =
     !!selected &&
     (selected.notes !== notes ||
@@ -190,7 +202,8 @@ export function StyleStudio({
           <strong>{STYLE_COVER.title}</strong>
           <p>{STYLE_COVER.subtitle}</p>
           <p className="detail-help">
-            所有风格使用同一文案，按已保存的风格自由设计。成功后自动更新封面；不会带入下方的讲稿、调试意见、临时配色或内容倾向。
+            所有风格使用同一文案，按已保存的风格设计横向 16:9
+            封面。通过画幅检查后自动更新封面；不会带入下方的讲稿、调试意见、临时配色或内容倾向。
           </p>
         </div>
         <Button
@@ -242,11 +255,27 @@ export function StyleStudio({
           <SceneView scene={selected.scene} label="本次试做页面" />
         ) : selected?.image ? (
           <>
-            <img
-              style={{ width: "100%", display: "block" }}
-              src={asset(selected.image)}
-              alt="本次风格试做图片"
-            />
+            <div className="studio-slide-preview">
+              <img
+                key={selected.image}
+                src={asset(selected.image)}
+                alt="本次风格试做图片"
+                onLoad={(event) =>
+                  setLoadedImage({
+                    image: selected.image!,
+                    width: event.currentTarget.naturalWidth,
+                    height: event.currentTarget.naturalHeight,
+                  })
+                }
+              />
+            </div>
+            {wrongAspect && (
+              <p className="error-text" role="alert">
+                这张历史图片为 {imageSize!.width}×{imageSize!.height}
+                ，不符合横向 16:9
+                演讲画幅。原图已保留；新生成会检查比例，异常结果不会更新封面。
+              </p>
+            )}
             <p className="studio-caption">
               {edited
                 ? "输入已有调整，当前显示上一次生成的图片。"
@@ -260,7 +289,9 @@ export function StyleStudio({
               <p className="detail-help">
                 统一封面示例 ·{" "}
                 {style.coverTrialId === selected.id
-                  ? "已更新为风格封面"
+                  ? wrongAspect
+                    ? "历史封面画幅异常，需重新生成"
+                    : "已更新为风格封面"
                   : "保留的封面版本；如风格已修改，请重新生成。"}
               </p>
             )}

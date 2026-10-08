@@ -1,6 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createStyleFromReferences } from "../server/style-creation.mjs";
+import {
+  createStyleFromReferences,
+  checkedCreation,
+  sectionBody,
+  STYLE_SECTIONS,
+} from "../server/style-creation.mjs";
 import {
   observationsFixture,
   creationFixture,
@@ -11,6 +16,35 @@ const style = {
   rules: "已经保存的原规则",
   refs: ["first.png", "second.png"],
 };
+
+test("generated section headings are emitted once without deleting body text", () => {
+  const fixture = creationFixture();
+  const expected = checkedCreation(fixture);
+  for (const prefix of [
+    (title) => `${title}。`,
+    (title) => `## ${title}\n\n`,
+    (title) => `**${title}**：`,
+    (title, i) => `${i + 1}. ${title.split("、")[1]}\n`,
+    (title) => `第${title.replace("、", "")}：`,
+    (title) => `${title}\n\n${title}。`,
+  ]) {
+    const repeated = structuredClone(fixture);
+    STYLE_SECTIONS.forEach(([key, title], i) => {
+      repeated.sections[key] = prefix(title, i) + fixture.sections[key];
+    });
+    assert.deepEqual(checkedCreation(repeated), expected);
+  }
+  for (const text of [
+    "视觉定位决定材料与构图，不应重复统一模板。",
+    "1. 先看主标题，再看正文。\n2. 核心信息通过留白强调。",
+    "保留这样的引用：一、视觉定位。它是原始材料的一部分。",
+  ])
+    assert.equal(sectionBody(text, "一、视觉定位"), text);
+  assert.equal(sectionBody("**视觉定位**\n正文", "一、视觉定位"), "正文");
+  const empty = structuredClone(fixture);
+  empty.sections.identity = "一、视觉定位。".repeat(10);
+  assert.throws(() => checkedCreation(empty), /设计规范不完整/);
+});
 
 test("style creation observes every reference before authoring a complete independent prompt", async () => {
   const original = structuredClone(style),

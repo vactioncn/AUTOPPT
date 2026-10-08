@@ -12,6 +12,7 @@ import {
 import { RELEASE_STYLES } from "../shared/builtin-style-catalog.mjs";
 import { unifiedCoverPlan } from "../server/style-cover.mjs";
 import { directImagePrompt } from "../server/direct-image.mjs";
+import { IMAGE_CANVAS_PROMPT } from "../shared/image-output.mjs";
 import { STYLE_COVER_NOTES } from "../shared/style-demo.mjs";
 import { PLANNING_VERSION } from "../server/content-planning.mjs";
 import { styleStamp } from "../server/core.mjs";
@@ -82,7 +83,9 @@ test("approved builtins retain exact source bytes; only four explicit page-numbe
     "右上角微型页码（显示为 01），哑光背景。\n\n" +
       plan.contentPrompt +
       "\n\n【本页画面调整要求】\n" +
-      plan.imageFeedback,
+      plan.imageFeedback +
+      "\n\n" +
+      IMAGE_CANVAS_PROMPT,
   );
   assert.equal(plan.styleRules, style.rules);
   const noNumber = unifiedCoverPlan({

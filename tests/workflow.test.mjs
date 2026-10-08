@@ -8,6 +8,7 @@ import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { DatabaseSync } from "node:sqlite";
 import sharp from "sharp";
+import { IMAGE_CANVAS_PROMPT } from "../shared/image-output.mjs";
 import JSZip from "jszip";
 import { DEFAULT_STYLE_ID } from "../shared/styles.mjs";
 import { defaultSystem, composeScene, samplePlan } from "../shared/slides.mjs";
@@ -946,7 +947,7 @@ test(
     assert.equal(trial.review, null);
     assert.equal(
       trial.plan.imageRequest.prompt,
-      style.rules + "\n\n" + trial.plan.contentPrompt,
+      style.rules + "\n\n" + trial.plan.contentPrompt + "\n\n" + IMAGE_CANVAS_PROMPT,
     );
     assert.equal(trial.plan.imageResponse.width, 1600);
     assert.equal(trial.plan.imageRequest.size, "2560x1440");

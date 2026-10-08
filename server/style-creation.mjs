@@ -153,12 +153,27 @@ export function checkedObservations(out, refs) {
 export const creationInstructions = `你是视觉设计总监。本阶段根据已经完成的逐图观察，设计一套完整、可延伸的新风格，并写成可直接交给图片模型的设计规范。
 ${STYLE_WRITING_GUIDE}
 视觉选择以本次观察证据为依据。已有规则只用于理解用户正在修改什么，用户本次反馈优先；新建风格不得受旧风格影响。风格名称只是用户的标签，不是视觉证据。
-先在direction简述从观察到设计的取舍：保留什么、怎样延伸、如何处理图间冲突，以及哪些是设计推导。最终sections只写可执行规范；不要夹杂分析过程、范例名称、图号、源图片文案、请求补图或“见参考图”等外部依赖。
+先在direction简述从观察到设计的取舍：保留什么、怎样延伸、如何处理图间冲突，以及哪些是设计推导。最终sections只写可执行规范；不要夹杂分析过程、范例名称、图号、源图片文案、请求补图或“见参考图”等外部依赖。每个section字段只返回章节正文，不要重复章节标题或章节编号，程序会统一添加标题。
 目标是像范例一样完整具体，约2200–3600中文字，少用空泛形容词，不能每节只有一句概括。每节展开特征、作用、执行做法、适用边界；提供建议比例时说明是设计范围而非测量事实。跨页示例只演示如何随内容变化，不固化成必选版式。
 不强制每页用完所有特征，不将原图的物件、人物、行业、固定坐标、节点数量当作风格。不无端删除参考中丰富的材质或细节，也不继承范例没有在当前参考中出现的审美禁令。只有本页提供真实数据、顺序或引用时才使用，不编造。受众与行业由后续内容及用户设置决定。
 章节键及要求：
 ${STYLE_SECTIONS.map(([key, title, requirement]) => `${key}：${title}。${requirement}`).join("\n")}
 返回JSON：{description:"一句话概括新风格的辨识度",direction:"设计取舍及推导边界",colors:["#RRGGBB"],sections:{${STYLE_SECTIONS.map(([key]) => `"${key}":"完整章节正文"`).join(",")}}。colors给出2–8个与设计一致的建议色值。不得另输出简版rules替代完整章节。`;
+
+// Only normalize model-authored section prefixes; never deduplicate prose or
+// rewrite user-authored rules at save/render time.
+export function sectionBody(value, title) {
+  const name = title.replace(/^[一二三四五六七八九十十二]+、/, "");
+  const heading = new RegExp(
+    `^\\s*(?:#{1,6}\\s*)?(?:\\*\\*|__)?(?:第?[一二三四五六七八九十百\\d]+(?:[、.．)）:：]|章|节)?\\s*)?${name}(?:\\*\\*|__)?(?:[。:：.．]\\s*|[ \\t]*\\r?\\n+|$)`,
+  );
+  let body = value.trim();
+  for (;;) {
+    const next = body.replace(heading, "").trim();
+    if (next === body) return body;
+    body = next;
+  }
+}
 
 export function checkedCreation(out) {
   const fail = () => {
@@ -178,9 +193,11 @@ export function checkedCreation(out) {
     !out.colors.every((c) => typeof c === "string" && /^#[a-f\d]{6}$/i.test(c))
   )
     fail();
-  const rules = STYLE_SECTIONS.map(
-    ([key, title]) => `${title}\n\n${out.sections[key].trim()}`,
-  ).join("\n\n");
+  const rules = STYLE_SECTIONS.map(([key, title]) => {
+    const body = sectionBody(out.sections[key], title);
+    if (!text(body, 40)) fail();
+    return `${title}\n\n${body}`;
+  }).join("\n\n");
   if (rules.length < 1200 || rules.length > 30000) fail();
   return {
     description: out.description.trim(),

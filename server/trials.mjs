@@ -10,6 +10,8 @@ import { saveStyleVersion } from "./style-versions.mjs";
 
 import { STYLE_COVER, STYLE_COVER_NOTES } from "../shared/style-demo.mjs";
 import { unifiedCoverPlan } from "./style-cover.mjs";
+import sharp from "sharp";
+import { isSlideAspect } from "../shared/image-output.mjs";
 
 function availableStyle(key) {
   const style = get("style", key);
@@ -36,7 +38,7 @@ function assertStyleIdle(styleId) {
     );
 }
 export function registerTrials(app, { enqueue }) {
-  app.post("/api/styles/:id/trials/:tid/cover", (req, res) => {
+  app.post("/api/styles/:id/trials/:tid/cover", async (req, res) => {
     const style = availableStyle(req.params.id);
     const trial = trialFor(style.id, req.params.tid);
     if (trial.purpose !== "cover" || trial.coverVersion !== STYLE_COVER.version)
@@ -50,6 +52,13 @@ export function registerTrials(app, { enqueue }) {
       !existsSync(assetPath(trial.image))
     )
       throw new Error("请先完成这一页图片，再设为封面。");
+    const { width, height } = await sharp(assetPath(trial.image)).metadata();
+    if (!isSlideAspect(width, height))
+      throw new Error("这张历史图片不符合横向 16:9 要求，请重新生成统一封面。");
+    // Metadata inspection is asynchronous; do not overwrite a concurrent edit.
+    const current = availableStyle(style.id);
+    if (current.updatedAt !== style.updatedAt)
+      throw new Error("风格已有变化，请刷新后再设置封面。");
     // Cover is presentation metadata. Never add it to refs or overwrite rules.
     style.cover = trial.image;
     style.coverTrialId = trial.id;

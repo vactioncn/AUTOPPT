@@ -3,6 +3,7 @@ import { audiencePrompt, palettePrompt } from "./design-options.mjs";
 import { assertDesignedCopy } from "./screen-copy.mjs";
 import { imageContentPrompt } from "./image-content.mjs";
 import { compositionPrompt } from "./composition.mjs";
+import { IMAGE_CANVAS_PROMPT } from "../shared/image-output.mjs";
 
 export const DIRECT_PROMPT_MODE = "verbatim-style-v5";
 
@@ -31,5 +32,5 @@ export function directImagePrompt(plan) {
     ? `\n\n【本页画面调整要求】\n${plan.imageFeedback}`
     : "";
   const styleRules = pageNumberStyle(plan.styleRules, plan.pageNumber).rules;
-  return `${styleRules}\n\n${plan.contentPrompt}${materials}${compositionPrompt(plan)}${feedback}${audiencePrompt(plan.designOptions)}${palettePrompt(plan.designOptions)}`;
+  return `${styleRules}\n\n${plan.contentPrompt}${materials}${compositionPrompt(plan)}${feedback}${audiencePrompt(plan.designOptions)}${palettePrompt(plan.designOptions)}\n\n${IMAGE_CANVAS_PROMPT}`;
 }

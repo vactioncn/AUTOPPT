@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import express from "express";
-import { mkdtempSync, rmSync, existsSync } from "node:fs";
+import { mkdtempSync, rmSync, existsSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import sharp from "sharp";
@@ -31,6 +31,24 @@ test("unified covers lock copy, use saved style, publish only on success and kee
       .png()
       .toBuffer()
   ).toString("base64");
+  const malformed = Object.fromEntries(
+    await Promise.all(
+      [
+        ["portrait", 1024, 1536],
+        ["square", 1024, 1024],
+        ["landscape", 1536, 1024],
+      ].map(async ([key, width, height]) => [
+        key,
+        (
+          await sharp({
+            create: { width, height, channels: 3, background: "#eee" },
+          })
+            .png()
+            .toBuffer()
+        ).toString("base64"),
+      ]),
+    ),
+  );
   app.post("/v1/images/generations", (req, res) => {
     calls.push(req.body);
     if (responseMode === "failure")
@@ -40,7 +58,11 @@ test("unified covers lock copy, use saved style, publish only on success and kee
     if (responseMode === "cancelled") controller.abort();
     if (responseMode === "deleted")
       put("style", { ...get("style", "demo"), deletedAt: "now" });
-    res.json({ data: [{ b64_json: png }] });
+    // A claimed landscape size must never override the returned pixels.
+    res.json({
+      size: "2560x1440",
+      data: [{ b64_json: malformed[responseMode] || png }],
+    });
   });
   registerTrials(app, {
     enqueue(type, projectId, payload) {
@@ -142,6 +164,8 @@ test("unified covers lock copy, use saved style, publish only on success and kee
     assert(existsSync(assetPath(generated.image)));
     assert.equal(calls.length, 1); // No text-model stage and exactly one image.
     assert.equal(calls[0].n, 1);
+    assert.equal(calls[0].size, "2560x1440");
+    assert.match(calls[0].prompt, /横向 16:9/);
     assert.equal(calls[0].prompt, directImagePrompt(generated.plan));
     assert(calls[0].prompt.startsWith(original.rules + "\n\n"));
     assert(!calls[0].prompt.includes("不能混入"));
@@ -160,11 +184,44 @@ test("unified covers lock copy, use saved style, publish only on success and kee
       (await post(`/other/trials/${generated.id}/cover`)).status,
       400,
     );
-    for (const mode of ["failure", "cancelled", "changed", "deleted"]) {
+    const oldPortrait = {
+      ...generated,
+      id: "old-portrait",
+      image: "old-portrait.png",
+    };
+    put("trial", oldPortrait);
+    writeFileSync(
+      assetPath(oldPortrait.image),
+      Buffer.from(malformed.portrait, "base64"),
+    );
+    assert.equal((await post("/demo/trials/old-portrait/cover")).status, 400);
+    assert.equal(get("style", "demo").cover, generated.image);
+    for (const mode of [
+      "portrait",
+      "square",
+      "landscape",
+      "failure",
+      "cancelled",
+      "changed",
+      "deleted",
+    ]) {
       put("style", { ...original, cover: generated.image });
       const next = (await post("/demo/trials", { purpose: "cover" })).body;
       responseMode = mode;
-      if (["failure", "cancelled"].includes(mode))
+      if (malformed[mode]) {
+        const beforeCalls = calls.length;
+        await assert.rejects(finish(next), /不符合横向 16:9/);
+        assert.equal(
+          calls.length,
+          beforeCalls + 1,
+          "invalid outputs must not trigger paid automatic retries",
+        );
+        const failed = get("trial", next.id);
+        assert.equal(failed.image, null);
+        assert.equal(failed.status, "failed");
+        assert(failed.plan.imageResponse.width);
+        assert.equal(failed.plan.imageResponse.reportedSize, "2560x1440");
+      } else if (["failure", "cancelled"].includes(mode))
         await assert.rejects(finish(next));
       else await finish(next);
       assert.equal(get("style", "demo").cover, generated.image, mode);

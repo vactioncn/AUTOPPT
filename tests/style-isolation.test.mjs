@@ -6,6 +6,7 @@ import path from "node:path";
 import { styleStamp } from "../server/core.mjs";
 import { copyFixture, reviewFixture } from "./fixtures/screen-copy.mjs";
 import sharp from "sharp";
+import { IMAGE_CANVAS_PROMPT } from "../shared/image-output.mjs";
 
 test("raw style prompts stay exact and independent from reusable, source-bound screen copy", async (t) => {
   const dir = mkdtempSync(path.join(tmpdir(), "autoppt-style-isolation-"));
@@ -70,7 +71,11 @@ test("raw style prompts stay exact and independent from reusable, source-bound s
   assert.equal(approved.styleRules, minimal.rules);
   assert.equal(
     imagePrompt({ ...approved, imageFeedback: "" }),
-    minimal.rules + "\n\n" + approved.contentPrompt,
+    minimal.rules +
+      "\n\n" +
+      approved.contentPrompt +
+      "\n\n" +
+      IMAGE_CANVAS_PROMPT,
   );
   assert.equal(approved.promptMode, "verbatim-style-v5");
   assert.equal(
@@ -78,7 +83,8 @@ test("raw style prompts stay exact and independent from reusable, source-bound s
     minimal.rules +
       "\n\n" +
       approved.contentPrompt +
-      "\n\n【本页画面调整要求】\nVISUAL_FEEDBACK",
+      "\n\n【本页画面调整要求】\nVISUAL_FEEDBACK\n\n" +
+      IMAGE_CANVAS_PROMPT,
   );
   assert(!imagePrompt(approved).includes("UNWANTED_OLD_DIAGRAM"));
   assert(!imagePrompt(approved).includes("完整背景讲解留在口播"));
@@ -183,7 +189,7 @@ test("raw style prompts stay exact and independent from reusable, source-bound s
   );
   await assert.rejects(generateImage(approved, watercolor), /风格已变化/);
   const pixels = await sharp({
-    create: { width: 24, height: 16, channels: 3, background: "white" },
+    create: { width: 32, height: 18, channels: 3, background: "white" },
   })
     .png()
     .toBuffer();
@@ -233,8 +239,8 @@ test("raw style prompts stay exact and independent from reusable, source-bound s
   assert.equal(calls.length, beforeTrialCalls);
   assert.equal(approved.imageRequest.providerOrigin, "http://127.0.0.1:1");
   assert.deepEqual(approved.imageResponse, {
-    width: 24,
-    height: 16,
+    width: 32,
+    height: 18,
     reportedModel: "provider-reported-model",
     reportedSize: "1536x1024",
     reportedQuality: "low",

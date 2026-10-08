@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { fork } from "node:child_process";
 import { once } from "node:events";
-import { mkdtempSync, rmSync, mkdirSync } from "node:fs";
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
+import { DatabaseSync } from "node:sqlite";
 import os from "node:os";
 import path from "node:path";
 import express from "express";
@@ -139,6 +140,31 @@ test(
         bootstrap.styles.find((s) => s.id === style.id).cover,
         trials.trials[0].image,
       );
+      // Simulate a previously accepted portrait image. It must remain visible
+      // in full, with a warning, without stretching the presentation preview.
+      const legacy = trials.trials[0];
+      legacy.image = "legacy-portrait.png";
+      delete legacy.plan.imageResponse;
+      writeFileSync(
+        path.join(dir, "assets", legacy.image),
+        await sharp({
+          create: {
+            width: 1024,
+            height: 1536,
+            channels: 3,
+            background: "#d9deca",
+          },
+        })
+          .png()
+          .toBuffer(),
+      );
+      const db = new DatabaseSync(path.join(dir, "autoppt.sqlite"));
+      db.prepare("UPDATE records SET data=? WHERE kind='trial' AND id=?").run(
+        JSON.stringify(legacy),
+        legacy.id,
+      );
+      db.close();
+      await page.getByRole("alert").filter({ hasText: "1024×1536" }).waitFor();
       mkdirSync(".local/verification/unified-cover", { recursive: true });
       for (const [name, width, height] of [
         ["desktop", 1440, 1000],
@@ -146,6 +172,14 @@ test(
       ]) {
         await page.setViewportSize({ width, height });
         await page.locator(".unified-style-cover").scrollIntoViewIfNeeded();
+        const frame = await page.locator(".studio-slide-preview").boundingBox();
+        assert(Math.abs(frame.width / frame.height - 16 / 9) < 0.01);
+        assert.equal(
+          await page
+            .getByRole("img", { name: "本次风格试做图片" })
+            .evaluate((img) => getComputedStyle(img).objectFit),
+          "contain",
+        );
         assert(
           await page.evaluate(
             () => document.documentElement.scrollWidth <= innerWidth + 1,

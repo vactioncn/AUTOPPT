@@ -20,6 +20,8 @@ import { createStyleFromReferences } from "./style-creation.mjs";
 import { IMAGE_OUTPUT_SIZE, isSlideAspect } from "../shared/image-output.mjs";
 import {
   upstreamHandshakeFailure,
+  transientModelRejection,
+  retryAfterMs,
   withModelConnectionRetry,
 } from "./model-request-policy.mjs";
 
@@ -114,7 +116,11 @@ async function providerRequest(
       );
     throw Object.assign(
       new ProviderError(`模型服务返回 ${response.status}：${message}`),
-      { uncertain: !!data.uncertain },
+      {
+        uncertain: !!data.uncertain,
+        retryReason: transientModelRejection(response.status, data),
+        retryAfterMs: retryAfterMs(response.headers.get("retry-after")),
+      },
     );
   }
   return data;

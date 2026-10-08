@@ -402,7 +402,12 @@ export type Job = {
     current: { id: string; page: number } | null;
     failed: { id: string; page: number; error: string }[];
   };
-  autoRetry?: { attempt: number; maxRetries: number; seconds: number };
+  autoRetry?: {
+    attempt: number;
+    maxRetries: number;
+    seconds: number;
+    reason?: string;
+  };
   slideIds?: string[] | null;
   targetSlideIds?: string[];
   batchId?: string;

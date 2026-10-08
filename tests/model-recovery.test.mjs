@@ -7,7 +7,7 @@ import { setTimeout as delay } from "node:timers/promises";
 
 test(
   "provider recovery meters each attempt and batch checkpoints survive failures and changed notes",
-  { timeout: 30000 },
+  { timeout: 40000 },
   async (t) => {
     const dir = mkdtempSync(path.join(tmpdir(), "autoppt-model-recovery-"));
     process.env.AUTOPPT_DATA_DIR = dir;
@@ -77,6 +77,33 @@ test(
       await assert.rejects(request(kind, "/fixture", { model: config.model }));
       assert.equal(calls, 1);
     }
+    // A clear 503 rejection may recover for text and images, and every physical attempt is metered.
+    for (const kind of ["text", "image"]) {
+      calls = 0;
+      const before = store.all("usage-event").length;
+      fetchMock.mock.mockImplementation(async () => {
+        calls++;
+        return calls === 1
+          ? response(503, {
+              error: {
+                message:
+                  "auth_unavailable: no auth available; last upstream error: server_is_overloaded",
+              },
+            })
+          : response(
+              200,
+              kind === "text"
+                ? {
+                    choices: [{ message: { content: "{}" } }],
+                    usage: { prompt_tokens: 8, completion_tokens: 2 },
+                  }
+                : { data: [{ b64_json: "saved-image" }] },
+            );
+      });
+      await request(kind, "/fixture", { model: config.model });
+      assert.equal(calls, 2);
+      assert.equal(store.all("usage-event").length, before + 2);
+    }
 
     const style = store.put("style", {
       id: "style",
@@ -131,7 +158,7 @@ test(
       slideIds: slides.map((s) => s.id),
     });
     async function finished() {
-      for (let i = 0; i < 400; i++) {
+      for (let i = 0; i < 800; i++) {
         const j = store.get("job", job.id);
         if (j.status === "failed" || j.status === "completed") {
           await delay(0);
@@ -215,7 +242,9 @@ test(
     let designCalls = 0;
     fetchMock.mock.mockImplementation(async () => {
       designCalls++;
-      return designCalls === 1 ? response(500, handshake) : response(400, { error: "fixture stops before image generation" });
+      return designCalls === 1
+        ? response(500, handshake)
+        : response(400, { error: "fixture stops before image generation" });
     });
     retry(job.id);
     let waitingJob;
@@ -227,7 +256,41 @@ test(
     assert.equal(waitingJob.autoRetry.attempt, 1);
     assert.equal(waitingJob.autoRetry.seconds, 2);
     assert.equal(waitingJob.pageProgress.current.page, 16);
-    assert.equal(waitingJob.pageProgress.failed.length, 0, "prior attempt failures must clear on retry");
+    assert.equal(
+      waitingJob.pageProgress.failed.length,
+      0,
+      "prior attempt failures must clear on retry",
+    );
+    saved = await finished();
+    assert.equal(saved.autoRetry, undefined);
+    assert.equal(saved.pageProgress.failed.length, 2);
+    // A 503 recovery keeps the page running; no failure is exposed until recovery ends.
+    designCalls = 0;
+    fetchMock.mock.mockImplementation(async () => {
+      designCalls++;
+      return designCalls === 1
+        ? response(503, {
+            error: { code: "server_is_overloaded", message: "busy" },
+          })
+        : response(400, { error: "fixture stops before image generation" });
+    });
+    retry(job.id);
+    for (let i = 0; i < 100; i++) {
+      waitingJob = store.get("job", job.id);
+      if (waitingJob.autoRetry) break;
+      await delay(10);
+    }
+    assert.equal(waitingJob.status, "running");
+    assert.equal(waitingJob.autoRetry.reason, "模型服务繁忙");
+    assert.ok(
+      waitingJob.autoRetry.seconds >= 5 && waitingJob.autoRetry.seconds <= 6,
+    );
+    assert.equal(waitingJob.pageProgress.failed.length, 0);
+    assert.equal(waitingJob.pageProgress.current.page, 16);
+    assert.deepEqual(
+      store.get("project", "project").slides.slice(0, 15),
+      existingVersions,
+    );
     saved = await finished();
     assert.equal(saved.autoRetry, undefined);
     assert.equal(saved.pageProgress.failed.length, 2);
@@ -236,7 +299,25 @@ test(
       const body = JSON.parse(options.body);
       const { pages } = JSON.parse(body.messages[1].content[0].text);
       requested.push({ round: 5, ids: pages.map((p) => p.id) });
-      return response(200, { choices: [{ message: { content: JSON.stringify({ pages: pages.map((p) => ({ id: p.id, claim: "原文观点", relationship: "statement", evidence: p.notes, entities: ["内容"], visualTask: "呈现观点", mustNotImply: [] })) }) } }] });
+      return response(200, {
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                pages: pages.map((p) => ({
+                  id: p.id,
+                  claim: "原文观点",
+                  relationship: "statement",
+                  evidence: p.notes,
+                  entities: ["内容"],
+                  visualTask: "呈现观点",
+                  mustNotImply: [],
+                })),
+              }),
+            },
+          },
+        ],
+      });
     });
     const controller = new AbortController();
     const before = requested.length;

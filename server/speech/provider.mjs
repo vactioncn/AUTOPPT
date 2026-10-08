@@ -1,6 +1,11 @@
 // MiniMax native speech protocol; deliberately separate from the image/text gateway.
 import { createHash } from "node:crypto";
 import { createSpeechRequestPolicy } from "./request-policy.mjs";
+import {
+  transientModelRejection,
+  retryAfterMs,
+  hasProviderResult,
+} from "../model-request-policy.mjs";
 
 const scheduleSpeech = createSpeechRequestPolicy();
 const errorMessages = {
@@ -15,13 +20,7 @@ const errorMessages = {
   2045: "MiniMax 语音请求增长过快（错误码 2045），请稍后继续，已完成的音频会保留",
   2049: "MiniMax 语音密钥无效（错误码 2049），请检查 API Key",
 };
-function serviceError(code, response) {
-  const header = response.headers.get("retry-after");
-  const retryAfterMs = header
-    ? /^\d+(\.\d+)?$/.test(header)
-      ? Number(header) * 1000
-      : Date.parse(header) - Date.now()
-    : 0;
+function serviceError(code, response, data) {
   return Object.assign(
     new Error(
       errorMessages[code] ||
@@ -31,10 +30,11 @@ function serviceError(code, response) {
     ),
     {
       providerCode: code,
-      rateLimited: code === 1002 || code === 2045 || response.status === 429,
-      retryAfterMs: Number.isFinite(retryAfterMs)
-        ? Math.max(0, retryAfterMs)
-        : 0,
+      rateLimited:
+        !hasProviderResult(data) &&
+        ([1002, 2045].includes(code) ||
+          (response.status === 429 && !errorMessages[code])),
+      retryAfterMs: retryAfterMs(response.headers.get("retry-after")),
     },
   );
 }
@@ -83,21 +83,39 @@ async function providerRequest(
     );
   }
   capture(null, response.status);
-  if (response.status === 429) throw serviceError(null, response);
-  if (!response.ok)
-    throw new Error(
-      `语音服务请求失败（HTTP ${response.status}），请检查密钥、额度与权限`,
-    );
   const raw = await response.text();
   let data;
   try {
     data = JSON.parse(raw.replace(/"file_id"\s*:\s*(\d+)/g, '"file_id":"$1"'));
   } catch {
+    if (response.status === 429) throw serviceError(null, response);
+    if (!response.ok)
+      throw new Error(
+        `语音服务请求失败（HTTP ${response.status}），请稍后检查服务状态`,
+      );
     throw new Error("语音服务返回了无效响应");
   }
   capture(data, response.status);
+  if (!response.ok) {
+    // Known account/parameter errors take precedence over retryable HTTP statuses.
+    const code = Number(data.base_resp?.status_code);
+    if (errorMessages[code]) throw serviceError(code, response, data);
+    if (response.status === 429) throw serviceError(null, response, data);
+    const reason = transientModelRejection(response.status, data);
+    throw Object.assign(
+      new Error(
+        reason
+          ? `语音服务暂时繁忙（HTTP ${response.status}）`
+          : `语音服务请求失败（HTTP ${response.status}），请检查服务状态与设置`,
+      ),
+      {
+        retryReason: reason,
+        retryAfterMs: retryAfterMs(response.headers.get("retry-after")),
+      },
+    );
+  }
   if (data.base_resp?.status_code !== 0)
-    throw serviceError(Number(data.base_resp?.status_code), response);
+    throw serviceError(Number(data.base_resp?.status_code), response, data);
   return data;
 }
 export async function synthesize(config, text, options, signal, onWait) {

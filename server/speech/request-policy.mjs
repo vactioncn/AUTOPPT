@@ -1,12 +1,14 @@
 import { setTimeout as delay } from "node:timers/promises";
 
 // Default to MiniMax's lower T2A tier (10 requests/minute), with a small margin.
-// Only explicit rate-limit rejections may be retried. Timeouts are ambiguous.
+// Retry explicit rejections while preserving the shared account pacing.
 export function createSpeechRequestPolicy({
   now = Date.now,
   wait = (ms, signal) => delay(ms, undefined, { signal }),
   intervalMs = 6100,
   retryDelays = [60000, 120000, 180000],
+  serviceRetryDelays = [5000, 15000, 30000],
+  random = Math.random,
 } = {}) {
   const accounts = new Map();
   return async (key, operation, { signal, onWait = () => {} } = {}) => {
@@ -22,16 +24,19 @@ export function createSpeechRequestPolicy({
     });
     await previous;
     try {
-      let limited = false;
+      let cooldownReason = null;
       for (let attempt = 0; ; attempt++) {
         signal?.throwIfAborted();
         const ms = Math.max(0, account.nextAt - now());
         if (ms) {
           onWait({
-            reason: limited ? "rate-limit" : "pace",
+            reason: cooldownReason || "pace",
             ms,
             attempt,
-            maxRetries: retryDelays.length,
+            maxRetries:
+              cooldownReason === "rate-limit"
+                ? retryDelays.length
+                : serviceRetryDelays.length,
           });
           await wait(ms, signal);
         }
@@ -41,24 +46,36 @@ export function createSpeechRequestPolicy({
         try {
           return await operation();
         } catch (error) {
-          if (
-            signal?.aborted ||
-            !error.rateLimited ||
-            attempt >= retryDelays.length
-          )
+          const reason = error.rateLimited ? "rate-limit" : error.retryReason;
+          const delays =
+            reason === "rate-limit" ? retryDelays : serviceRetryDelays;
+          if (signal?.aborted || !reason || attempt >= delays.length) {
+            if (!signal?.aborted && attempt)
+              error.message += ` 已自动重试 ${attempt} 次仍未恢复，请稍后继续。`;
             throw error;
+          }
           const cooldown = Math.max(
-            retryDelays[attempt],
+            delays[attempt] +
+              (reason === "rate-limit"
+                ? 0
+                : Math.round(delays[attempt] * random() * 0.1)),
             error.retryAfterMs || 0,
           );
           // A very long provider cooldown requires a later, explicit continuation.
-          if (cooldown > 600000) throw error;
+          if (cooldown > 600000) {
+            error.message += " 服务方要求等待超过 10 分钟，请稍后继续。";
+            throw error;
+          }
           account.nextAt = Math.max(account.nextAt, now() + cooldown);
-          limited = true;
+          cooldownReason = reason;
         }
       }
     } finally {
-      release();
+      try {
+        onWait(null);
+      } finally {
+        release();
+      }
     }
   };
 }

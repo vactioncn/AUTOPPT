@@ -30,7 +30,10 @@ import { runTrial } from "./trials.mjs";
 import { reusableScreenCopy } from "./screen-copy.mjs";
 import { attachmentKey } from "./attachments.mjs";
 import { saveStyleVersion } from "./style-versions.mjs";
-import { withModelRequestProgress } from "./model-request-policy.mjs";
+import {
+  withModelRequestProgress,
+  recoveryReason,
+} from "./model-request-policy.mjs";
 const controllers = new Map();
 const MAX_CONCURRENT_JOBS = 4;
 export function activeJob(projectId) {
@@ -676,11 +679,12 @@ async function execute(j, controller) {
                 attempt: waiting.attempt,
                 maxRetries: waiting.maxRetries,
                 seconds: Math.ceil(waiting.ms / 1000),
+                reason: recoveryReason(waiting.reason),
               };
               stageBeforeRetry ??= j.stage;
               progress(
                 j,
-                `${stageBeforeRetry}；模型连接中断，${Math.ceil(waiting.ms / 1000)} 秒后自动重试（${waiting.attempt}/${waiting.maxRetries}）`,
+                `${stageBeforeRetry}；${recoveryReason(waiting.reason)}，${Math.ceil(waiting.ms / 1000)} 秒后自动重试（${waiting.attempt}/${waiting.maxRetries}）`,
               );
             } else if (stageBeforeRetry !== undefined) {
               delete j.autoRetry;

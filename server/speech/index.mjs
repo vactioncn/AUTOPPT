@@ -160,7 +160,9 @@ async function drain() {
                         ? `正在生成第 ${p.number} 页口播`
                         : waiting.reason === "rate-limit"
                           ? `第 ${p.number} 页遇到 MiniMax 限流，等待 ${Math.ceil(waiting.ms / 1000)} 秒后自动继续（重试 ${waiting.attempt}/${waiting.maxRetries}）`
-                          : `正在控制请求频率，稍后生成第 ${p.number} 页口播`;
+                          : waiting.reason === "pace"
+                            ? `正在控制请求频率，稍后生成第 ${p.number} 页口播`
+                            : `语音服务暂时繁忙，等待 ${Math.ceil(waiting.ms / 1000)} 秒后自动继续（重试 ${waiting.attempt}/${waiting.maxRetries}）`;
                       save(d);
                     },
                   ),

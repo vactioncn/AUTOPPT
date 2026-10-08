@@ -1,5 +1,8 @@
 import { withUsage } from "../usage/index.mjs";
-import { withModelRequestProgress } from "../model-request-policy.mjs";
+import {
+  withModelRequestProgress,
+  recoveryReason,
+} from "../model-request-policy.mjs";
 import { all, get, put, id, now, settings, projectOrThrow } from "../store.mjs";
 import { jsonModel } from "../models.mjs";
 import { saveSpeechScript, speechScript } from "./scripts.mjs";
@@ -157,7 +160,7 @@ export function registerPerformance(app, assertIdle) {
               (waiting) => {
                 if (waiting) {
                   stageBeforeRetry ??= job.progress;
-                  job.progress = `${stageBeforeRetry}；连接中断，${Math.ceil(waiting.ms / 1000)} 秒后自动重试（${waiting.attempt}/${waiting.maxRetries}）`;
+                  job.progress = `${stageBeforeRetry}；${recoveryReason(waiting.reason)}，${Math.ceil(waiting.ms / 1000)} 秒后自动重试（${waiting.attempt}/${waiting.maxRetries}）`;
                 } else if (stageBeforeRetry !== undefined) {
                   job.progress = stageBeforeRetry;
                   stageBeforeRetry = undefined;

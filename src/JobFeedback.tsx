@@ -34,8 +34,8 @@ export function JobFeedback({ job }: { job: Job }) {
       )}
       {job.autoRetry && (
         <p role="status" className="job-recovery">
-          连接中断，等待 {job.autoRetry.seconds} 秒后自动重试 · 第{" "}
-          {job.autoRetry.attempt} / {job.autoRetry.maxRetries}{" "}
+          {job.autoRetry.reason || "模型连接中断"}，等待 {job.autoRetry.seconds}{" "}
+          秒后自动重试 · 第 {job.autoRetry.attempt} / {job.autoRetry.maxRetries}{" "}
           次。无需点击继续。
         </p>
       )}
@@ -51,7 +51,7 @@ export function JobFeedback({ job }: { job: Job }) {
               ? "这些页面本轮已跳过，其他页面继续制作。"
               : "已完成的内容已保存。"}
             {progress
-              ? "失败页不会自动再次提交；处理后点击继续，仅补做未完成页面。"
+              ? "可恢复的临时故障会先自动重试；此处仅列出仍未完成的页面。处理后点击继续，仅补做未完成页面。"
               : "任务不会自动重新提交；处理后点击继续重试。"}
           </p>
           <ul>

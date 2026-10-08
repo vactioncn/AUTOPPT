@@ -718,6 +718,7 @@ test(
       page.getByRole("button", { name: "下载动态 HTML", exact: true }),
     ).toBeDisabled();
     await page.unroute("**/api/projects/complete/motion");
+    let recovering = true;
     await page.route("**/api/jobs?projectId=unfinished", (route) =>
       route.fulfill({
         json: [
@@ -733,9 +734,9 @@ test(
             pageProgress: {
               total: 2, preserved: 109, succeeded: 0,
               current: { id: "page-1", page: 1 },
-              failed: [{ id: "page-2", page: 2, error: "模型服务返回 408：stream disconnected before completion" }],
+              failed: recovering ? [] : [{ id: "page-2", page: 2, error: "模型服务返回 408：stream disconnected before completion" }],
             },
-            autoRetry: { attempt: 1, maxRetries: 3, seconds: 2 },
+            autoRetry: recovering ? { attempt: 1, maxRetries: 3, seconds: 5, reason: "模型服务繁忙" } : undefined,
           },
         ],
       }),
@@ -750,9 +751,16 @@ test(
     await expect(page.locator(".job-outcomes")).toContainText("本次 2 页");
     await expect(page.locator(".job-outcomes")).toContainText("另有 109 页已保存，本次跳过");
     await expect(page.locator(".job-recovery")).toContainText("自动重试");
+    await expect(page.locator(".job-recovery")).toContainText("模型服务繁忙");
+    await expect(page.locator(".job-outcomes")).toContainText("失败 0");
+    await expect(page.locator(".job-issues")).toHaveCount(0);
+    await reviewScreenshot(page, { path: evidence + "/task-auto-recovery.png" });
+    recovering = false;
+    await page.reload();
+    await expect(page.locator(".job-recovery")).toHaveCount(0);
     await page.getByText("1 页未完成 · 查看原因与处理方式", { exact: true }).click();
     await expect(page.locator(".job-issues")).toContainText("原第 2 页 · 模型响应中断或超时");
-    await expect(page.locator(".job-issues")).toContainText("失败页不会自动再次提交");
+    await expect(page.locator(".job-issues")).toContainText("可恢复的临时故障会先自动重试");
     await reviewScreenshot(page, { path: evidence + "/task-recovery.png" });
     await goArea("交付中心");
     await expect(page.getByText(/1 项后台制作任务进行中/)).toBeVisible();

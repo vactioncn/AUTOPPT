@@ -149,6 +149,80 @@ test("ambiguous failures and account errors never retry automatically", async ()
   }
 });
 
+test("speech overload recovers before failing, preserving account pacing and per-attempt notices", async () => {
+  let time = 0,
+    calls = 0;
+  const waits = [],
+    states = [];
+  const run = createSpeechRequestPolicy({
+    now: () => time,
+    random: () => 0,
+    wait: async (ms) => {
+      waits.push(ms);
+      time += ms;
+    },
+  });
+  assert.equal(
+    await run(
+      "account",
+      async () => {
+        if (++calls < 3)
+          throw Object.assign(new Error("busy"), { retryReason: "overload" });
+        return "audio";
+      },
+      { onWait: (n) => states.push(n) },
+    ),
+    "audio",
+  );
+  assert.equal(calls, 3);
+  assert.deepEqual(waits, [6100, 15000]);
+  assert.deepEqual(
+    states.filter(Boolean).map((n) => n.reason),
+    ["overload", "overload"],
+  );
+  assert.equal(states.at(-1), null);
+});
+
+test("MiniMax explicit HTTP overload enters recovery; account errors and partial audio do not", async (t) => {
+  for (const [data, expected] of [
+    [{ error: { code: "server_is_overloaded" } }, true],
+    [{ base_resp: { status_code: 1008 } }, false],
+    [
+      { error: { code: "server_is_overloaded" }, data: { audio: "partial" } },
+      false,
+    ],
+  ]) {
+    let calls = 0,
+      state = null;
+    const mock = t.mock.method(globalThis, "fetch", async () => {
+      calls++;
+      return new Response(JSON.stringify(data), { status: 503 });
+    });
+    const controller = new AbortController();
+    await assert.rejects(
+      synthesize(
+        {
+          baseUrl: "https://speech.test/v1",
+          apiKey: `test-${JSON.stringify(data)}`,
+          model: "speech-2.8-hd",
+        },
+        "test",
+        SPEECH_DEFAULTS,
+        controller.signal,
+        (n) => {
+          if (n && n.reason !== "pace") {
+            state = n;
+            controller.abort();
+          }
+        },
+      ),
+    );
+    assert.equal(calls, 1);
+    assert.equal(state?.reason || null, expected ? "overload" : null);
+    mock.mock.restore();
+  }
+});
+
 test("MiniMax business limits and HTTP 429 enter cancellable cooldown without exposing provider text", async (t) => {
   for (const [status, code, header, minimum, maximum] of [
     [200, 1002, "90", 89000, 90000],

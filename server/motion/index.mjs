@@ -1,4 +1,8 @@
 import { withUsage } from "../usage/index.mjs";
+import {
+  withModelRequestProgress,
+  recoveryReason,
+} from "../model-request-policy.mjs";
 import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import multer from "multer";
@@ -59,6 +63,19 @@ function sanitizeError(e) {
     .replace(/(?:sk-|Bearer\s+)[A-Za-z0-9_.-]+/g, "[密钥已隐藏]")
     .slice(0, 600);
 }
+function withRecovery(d, operation) {
+  let stage;
+  return withModelRequestProgress((waiting) => {
+    if (waiting) {
+      stage ??= d.progress;
+      d.progress = `${stage}；${recoveryReason(waiting.reason)}，${Math.ceil(waiting.ms / 1000)} 秒后自动重试（${waiting.attempt}/${waiting.maxRetries}）`;
+    } else if (stage !== undefined) {
+      d.progress = stage;
+      stage = undefined;
+    }
+    save(d);
+  }, operation);
+}
 async function drain() {
   if (draining) return;
   draining = true;
@@ -89,7 +106,7 @@ async function drain() {
                   taskId: d.id,
                   feature: "动态页面识别",
                 },
-                () => analyzeImage(p.source, signal),
+                () => withRecovery(d, () => analyzeImage(p.source, signal)),
               );
               save(d);
             }
@@ -104,10 +121,12 @@ async function drain() {
                 feature: "动态页面图层提取",
               },
               () =>
-                extractLayers(p.source, p.analysis, signal, (message) => {
-                  d.progress = `第 ${p.number} 页：${message}`;
-                  save(d);
-                }),
+                withRecovery(d, () =>
+                  extractLayers(p.source, p.analysis, signal, (message) => {
+                    d.progress = `第 ${p.number} 页：${message}`;
+                    save(d);
+                  }),
+                ),
             );
             signal.throwIfAborted();
             Object.assign(p, result, { status: "ready", reviewed: false });

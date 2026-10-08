@@ -174,7 +174,7 @@ const safeJob = (j) => {
     // Older tasks did not record per-attempt counters. Show known page failures
     // without inventing a count for their historical attempt.
     failures:
-      !j.pageProgress && project
+      !j.pageProgress && !["queued", "running"].includes(j.status) && project
         ? project.slides.flatMap((s, i) =>
             targets.includes(s.id) && s.status === "error" && s.error
               ? [{ id: s.id, page: i + 1, error: s.error }]

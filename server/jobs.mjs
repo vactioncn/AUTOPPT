@@ -30,6 +30,7 @@ import { runTrial } from "./trials.mjs";
 import { reusableScreenCopy } from "./screen-copy.mjs";
 import { attachmentKey } from "./attachments.mjs";
 import { saveStyleVersion } from "./style-versions.mjs";
+import { withModelRequestProgress } from "./model-request-policy.mjs";
 const controllers = new Map();
 const MAX_CONCURRENT_JOBS = 4;
 export function activeJob(projectId) {
@@ -274,22 +275,27 @@ async function prepareContent(j, pages, contextText, signal) {
   if (missing.length) {
     progress(
       j,
-      `正在梳理 ${missing.length} 页的内容重点，再提炼上屏文案`,
+      `内容分析已保存 ${pages.length - missing.length}/${pages.length} 页，正在梳理剩余内容`,
       0,
       pages.length,
     );
-    const briefs = await analyzePageContents(
+    let savedCount = pages.length - missing.length;
+    await analyzePageContents(
       missing.map(({ id, notes }) => ({ id, notes })),
       contextText + audiencePrompt(j.payload.designOptions),
       signal,
+      (briefs, group) => {
+        signal.throwIfAborted();
+        for (const page of group)
+          j.payload.contentBriefs[page.id] = {
+            notes: page.notes,
+            brief: briefs[page.id],
+          };
+        savedCount += group.length;
+        progress(j, `内容分析已保存 ${savedCount}/${pages.length} 页`);
+      },
     );
     signal.throwIfAborted();
-    for (const page of missing)
-      j.payload.contentBriefs[page.id] = {
-        notes: page.notes,
-        brief: briefs[page.id],
-      };
-    put("job", j);
   }
   return Object.fromEntries(
     pages.map((p) => [p.id, j.payload.contentBriefs[p.id].brief]),
@@ -617,6 +623,7 @@ function pump() {
   }
 }
 async function execute(j, controller) {
+  let stageBeforeRetry;
   try {
     await withUsage(
       {
@@ -632,7 +639,22 @@ async function execute(j, controller) {
             proposal: "页面调整",
           }[j.type] || "页面制作",
       },
-      () => run(j, controller.signal),
+      () =>
+        withModelRequestProgress(
+          (waiting) => {
+            if (waiting) {
+              stageBeforeRetry ??= j.stage;
+              progress(
+                j,
+                `${stageBeforeRetry}；模型连接中断，${Math.ceil(waiting.ms / 1000)} 秒后自动重试（${waiting.attempt}/${waiting.maxRetries}）`,
+              );
+            } else if (stageBeforeRetry !== undefined) {
+              progress(j, stageBeforeRetry);
+              stageBeforeRetry = undefined;
+            }
+          },
+          () => run(j, controller.signal),
+        ),
     );
     controller.signal.throwIfAborted();
     j.status = "completed";

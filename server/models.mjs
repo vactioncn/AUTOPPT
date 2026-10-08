@@ -18,6 +18,10 @@ import { PLANNING_VERSION, validateBriefs } from "./content-planning.mjs";
 import { imageContentPrompt } from "./image-content.mjs";
 import { createStyleFromReferences } from "./style-creation.mjs";
 import { IMAGE_OUTPUT_SIZE, isSlideAspect } from "../shared/image-output.mjs";
+import {
+  upstreamHandshakeFailure,
+  withModelConnectionRetry,
+} from "./model-request-policy.mjs";
 
 export class ProviderError extends Error {}
 const safeError = (message) =>
@@ -28,8 +32,12 @@ export async function request(kind, route, body, signal, form = false) {
   const config = settings()[kind];
   if (!config.apiKey || signal?.aborted)
     return providerRequest(kind, route, body, signal, form);
-  return trackUsage(config, kind, body, (capture) =>
-    providerRequest(kind, route, body, signal, form, capture),
+  return withModelConnectionRetry(
+    () =>
+      trackUsage(config, kind, body, (capture) =>
+        providerRequest(kind, route, body, signal, form, capture),
+      ),
+    { signal },
   );
 }
 async function providerRequest(
@@ -84,6 +92,13 @@ async function providerRequest(
   });
   capture(data, response.status);
   if (!response.ok) {
+    if (upstreamHandshakeFailure(response.status, data))
+      throw Object.assign(
+        new ProviderError(
+          `模型服务与上游的安全连接中断（TLS 握手失败，HTTP ${response.status}）。`,
+        ),
+        { retryableConnection: kind === "text", uncertain: true },
+      );
     const message = safeError(
       data.error?.message ||
         (typeof data.error === "string" ? data.error : "") ||
@@ -184,10 +199,16 @@ export async function segment(text, context, signal, onProgress = () => {}) {
     throw new Error("内容完整性校验失败，原文未修改。");
   return units;
 }
-export async function analyzePageContents(pages, context, signal) {
+export async function analyzePageContents(
+  pages,
+  context,
+  signal,
+  onBatch = () => {},
+) {
   const result = {};
   // Batch only the meaning analysis, and retain exact ids/source evidence. No style or images enter this call.
   for (let i = 0; i < pages.length; i += 8) {
+    signal?.throwIfAborted();
     const group = pages.slice(i, i + 8);
     const out = await jsonModel(
       `你是演讲内容关系分析师。先理解每页真正要让听众明白什么，此阶段没有风格、模板或参考图，不设计画面。
@@ -198,7 +219,10 @@ export async function analyzePageContents(pages, context, signal) {
       [],
       signal,
     );
-    Object.assign(result, validateBriefs(out, group));
+    signal?.throwIfAborted();
+    const briefs = validateBriefs(out, group);
+    await onBatch(briefs, group);
+    Object.assign(result, briefs);
   }
   return result;
 }

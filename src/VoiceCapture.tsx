@@ -1,3 +1,4 @@
+import { useRiskConfirmation } from "./Feedback";
 import { useEffect, useRef, useState } from "react";
 import { Button, Field } from "./components";
 import { api } from "./api";
@@ -154,6 +155,7 @@ export function VoiceCapture({
       if (alive.current) setBusy(false);
     }
   }
+  const risk = useRiskConfirmation();
   async function clone() {
     if (!sample) return;
     setBusy(true);
@@ -183,6 +185,7 @@ export function VoiceCapture({
   }
   return (
     <details className="voice-capture">
+      {risk.dialog}
       <summary>采集演讲者的声音</summary>
       <p>
         安静环境下自然讲述 30–60 秒，保留你平时的起伏和停顿。支持录音或上传 10
@@ -245,13 +248,16 @@ export function VoiceCapture({
         disabled={
           !sample || !consent || !name.trim() || busy || recording || disabled
         }
-        onClick={clone}
+        onClick={() =>
+          risk.ask(
+            "创建我的声音",
+            clone,
+            "将上传本次录音用于声音复刻，声音复刻及首次使用可能单独计费。原始录音不写入项目包。",
+          )
+        }
       >
         {busy ? "处理中…" : "创建我的声音"}
       </Button>
-      <small>
-        声音复刻及首次使用可能单独计费，以供应商账号为准。原始录音仅在此次操作中上传，不写入本机项目；复刻音色保存在供应商账号中。
-      </small>
       {message && <p role="status">{message}</p>}
       {error && (
         <p role="alert" className="speech-error">

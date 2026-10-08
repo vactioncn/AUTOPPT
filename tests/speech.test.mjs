@@ -644,6 +644,9 @@ test(
         await page
           .getByRole("button", { name: "创建我的声音", exact: true })
           .click();
+        await page
+          .getByRole("button", { name: "确认创建我的声音", exact: true })
+          .click();
         await page.getByText(/声音已创建/).waitFor();
         await page.setViewportSize({ width: 390, height: 844 });
         assert(

@@ -1,3 +1,4 @@
+import { Feedback } from "./Feedback";
 import { useMemo, useState } from "react";
 import { Button } from "./components";
 import type { Bootstrap } from "./types";
@@ -63,16 +64,17 @@ export function WorkspaceReadiness({
         <li>图片模型：{state.imageReady ? "已就绪" : "未就绪"}</li>
         <li>
           视觉风格：
-          {state.styleReady
-            ? "已就绪，可先用默认风格"
-            : "暂无可用风格"}
+          {state.styleReady ? "已就绪，可先用默认风格" : "暂无可用风格"}
         </li>
       </ul>
       {state.managed && (
         <p>
-          {account.modelStatusUnknown ? unknownModelStatus : (
+          {account.modelStatusUnknown ? (
+            unknownModelStatus
+          ) : (
             <>
-              {capabilities.localModelSettings.reason || "模型由管理员统一管理。"}
+              {capabilities.localModelSettings.reason ||
+                "模型由管理员统一管理。"}
               {!state.modelsReady && " 请联系管理员准备模型。"}
             </>
           )}
@@ -105,20 +107,19 @@ export function WorkspaceReadiness({
 export function PageConcepts({ onDismiss }: { onDismiss: () => void }) {
   return (
     <section className="page-concepts" aria-label="页面三点提示">
-      <ol>
-        <li>
-          <strong>逐字稿</strong>：演讲者说的完整内容。
-        </li>
-        <li>
-          <strong>上屏文案</strong>：观众看到的重点。
-        </li>
-        <li>
-          <strong>重新设计</strong>：按当前讲稿和风格重新制作画面。
-        </li>
-      </ol>
-      <Button variant="ghost" onClick={onDismiss}>
-        知道了
-      </Button>
+      <Feedback kind="teaching" onDismiss={onDismiss}>
+        <ol>
+          <li>
+            <strong>逐字稿</strong>：演讲者说的完整内容。
+          </li>
+          <li>
+            <strong>上屏文案</strong>：观众看到的重点。
+          </li>
+          <li>
+            <strong>重新设计</strong>：按当前讲稿和风格重新制作画面。
+          </li>
+        </ol>
+      </Feedback>
     </section>
   );
 }

@@ -373,6 +373,10 @@ test(
           });
         mode = "hold";
         await button.click();
+        await page
+          .getByRole("dialog", { name: "确认继续编排演讲", exact: true })
+          .getByRole("button", { name: "确认继续编排演讲", exact: true })
+          .click();
         await waitFor(() => release);
         await page.getByText(/正在批量编排剩余内容 · 第 1\/1 批/).waitFor();
         assert.match(

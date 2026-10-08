@@ -12,7 +12,7 @@
     audioData.remove();
   }
   const media = new Map();
-  function mediaSource(reference) {
+  function mediaSource(reference, keepEncoded = false) {
     if (!reference?.startsWith("asset:")) return reference || "";
     if (media.has(reference)) return media.get(reference);
     const node = document.getElementById(reference.slice(6));
@@ -29,7 +29,7 @@
     }
     const url = URL.createObjectURL(new Blob(buffers, { type: mime }));
     media.set(reference, url);
-    node.remove();
+    if (!keepEncoded) node.remove();
     return url;
   }
   window.addEventListener("pagehide", (event) => {
@@ -60,6 +60,78 @@
   const audio = document.getElementById("speech-audio"),
     speechStatus = document.getElementById("speech-status"),
     speechGate = document.getElementById("speech-gate");
+  const presenter = document.createElement("video");
+  presenter.id = "presenter-video";
+  presenter.setAttribute("playsinline", "");
+  presenter.setAttribute("aria-label", "数字人讲解员");
+  presenter.preload = "metadata";
+  presenter.hidden = true;
+  viewport.append(presenter);
+  let presenterReference = "",
+    presenterVisible = true;
+  const failedPresenters = new Set();
+  const hasPresenter = () =>
+    !!deck.pages[index].presenter && !failedPresenters.has(index);
+  const presenterToggle = document.createElement("button");
+  presenterToggle.id = "show-presenter";
+  presenterToggle.textContent = "隐藏数字人";
+  presenterToggle.setAttribute("aria-pressed", "true");
+  presenterToggle.hidden = !deck.presenter;
+  toolbar.insertBefore(presenterToggle, document.getElementById("fullscreen"));
+  presenterToggle.addEventListener("click", () => {
+    presenterVisible = !presenterVisible;
+    presenterToggle.textContent = presenterVisible
+      ? "隐藏数字人"
+      : "显示数字人";
+    presenterToggle.setAttribute("aria-pressed", String(presenterVisible));
+    presenter.hidden = !presenterVisible || !hasPresenter();
+  });
+  function resetPresenter() {
+    presenter.pause();
+    presenter.removeAttribute("src");
+    presenter.load();
+    if (presenterReference && media.has(presenterReference)) {
+      URL.revokeObjectURL(media.get(presenterReference));
+      media.delete(presenterReference);
+    }
+    presenterReference = "";
+  }
+  function showPresenter() {
+    const page = deck.pages[index];
+    presenter.hidden = !presenterVisible || !hasPresenter();
+    if (!hasPresenter()) return false;
+    presenter.dataset.placement = deck.presenter.placement;
+    presenter.dataset.size = deck.presenter.size;
+    if (presenterReference !== page.presenter.asset) {
+      resetPresenter();
+      presenterReference = page.presenter.asset;
+      try {
+        presenter.src = mediaSource(presenterReference, true);
+        presenter.load();
+      } catch {
+        disablePresenter();
+        return false;
+      }
+    }
+    return true;
+  }
+  function disablePresenter() {
+    failedPresenters.add(index);
+    speechTicket++;
+    resetPresenter();
+    presenter.hidden = true;
+    // Restart this page's original clips, including their pauses. A failed
+    // video never remains an audio source alongside the fallback narration.
+    clipIndex = 0;
+    audioKey = "";
+    gapRemaining = 0;
+    gapStarted = 0;
+  }
+  function fallbackPresenter() {
+    if (!hasPresenter()) return;
+    disablePresenter();
+    if (narrating) void playSpeech();
+  }
   let narrating = false,
     clipIndex = 0,
     audioKey = "",
@@ -84,7 +156,7 @@
     speechStatus.hidden = false;
     speechStatus.textContent =
       message ||
-      `AI 合成口播 · ${deck.narration.voiceName} · 第 ${index + 1} 页 · ${deck.pages[index].clips.length ? stamp(audio.currentTime || 0) + " / " + stamp(Number.isFinite(audio.duration) ? audio.duration : 0) : "本页无口播，停留 3 秒"}`;
+      `AI 合成口播 · ${deck.narration.voiceName} · 第 ${index + 1} 页 · ${hasPresenter() ? "数字人 " + stamp(presenter.currentTime || 0) + " / " + stamp(Number.isFinite(presenter.duration) ? presenter.duration : 0) : deck.pages[index].clips.length ? stamp(audio.currentTime || 0) + " / " + stamp(Number.isFinite(audio.duration) ? audio.duration : 0) : "本页无口播"}`;
   }
   function speechEnded(afterPause = false) {
     if (!narrating) return;
@@ -114,6 +186,23 @@
     const p = deck.pages[index],
       clip = p.clips[clipIndex];
     speechProgress();
+    if (hasPresenter()) {
+      audio.pause();
+      try {
+        if (!showPresenter()) return playSpeech();
+        if (presenter.ended) presenter.currentTime = 0;
+        await presenter.play();
+        if (ticket === speechTicket) speechGate.hidden = true;
+      } catch (error) {
+        if (ticket !== speechTicket) return;
+        if (error.name === "NotAllowedError") {
+          stop();
+          speechGate.hidden = false;
+          showControls();
+        } else fallbackPresenter();
+      }
+      return;
+    }
     if (!clip) {
       audio.pause();
       silentTimer = setTimeout(speechEnded, (p.silentDuration || 3) * 1000);
@@ -142,7 +231,22 @@
       showControls();
     }
   }
-  audio.addEventListener("ended", () => speechEnded());
+  audio.addEventListener("ended", () => {
+    if (!hasPresenter()) speechEnded();
+  });
+  presenter.addEventListener("ended", () => {
+    if (!narrating || !hasPresenter()) return;
+    if (!go(index + 1)) {
+      stop();
+      finished = true;
+      speechProgress("演讲已结束 · 点击开始口播可从头重播");
+    }
+  });
+  presenter.addEventListener("timeupdate", () => speechProgress());
+  presenter.addEventListener("error", () => {
+    if (!presenter.getAttribute("src")) return;
+    fallbackPresenter();
+  });
   audio.addEventListener("timeupdate", () => speechProgress());
   audio.addEventListener("error", () => {
     if (!deck.narration || !audio.src) return;
@@ -171,10 +275,40 @@
   function fit() {
     const p = deck.pages[index];
     if (!p) return;
+    let left = 0, top = 0, right = viewport.clientWidth, bottom = viewport.clientHeight;
+    if (deck.presenter && !deck.preview) {
+      const padding = getComputedStyle(viewport);
+      left = parseFloat(padding.paddingLeft);
+      right -= parseFloat(padding.paddingRight);
+      top = parseFloat(padding.paddingTop);
+      bottom = toolbar.getBoundingClientRect().top - 16;
+      const portrait = viewport.clientHeight > viewport.clientWidth;
+      // Reserve one side in landscape, one corner row in portrait. The slide,
+      // status and avatar never compete for the same pixels.
+      if (!presenter.hidden && !portrait) {
+        const rail = presenter.offsetWidth + 16;
+        if (presenter.dataset.placement.endsWith("left")) left += rail;
+        else right -= rail;
+      }
+      speechStatus.style.left = (left + right) / 2 + "px";
+      speechStatus.style.maxWidth = Math.max(0, right - left) + "px";
+      viewport.style.setProperty("--presenter-top", top + "px");
+      viewport.style.setProperty("--presenter-bottom", viewport.clientHeight - bottom + "px");
+      if (!speechStatus.hidden) top = speechStatus.getBoundingClientRect().bottom + 16;
+      if (!presenter.hidden && portrait) {
+        if (presenter.dataset.placement.startsWith("top")) {
+          viewport.style.setProperty("--presenter-top", top + "px");
+          top += presenter.offsetHeight + 16;
+        } else bottom -= presenter.offsetHeight + 16;
+      }
+    }
+    stage.style.left = (left + right) / 2 + "px";
+    stage.style.top = (top + bottom) / 2 + "px";
     stage.style.width = p.width + "px";
     stage.style.height = p.height + "px";
-    stage.style.transform = `translate(-50%,-50%) scale(${Math.min(viewport.clientWidth / p.width, viewport.clientHeight / p.height)})`;
+    stage.style.transform = `translate(-50%,-50%) scale(${Math.max(0, Math.min((right - left) / p.width, (bottom - top) / p.height))})`;
   }
+
   function cancelAnimations() {
     animations.forEach((a) => a.cancel());
     animations = [];
@@ -315,6 +449,7 @@
     }
     stage.append(scene);
     current = scene;
+    showPresenter();
     fit();
     notes.textContent = p.notes || "本页没有演讲备注。";
     const original = document.getElementById("original");
@@ -338,6 +473,8 @@
     if (next < 0 || next >= deck.pages.length) return false;
     const direction = next >= index ? 1 : -1;
     audio.pause();
+    if (audio.getAttribute("src")) audio.currentTime = 0;
+    resetPresenter();
     clearTimeout(silentTimer);
     speechTicket++;
     clipIndex = 0;
@@ -385,6 +522,7 @@
       gapStarted = 0;
     }
     audio.pause();
+    presenter.pause();
     document.getElementById("autoplay").textContent = deck.narration
       ? "开始口播"
       : "自动播放";
@@ -449,6 +587,8 @@
     audioKey = "";
     finished = false;
     step = 0;
+    resetPresenter();
+    if (audio.getAttribute("src")) audio.currentTime = 0;
     render();
     if (resume) play();
   });
@@ -568,7 +708,11 @@
   document.addEventListener("pointermove", showControls);
   document.addEventListener("focusin", showControls);
   window.addEventListener("resize", fit);
+  document.addEventListener("fullscreenchange", fit);
+  new ResizeObserver(fit).observe(speechStatus);
+  new ResizeObserver(fit).observe(presenter);
   new ResizeObserver(fit).observe(viewport);
+  new ResizeObserver(fit).observe(toolbar);
   reduced.addEventListener("change", () => reveal());
   if (deck.preview)
     window.addEventListener("message", (e) => {
@@ -619,5 +763,6 @@
   speechProgress();
   showControls();
   window.__motionReady = true;
-  if (deck.narration && !deck.preview && !document.hidden) play();
+  if (deck.presenter && !deck.preview) speechGate.hidden = false;
+  else if (deck.narration && !deck.preview && !document.hidden) play();
 })();

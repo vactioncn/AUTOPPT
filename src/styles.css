@@ -1,3 +1,4 @@
+:root { --safe-area-bottom: env(safe-area-inset-bottom, 0px); }
 :root {
   font-family:
     "DM Sans",
@@ -3311,7 +3312,7 @@ img {
     font-size: 10px;
   }
   .toast {
-    bottom: 78px;
+    bottom: calc(78px + var(--safe-area-bottom));
     width: max-content;
     max-width: calc(100vw - 24px);
     padding: 12px 14px;
@@ -3915,19 +3916,19 @@ textarea::placeholder {
 /* Match workspace clearance to the actual fixed mobile navigation, including iOS safe area. */
 @media (max-width: 600px) {
   .app-shell:has(.workspace) {
-    --project-nav-height: calc(62px + env(safe-area-inset-bottom, 0px));
+    --project-nav-height: calc(62px + var(--safe-area-bottom));
     padding-bottom: 0;
   }
   .app-shell:has(.workspace) .sidebar {
     height: var(--project-nav-height);
-    padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(4px + var(--safe-area-bottom));
   }
   .workspace.page {
     padding-bottom: calc(28px + var(--project-nav-height));
   }
   .workspace button,
   .workspace textarea {
-    scroll-margin-bottom: calc(78px + env(safe-area-inset-bottom, 0px));
+    scroll-margin-bottom: calc(78px + var(--safe-area-bottom));
   }
 }
 
@@ -3994,7 +3995,7 @@ textarea::placeholder {
   .onboarding-card h2 { white-space: nowrap; }
   /* Keep the actions outside the scrolling form, including device safe area. */
   .modal:has(.new-project-form) {
-    --new-project-safe-bottom: env(safe-area-inset-bottom, 0px);
+    --new-project-safe-bottom: var(--safe-area-bottom);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -4010,7 +4011,7 @@ textarea::placeholder {
     margin-top: 0;
     padding: 14px 0 calc(16px + var(--new-project-safe-bottom));
   }
-  .first-composer .draft-state { display: none; }
+  .first-composer .draft-state { display: block; }
   .first-composer .composer-heading { margin-bottom: 10px; }
   .first-composer textarea { min-height: 150px; }
 }

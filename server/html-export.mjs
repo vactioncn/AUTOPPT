@@ -4,6 +4,7 @@ import { speakerNotes } from "./manuscript.mjs";
 import { renderMotionHtml, writeMotionHtml } from "./motion/render.mjs";
 import { narrationForExport } from "./speech/export.mjs";
 import { sendHtmlDownload } from "./html-download.mjs";
+import { presenterForExport } from "./presenter/index.mjs";
 
 function staticDeck(project) {
   if (
@@ -56,11 +57,17 @@ export function registerHtmlExport(app) {
         status: 409,
       });
     const narration = narrationForExport(req.query.narration, p.id);
+    const presenter = await presenterForExport(
+      req.query.presenter,
+      p.id,
+      narration?.id,
+    );
     await sendHtml(
       res,
       p,
       {
         narration,
+        presenter,
         includeNotes: req.query.notes === "1",
       },
       req.query.download === "1",

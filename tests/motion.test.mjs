@@ -533,7 +533,10 @@ test(
         await p.setViewportSize({ width: 1440, height: 1000 });
         await p.goto(base);
         await p.getByText("演讲测试 </script>", { exact: true }).last().click();
-        await p.getByRole("button", { name: "演练中心", exact: true }).click();
+        await p
+          .getByRole("navigation", { name: "项目区域" })
+          .getByRole("button", { name: "演练中心", exact: true })
+          .click();
         await p
           .getByRole("button", { name: "打开动态演示", exact: true })
           .click();

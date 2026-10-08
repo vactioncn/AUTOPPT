@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, post, active } from "./api";
 import { Button, Field } from "./components";
+import { useRiskConfirmation } from "./Feedback";
 import { failureAdvice } from "../shared/job-feedback.mjs";
 import {
   DELIVERY_EMOTIONS,
@@ -45,6 +46,7 @@ export function SpeechPerformance({
   onTexts: (value: Record<string, string>) => void;
   onNext: () => void;
 }) {
+  const risk = useRiskConfirmation();
   const [settings, setSettings] = useState<PerformanceSettings>(
     plan?.settings || {
       style: "natural",
@@ -146,6 +148,7 @@ export function SpeechPerformance({
   }
   return (
     <section className="speech-performance" aria-label="演绎编排">
+      {risk.dialog}
       <h3>
         {running
           ? "正在安排情绪与停顿"
@@ -207,7 +210,13 @@ export function SpeechPerformance({
       ) : (
         <Button
           variant={matches && !canResume ? "secondary" : "primary"}
-          onClick={() => arrange(canResume)}
+          onClick={() =>
+            risk.ask(
+              canResume ? "继续编排演讲" : "编排整场演讲",
+              () => arrange(canResume),
+              `将使用内容分析模型${canResume ? "继续处理未完成的内容，保留已保存进度" : `编排 ${pages.length} 页演讲表达`}，不生成语音。`,
+            )
+          }
           disabled={disabled || busy || !pages.length}
         >
           {busy
@@ -223,7 +232,13 @@ export function SpeechPerformance({
         <Button
           variant="ghost"
           disabled={disabled || busy}
-          onClick={() => arrange(false)}
+          onClick={() =>
+            risk.ask(
+              "从头重新编排",
+              () => arrange(false),
+              `将重新调用内容分析模型编排 ${pages.length} 页演讲表达。`,
+            )
+          }
         >
           从头重新编排
         </Button>

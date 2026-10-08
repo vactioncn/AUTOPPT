@@ -1,15 +1,29 @@
 import { useEffect, useState } from "react";
 import { api, downloadFile } from "./api";
 import { Field } from "./components";
+import { Feedback } from "./Feedback";
 import type { Narration } from "./speech-types";
+import {
+  repairPresenter,
+  presenterPositions,
+  presenterSizes,
+  type PresenterState,
+  type PresenterVersion,
+} from "./presenter-types";
 
 export type ExportFormat = "ppt" | "html" | "project";
 
 // Shared by the motion editor and delivery center, including narrated exports.
-export function motionHtmlUrl(id: string, notes: boolean, narration: string) {
+export function motionHtmlUrl(
+  id: string,
+  notes: boolean,
+  narration: string,
+  presenter = "",
+) {
   return `/api/motion/${encodeURIComponent(id)}/html?${new URLSearchParams({
     notes: notes ? "1" : "0",
     narration,
+    presenter,
   })}`;
 }
 
@@ -17,23 +31,39 @@ export function downloadMotionHtml(
   id: string,
   notes: boolean,
   narration: string,
+  presenter = "",
 ) {
   return downloadFile(
-    motionHtmlUrl(id, notes, narration) + "&download=1",
+    motionHtmlUrl(id, notes, narration, presenter) + "&download=1",
     "动态演示.html",
   );
 }
 
-export function useHtmlExportOptions(projectId: string) {
+export function useHtmlExportOptions(projectId: string, revision?: number) {
   const [narrations, setNarrations] = useState<Narration[]>([]);
   const [narration, setNarration] = useState("");
   const [notes, setNotes] = useState(false);
   const [error, setError] = useState("");
+  const [presenters, setPresenters] = useState<PresenterVersion[]>([]);
+  const [includePresenter, setIncludePresenter] = useState(false);
+  const [selectedPresenter, setSelectedPresenter] = useState("");
+  useEffect(() => {
+    setNarration("");
+    setIncludePresenter(false);
+    setSelectedPresenter("");
+  }, [projectId]);
   useEffect(() => {
     let alive = true;
     setNarrations([]);
-    setNarration("");
     setError("");
+    setPresenters([]);
+    api<PresenterState>("/projects/" + projectId + "/presenter")
+      .then((state) => {
+        if (alive) setPresenters(state.versions);
+      })
+      .catch(() => {
+        /* Plain audio/HTML stays available on older servers. */
+      });
     api<Narration[]>(`/projects/${projectId}/narration`)
       .then((list) => {
         if (alive) setNarrations(list.filter((n) => n.status === "ready"));
@@ -45,8 +75,27 @@ export function useHtmlExportOptions(projectId: string) {
     return () => {
       alive = false;
     };
-  }, [projectId]);
-  return { narrations, narration, setNarration, notes, setNotes, error };
+  }, [projectId, revision]);
+  const matching = presenters.filter(
+    (p) => p.current && p.narrationId === narration && p.status === "ready",
+  );
+  const presenter =
+    matching.find((p) => p.id === selectedPresenter) || matching.at(-1);
+  return {
+    narrations,
+    narration,
+    setNarration,
+    notes,
+    setNotes,
+    error,
+    matching,
+    includePresenter,
+    setIncludePresenter,
+    selectedPresenter: presenter?.id || "",
+    setSelectedPresenter,
+    presenter: includePresenter ? presenter?.id || "" : "",
+    presenterBlocked: includePresenter && !presenter,
+  };
 }
 
 export function HtmlExportOptions({
@@ -57,7 +106,7 @@ export function HtmlExportOptions({
   disabled?: boolean;
 }) {
   return (
-    <>
+    <div className="html-export-options">
       <label className="motion-check">
         <input
           type="checkbox"
@@ -82,11 +131,53 @@ export function HtmlExportOptions({
           ))}
         </select>
       </Field>
+      <label className="motion-check">
+        <input
+          type="checkbox"
+          checked={options.includePresenter}
+          disabled={
+            disabled || (!options.narration && !options.includePresenter)
+          }
+          onChange={(e) => options.setIncludePresenter(e.target.checked)}
+        />
+        包含数字人讲解员
+      </label>
+      {options.includePresenter &&
+        (options.matching.length ? (
+          <Field label="HTML 数字人版本">
+            <select
+              value={options.selectedPresenter}
+              disabled={disabled}
+              onChange={(e) => options.setSelectedPresenter(e.target.value)}
+            >
+              {options.matching.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {new Date(p.createdAt).toLocaleString("zh-CN")} ·{" "}
+                  {presenterPositions[p.placement]} · {presenterSizes[p.size]}
+                  {p.provider === "mock" ? " · 测试样本" : ""}
+                </option>
+              ))}
+            </select>
+          </Field>
+        ) : (
+          <Feedback
+            kind="blocking"
+            action={{
+              label: "前往演练中心更新数字人",
+              onClick: repairPresenter,
+            }}
+          >
+            <p>
+              没有与当前页面及所选口播一致的完整数字人版本。可更新数字人，或取消勾选后导出普通
+              HTML。
+            </p>
+          </Feedback>
+        ))}
       {options.error && (
         <p role="status" className="detail-help">
           {options.error}
         </p>
       )}
-    </>
+    </div>
   );
 }

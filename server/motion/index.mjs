@@ -24,6 +24,7 @@ import { sendHtmlDownload } from "../html-download.mjs";
 import { exportFilename, pageImage } from "../export.mjs";
 import { screenImage } from "../image-storage.mjs";
 import { narrationForExport } from "../speech/export.mjs";
+import { presenterForExport } from "../presenter/index.mjs";
 const controllers = new Map();
 let draining = false;
 const isActive = (d) => ["queued", "running"].includes(d.status);
@@ -410,6 +411,16 @@ export function registerMotion(app) {
       preview = req.query.preview === "1";
     const pageId =
       typeof req.query.pageId === "string" ? req.query.pageId : null;
+    const narration = preview
+      ? null
+      : narrationForExport(req.query.narration, d.projectId);
+    const presenter = preview
+      ? null
+      : await presenterForExport(
+          req.query.presenter,
+          d.projectId,
+          narration?.id,
+        );
     await sendHtmlDownload(
       res,
       exportFilename(d.title).replace(/\.pptx$/, "-动态演示.html"),
@@ -422,9 +433,8 @@ export function registerMotion(app) {
             pageId,
             includeNotes: req.query.notes === "1",
             compare: preview,
-            narration: preview
-              ? null
-              : narrationForExport(req.query.narration, d.projectId),
+            narration,
+            presenter,
           },
           file,
           { signal },

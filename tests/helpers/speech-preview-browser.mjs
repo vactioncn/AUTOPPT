@@ -36,6 +36,10 @@ export async function verifySpeechPreview(page, savedFile, screenshotDir) {
     await route.continue();
   });
   await area.getByRole("button", { name: "试听本页开头", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "确认试听本页开头", exact: true })
+    .getByRole("button", { name: "确认试听本页开头", exact: true })
+    .click();
   await area.getByRole("status").filter({ hasText: "正在生成试听" }).waitFor();
   assert(
     await area
@@ -85,6 +89,10 @@ export async function verifySpeechPreview(page, savedFile, screenshotDir) {
     await route.fulfill({ json: { file: savedFile } });
   });
   await area.getByRole("button", { name: "试听本页开头", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "确认试听本页开头", exact: true })
+    .getByRole("button", { name: "确认试听本页开头", exact: true })
+    .click();
   await area.getByText(/自动播放被拦截/).waitFor();
   if (screenshotDir)
     await page.screenshot({ path: screenshotDir + "/preview-blocked.png" });
@@ -104,6 +112,10 @@ export async function verifySpeechPreview(page, savedFile, screenshotDir) {
     route.fulfill({ status: 503, body: "temporarily unavailable" }),
   );
   await area.getByRole("button", { name: "试听本页开头", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "确认试听本页开头", exact: true })
+    .getByRole("button", { name: "确认试听本页开头", exact: true })
+    .click();
   await area.getByRole("alert").waitFor();
   await page.unroute("**/api/speech/audio/**");
   await area
@@ -121,6 +133,10 @@ export async function verifySpeechPreview(page, savedFile, screenshotDir) {
     }),
   );
   await area.getByRole("button", { name: "试听本页开头", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "确认试听本页开头", exact: true })
+    .getByRole("button", { name: "确认试听本页开头", exact: true })
+    .click();
   await area
     .getByRole("alert")
     .filter({ hasText: "语音服务暂时繁忙" })
@@ -159,6 +175,10 @@ export async function verifySpeechPreview(page, savedFile, screenshotDir) {
     }
   });
   await area.getByRole("button", { name: "试听本页开头", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "确认试听本页开头", exact: true })
+    .getByRole("button", { name: "确认试听本页开头", exact: true })
+    .click();
   await requestStarted;
   await area.getByRole("button", { name: "停止等待", exact: true }).click();
   await area.getByText(/已停止等待试听/).waitFor();
@@ -199,6 +219,10 @@ export async function verifySpeechPreview(page, savedFile, screenshotDir) {
     }
   });
   await area.getByRole("button", { name: "试听本页开头", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "确认试听本页开头", exact: true })
+    .getByRole("button", { name: "确认试听本页开头", exact: true })
+    .click();
   await started;
   await page.getByRole("tab", { name: "1 · 口播文本", exact: true }).click();
   releaseLeaving();
@@ -216,6 +240,10 @@ export async function verifySpeechPreview(page, savedFile, screenshotDir) {
     await route.fulfill({ json: { file: savedFile } });
   });
   await area.getByRole("button", { name: "试听本页开头", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "确认试听本页开头", exact: true })
+    .getByRole("button", { name: "确认试听本页开头", exact: true })
+    .click();
   await playing();
   await page.unroute("**/api/speech/preview");
   await page.getByRole("tab", { name: "2 · 演讲表达", exact: true }).click();

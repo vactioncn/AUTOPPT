@@ -37,14 +37,7 @@ import {
   saveProject,
   transaction,
 } from "./store.mjs";
-import {
-  splitAt,
-  orderedSelection,
-  snapshot,
-  sentences,
-  unitsFromEnds,
-  styleStamp,
-} from "./core.mjs";
+import { splitAt, orderedSelection, snapshot, styleStamp } from "./core.mjs";
 import {
   enqueue,
   assertIdle,
@@ -74,6 +67,9 @@ import {
 
 import { registerTrials } from "./trials.mjs";
 import { registerHtmlExport } from "./html-export.mjs";
+import { registerSuggestSplit } from "./suggest-split.mjs";
+import { registerRehearsal } from "./rehearsal.mjs";
+import { registerPresenter, recoverPresenters } from "./presenter/index.mjs";
 import { registerProjectPackages } from "./project-package.mjs";
 import {
   registerStyleVersions,
@@ -281,6 +277,7 @@ app.post("/api/design-options/palette", async (req, res) => {
   const rules = req.body.rules === undefined ? style.rules : req.body.rules;
   res.json(await extractPalette(rules, jsonModel, controller.signal));
 });
+registerRehearsal(app);
 app.post("/api/projects", (req, res) => {
   const title = String(req.body.title || "").trim();
   if (!title || title.length > 100)
@@ -625,20 +622,7 @@ app.post("/api/projects/:id/slides/:sid/restore", (req, res) => {
   saveProject(p);
   res.json(p);
 });
-app.post("/api/projects/:id/suggest-split", async (req, res) => {
-  const p = projectOrThrow(req.params.id);
-  const s = p.slides.find((s) => s.id === req.body.slideId);
-  if (!s) throw new Error("页面不存在");
-  const parts = sentences(s.notes);
-  if (parts.length < 2) return res.json({ cuts: [] });
-  const out = await jsonModel(
-    '分析演讲段落，建议语义转折的分界。只建议，不改写。返回 {"ends":[各单元最后一句编号]}，从1开始，严格递增，最后一个为总句数。',
-    parts.map((s, i) => `[${i + 1}]${s}`).join("\n"),
-  );
-  const units = unitsFromEnds(parts, out.ends);
-  let n = 0;
-  res.json({ cuts: units.slice(0, -1).map((u) => (n += u.length)) });
-});
+registerSuggestSplit(app);
 // Manual boundaries are already a complete structural decision: persist first,
 // then let independent render jobs prepare copy and images in the background.
 app.post("/api/projects/:id/slides/:sid/split", (req, res) => {
@@ -1064,6 +1048,7 @@ app.post("/api/settings/test", async (req, res) => {
 });
 registerMotion(app);
 registerSpeech(app);
+registerPresenter(app);
 registerHtmlExport(app);
 registerProjectPackages(app, {
   assertIdle: (projectId) => {
@@ -1086,9 +1071,11 @@ app.use((err, req, res, next) => {
       err.code === "LIMIT_FILE_SIZE"
         ? req.path === "/api/projects/import"
           ? "项目包不能超过 1 GB。"
-          : req.path.startsWith("/api/speech")
-            ? "录音不能超过 20 MB。"
-            : "单张图片不能超过 12 MB。"
+          : req.path === "/api/avatars"
+            ? "头像图片不能超过 8 MB。"
+            : req.path.startsWith("/api/speech")
+              ? "录音不能超过 20 MB。"
+              : "单张图片不能超过 12 MB。"
         : err.message || "操作失败，请重试。",
   });
 });
@@ -1117,6 +1104,7 @@ const listener = app.listen(port, "127.0.0.1", (error) => {
   recoverJobs();
   recoverMotion();
   recoverSpeech();
+  recoverPresenters();
   migrateManuscripts();
   process.send?.({ type: "ready", port: listener.address().port });
   console.log(`AutoPPT → http://127.0.0.1:${listener.address().port}`);

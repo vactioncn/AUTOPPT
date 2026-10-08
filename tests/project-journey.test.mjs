@@ -1,3 +1,4 @@
+import { contentSignature } from "../shared/rehearsal.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -15,7 +16,7 @@ const { outputText } = ts.transpileModule(source, {
   },
 });
 const { projectArea, projectJourney, projectPrimaryAction } = await import(
-  `data:text/javascript,${encodeURIComponent(outputText)}`
+  `data:text/javascript,${encodeURIComponent(outputText.replace("../shared/rehearsal.mjs", new URL("../shared/rehearsal.mjs", import.meta.url).href))}`
 );
 
 const project = (slides = []) => ({
@@ -50,9 +51,7 @@ test("journey routes and next action reflect actual mother-deck work, not visits
     [project([{ ...slides[0], stale: true }]), [], false],
     [project([{ ...slides[0], status: "error" }]), [], false],
     [project(slides), [{ status: "running" }], false],
-    [project(slides), [], true],
     [{ ...project(slides), batches: [{ slideIds: [] }] }, [], false],
-    [{ ...project(slides), proposal: { type: "merge" } }, [], false],
   ]) {
     const journey = projectJourney(p, jobs, draft, [presentation()]);
     assert.equal(journey.next.area, "studio");
@@ -60,11 +59,28 @@ test("journey routes and next action reflect actual mother-deck work, not visits
   }
 });
 
-test("delivery readiness requires complete current records with the same scope and order", () => {
+test("generated media is not standard rehearsal; delivery follows the saved content signature", () => {
   const p = project(slides);
   assert.equal(
     projectJourney(p, [], false, [presentation()]).next.label,
-    "检查交付",
+    "开始演练",
+  );
+  const rehearsed = {
+    ...p,
+    rehearsal: {
+      signature: contentSignature(p),
+      completedAt: "2026-10-07T00:00:00Z",
+    },
+  };
+  assert.equal(projectJourney(rehearsed, [], false).next.label, "检查交付");
+  assert.equal(
+    projectJourney(rehearsed, [], false).tasks[0].reason,
+    "已完成当前版本演练",
+  );
+  assert.equal(
+    projectJourney({ ...rehearsed, slides: [...slides].reverse() }, [], false)
+      .next.label,
+    "重新演练",
   );
   for (const record of [
     presentation(6),
@@ -99,7 +115,7 @@ test("each area owns its primary action and PPTX readiness reflects export check
     projectPrimaryAction(area, state, options);
   assert.equal(action("overview").label, "开始演练");
   assert.equal(action("studio").target, "pages");
-  assert.equal(action("rehearsal").label, "打开演讲播放器");
+  assert.equal(action("rehearsal").label, "开始演练");
   assert.equal(
     action("rehearsal", journey, { speechAvailable: true }).target,
     "player",
@@ -149,7 +165,7 @@ test("task queue carries concrete repair destinations and counts", () => {
     [{ status: "running" }],
     true,
   );
-  for (const target of ["missing", "stale", "failed", "jobs", "composer"]) {
+  for (const target of ["stale", "failed", "jobs", "composer"]) {
     const task = journey.tasks.find((t) => t.action.target === target);
     assert(task, `reachable ${target} task`);
     assert.equal(task.action.area, "studio");
@@ -189,4 +205,44 @@ test("failed pages with existing artwork require review while missing artwork st
       "查看导出检查",
     );
   }
+});
+
+test("priority queue has one highest task, deduplicates failed missing pages and clears from actual completion", () => {
+  const p = project([
+    { ...slides[0], status: "error", image: null },
+    { ...slides[1], stale: true },
+  ]);
+  const j = projectJourney(p, [{ status: "running" }], false);
+  assert.deepEqual(j.tasks.map((t) => t.id).slice(0, 3), [
+    "failed",
+    "stale",
+    "jobs",
+  ]);
+  assert.equal(j.next.target, "failed");
+  const fixed = projectJourney(project(slides), [], false);
+  assert(
+    !fixed.tasks.some((t) =>
+      ["failed", "missing", "stale", "jobs"].includes(t.id),
+    ),
+  );
+  assert.equal(fixed.next.target, "player");
+  const hosted = projectJourney(project(slides), [], false, [], {
+    enabled: false,
+    reason: "平台未开放标准放映",
+  });
+  assert.equal(hosted.next.area, "delivery");
+  assert(!hosted.tasks.some((t) => t.id === "player"));
+});
+
+test("optional drafts and proposals remain reachable after rehearsal and delivery tasks", () => {
+  const j = projectJourney(
+    { ...project(slides), proposal: { type: "merge" } },
+    [],
+    true,
+  );
+  assert.equal(j.next.target, "player");
+  assert.deepEqual(
+    j.tasks.map((t) => t.id),
+    ["player", "checks", "proposal", "composer"],
+  );
 });

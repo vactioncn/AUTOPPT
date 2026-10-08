@@ -22,20 +22,45 @@ export function Button({
   variant = "secondary",
   loading = false,
   className = "",
+  disabledReason,
   ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+}: React.ComponentProps<"button"> & {
   variant?: "primary" | "secondary" | "ghost" | "danger";
   loading?: boolean;
+  disabledReason?: string;
 }) {
+  const reasonId = useId();
+  const reason = loading
+    ? "正在处理，请稍候。"
+    : props.disabled && !props["aria-describedby"]
+      ? disabledReason ||
+        props.title ||
+        "请先完成此处的必填内容，或等待当前操作结束。"
+      : undefined;
   return (
-    <button
-      {...props}
-      disabled={props.disabled || loading}
-      className={`btn ${variant} ${className}`}
-    >
-      {loading ? <SpinnerGap className="spin" size={18} /> : null}
-      {children}
-    </button>
+    <>
+      <button
+        {...props}
+        disabled={props.disabled || loading}
+        aria-describedby={
+          [props["aria-describedby"], reason ? reasonId : ""]
+            .filter(Boolean)
+            .join(" ") || undefined
+        }
+        className={`btn ${variant} ${className}`}
+      >
+        {loading ? <SpinnerGap className="spin" size={18} /> : null}
+        {children}
+      </button>
+      {reason && (
+        <span
+          id={reasonId}
+          className={disabledReason ? "disabled-reason" : "visually-hidden"}
+        >
+          {reason}
+        </span>
+      )}
+    </>
   );
 }
 export function Modal({
@@ -51,6 +76,7 @@ export function Modal({
   children: ReactNode;
   wide?: boolean;
 }) {
+  const titleId = useId();
   const ref = useRef<HTMLDialogElement>(null);
   const close = useRef(onClose);
   close.current = onClose;
@@ -68,10 +94,14 @@ export function Modal({
     };
   }, []);
   return (
-    <dialog ref={ref} className={`modal ${wide ? "wide" : ""}`}>
+    <dialog
+      ref={ref}
+      aria-labelledby={titleId}
+      className={`modal ${wide ? "wide" : ""}`}
+    >
       <div className="modal-heading">
         <div>
-          <h2>{title}</h2>
+          <h2 id={titleId}>{title}</h2>
           {subtitle && <p>{subtitle}</p>}
         </div>
         <button className="icon-btn" onClick={onClose} aria-label="关闭">

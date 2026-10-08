@@ -1,3 +1,4 @@
+import { contentSignature, cleanRehearsal } from "../shared/rehearsal.mjs";
 import JSZip from "jszip";
 import multer from "multer";
 import { createHash } from "node:crypto";
@@ -25,6 +26,13 @@ import {
 } from "./store.mjs";
 import { exportFilename } from "./export.mjs";
 import { screenImage } from "./image-storage.mjs";
+import { presenterSourceFingerprint } from "./presenter/index.mjs";
+import { videoName, videoPath } from "./presenter/media.mjs";
+import {
+  portablePresenter,
+  validatePresenterRecord,
+  validatePresenterAsset,
+} from "./presenter/package.mjs";
 import { validateLayers } from "../shared/motion/schema.mjs";
 import { validateScene } from "../shared/slides.mjs";
 import {
@@ -44,8 +52,12 @@ const kinds = new Set([
   "narration",
   "speech-script",
   "speaker",
+  "avatar",
+  "presenter",
 ]);
 const assetKeys = new Set([
+  "sourceAsset",
+  "previewAsset",
   "image",
   "filename",
   "background",
@@ -59,6 +71,9 @@ const assetKeys = new Set([
   "designRefs",
 ]);
 const idKeys = new Set([
+  "avatarId",
+  "narrationId",
+  "pageId",
   "id",
   "projectId",
   "styleId",
@@ -101,11 +116,15 @@ function assetsOf(records) {
   walk(records, (value, key) => {
     if (assetKeys.has(key) && imageName(value)) files.add("assets/" + value);
     if (key === "file" && audioName(value)) files.add("speech-audio/" + value);
+    if (key === "videoFile" && videoName(value))
+      files.add("presenter-video/" + value);
     return value;
   });
   return files;
 }
 function filePath(name) {
+  if (name.startsWith("presenter-video/") && videoName(name.slice(16)))
+    return videoPath(name.slice(16));
   if (name.startsWith("assets/") && imageName(name.slice(7)))
     return assetPath(name.slice(7));
   if (name.startsWith("speech-audio/") && audioName(name.slice(13)))
@@ -113,13 +132,37 @@ function filePath(name) {
   throw new Error("项目包素材路径无效");
 }
 function collect(project) {
-  const records = [{ kind: "project", value: project }];
-  for (const kind of ["attachment", "motion", "narration", "speech-script"])
+  const records = [
+    {
+      kind: "project",
+      value: { ...project, rehearsal: cleanRehearsal(project.rehearsal) },
+    },
+  ];
+  for (const kind of [
+    "attachment",
+    "motion",
+    "narration",
+    "speech-script",
+    "presenter",
+  ])
     records.push(
       ...all(kind)
         .filter((r) => r.projectId === project.id)
-        .map((value) => ({ kind, value })),
+        .map((value) => ({
+          kind,
+          value: kind === "presenter" ? portablePresenter(kind, value) : value,
+        })),
     );
+  for (const avatarId of new Set(
+    records.filter((r) => r.kind === "presenter").map((r) => r.value.avatarId),
+  )) {
+    const avatar = get("avatar", avatarId);
+    if (!avatar) throw new Error("数字人引用的头像缺失");
+    records.push({
+      kind: "avatar",
+      value: portablePresenter("avatar", avatar),
+    });
+  }
   const styles = new Set([project.styleId]);
   walk(records, (v, k) => {
     if (k === "styleId" && typeof v === "string") styles.add(v);
@@ -181,6 +224,14 @@ export async function exportProjectPackage(project, assertIdle = () => {}) {
     paths = new Set(),
     originals = [],
     zip = new JSZip();
+  // Avatar bytes are normalized PNG identity sources, not screen artwork.
+  const avatarAssets = new Set(
+    source
+      .filter((r) => r.kind === "avatar")
+      .flatMap((r) => [r.value.sourceAsset, r.value.previewAsset]),
+  );
+  const beforeImages = new Map(),
+    afterImages = new Map();
   for (const name of assetsOf(source)) {
     let bytes;
     try {
@@ -190,9 +241,12 @@ export async function exportProjectPackage(project, assertIdle = () => {}) {
     }
     if (bytes.length > MAX_FILE)
       throw new Error("单个素材超过 64 MB，暂不支持迁移");
+    await validatePresenterAsset(path.posix.basename(name), bytes, source);
+    const basename = path.posix.basename(name);
+    if (name.startsWith("assets/")) beforeImages.set(basename, hash(bytes));
     let dest = name,
       converted = false;
-    if (name.startsWith("assets/")) {
+    if (name.startsWith("assets/") && !avatarAssets.has(basename)) {
       // Keep editor/motion coordinates and evidence attachments at their actual
       // dimensions. New page images are already capped by the screen profile.
       const stored = await screenImage(bytes, { resize: false });
@@ -204,6 +258,7 @@ export async function exportProjectPackage(project, assertIdle = () => {}) {
         converted = true;
       }
     }
+    if (name.startsWith("assets/")) afterImages.set(basename, hash(bytes));
     if (paths.has(dest)) continue;
     paths.add(dest);
     files.push({ path: dest, size: bytes.length, sha256: hash(bytes) });
@@ -220,6 +275,25 @@ export async function exportProjectPackage(project, assertIdle = () => {}) {
       assetKeys.has(k) && names.has(v) ? names.get(v) : v,
     ),
   );
+  const packagedProject = records.find((r) => r.kind === "project").value;
+  if (packagedProject.rehearsal?.signature === contentSignature(project))
+    packagedProject.rehearsal.signature = contentSignature(packagedProject);
+  // JPEG conversion changes pixels. Translate only content snapshots that
+  // matched before conversion; never make a stale presenter current again.
+  const presenters = records.filter((r) => r.kind === "presenter");
+  if (presenters.length)
+    for (const slide of project.slides) {
+      const before = await presenterSourceFingerprint(slide, (name) =>
+        beforeImages.get(name),
+      );
+      const after = await presenterSourceFingerprint(slide, (name) =>
+        afterImages.get(name),
+      );
+      for (const { value } of presenters)
+        for (const page of value.pages)
+          if (page.pageId === slide.id && page.sourceFingerprint === before)
+            page.sourceFingerprint = after;
+    }
   const manifest = {
     format: "AutoPPT-project",
     version: 1,
@@ -274,6 +348,8 @@ function validateRecords(records, projectId) {
       throw new Error("项目包记录类型或编号无效");
     if (seen.has(kind + ":" + v.id)) throw new Error("项目包记录重复");
     seen.add(kind + ":" + v.id);
+    if (["avatar", "presenter"].includes(kind))
+      validatePresenterRecord(kind, v);
     if (["speech-script", "narration"].includes(kind) && v.performance) {
       const plan = v.performance;
       if (
@@ -295,7 +371,13 @@ function validateRecords(records, projectId) {
       }
     }
     if (
-      ["motion", "narration", "attachment", "speech-script"].includes(kind) &&
+      [
+        "motion",
+        "narration",
+        "attachment",
+        "speech-script",
+        "presenter",
+      ].includes(kind) &&
       v.projectId !== projectId
     )
       throw new Error("项目包混入了其他项目的记录");
@@ -359,6 +441,18 @@ function validateRecords(records, projectId) {
     }
   }
   const projects = records.filter((r) => r.kind === "project");
+  for (const { value: v } of records.filter((r) => r.kind === "presenter")) {
+    if (
+      !records.some((r) => r.kind === "avatar" && r.value.id === v.avatarId) ||
+      !records.some(
+        (r) =>
+          r.kind === "narration" &&
+          r.value.id === v.narrationId &&
+          r.value.projectId === projectId,
+      )
+    )
+      throw new Error("项目包数字人引用不完整");
+  }
   const p = projects[0]?.value;
   if (
     projects.length !== 1 ||
@@ -422,7 +516,9 @@ export async function importProjectPackage(buffer) {
     )
       throw new Error("项目包包含非法路径");
     if (entry.dir) {
-      if (!["assets/", "speech-audio/"].includes(entry.name))
+      if (
+        !["assets/", "speech-audio/", "presenter-video/"].includes(entry.name)
+      )
         throw new Error("项目包目录无效");
       continue;
     }
@@ -472,7 +568,8 @@ export async function importProjectPackage(buffer) {
     names = new Map(),
     written = [];
   walk(m.records, (v, k) => {
-    if (k === "id" && typeof v === "string" && !ids.has(v)) ids.set(v, id());
+    if (["id", "pageId"].includes(k) && typeof v === "string" && !ids.has(v))
+      ids.set(v, id());
     return v;
   });
   // Speaker IDs belong to MiniMax, rather than the local database namespace.
@@ -486,31 +583,61 @@ export async function importProjectPackage(buffer) {
     recursive: true,
     mode: 0o700,
   });
+  await mkdir(path.join(dataDir, "presenter-video"), {
+    recursive: true,
+    mode: 0o700,
+  });
   try {
+    const avatarFingerprints = new Map();
     for (const f of m.files) {
       const bytes = await boundedRead(zip.file(f.path), f.size);
       if (bytes.length !== f.size || hash(bytes) !== f.sha256)
         throw new Error("项目包素材校验失败：" + f.path);
+      const validated = await validatePresenterAsset(
+        path.posix.basename(f.path),
+        bytes,
+        m.records,
+      );
+      for (const fingerprint of validated.fingerprints)
+        avatarFingerprints.set(fingerprint.avatarId, fingerprint);
       const old = path.posix.basename(f.path),
-        name = id() + path.extname(old);
+        name = id() + (validated.extension || path.extname(old));
       names.set(old, name);
       const dest = f.path.startsWith("assets/")
         ? assetPath(name)
-        : path.join(dataDir, "speech-audio", name);
-      await writeFile(dest, bytes, { flag: "wx", mode: 0o600 });
+        : f.path.startsWith("presenter-video/")
+          ? videoPath(name)
+          : path.join(dataDir, "speech-audio", name);
+      await writeFile(dest, validated.bytes, { flag: "wx", mode: 0o600 });
       written.push(dest);
     }
     const remap = (value) =>
       walk(value, (v, k) => {
-        if ((assetKeys.has(k) || k === "file") && names.has(v))
+        if (
+          (assetKeys.has(k) || k === "file" || k === "videoFile") &&
+          names.has(v)
+        )
           return names.get(v);
         if (idKeys.has(k) && ids.has(v)) return ids.get(v);
         return v;
       });
+    for (const r of m.records) {
+      if (r.kind !== "presenter") continue;
+      const fingerprint = avatarFingerprints.get(r.value.avatarId);
+      // Only translate matching snapshots; stale history remains stale.
+      for (const page of r.value.pages)
+        if (fingerprint && page.avatarFingerprint === fingerprint.before)
+          page.avatarFingerprint = fingerprint.after;
+    }
     const remapped = remapSnapshots(m.records, remap);
     for (const [index, r] of records.entries()) {
       r.value = remapped[index].value;
       const v = r.value;
+      if (r.kind === "presenter") {
+        v.requestId = id();
+        v.requestFingerprint = "imported";
+        v.imported = true;
+      }
       // Unit IDs are sentence ordinals, not database identities.
       if (["speech-script", "narration"].includes(r.kind) && v.performance)
         for (const page of v.performance.pages)
@@ -522,6 +649,16 @@ export async function importProjectPackage(buffer) {
         v.createdAt = now();
         v.updatedAt = now();
         delete v.deletedAt;
+        const record = cleanRehearsal(source.rehearsal);
+        if (record) {
+          v.rehearsal = {
+            ...record,
+            signature:
+              record.signature === contentSignature(source)
+                ? contentSignature(v)
+                : record.signature,
+          };
+        } else delete v.rehearsal;
       }
       if (r.kind === "style") {
         v.builtin = false;
@@ -530,7 +667,7 @@ export async function importProjectPackage(buffer) {
         v.status = v.rules ? "ready" : "draft";
       }
       if (
-        ["motion", "narration"].includes(r.kind) &&
+        ["motion", "narration", "presenter"].includes(r.kind) &&
         ["queued", "running"].includes(v.status)
       ) {
         v.status = "interrupted";

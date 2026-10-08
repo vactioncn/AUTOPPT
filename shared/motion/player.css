@@ -34,6 +34,46 @@ button:disabled {
   position: absolute;
   inset: 0;
   overflow: hidden;
+  /* These resolved paddings also give fit() the current device safe area. */
+  padding: calc(16px + var(--player-safe-top, env(safe-area-inset-top, 0px)))
+    calc(16px + var(--player-safe-right, env(safe-area-inset-right, 0px)))
+    calc(16px + var(--player-safe-bottom, env(safe-area-inset-bottom, 0px)))
+    calc(16px + var(--player-safe-left, env(safe-area-inset-left, 0px)));
+}
+#presenter-video {
+  position: absolute;
+  z-index: 10;
+  width: clamp(80px, 14vw, 180px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #ffffffbd;
+  box-shadow: 0 4px 24px #0005;
+  pointer-events: none;
+}
+#presenter-video[data-size="medium"] {
+  width: clamp(96px, 18vw, 230px);
+}
+#presenter-video[data-size="large"] {
+  width: clamp(112px, 22vw, 280px);
+}
+#presenter-video[data-placement^="top"] {
+  top: var(
+    --presenter-top,
+    calc(16px + var(--player-safe-top, env(safe-area-inset-top, 0px)))
+  );
+}
+#presenter-video[data-placement^="bottom"] {
+  bottom: var(
+    --presenter-bottom,
+    calc(110px + var(--player-safe-bottom, env(safe-area-inset-bottom, 0px)))
+  );
+}
+#presenter-video[data-placement$="left"] {
+  left: calc(16px + var(--player-safe-left, env(safe-area-inset-left, 0px)));
+}
+#presenter-video[data-placement$="right"] {
+  right: calc(16px + var(--player-safe-right, env(safe-area-inset-right, 0px)));
 }
 #stage {
   position: absolute;
@@ -80,7 +120,9 @@ button:disabled {
 }
 #toolbar {
   position: fixed;
-  bottom: 16px;
+  bottom: calc(
+    16px + var(--player-safe-bottom, env(safe-area-inset-bottom, 0px))
+  );
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -116,6 +158,8 @@ button:disabled {
   padding: 8px 10px;
   white-space: nowrap;
   font-size: 13px;
+  min-width: 44px;
+  min-height: 44px;
 }
 #toolbar button:hover,
 #overview button:hover {
@@ -207,7 +251,8 @@ button:disabled {
 }
 #speech-status {
   position: fixed;
-  top: 14px;
+  width: max-content;
+  top: calc(16px + var(--player-safe-top, env(safe-area-inset-top, 0px)));
   left: 50%;
   transform: translateX(-50%);
   max-width: 90vw;
@@ -248,7 +293,6 @@ button:disabled {
 }
 @media (max-width: 700px) {
   #toolbar {
-    bottom: 8px;
     gap: 0;
     padding: 5px;
   }

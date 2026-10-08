@@ -1,0 +1,99 @@
+.avatar-presenter {
+  min-width: 0;
+  scroll-margin-top: 24px;
+}
+.presenter-setup {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-block: 20px;
+}
+.avatar-presenter select,
+.avatar-presenter input {
+  min-height: 44px;
+  width: 100%;
+  min-width: 0;
+}
+.avatar-presenter button,
+.avatar-presenter summary,
+.presenter-confirm-actions button {
+  min-height: 44px;
+  min-width: 44px;
+}
+.presenter-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+  margin: 12px 0;
+}
+.presenter-manage {
+  margin: 18px 0;
+}
+.presenter-manage summary {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+.presenter-manage-actions {
+  margin-top: 24px;
+}
+.presenter-result {
+  margin-top: 24px;
+  border-top: 1px solid #ddd;
+  padding-top: 24px;
+}
+.presenter-pages {
+  max-height: 220px;
+  overflow: auto;
+  padding-left: 22px;
+  line-height: 1.9;
+}
+.presenter-preview {
+  width: min(100%, 256px);
+  display: block;
+  margin: 20px 0;
+  border-radius: 16px;
+}
+.presenter-confirm-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 24px;
+}
+.presenter-export-repair {
+  min-height: 44px;
+}
+.html-export-options .motion-check,
+.html-export-options select {
+  min-height: 44px;
+}
+.modal:has(.html-export-options) button,
+.modal:has(.presenter-confirm-actions) button {
+  min-width: 44px;
+  min-height: 44px;
+}
+@media (max-width: 600px) {
+  .modal:has(.html-export-options),
+  .modal:has(.presenter-confirm-actions) {
+    padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  }
+  .presenter-setup {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .avatar-presenter input[type="file"] {
+    font-size: 13px;
+  }
+  .app-shell:has(.workspace) {
+    --project-nav-height: calc(
+      62px + var(--app-safe-bottom, env(safe-area-inset-bottom, 0px))
+    );
+  }
+  .app-shell:has(.workspace) .sidebar {
+    padding-bottom: calc(
+      4px + var(--app-safe-bottom, env(safe-area-inset-bottom, 0px))
+    );
+  }
+}

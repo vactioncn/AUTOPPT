@@ -1,0 +1,90 @@
+.feedback {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow-wrap: anywhere;
+  min-width: 0;
+  line-height: 1.7;
+}
+.feedback > strong {
+  font-size: 15px;
+}
+.feedback p + p {
+  margin-top: 8px;
+}
+.feedback > .btn {
+  justify-self: start;
+}
+.feedback-blocking {
+  background: #fff3f0;
+  border-color: #e5bab3;
+  color: #923e36;
+}
+.feedback-risk {
+  background: #fcf6e9;
+  border-color: #e1cfac;
+  color: #785626;
+}
+.feedback-success {
+  background: #f0f5ec;
+  color: #426641;
+}
+.feedback-recommendation,
+.feedback-teaching {
+  background: #f4f5f1;
+}
+.disabled-reason {
+  display: block;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.feedback button,
+.modal button,
+.modal summary,
+.standard-rehearsal button {
+  min-width: 44px;
+  min-height: 44px;
+}
+.modal .btn {
+  white-space: normal;
+}
+.standard-rehearsal {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.standard-rehearsal .rehearsal-image {
+  width: 100%;
+  aspect-ratio: 16/9;
+  object-fit: contain;
+  background: #eeeee7;
+}
+.standard-rehearsal .modal-actions {
+  flex-wrap: wrap;
+}
+.rehearsal-notes {
+  white-space: pre-wrap;
+  max-height: 24dvh;
+  overflow: auto;
+}
+@media (max-width: 600px) {
+  .modal {
+    max-height: calc(100dvh - 24px - var(--safe-area-bottom));
+    padding-bottom: calc(20px + var(--safe-area-bottom));
+    overflow-y: auto;
+  }
+  .feedback {
+    padding: 14px;
+  }
+  .modal-actions {
+    flex-wrap: wrap;
+  }
+  .modal-actions > .btn {
+    max-width: 100%;
+  }
+}

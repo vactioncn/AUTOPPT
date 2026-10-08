@@ -1735,6 +1735,9 @@ test(
       await page
         .getByRole("button", { name: "插入并生成", exact: true })
         .click();
+      await page
+        .getByRole("button", { name: "确认插入并生成", exact: true })
+        .click();
       await expect(
         page.getByLabel("新页面逐字稿", { exact: true }),
       ).toHaveCount(0);
@@ -1852,6 +1855,9 @@ test(
       await page
         .getByRole("button", { name: "确认并生成页面", exact: true })
         .click();
+      await page
+        .getByRole("button", { name: "确认生成方案页面", exact: true })
+        .click();
       await expect(
         page.getByRole("button", { name: "正在提交…", exact: true }),
       ).toBeDisabled();
@@ -1868,6 +1874,9 @@ test(
       await page.unroute("**/proposal/commit");
       await page
         .getByRole("button", { name: "确认并生成页面", exact: true })
+        .click();
+      await page
+        .getByRole("button", { name: "确认生成方案页面", exact: true })
         .click();
       await expect(
         page.getByRole("heading", { name: "预览拆分方案", exact: true }),
@@ -2383,7 +2392,13 @@ test(
       await expect(
         page.getByRole("button", { name: "保存讲稿", exact: true }),
       ).toBeDisabled();
+      // Disabled also means "saving": wait for the refresh to settle before
+      // closing, because the detail panel intentionally ignores close mid-save.
+      await expect(
+        page.getByRole("button", { name: "保存讲稿", exact: true }).locator(".spin"),
+      ).toHaveCount(0);
       await page.getByRole("button", { name: "关闭", exact: true }).click();
+      await expect(page.getByLabel("本页逐字稿", { exact: true })).toBeHidden();
       mkdirSync(".impeccable/review", { recursive: true });
       await req(`/projects/${id}/export`, undefined, "GET", 409);
       await req(`/projects/${id}/export?allowStale=1`, undefined, "GET", 409);
@@ -2613,6 +2628,7 @@ test(
       await page
         .getByRole("button", { name: "生成图片试做", exact: true })
         .click();
+      await page.getByRole("button", { name: "确认生成风格试做", exact: true }).click();
       await expect(
         page.getByRole("img", { name: "本次风格试做图片", exact: true }),
       ).toBeVisible({ timeout: 15000 });

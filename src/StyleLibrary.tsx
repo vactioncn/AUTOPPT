@@ -1,3 +1,5 @@
+import { userMessage } from "./api";
+import { useRiskConfirmation } from "./Feedback";
 import { PageNumberHelp } from "./PageNumberHelp";
 import { DeleteItem } from "./DeleteItem";
 import { useEffect, useState, useRef } from "react";
@@ -124,8 +126,12 @@ export function StyleLibrary({
       {!visibleStyles.length && (
         <section className="onboarding-card" aria-label="风格库空状态">
           <h2>从第一个风格开始</h2>
-          <p>打开创建表单，填写风格提示词并保存即可使用；无需先调用模型。也可以按需上传参考图。</p>
-          <Button variant="primary" onClick={() => setCreate(true)}>创建第一个风格</Button>
+          <p>
+            打开创建表单，填写风格提示词并保存即可使用；无需先调用模型。也可以按需上传参考图。
+          </p>
+          <Button variant="primary" onClick={() => setCreate(true)}>
+            创建第一个风格
+          </Button>
         </section>
       )}
       <div className="style-library-grid">
@@ -185,7 +191,11 @@ export function StyleLibrary({
       </div>
       {create && (
         <CreateStyle
-          initialSource={promptRepair || !styles.some((s) => !s.deletedAt && s.rules?.trim()) ? "prompt" : "upload"}
+          initialSource={
+            promptRepair || !styles.some((s) => !s.deletedAt && s.rules?.trim())
+              ? "prompt"
+              : "upload"
+          }
           urlImportAvailable={urlImportAvailable}
           onClose={() => setCreate(false)}
           onDone={async (s) => {
@@ -320,6 +330,7 @@ function CreateStyle({
       setError("仅支持 12 MB 以内的 PNG、JPG 和 WebP 图片。");
     setFiles((old) => [...old, ...supported].slice(0, 12));
   };
+  const risk = useRiskConfirmation();
   const submit = async () => {
     setBusy(true);
     setError("");
@@ -353,6 +364,7 @@ function CreateStyle({
         if (!busy) onClose();
       }}
     >
+      {risk.dialog}
       <Field label="风格名称">
         <input
           autoFocus
@@ -592,7 +604,15 @@ function CreateStyle({
         </Button>
         <Button
           variant="primary"
-          onClick={submit}
+          onClick={() =>
+            source === "prompt"
+              ? void submit()
+              : risk.ask(
+                  "生成视觉风格",
+                  submit,
+                  "分析所选参考图片并生成风格规范。",
+                )
+          }
           loading={busy}
           disabled={
             !name.trim() ||
@@ -630,6 +650,7 @@ function StyleDetail({
   analysisStage?: string;
   onTest: () => void;
 }) {
+  const risk = useRiskConfirmation();
   const [rules, setRules] = useState(style.rules),
     [feedback, setFeedback] = useState(""),
     [busy, setBusy] = useState(false),
@@ -667,6 +688,7 @@ function StyleDetail({
       }
       onClose={onClose}
     >
+      {risk.dialog}
       <div className="style-detail-layout">
         <div>
           <StylePreview style={style} />
@@ -730,9 +752,12 @@ function StyleDetail({
             />
             <Button
               onClick={() =>
-                act(
-                  () => post("/styles/" + style.id + "/analyze", { feedback }),
-                  "正在结合参考图和反馈重新提炼。",
+                risk.ask("重新提炼风格", () =>
+                  act(
+                    () =>
+                      post("/styles/" + style.id + "/analyze", { feedback }),
+                    "正在结合参考图和反馈重新提炼。",
+                  ),
                 )
               }
               loading={busy || analyzing}
@@ -795,7 +820,11 @@ function StyleDetail({
               <span>完成图片分析后，将继续设计完整的新风格规范。</span>
             </div>
           )}
-          {style.error && <p className="error-text">{style.error}</p>}
+          {style.error && (
+            <p className="error-text">
+              {userMessage(style.error, "风格制作未完成，请检查参考图后重试。")}
+            </p>
+          )}
           {editing ? (
             <>
               <textarea

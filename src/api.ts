@@ -1,5 +1,18 @@
 import { exportManuscript } from "../shared/manuscript.mjs";
 import type { Project } from "./types";
+export function userMessage(
+  value: unknown,
+  fallback = "操作没有完成，请检查当前内容后重试。",
+) {
+  if (
+    typeof value !== "string" ||
+    /provider|worker|requestId|api[_ -]?key|authorization|bearer|\/(?:Users|private|home|var|tmp)\/|[A-Z]:\\|任务\s*ID|https?:\/\//i.test(
+      value,
+    )
+  )
+    return fallback;
+  return value.slice(0, 600);
+}
 export async function api<T = any>(
   path: string,
   options: RequestInit = {},
@@ -15,7 +28,7 @@ export async function api<T = any>(
   const data = await response.json();
   if (response.status === 401)
     window.dispatchEvent(new Event("autoppt-session-expired"));
-  if (!response.ok) throw new Error(data.error || "操作没有完成，请重试。");
+  if (!response.ok) throw new Error(userMessage(data.error));
   return data;
 }
 export const post = <T = any>(path: string, body: unknown = {}) =>
@@ -50,7 +63,7 @@ export async function downloadManuscript(id: string, revision: number) {
       .replace(/[. ]+$/g, "")
       .trim()
       .slice(0, 100) || "演讲";
-  saveDownload(
+  return saveDownload(
     new Blob([exportManuscript(project)], {
       type: "text/markdown;charset=utf-8",
     }),
@@ -61,14 +74,24 @@ export async function downloadFile(path: string, fallback: string) {
   const response = await fetch(path);
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
-    throw new Error(data.error || "导出没有完成，请重试。");
+    throw new Error(userMessage(data.error, "导出没有完成，请重试。"));
   }
   const disposition = response.headers.get("Content-Disposition") || "";
   const encoded = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
   const filename = encoded
     ? decodeURIComponent(encoded)
     : disposition.match(/filename="([^"]+)"/i)?.[1] || fallback;
-  saveDownload(await response.blob(), filename);
+  const blob = await response.blob();
+  const type = response.headers.get("Content-Type") || "";
+  if (!blob.size || /application\/json/i.test(type))
+    throw new Error("未收到可用文件，请重新导出。");
+  if (/\.(zip|pptx)$/i.test(fallback)) {
+    const header = new Uint8Array(await blob.slice(0, 4).arrayBuffer());
+    if (header[0] !== 0x50 || header[1] !== 0x4b)
+      throw new Error("收到的文件不完整，请重新导出。");
+  } else if (/\.html$/i.test(fallback) && !/text\/html/i.test(type))
+    throw new Error("未收到有效的演示文件，请重新导出。");
+  return saveDownload(blob, filename);
 }
 function saveDownload(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
@@ -79,6 +102,7 @@ function saveDownload(blob: Blob, filename: string) {
   link.click();
   link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10000);
+  return filename;
 }
 export const formatDate = (iso: string) =>
   new Date(iso).toLocaleDateString("zh-CN", { month: "long", day: "numeric" });

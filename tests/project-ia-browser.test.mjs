@@ -303,15 +303,16 @@ test(
       path: path.join(evidence, "regression-1280-studio.png"),
     });
     await goArea("演练中心");
-    await expect(page.getByRole("heading", { name: "标准放映" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "标准演练" })).toBeVisible();
     await expect(
       page.locator('[aria-label="AI 口播"]').getByText(/尚未配置语音服务/),
     ).toBeVisible();
     await expect(page.locator('[aria-label="AI 口播"]')).toContainText(
-      "已有口播可直接播放",
+      "当前无法制作新口播",
     );
+    await expect(page.locator('[aria-label="AI 口播"]')).not.toContainText("可选择已有口播或制作新口播");
     await expect(page.locator(".workspace .btn.primary:visible")).toHaveText(
-      "打开演讲播放器",
+      "开始演练",
     );
     await expect(page.getByText(/制作台已选 1 页/)).toBeVisible();
     await page
@@ -341,7 +342,7 @@ test(
     });
     await goArea("概览");
     await page
-      .locator(".journey-tasks")
+      .locator(".journey-panel")
       .getByRole("button", { name: "继续未提交草稿", exact: true })
       .click();
     await expect(page.getByLabel("添加逐字稿", { exact: true })).toBeFocused();
@@ -401,7 +402,7 @@ test(
       ["核对 1 页画面", 2],
     ]) {
       await page
-        .locator(".journey-tasks")
+        .locator(".journey-panel")
         .getByRole("button", { name: label, exact: true })
         .click();
       if (label.startsWith("核对")) {
@@ -434,9 +435,9 @@ test(
     });
     await page.goto(`${base}/#project/complete`);
     await expect(page.locator(".workspace .btn.primary:visible")).toHaveText(
-      "检查交付",
+      "开始演练",
     );
-    await page.locator(".workspace .btn.primary:visible").click();
+    await goArea("交付中心");
     await page
       .getByLabel("动态 HTML 交付版本")
       .selectOption("historical-motion");
@@ -657,7 +658,7 @@ test(
       await expect(download).toBeDisabled();
       await confirm.check();
       if (missing) {
-        await expect(dialog).toContainText("还有 1 页未完成（第 2 页）");
+        await expect(dialog).toContainText("还有 1 页缺少画面（第 2 页）");
         await expect(download).toBeDisabled();
         await dialog.getByRole("button", { name: "返回", exact: true }).click();
       } else {
@@ -743,7 +744,7 @@ test(
     );
     await page.goto(`${base}/#project/unfinished`);
     await page
-      .locator(".journey-tasks")
+      .locator(".journey-panel")
       .getByRole("button", { name: "查看 1 项后台任务", exact: true })
       .click();
     await expect(page.locator(".job-banner")).toContainText("隔离后台制作");
@@ -792,7 +793,7 @@ test(
     await page.goto(`${base}/#project/unfinished`);
     await page.reload();
     await page
-      .locator(".journey-tasks")
+      .locator(".journey-panel")
       .getByRole("button", { name: "检查 1 页失败页面", exact: true })
       .click();
     await expect(
@@ -829,11 +830,11 @@ test(
             page.locator(".workspace-heading .btn.primary"),
           ).toHaveCount(0);
           const primary = page.locator(".workspace .btn.primary:visible");
-          await expect(primary).toHaveCount(1);
+          await expect(primary, `${width} ${state} ${area}: ${(await primary.allTextContents()).join(" / ")}`).toHaveCount(1);
           if (area === "overview") {
             assert(
               await page
-                .locator(".journey-tasks")
+                .locator(".journey-panel")
                 .evaluate(
                   (el) =>
                     !!(
@@ -922,7 +923,7 @@ test(
           }
           if (area === "rehearsal") {
             await expect(primary).toHaveText(
-              state === "empty" ? "先写讲稿 / 生成至少一页" : "打开演讲播放器",
+              state === "empty" ? "先写讲稿 / 生成至少一页" : state === "unfinished" ? "返回制作台" : "开始演练",
             );
             if (state === "empty") {
               await expect(page.locator(".journey-panel .btn:enabled")).toHaveCount(1);
@@ -1574,7 +1575,7 @@ test(
           );
         failDraft = true;
         await button("提交讲稿并制作").click();
-        await page.getByLabel("以后直接生成").check();
+        await page.getByLabel("以后提交新讲稿时直接生成").check();
         await button("开始生成").click();
         await expect(
           page.getByText("隔离测试：草稿保存失败", { exact: true }),
@@ -1584,7 +1585,7 @@ test(
         failDraft = false;
         failBatch = true;
         await button("提交讲稿并制作").click();
-        await page.getByLabel("以后直接生成").check();
+        await page.getByLabel("以后提交新讲稿时直接生成").check();
         await button("开始生成").click();
         await expect(
           page.getByText("隔离测试：模型暂时不可用", { exact: true }),
@@ -1596,7 +1597,7 @@ test(
         failBatch = false;
         loseBatchResponse = true;
         await button("提交讲稿并制作").click();
-        await page.getByLabel("以后直接生成").check();
+        await page.getByLabel("以后提交新讲稿时直接生成").check();
         await button("开始生成").click();
         await expect(
           page.getByText("Failed to fetch", { exact: true }),
@@ -1610,7 +1611,7 @@ test(
         await button("继续添加讲稿").click();
         await expect(input).toHaveValue(draft);
         await button("提交讲稿并制作").click();
-        await page.getByLabel("以后直接生成").check();
+        await page.getByLabel("以后提交新讲稿时直接生成").check();
         // Duplicate activation cannot enqueue two requests.
         await button("开始生成").evaluate((el) => {
           el.click();
@@ -1917,7 +1918,7 @@ test(
         modelsReady = true;
         const before = batches;
         const input = page.getByLabel("添加逐字稿", { exact: true });
-        await expect(page.locator(".composer-model-help")).toHaveCount(0);
+        await expect(page.locator('.composer [data-feedback="blocking"]')).toHaveCount(0);
         for (const failure of [503, 404, "network"]) {
           await button("提交讲稿并制作").click();
           await expect(button("开始生成")).toBeVisible();
@@ -1932,7 +1933,7 @@ test(
           assert.equal(batches, before);
           await button("继续保存草稿").click();
           accountFailure = null;
-          await expect(page.locator(".composer-model-help")).toHaveCount(0);
+          await expect(page.locator('.composer [data-feedback="blocking"]')).toHaveCount(0);
         }
         // If readiness changes while submitDraft awaits PATCH, the POST must not run.
         await button("提交讲稿并制作").click();
@@ -1940,7 +1941,7 @@ test(
         await button("开始生成").click();
         await expect.poll(() => !!resumeDraft).toBe(true);
         accountFailure = 503;
-        await expect(page.locator(".composer-model-help")).toContainText("暂时无法确认模型状态");
+        await expect(page.locator('.composer [data-feedback="blocking"]')).toContainText("暂时无法确认模型状态");
         resumeDraft();
         await expect(page.getByRole("dialog")).toContainText("暂时无法确认模型状态");
         assert.equal(batches, before);
@@ -1952,7 +1953,7 @@ test(
         await expect(card.getByRole("button", { name: "开始第一个演讲" })).toHaveCount(0);
         await button("返回刚才的页面").click();
         accountFailure = null;
-        await expect(page.locator(".composer-model-help")).toHaveCount(0);
+        await expect(page.locator('.composer [data-feedback="blocking"]')).toHaveCount(0);
         await button("提交讲稿并制作").click();
         await button("开始生成").click();
         await expect(input).toHaveValue("");
@@ -1967,7 +1968,7 @@ test(
         const before = batches;
         const input = page.getByLabel("添加逐字稿", { exact: true });
         await input.fill("乱序账号状态不能重新开放生成。");
-        await expect(page.locator(".composer-model-help")).toHaveCount(0);
+        await expect(page.locator('.composer [data-feedback="blocking"]')).toHaveCount(0);
         await page.evaluate(() => { window.__pauseAccountPolling = true; });
         const refreshAccount = () => page.evaluate(() => { window.__refreshAccount(); });
         const releaseAccount = async (failure) => {
@@ -2009,9 +2010,9 @@ test(
           await expect.poll(() => !!resumeAccount).toBe(true);
           accountFailure = null;
           await refreshAccount();
-          await expect(page.locator(".composer-model-help")).toHaveCount(0);
+          await expect(page.locator('.composer [data-feedback="blocking"]')).toHaveCount(0);
           await releaseAccount(failure);
-          await expect(page.locator(".composer-model-help")).toHaveCount(0);
+          await expect(page.locator('.composer [data-feedback="blocking"]')).toHaveCount(0);
           await expect(page.locator(".account-footer .account-error")).toHaveCount(0);
         }
         await button("提交讲稿并制作").click();
@@ -2048,7 +2049,7 @@ test(
         await expect
           .poll(() => readProject(projectId).draft)
           .toBe("即使浏览器偏好不可用，草稿仍保存到隔离工作区。");
-        await expect(page.locator(".composer")).toContainText("重启后无法识别未确认的提交");
+        await expect(page.locator(".composer")).toContainText("浏览器暂时无法保存提交记录");
         const before = batches;
         failBatch = true;
         for (let attempt = 0; attempt < 2; attempt++) {

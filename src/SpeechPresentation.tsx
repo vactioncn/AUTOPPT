@@ -1,3 +1,5 @@
+import { userMessage } from "./api";
+import { useRiskConfirmation } from "./Feedback";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
@@ -54,6 +56,7 @@ export function SpeechPresentation({
   onSettings: () => void;
   initialPanel?: "play" | "text";
 }) {
+  const risk = useRiskConfirmation();
   const [project, setProject] = useState<Project | null>(null),
     [voices, setVoices] = useState<Voice[]>([]);
   const [config, setConfig] = useState<SpeechConnection | null>(null),
@@ -399,6 +402,7 @@ export function SpeechPresentation({
   );
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (document.querySelector("dialog[open]")) return;
       if (
         (e.target as HTMLElement)?.closest(
           "input, textarea, select, audio, summary",
@@ -555,6 +559,7 @@ export function SpeechPresentation({
       aria-modal="true"
       aria-label="播放演讲"
     >
+      {risk.dialog}
       <header className="speech-header">
         <div>
           <span className="speech-eyebrow">AUTOPPT · 演讲放映</span>
@@ -612,6 +617,7 @@ export function SpeechPresentation({
             <Button
               aria-label="上一页"
               disabled={pageIndex === 0}
+              disabledReason="当前已是第一页。"
               onClick={() => jump(pageIndex - 1)}
             >
               <ArrowLeft size={18} />
@@ -622,6 +628,7 @@ export function SpeechPresentation({
             <Button
               aria-label="下一页"
               disabled={pageIndex + 1 >= pages.length}
+              disabledReason="当前已是最后一页。"
               onClick={() => jump(pageIndex + 1)}
             >
               <ArrowRight size={18} />
@@ -1119,15 +1126,27 @@ export function SpeechPresentation({
                   !config?.hasKey ||
                   !draftPages.length
                 }
-                onClick={generate}
+                disabledReason={
+                  !config?.hasKey
+                    ? "请先配置语音服务。"
+                    : !pages.length
+                      ? "请先制作页面。"
+                      : deck && deck.sourceRevision !== project?.revision
+                        ? "请先载入当前项目。"
+                        : "请等待当前口播制作结束。"
+                }
+                onClick={() =>
+                  risk.ask(
+                    "生成整场口播",
+                    generate,
+                    `按当前口播文本和声音设置制作 ${pages.length} 页音频。`,
+                  )
+                }
               >
                 {actionBusy
                   ? "处理中…"
                   : `生成整场口播 · ${project?.slides.length || 0} 页`}
               </Button>
-              <small>
-                试听与生成使用语音服务额度。讲稿发送至已配置的服务，已生成音频保存在本机；重复内容自动复用。
-              </small>
             </div>
             {panel === "play" && playable && deck && (
               <Button
@@ -1136,11 +1155,13 @@ export function SpeechPresentation({
                   setBusy(true);
                   setError("");
                   try {
-                    await downloadFile(
+                    const filename = await downloadFile(
                       `/api/narration/${deck.id}/html?download=1`,
                       "口播演示.html",
                     );
-                    setMessage("静态 HTML 已下载，内嵌音频，可离线自动讲述。");
+                    setMessage(
+                      `已生成并发起下载：${filename}。请在浏览器下载列表查看；保存位置以浏览器设置或所选文件夹为准。`,
+                    );
                   } catch (e) {
                     setError((e as Error).message);
                   } finally {
@@ -1153,7 +1174,7 @@ export function SpeechPresentation({
             )}
             {job && (polling || job.status !== "ready" || pendingDeck) && (
               <div className="speech-job" role="status">
-                <strong>{job.progress}</strong>
+                <strong>{userMessage(job.progress, "正在处理口播")}</strong>
                 <span>
                   {job.pages.filter((p) => p.status === "ready").length} /{" "}
                   {job.pages.length} 页完成
@@ -1188,7 +1209,12 @@ export function SpeechPresentation({
                     停止生成
                   </Button>
                 ) : job.status !== "ready" ? (
-                  <Button disabled={busy} onClick={() => jobAction("retry")}>
+                  <Button
+                    disabled={busy}
+                    onClick={() =>
+                      risk.ask("继续生成口播", () => jobAction("retry"))
+                    }
+                  >
                     继续未完成的页面
                   </Button>
                 ) : (

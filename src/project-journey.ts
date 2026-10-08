@@ -1,3 +1,4 @@
+import { rehearsalState } from "../shared/rehearsal.mjs";
 import type { Job, Project } from "./types";
 
 export const projectAreas = {
@@ -32,12 +33,19 @@ export function projectJourney(
   jobs: Job[],
   hasDraft: boolean,
   presentations: PresentationRecord[] = [],
+  standardCapability = { enabled: true } as {
+    enabled: boolean;
+    reason?: string;
+  },
 ) {
   const total = project.slides.length;
   const illustrated = project.slides.filter((s) => s.image || s.scene).length;
   const missing = project.slides.flatMap((s, i) =>
     !s.image && !s.scene ? [i + 1] : [],
   );
+  const missingWithoutFailure = project.slides.filter(
+    (s) => !s.image && !s.scene && s.status !== "error",
+  ).length;
   const stale = project.slides.filter((s) => s.stale).length;
   const failed = project.slides.filter((s) => s.status === "error").length;
   const unsegmented = project.batches.filter((b) => !b.slideIds.length).length;
@@ -58,13 +66,6 @@ export function projectJourney(
       tasks.push({ id: target, reason, tone, action: { area, target, label } });
   };
   task(
-    working,
-    "jobs",
-    `查看 ${working} 项后台任务`,
-    `${working} 项后台制作任务进行中，完成或停止后再导出 PPTX。`,
-    "progress",
-  );
-  task(
     failed,
     "failed",
     `检查 ${failed} 页失败页面`,
@@ -72,16 +73,23 @@ export function projectJourney(
     "error",
   );
   task(
-    missing.length,
+    missingWithoutFailure,
     "missing",
-    `补齐 ${missing.length} 页画面`,
-    `第 ${missing.join("、")} 页缺少画面；打开页面继续制作。`,
+    `补齐 ${missingWithoutFailure} 页画面`,
+    "这些页面缺少画面；打开页面继续制作。",
   );
   task(
     stale,
     "stale",
     `核对 ${stale} 页画面`,
     "这些页面生成后修改过讲稿，不代表画面有错。查看每页变化，决定修改画面或确认保留。",
+  );
+  task(
+    working,
+    "jobs",
+    `查看 ${working} 项后台任务`,
+    `${working} 项后台制作任务进行中，完成或停止后再导出 PPTX。`,
+    "progress",
   );
   task(
     unsegmented,
@@ -118,27 +126,51 @@ export function projectJourney(
     "progress",
     "rehearsal",
   );
-  const nextMaking = tasks.find((t) => t.action.area === "studio");
-  // A subset conversion is not evidence that the entire talk is ready.
-  const currentPresentation = presentations.some(
-    (p) =>
-      p.sourceRevision === project.revision &&
-      completePresentation(p) &&
-      p.pages.length === total &&
-      project.slides.every((s, i) => p.pages[i]?.id === s.id),
+  const rehearsal = rehearsalState(project, standardCapability);
+  task(
+    !!total &&
+      !missing.length &&
+      ["unstarted", "stale"].includes(rehearsal.status),
+    "player",
+    rehearsal.status === "stale" ? "重新演练" : "开始演练",
+    rehearsal.label,
+    "info",
+    "rehearsal",
   );
-  const next: JourneyAction = nextMaking
-    ? nextMaking.action
-    : currentPresentation && !presentationJobs
-      ? { area: "delivery", target: "checks", label: "检查交付" }
-      : {
-          area: "rehearsal",
-          target: "presentations",
-          label: presentationJobs ? "查看演练进度" : "开始演练",
-        };
+  task(
+    !!total && !missing.length,
+    "checks",
+    "检查交付",
+    ["complete", "unavailable"].includes(rehearsal.status)
+      ? rehearsal.label
+      : "检查当前演讲的交付文件。",
+    "info",
+    "delivery",
+  );
+  // One fact owns one task. Failed pages are repaired through the failure task,
+  // even if they also lack an image. All destinations use current project data.
+  const priority: Record<string, number> = {
+    failed: 0,
+    missing: 1,
+    batches: 2,
+    stale: 3,
+    jobs: 4,
+    presentations: 5,
+    proposal: 8,
+    composer: total ? 9 : 2,
+    player: 6,
+    checks: 7,
+  };
+  tasks.sort((a, b) => priority[a.id] - priority[b.id]);
+  const next: JourneyAction = tasks[0]?.action || {
+    area: "studio",
+    target: "composer",
+    label: "开始写讲稿",
+  };
   // Mirror existing PPTX export blockers; warnings still require review in the dialog.
   const pptxReady = !!total && !working && !missing.length && !unsegmented;
   return {
+    rehearsal,
     total,
     illustrated,
     missing,
@@ -187,15 +219,28 @@ export function projectPrimaryAction(
   }: { speechAvailable?: boolean; bundleAvailable?: boolean } = {},
 ): JourneyAction {
   if (area === "overview") return journey.next;
-  if (area === "rehearsal")
-    return journey.illustrated
-      ? {
-          area,
-          target: "player",
-          label: speechAvailable ? "打开演讲播放器" : "标准放映不可用",
-          disabled: !speechAvailable,
-        }
-      : { area: "studio", target: "pages", label: "返回制作台" };
+  if (area === "rehearsal") {
+    if (!journey.illustrated || journey.missing.length)
+      return {
+        area: "studio",
+        target: journey.missing.length ? "missing" : "pages",
+        label: "返回制作台",
+      };
+    if (!speechAvailable || journey.rehearsal.status === "unavailable")
+      return {
+        area,
+        target: "player",
+        label: "标准放映不可用",
+        disabled: true,
+      };
+    if (journey.rehearsal.status === "complete")
+      return { area: "delivery", target: "checks", label: "进入交付" };
+    return {
+      area,
+      target: "player",
+      label: journey.rehearsal.status === "stale" ? "重新演练" : "开始演练",
+    };
+  }
   if (area === "delivery")
     return {
       area,

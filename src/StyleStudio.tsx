@@ -1,3 +1,5 @@
+import { userMessage } from "./api";
+import { useRiskConfirmation } from "./Feedback";
 import { PageNumberHelp } from "./PageNumberHelp";
 import {
   DesignOptionsEditor,
@@ -34,6 +36,7 @@ export function StyleStudio({
   refreshStyles: () => Promise<void>;
   notify: (s: string) => void;
 }) {
+  const risk = useRiskConfirmation();
   const key = "autoppt-style-trial:" + style.id;
   const [initial] = useState(() => {
     try {
@@ -153,28 +156,31 @@ export function StyleStudio({
     setCopyFeedback("");
   };
   const start = (mode: string) =>
-    act(async () => {
-      if (!validDesignOptions(choices))
-        throw new Error("请填写有效的内容倾向与配色说明。");
-      const t = await post<Trial>(`/styles/${style.id}/trials`, {
-        notes,
-        designOptions: choices,
-        rules,
-        feedback,
-        copyFeedback,
-        mode,
-        parentId:
-          selected?.engine === "image" &&
-          selected.purpose !== "cover" &&
-          selected.status === "completed"
-            ? selected.id
-            : undefined,
-      });
-      setSelectedId(t.id);
-      setPending(t.id);
-    });
+    risk.ask("生成风格试做", () =>
+      act(async () => {
+        if (!validDesignOptions(choices))
+          throw new Error("请填写有效的内容倾向与配色说明。");
+        const t = await post<Trial>(`/styles/${style.id}/trials`, {
+          notes,
+          designOptions: choices,
+          rules,
+          feedback,
+          copyFeedback,
+          mode,
+          parentId:
+            selected?.engine === "image" &&
+            selected.purpose !== "cover" &&
+            selected.status === "completed"
+              ? selected.id
+              : undefined,
+        });
+        setSelectedId(t.id);
+        setPending(t.id);
+      }),
+    );
   return (
     <div className="page style-studio">
+      {risk.dialog}
       <Button variant="ghost" onClick={onBack}>
         <ArrowLeft size={16} />
         返回风格库
@@ -209,18 +215,20 @@ export function StyleStudio({
         <Button
           disabled={disabled || !style.rules?.trim()}
           onClick={() =>
-            act(async () => {
-              const capabilities = await api("/bootstrap");
-              if (!capabilities.features?.unifiedStyleCover)
-                throw new Error(
-                  "当前后台还是旧版本，未加载统一封面功能。请在制作任务完成后重新打开 AutoPPT；仅刷新页面不会更新后台。",
-                );
-              const t = await post<Trial>(`/styles/${style.id}/trials`, {
-                purpose: "cover",
-              });
-              setSelectedId(t.id);
-              setPending(t.id);
-            })
+            risk.ask("生成风格封面", () =>
+              act(async () => {
+                const capabilities = await api("/bootstrap");
+                if (!capabilities.features?.unifiedStyleCover)
+                  throw new Error(
+                    "当前后台还是旧版本，未加载统一封面功能。请在制作任务完成后重新打开 AutoPPT；仅刷新页面不会更新后台。",
+                  );
+                const t = await post<Trial>(`/styles/${style.id}/trials`, {
+                  purpose: "cover",
+                });
+                setSelectedId(t.id);
+                setPending(t.id);
+              }),
+            )
           }
         >
           {style.cover ? "重新生成统一封面" : "生成统一封面"}
@@ -319,15 +327,25 @@ export function StyleStudio({
           <div className="inline-notice warm">
             <div>
               <strong>这版尚未完成</strong>
-              <p>{selected.error}</p>
+              <p>
+                {userMessage(
+                  selected.error,
+                  "制作未完成，请检查当前输入后重试。",
+                )}
+              </p>
             </div>
             <Button
               disabled={disabled}
               onClick={() =>
-                act(async () => {
-                  await post(`/jobs/${selected.jobId}/retry`);
-                  setPending(selected.id);
-                })
+                risk.ask(
+                  "继续风格试做",
+                  () =>
+                    act(async () => {
+                      await post(`/jobs/${selected.jobId}/retry`);
+                      setPending(selected.id);
+                    }),
+                  "将继续当前选中的未完成试做，调用模型生成 1 页图片。",
+                )
               }
             >
               继续这版试做

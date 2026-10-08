@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type RefObject } from "react";
 import { api } from "./api";
 import { Button } from "./components";
 import { speechAudio } from "./speech-types";
+import { useRiskConfirmation } from "./Feedback";
 
 type Status =
   | "idle"
@@ -25,6 +26,7 @@ export function SpeechPreview({
   onBusy: (busy: boolean) => void;
   onStart: () => void;
 }) {
+  const risk = useRiskConfirmation();
   const requestKey = JSON.stringify(body);
   const [status, setStatus] = useState<Status>("idle");
   const [url, setUrl] = useState("");
@@ -151,6 +153,7 @@ export function SpeechPreview({
       aria-label="本页试听"
       aria-busy={waiting}
     >
+      {risk.dialog}
       <div className="speech-inline">
         <Button
           loading={waiting}
@@ -158,7 +161,14 @@ export function SpeechPreview({
           onClick={() => {
             if (status === "playing") audioRef.current?.pause();
             else if (url) void play(url);
-            else void generate();
+            else
+              risk.ask(
+                "试听本页开头",
+                async () => {
+                  void generate();
+                },
+                "将合成本页开头的口播试听；已有试听可直接播放。",
+              );
           }}
         >
           {status === "generating"

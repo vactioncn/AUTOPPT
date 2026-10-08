@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { createWriteStream } from "node:fs";
+import { createWriteStream, createReadStream } from "node:fs";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { assetPath } from "../store.mjs";
@@ -7,6 +7,8 @@ import { embeddedFonts } from "./fonts.mjs";
 import { pageImage } from "../export.mjs";
 import { readExportAudio, matchNarrationPage } from "../speech/export.mjs";
 import { screenImage } from "../image-storage.mjs";
+import { readPresenterVideo, placements, sizes } from "../presenter/index.mjs";
+import { videoPath, expectedPlaybackDuration } from "../presenter/media.mjs";
 const escape = (str) =>
   String(str).replace(
     /[&<>"']/g,
@@ -23,6 +25,7 @@ export async function* motionHtmlChunks(
     includeNotes = true,
     compare = false,
     narration = null,
+    presenter = null,
     staticMode = false,
   } = {},
 ) {
@@ -31,6 +34,15 @@ export async function* motionHtmlChunks(
     : deck.pages;
   if (!selected.length || selected.some((p) => p.status !== "ready"))
     throw new Error("所选页面尚未全部转换完成，请完成或重试后导出");
+  if (
+    presenter &&
+    (!narration ||
+      presenter.narrationId !== narration.id ||
+      presenter.status !== "ready" ||
+      !placements.includes(presenter.placement) ||
+      !sizes.includes(presenter.size))
+  )
+    throw new Error("数字人版本与口播不匹配，请回演练中心更新");
   const json = (value) =>
     JSON.stringify(value)
       .replace(/</g, "\\u003c")
@@ -53,6 +65,9 @@ export async function* motionHtmlChunks(
     preview,
     staticMode,
     narration: narration ? { voiceName: narration.voiceName } : null,
+    presenter: presenter
+      ? { placement: presenter.placement, size: presenter.size }
+      : null,
     audio: {},
   });
   yield `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: blob:; media-src data: blob:; font-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'none'; base-uri 'none'; form-action 'none'"><title>${escape(deck.title)}</title><style>${fonts.css}\n${css}</style></head><body class="${preview ? "preview" : ""}"><main id="viewport" aria-label="演讲画面"><div id="stage"></div></main><img id="original" hidden alt="原图对照"><div id="blackout" hidden></div><aside id="notes" hidden aria-label="演讲备注"></aside><nav id="overview" hidden aria-label="页面总览"><button id="close-overview">关闭总览</button></nav><nav id="toolbar" aria-label="播放控制"><button id="previous" title="← ↑ Page Up">上一页</button><span id="counter" aria-live="polite"></span><button id="next" title="→ ↓ 空格 Page Down">下一页</button><button id="replay" title="R">重播</button><button id="steps" aria-pressed="false">整页播放</button><button id="autoplay" aria-pressed="false" title="P">自动播放</button><select id="interval" aria-label="自动播放间隔"><option value="5">5 秒</option><option value="10" selected>10 秒</option><option value="20">20 秒</option><option value="30">30 秒</option></select><button id="motion" class="secondary" aria-pressed="true">动效</button><button id="show-overview" class="secondary" title="G">总览</button><button id="show-notes" class="secondary" title="N" ${includeNotes ? "" : "hidden"}>备注</button><button id="compare" class="secondary" ${compare ? "" : "hidden"}>原图</button><button id="fullscreen" title="F">全屏</button></nav><div id="speech-status" role="status" hidden></div><div id="speech-gate" hidden><div><h1>开始这场演讲</h1><p id="speech-gate-message">点击一次后，口播将自动播放并翻页。</p><button id="speech-start">开始演讲</button></div></div><audio id="speech-audio" preload="auto"></audio><div id="progress"></div><div id="loading">正在加载画面与字体…</div><script type="application/json" id="deck-data">${payload}</script>`;
@@ -74,6 +89,30 @@ export async function* motionHtmlChunks(
     );
   for (const p of selected) {
     const n = narration ? matchNarrationPage(narration, p, !staticMode) : null;
+    const presenterPage = presenter?.pages.find((page) => page.pageId === p.id);
+    let video;
+    if (presenterPage?.videoFile) {
+      if (presenterPage.status !== "ready") throw new Error("数字人页面未完成");
+      await readPresenterVideo(presenterPage, true, expectedPlaybackDuration(n.clips));
+      const reference = `media-${sequence++}`;
+      yield `<script type="application/octet-stream" id="${reference}">data:video/mp4;base64,`;
+      // A multiple of 3 prevents padding between streamed base64 chunks.
+      let remainder = Buffer.alloc(0);
+      for await (const chunk of createReadStream(
+        videoPath(presenterPage.videoFile),
+        { highWaterMark: 49152 },
+      )) {
+        const bytes = remainder.length
+          ? Buffer.concat([remainder, chunk])
+          : chunk;
+        const end = bytes.length - (bytes.length % 3);
+        yield bytes.subarray(0, end).toString("base64");
+        remainder = bytes.subarray(end);
+      }
+      if (remainder.length) yield remainder.toString("base64");
+      yield "</script>";
+      video = { asset: `asset:${reference}`, duration: presenterPage.duration };
+    }
     const still = staticMode ? await pageImage(p) : null;
     let background;
     if (still) {
@@ -109,14 +148,16 @@ export async function* motionHtmlChunks(
       width: still?.width || p.width,
       height: still?.height || p.height,
       background,
+      presenter: video || null,
       layers,
-      clips: n
-        ? n.clips.map(({ file, duration, pauseAfter }) => ({
-            file,
-            duration,
-            pauseAfter,
-          }))
-        : [],
+      clips:
+        n
+          ? n.clips.map(({ file, duration, pauseAfter }) => ({
+              file,
+              duration,
+              pauseAfter,
+            }))
+          : [],
       silentDuration: n?.silentDuration || 3,
     };
     yield `<script type="application/json" class="deck-page">${json(page)}</script>`;

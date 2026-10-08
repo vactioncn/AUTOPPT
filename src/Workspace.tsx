@@ -1,5 +1,7 @@
 import { VisualReview } from "./VisualReview";
 import { JobFeedback } from "./JobFeedback";
+import { Feedback, useRiskConfirmation } from "./Feedback";
+import { StandardRehearsal } from "./StandardRehearsal";
 import { PageConcepts } from "./OnboardingUI";
 import {
   createGenerationRequest,
@@ -59,6 +61,7 @@ import {
   downloadPresentation,
   downloadManuscript,
   downloadFile,
+  userMessage,
 } from "./api";
 import { SceneView } from "./SceneView";
 import type {
@@ -134,6 +137,7 @@ export function Workspace({
   onRefresh: () => Promise<void>;
   onSettings: () => void;
 }) {
+  const risk = useRiskConfirmation();
   const insertExportAvailable = capabilities.bundleExport.enabled;
   const motionAvailable = capabilities.motionPresentation.enabled;
   const speechAvailable = capabilities.standardPresentation.enabled;
@@ -166,6 +170,15 @@ export function Workspace({
     "play",
   );
   const [visualReviewOpen, setVisualReviewOpen] = useState(false);
+  const [standardOpen, setStandardOpen] = useState(false);
+  const [rehearsalInterrupted, setRehearsalInterrupted] = useState(false);
+  const [milestone, setMilestone] = useState("");
+  useEffect(() => {
+    if (!milestone) return;
+    const timer = setTimeout(() => setMilestone(""), 10000);
+    return () => clearTimeout(timer);
+  }, [milestone]);
+  const previousMaking = useRef<{ id: string; complete: boolean } | null>(null);
   const records = usePresentationRecords(id, speechAvailable, motionAvailable);
   const [insertion, setInsertion] = useState<{
     afterSlideId: string | null;
@@ -206,6 +219,21 @@ export function Workspace({
     });
   };
   useEffect(() => {
+    const repair = () => {
+      setExportOpen(null);
+      setMotionOpen(false);
+      setSpeechOpen(false);
+      onAreaChange("rehearsal");
+      requestAnimationFrame(() =>
+        document
+          .getElementById("avatar-presenter")
+          ?.scrollIntoView({ block: "start" }),
+      );
+    };
+    window.addEventListener("autoppt-open-presenter", repair);
+    return () => window.removeEventListener("autoppt-open-presenter", repair);
+  }, [onAreaChange]);
+  useEffect(() => {
     window.scrollTo({ top: 0, behavior: "instant" });
   }, [area]);
   useEffect(() => {
@@ -224,6 +252,17 @@ export function Workspace({
     ]);
     setProject((prev) => (!prev || p.revision >= prev.revision ? p : prev));
     setJobs(j);
+    const complete =
+      !!p.slides.length &&
+      p.slides.every((s) => (s.image || s.scene) && s.status === "ready") &&
+      !j.some((job) => active(job.status));
+    if (
+      previousMaking.current?.id === p.id &&
+      !previousMaking.current.complete &&
+      complete
+    )
+      setMilestone("全部页面已生成，可以前往演练中心从头演练。");
+    previousMaking.current = { id: p.id, complete };
     if (!initialized.current) {
       let recovered = p.draft;
       try {
@@ -335,6 +374,11 @@ export function Workspace({
       if (!accepted.accepted || !accepted.id || !accepted.batchId)
         throw new Error("尚未确认服务端接受，请重试；相同讲稿不会重复提交。");
       acceptedSubmission = true;
+      setMilestone(
+        project?.batches.length
+          ? "讲稿已提交，可以查看制作进度。"
+          : "第一段讲稿已提交，可以查看制作进度。",
+      );
       generationRequest.current!.accepted();
       if (onboarding.generation !== "direct")
         onOnboardingChange({
@@ -433,23 +477,32 @@ export function Workspace({
       old.includes(sid) ? old.filter((s) => s !== sid) : [...old, sid],
     );
   const merge = () =>
-    run(async () => {
-      await post("/projects/" + id + "/proposal", {
-        type: "merge",
-        slideIds: selected,
-      });
-      setSelected([]);
-    }, "正在准备合并方案，原页面会保留到你确认。");
+    risk.ask(
+      "合并页面方案",
+      () =>
+        run(async () => {
+          await post("/projects/" + id + "/proposal", {
+            type: "merge",
+            slideIds: selected,
+          });
+          setSelected([]);
+        }, "正在准备合并方案，原页面会保留到你确认。"),
+      `将为选中的 ${selected.length} 页调用模型准备合并方案；确认方案后再生成新页面。`,
+    );
   const pending = project.slides.filter(
     (s) => !(s.image || s.scene) || s.status === "error",
   );
-  const journey = projectJourney(project, jobs, !!draft.trim(), [
-    ...records.dynamic.records,
-    ...records.narration.records,
-  ]);
+  const journey = projectJourney(
+    project,
+    jobs,
+    !!draft.trim(),
+    [...records.dynamic.records, ...records.narration.records],
+    capabilities.standardPresentation,
+  );
   const primaryAction = projectPrimaryAction("studio", journey);
   const followAction = (action: JourneyAction) => {
     onAreaChange(action.area);
+    if (action.target === "player" && speechAvailable) setStandardOpen(true);
     if (action.area !== "studio") return;
     if (action.target === "stale") {
       setVisualReviewOpen(true);
@@ -470,7 +523,7 @@ export function Workspace({
     }
     const target = project.slides.find((slide) =>
       action.target === "missing"
-        ? !slide.image && !slide.scene
+        ? !slide.image && !slide.scene && slide.status !== "error"
         : action.target === "stale"
           ? slide.stale
           : action.target === "failed"
@@ -562,20 +615,23 @@ export function Workspace({
         </p>
       )}
       {!modelsReady && (
-        <p className="composer-model-help">
+        <Feedback
+          kind="blocking"
+          action={{
+            label: managedModels ? "查看模型服务状态" : "连接模型",
+            onClick: () => void connectModels(),
+          }}
+        >
           {modelStatusUnknown
             ? unknownModelStatus
             : managedModels
-              ? "模型由管理员管理，尚未就绪；可继续保存草稿，生成前请联系管理员。"
-              : "生成前需连接内容与图片模型；现在可以继续保存草稿。"}
-          <Button variant="ghost" onClick={() => void connectModels()}>
-            {managedModels ? "查看模型服务状态" : "连接模型"}
-          </Button>
-        </p>
+              ? "模型尚未就绪；请联系管理员。可以继续保存草稿。"
+              : "生成前需连接内容与图片模型；可以继续保存草稿。"}
+        </Feedback>
       )}
       {!generationPersistent && (
         <p className="composer-save-help" role="status">
-          无法保存生成请求标识；本次会话可继续使用，但重启后无法识别未确认的提交。若提交结果不明，请先查看项目状态再重试。
+          浏览器暂时无法保存提交记录。若提交结果不明，请先查看项目制作进度再重试。
         </p>
       )}
       <div className="composer-footer">
@@ -584,9 +640,10 @@ export function Workspace({
           <span className="composer-shortcut">⌘ Enter 提交</span>
         </span>
         <Button
-          variant="primary"
+          variant={modelsReady ? "primary" : "secondary"}
           onClick={add}
           disabled={!draft.trim()}
+          disabledReason="请先写下需要制作的讲稿。"
           loading={submitting}
         >
           提交讲稿并制作
@@ -598,10 +655,12 @@ export function Workspace({
   const exportScript = async () => {
     setScriptExporting(true);
     try {
-      await run(
-        () => downloadManuscript(project.id, project.revision),
-        "演说稿 Markdown 已开始下载。",
-      );
+      await run(async () => {
+        const filename = await downloadManuscript(project.id, project.revision);
+        notify(
+          `已生成并发起下载：${filename}。请在浏览器下载列表查看；保存位置以浏览器设置或所选文件夹为准。`,
+        );
+      });
     } finally {
       setScriptExporting(false);
     }
@@ -645,6 +704,7 @@ export function Workspace({
   );
   return (
     <div className="page workspace">
+      {risk.dialog}
       <div className="workspace-heading">
         <div>
           <div className="project-title-row">
@@ -665,23 +725,6 @@ export function Workspace({
               .toLocaleString()}{" "}
             字<span>·</span>母版 r{project.revision}
           </p>
-          {(journey.missing.length > 0 ||
-            journey.stale > 0 ||
-            journey.failed > 0 ||
-            journey.working > 0) && (
-            <p className="project-alert-summary">
-              {[
-                journey.missing.length
-                  ? `${journey.missing.length} 页缺图`
-                  : "",
-                journey.stale ? `${journey.stale} 页待核对` : "",
-                journey.failed ? `${journey.failed} 页失败` : "",
-                journey.working ? `${journey.working} 项制作中` : "",
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </p>
-          )}
         </div>
       </div>
       <nav className="project-area-nav" aria-label="项目区域">
@@ -710,6 +753,11 @@ export function Workspace({
           </button>
         </div>
       )}
+      {milestone && (
+        <Feedback kind="success" onDismiss={() => setMilestone("")}>
+          {milestone}
+        </Feedback>
+      )}
       {area === "overview" && (
         <ProjectOverview journey={journey} onAction={followAction} />
       )}
@@ -719,11 +767,14 @@ export function Workspace({
           journey={journey}
           records={records}
           capabilities={capabilities}
+          interrupted={rehearsalInterrupted}
           selectedCount={selected.length}
           onSpeech={(prepare) => {
             setSpeechInitialPanel(prepare ? "text" : "play");
             setSpeechOpen(true);
           }}
+          onStandard={() => setStandardOpen(true)}
+          onDelivery={() => onAreaChange("delivery")}
           onMotion={() => setMotionOpen(true)}
           onSettings={onSettings}
           onStudio={() =>
@@ -817,7 +868,7 @@ export function Workspace({
                     {!busy.pageProgress && busy.slideIds?.length === 1
                       ? `第 ${project.slides.findIndex((s) => s.id === busy.slideIds![0]) + 1} 页 · `
                       : ""}
-                    {busy.stage}
+                    {userMessage(busy.stage, "正在制作页面")}
                   </strong>
                   <span>
                     {busy.status === "queued"
@@ -860,12 +911,14 @@ export function Workspace({
                 <div className="inline-notice warm">
                   <WarningCircle size={20} />
                   <div>
-                    <strong>{lastJob.stage}</strong>
-                    <p>{lastJob.error}</p>
+                    <strong>{userMessage(lastJob.stage, "制作未完成")}</strong>
+                    <p>{userMessage(lastJob.error)}</p>
                   </div>
                   <Button
                     onClick={() =>
-                      run(() => post("/jobs/" + lastJob.id + "/retry"))
+                      risk.ask("继续制作", () =>
+                        run(() => post("/jobs/" + lastJob.id + "/retry")),
+                      )
                     }
                   >
                     继续未完成任务
@@ -888,7 +941,9 @@ export function Workspace({
                   {b.jobId && (
                     <Button
                       onClick={() =>
-                        run(() => post("/jobs/" + b.jobId + "/retry"))
+                        risk.ask("继续制作", () =>
+                          run(() => post("/jobs/" + b.jobId + "/retry")),
+                        )
                       }
                     >
                       继续这一段
@@ -1000,13 +1055,15 @@ export function Workspace({
                     <Button
                       className="fill-missing-pages"
                       onClick={() =>
-                        run(() =>
-                          post("/projects/" + id + "/render", {
-                            slideIds: pending
-                              .filter((s) => !(s.image || s.scene))
-                              .map((s) => s.id),
-                            redesign: false,
-                          }),
+                        risk.ask("补齐页面画面", () =>
+                          run(() =>
+                            post("/projects/" + id + "/render", {
+                              slideIds: pending
+                                .filter((s) => !(s.image || s.scene))
+                                .map((s) => s.id),
+                              redesign: false,
+                            }),
+                          ),
                         )
                       }
                     >
@@ -1157,7 +1214,9 @@ export function Workspace({
                               : "继续制作本页"}
                         </Button>
                       )}
-                      {s.error && <p className="card-error">{s.error}</p>}
+                      {s.error && (
+                        <p className="card-error">{userMessage(s.error)}</p>
+                      )}
                       {insertExportAvailable && (
                         <button
                           className="insert-page"
@@ -1238,21 +1297,6 @@ export function Workspace({
               <span>
                 当前风格已删除，请在上方选择其他风格。已有页面与备注已保留。
               </span>
-            </div>
-          )}
-          {!modelsReady && (
-            <div className="inline-notice">
-              <WarningCircle size={20} />
-              <span>
-                {modelStatusUnknown
-                  ? unknownModelStatus
-                  : managedModels
-                    ? "模型尚未就绪，请等待管理员配置；可以先保存草稿。"
-                    : "先连接模型，即可自动分析文稿和生成画面。草稿可以先写下来。"}
-              </span>
-              <Button onClick={onSettings}>
-                {managedModels ? "查看模型服务状态" : "连接模型"}
-              </Button>
             </div>
           )}
         </details>
@@ -1399,6 +1443,23 @@ export function Workspace({
           }}
         />
       )}
+      {standardOpen && (
+        <StandardRehearsal
+          project={project}
+          onClose={(interrupted) => {
+            setStandardOpen(false);
+            if (interrupted) setRehearsalInterrupted(true);
+          }}
+          onComplete={(record) => {
+            setRehearsalInterrupted(false);
+            setProject((p) => (p ? { ...p, rehearsal: record } : p));
+          }}
+          onDelivery={() => {
+            setStandardOpen(false);
+            onAreaChange("delivery");
+          }}
+        />
+      )}
       {exportOpen && (
         <ExportDialog
           initialFormat={exportOpen}
@@ -1520,15 +1581,17 @@ export function Workspace({
             </>
           ) : (
             <>
-              <p>
-                先调用内容模型拆页，再按实际拆分页调用图片模型。具体页数由拆页结果决定。
-              </p>
-              <p>
-                {hosted
-                  ? "使用管理员提供的图片额度，实际用量以生成结果为准。"
-                  : "费用由已配置服务商按实际调用收取。"}
-              </p>
-              <p>返回修改或关闭不会丢失草稿。</p>
+              <Feedback kind="risk">
+                <p>
+                  先调用内容模型拆页，再按实际拆分页调用图片模型。具体页数由拆页结果决定。
+                </p>
+                <p>
+                  {hosted
+                    ? "使用管理员提供的图片额度，实际用量以生成结果为准。"
+                    : "费用由已配置服务商按实际调用收取。"}
+                </p>
+                <p>返回修改或关闭不会丢失草稿。</p>
+              </Feedback>
               <label className="onboarding-check">
                 <input
                   type="checkbox"
@@ -1537,9 +1600,11 @@ export function Workspace({
                     setDirectGeneration(event.target.checked)
                   }
                 />
-                以后直接生成
+                以后提交新讲稿时直接生成
               </label>
-              <small>仅适用于提交新讲稿；不影响其他模型操作的确认。</small>
+              <small>
+                仅跳过新讲稿的确认提示，仍会调用模型并按实际用量计费或扣减额度；不影响其他模型操作的确认。
+              </small>
               <div className="modal-actions">
                 <Button
                   onClick={() => {
@@ -1605,6 +1670,7 @@ export function Workspace({
       )}
       {splitSlide && (
         <SplitDialog
+          requestScope={generationScope}
           slide={splitSlide}
           projectId={id}
           onClose={() => setSplit(null)}
@@ -1670,7 +1736,13 @@ export function Workspace({
               variant="primary"
               disabled={proposalBusy}
               loading={proposalSubmitting}
-              onClick={() => submitProposal(true)}
+              onClick={() =>
+                risk.ask(
+                  "生成方案页面",
+                  () => submitProposal(true),
+                  `将按当前方案生成 ${project.proposal!.plans.length} 页新画面。`,
+                )
+              }
             >
               {proposalSubmitting ? "正在提交…" : "确认并生成页面"}
               <ArrowRight size={17} />
@@ -1704,6 +1776,7 @@ function InsertPageDialog({
   onClose: () => void;
   onInserted: (project: Project, generated: boolean) => void;
 }) {
+  const risk = useRiskConfirmation();
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -1742,6 +1815,7 @@ function InsertPageDialog({
         if (!busy) onClose();
       }}
     >
+      {risk.dialog}
       <Field label="新页面逐字稿">
         <textarea
           autoFocus
@@ -1772,7 +1846,13 @@ function InsertPageDialog({
           variant="primary"
           disabled={!notes.trim()}
           loading={busy}
-          onClick={() => submit(true)}
+          onClick={() =>
+            risk.ask(
+              "插入并生成",
+              () => submit(true),
+              `${afterSlideId === null ? "将在第一页之前" : `将在第 ${index + 1} 页之后`}新增 1 页，调用模型提炼文案并生成画面。`,
+            )
+          }
         >
           插入并生成
         </Button>
@@ -1806,7 +1886,7 @@ function ExportDialog({
   const [error, setError] = useState("");
   const [format, setFormat] = useState<ExportFormat>(initialFormat);
   const [confirmedFailed, setConfirmedFailed] = useState("");
-  const html = useHtmlExportOptions(project.id);
+  const html = useHtmlExportOptions(project.id, project.revision);
   const missing = project.slides.flatMap((s, i) =>
     !s.image && !s.scene ? [i + 1] : [],
   );
@@ -1824,41 +1904,36 @@ function ExportDialog({
     if (
       !manuscriptOnly &&
       format !== "project" &&
-      (blocked || needsFailedReview)
+      (blocked ||
+        needsFailedReview ||
+        (format === "html" && html.presenterBlocked))
     )
       return;
     setExporting(true);
     setError("");
     try {
+      let filename: string;
       if (manuscriptOnly)
-        await downloadManuscript(project.id, project.revision);
+        filename = await downloadManuscript(project.id, project.revision);
       else if (format === "project")
-        await downloadFile(
+        filename = await downloadFile(
           `/api/projects/${project.id}/package?revision=${project.revision}`,
           "项目.autoppt.zip",
         );
       else if (format === "html")
-        await downloadFile(
-          `/api/projects/${project.id}/html?${new URLSearchParams({ revision: String(project.revision), narration: html.narration, notes: html.notes ? "1" : "0", download: "1" })}`,
+        filename = await downloadFile(
+          `/api/projects/${project.id}/html?${new URLSearchParams({ revision: String(project.revision), narration: html.narration, presenter: html.presenter, notes: html.notes ? "1" : "0", download: "1" })}`,
           "演讲.html",
         );
       else
-        await downloadPresentation(
+        filename = await downloadPresentation(
           project.id,
           project.revision,
           !!stale,
           bundleAvailable,
         );
       notify(
-        manuscriptOnly
-          ? "最新逐字稿已开始下载。"
-          : format === "project"
-            ? "项目包已开始下载；在另一台电脑的项目首页选择“导入项目包”。"
-            : format === "html"
-              ? "静态 HTML 已开始下载，可离线放映。"
-              : bundleAvailable
-                ? "导出包已开始下载，包含 PPTX 和独立的最新逐字稿。"
-                : "PPTX 已开始下载，包含逐页讲稿备注。",
+        `已生成并发起下载：${filename}。请在浏览器下载列表查看；保存位置以浏览器设置或所选文件夹为准。${format === "project" && !manuscriptOnly ? "在另一台电脑的项目首页选择“导入项目包”。" : ""}`,
       );
       onClose();
     } catch (e) {
@@ -1900,7 +1975,8 @@ function ExportDialog({
       {format === "project" ? (
         <p className="detail-help">
           包含保存的讲稿、草稿、图片与历史版本、项目风格、动态演示和口播音频。导入时创建新项目；模型
-          API Key 不随包导出，在另一台电脑单独配置。项目素材最多 960 MB。
+          账号与连接设置不随包导出，导入后按目标工作区的能力使用。项目素材最多
+          960 MB。
         </p>
       ) : (
         <div className="ppt-export-summary">
@@ -1925,38 +2001,32 @@ function ExportDialog({
           )}
         </div>
       )}
-      {busy && (
-        <p className="export-notice">页面正在制作中，完成或停止后即可导出。</p>
-      )}
-      {format === "project" && packageBusy && (
-        <p className="export-notice">
-          草稿正在同步或演示任务进行中，请等待保存、制作完成或停止后再导出项目源文件。
-        </p>
-      )}
-      {!project.slides.length && format !== "project" && (
-        <p className="export-notice">
-          还没有页面，请先添加讲稿并完成拆页与画面制作。
-        </p>
-      )}
-      {!!unsegmented && format !== "project" && (
-        <p className="export-notice">
-          还有 {unsegmented} 段逐字稿未完成拆分，请先继续制作。
-        </p>
-      )}
-      {!!missing.length && format !== "project" && (
-        <p className="export-notice">
-          还有 {missing.length} 页未完成（第 {missing.join("、")}{" "}
-          页），请先补齐图片后导出。
-        </p>
+      {(format === "project" ? busy || packageBusy : blocked) && (
+        <Feedback
+          id="export-blocker"
+          kind="blocking"
+          title="暂时无法导出"
+          action={{ label: "前往制作台处理", onClick: onStudio }}
+        >
+          {format === "project"
+            ? "请等待草稿同步、页面或演示制作完成，再备份项目。"
+            : missing.length
+              ? `还有 ${missing.length} 页缺少画面（第 ${missing.join("、")} 页），请先补齐图片。${busy ? "页面正在制作中，完成或停止后即可导出。" : ""}`
+              : unsegmented
+                ? `还有 ${unsegmented} 段讲稿未拆页，请继续制作。`
+                : busy
+                  ? "页面正在制作中，完成或停止后即可导出。"
+                  : "还没有页面，请先添加讲稿并完成制作。"}
+        </Feedback>
       )}
       {!!stale && format !== "project" && (
-        <p className="export-notice">
+        <Feedback kind="risk">
           有 {stale}{" "}
-          页讲稿已修改，图片尚未更新。本次将使用当前图片，备注采用最新讲稿。
-        </p>
+          页讲稿已修改，图片尚未更新。本次将使用当前图片，备注采用最新讲稿。可返回修改，或确认下载。
+        </Feedback>
       )}
       {!!failedWithImage.length && format !== "project" && (
-        <div className="export-notice">
+        <Feedback kind="risk">
           <p id="failed-export-reason">
             有 {failedWithImage.length} 页生成失败（第{" "}
             {failedWithImage.join("、")} 页），
@@ -1974,7 +2044,7 @@ function ExportDialog({
             />
             我已核对失败页，确认使用现有画面继续导出
           </label>
-        </div>
+        </Feedback>
       )}
       {hasDraft && format !== "project" && (
         <p className="detail-help">
@@ -1992,11 +2062,8 @@ function ExportDialog({
         </p>
       )}
       {format !== "project" &&
-        (blocked ||
-          stale ||
-          failedWithImage.length ||
-          hasDraft ||
-          project.proposal) && (
+        !blocked &&
+        (stale || failedWithImage.length || hasDraft || project.proposal) && (
           <Button disabled={exporting} onClick={onStudio}>
             前往制作台处理
           </Button>
@@ -2020,10 +2087,19 @@ function ExportDialog({
               ? "下载 ZIP 交付包（含 PPTX＋逐字稿）"
               : undefined
           }
+          aria-describedby={
+            (format === "project" ? busy || packageBusy : blocked)
+              ? "export-blocker-description"
+              : needsFailedReview
+                ? "failed-export-reason"
+                : undefined
+          }
           disabled={
             format === "project"
               ? busy || packageBusy
-              : blocked || needsFailedReview
+              : blocked ||
+                needsFailedReview ||
+                (format === "html" && html.presenterBlocked)
           }
         >
           {!exporting && <DownloadSimple size={18} />}
@@ -2125,6 +2201,7 @@ function SlideDetail({
   const [uploading, setUploading] = useState(false);
   const [leaveAction, setLeaveAction] = useState<number | "close" | null>(null);
   const [confirmRedesign, setConfirmRedesign] = useState(false);
+  const redesignLock = useRef(false);
   const attachmentInput = useRef<HTMLInputElement>(null);
   const savedAttachmentKey = (
     slide.pendingAttachments ??
@@ -2206,21 +2283,28 @@ function SlideDetail({
       await persistNotes();
       notify("演讲正文已保存，Markdown 标题已自动去掉。");
     });
-  const redesign = () =>
-    act(async () => {
-      if (dirty) await persistNotes();
-      await post(`/projects/${projectId}/render`, {
-        slideIds: [slide.id],
-        redesign: true,
-        feedback,
-        copyFeedback,
-        attachmentIds: attachments.map((a) => a.id),
+  const redesign = async () => {
+    if (redesignLock.current) return;
+    redesignLock.current = true;
+    try {
+      await act(async () => {
+        if (dirty) await persistNotes();
+        await post(`/projects/${projectId}/render`, {
+          slideIds: [slide.id],
+          redesign: true,
+          feedback,
+          copyFeedback,
+          attachmentIds: attachments.map((a) => a.id),
+        });
+        setConfirmRedesign(false);
+        setFeedback("");
+        setCopyFeedback("");
+        notify("修改已提交，可以继续编辑下一页；旧版本会保留。");
       });
-      setConfirmRedesign(false);
-      setFeedback("");
-      setCopyFeedback("");
-      notify("修改已提交到后台，可以继续编辑下一页；旧版本会保留。");
-    });
+    } finally {
+      redesignLock.current = false;
+    }
+  };
   const leave = (action: number | "close") => {
     if (uploading || loading) return;
     if (dirty || attachmentsDirty || feedback.trim() || copyFeedback.trim()) {
@@ -2434,7 +2518,7 @@ function SlideDetail({
                 )}
                 {(error || (!busy && slide.error)) && (
                   <p className="error-text" role="alert">
-                    {error || slide.error}
+                    {userMessage(error || slide.error)}
                   </p>
                 )}
               </div>
@@ -2651,12 +2735,14 @@ function SlideDetail({
           title="确认重新设计这页"
           onClose={() => !loading && setConfirmRedesign(false)}
         >
-          <p>
-            {hosted
-              ? "重新设计会再次调用模型，并使用管理员提供的图片额度。"
-              : "重新设计会再次调用模型，服务商按实际调用收取费用。"}
-          </p>
-          <p>使用当前讲稿、调整要求和附件重新制作，旧版本会保留。</p>
+          <Feedback kind="risk">
+            <p>
+              {hosted
+                ? "重新设计会再次调用模型，并使用管理员提供的图片额度。"
+                : "重新设计会再次调用模型，服务商按实际调用收取费用。"}
+            </p>
+            <p>使用当前讲稿、调整要求和附件重新制作，旧版本会保留。</p>
+          </Feedback>
           {error && (
             <p className="error-text" role="alert">
               {error}
@@ -2705,16 +2791,30 @@ function SlideDetail({
   );
 }
 function SplitDialog({
+  requestScope,
   slide,
   projectId,
   onClose,
   onDone,
 }: {
+  requestScope: string;
   slide: Slide;
   projectId: string;
   onClose: () => void;
   onDone: (generating: boolean) => Promise<void>;
 }) {
+  const risk = useRiskConfirmation();
+  const [suggestRequest] = useState(() =>
+    createGenerationRequest(
+      `suggest-split:${requestScope}:${projectId}:${slide.id}`,
+      () => sessionStorage,
+    ),
+  );
+  const close = () => {
+    suggestRequest.accepted(); // Explicitly leaving abandons this suggestion attempt.
+    onClose();
+  };
+  const submitLock = useRef(false);
   const [cuts, setCuts] = useState<number[]>([]),
     [cursor, setCursor] = useState(0),
     [suggestions, setSuggestions] = useState<number[]>([]),
@@ -2734,10 +2834,13 @@ function SplitDialog({
     setBusy(true);
     setError("");
     try {
+      const requestId = await suggestRequest.forText(slide.notes);
       const data = await post("/projects/" + projectId + "/suggest-split", {
         slideId: slide.id,
+        requestId,
       });
       setSuggestions(data.cuts);
+      suggestRequest.accepted();
       if (!data.cuts.length)
         setError("AI 认为这段内容适合保持完整；你仍然可以手动分界。");
     } catch (e) {
@@ -2747,6 +2850,8 @@ function SplitDialog({
     }
   };
   const submit = async () => {
+    if (submitLock.current) return;
+    submitLock.current = true;
     setBusy(true);
     setError("");
     try {
@@ -2755,10 +2860,13 @@ function SplitDialog({
         cuts,
         generate,
       });
+      suggestRequest.accepted();
       await onDone(generate);
     } catch (e) {
       setError((e as Error).message);
       setBusy(false);
+    } finally {
+      submitLock.current = false;
     }
   };
   const boundaries = [0, ...cuts, slide.notes.length];
@@ -2767,8 +2875,9 @@ function SplitDialog({
       wide
       title="你来决定，在哪里翻页"
       subtitle="点击原文中的分界位置，再插入分界。原文保持完整，不会删改。"
-      onClose={onClose}
+      onClose={close}
     >
+      {risk.dialog}
       <div className="split-layout">
         <div>
           {slide.image && (
@@ -2807,7 +2916,16 @@ function SplitDialog({
               <Scissors size={17} />
               在这里插入分界
             </Button>
-            <Button onClick={suggest} loading={busy}>
+            <Button
+              onClick={() =>
+                risk.ask(
+                  "建议分界",
+                  suggest,
+                  `将分析当前页「${slide.plan?.title || "未命名页面"}」的讲稿，建议翻页位置；不会拆分或生成图片。`,
+                )
+              }
+              loading={busy}
+            >
               建议分界
             </Button>
           </div>
@@ -2860,12 +2978,20 @@ function SplitDialog({
         </p>
       )}
       <div className="modal-actions">
-        <Button onClick={onClose}>取消</Button>
+        <Button onClick={close}>取消</Button>
         <Button
           variant="primary"
           loading={busy}
           disabled={!cuts.length}
-          onClick={submit}
+          onClick={() =>
+            generate
+              ? risk.ask(
+                  "拆分并生成图片",
+                  submit,
+                  `将当前页按已选的 ${cuts.length} 处分界拆成 ${cuts.length + 1} 页，并调用模型生成这 ${cuts.length + 1} 页画面。`,
+                )
+              : void submit()
+          }
         >
           拆分为 {cuts.length + 1} 页
           <ArrowRight size={17} />

@@ -1,3 +1,4 @@
+import { contentSignature, rehearsalState } from "../shared/rehearsal.mjs";
 import test, { after } from "node:test";
 import { htmlPayload as payload } from "./helpers/html-payload.mjs";
 import assert from "node:assert/strict";
@@ -464,3 +465,17 @@ test("package HTTP routes stream downloads and accept multipart imports without 
     await new Promise((resolve) => server.close(resolve));
   }
 });
+
+ test("project package preserves only valid rehearsal evidence across ID and asset remapping", async () => {
+   const source = get("project", p.id);
+   source.rehearsal = { signature: contentSignature(source), completedAt: "2026-10-07T00:00:00Z", account: "must-not-export-account" };
+   put("project", source);
+   const bytes = await (await exportProjectPackage(source)).generateAsync({ type: "nodebuffer" });
+   const zip = await JSZip.loadAsync(bytes);
+   assert(! (await zip.file("manifest.json").async("string")).includes("must-not-export-account"));
+   const restored = (await importProjectPackage(bytes)).project;
+   assert.equal(rehearsalState(restored).status, "complete");
+   source.slides.reverse(); source.revision++; put("project", source);
+   const stale = (await importProjectPackage(await (await exportProjectPackage(source)).generateAsync({ type: "nodebuffer" }))).project;
+   assert.equal(rehearsalState(stale).status, "stale");
+ });

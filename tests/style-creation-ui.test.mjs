@@ -109,14 +109,15 @@ test(
     })
       .png()
       .toBuffer();
-    await page
-      .locator('input[type="file"]')
-      .setInputFiles({
-        name: "reference.png",
-        mimeType: "image/png",
-        buffer: image,
-      });
+    await page.locator('input[type="file"]').setInputFiles({
+      name: "reference.png",
+      mimeType: "image/png",
+      buffer: image,
+    });
     await page.getByRole("button", { name: "保存并提炼风格" }).click();
+    await page
+      .getByRole("button", { name: "确认生成视觉风格", exact: true })
+      .click();
     await expect(
       page.getByText("第2步 / 共2步：根据图片特点，设计完整的新风格规范", {
         exact: true,
@@ -167,6 +168,9 @@ test(
     await page.getByLabel("风格调整要求").fill("保留纸张的真实感");
     await page
       .getByRole("button", { name: "重新提炼风格", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "确认重新提炼风格", exact: true })
       .click();
     await expect(
       page.getByText("新风格的设计规范不完整", { exact: false }).first(),

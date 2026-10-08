@@ -1,3 +1,5 @@
+import { useAccount } from "./Account";
+import { Feedback, useRiskConfirmation } from "./Feedback";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   HtmlExportOptions,
@@ -99,6 +101,8 @@ export function MotionPresentation({
   selected: string[];
   onClose: () => void;
 }) {
+  const { hosted } = useAccount();
+  const risk = useRiskConfirmation();
   const [decks, setDecks] = useState<Deck[]>([]),
     [deckId, setDeckId] = useState(""),
     [deck, setDeck] = useState<Deck | null>(null);
@@ -112,7 +116,7 @@ export function MotionPresentation({
     [layerId, setLayerId] = useState(""),
     [compare, setCompare] = useState(true);
   const [previewHtml, setPreviewHtml] = useState<string | undefined>(undefined);
-  const html = useHtmlExportOptions(project.id);
+  const html = useHtmlExportOptions(project.id, project.revision);
   const frame = useRef<HTMLIFrameElement>(null),
     dirty = useRef(false);
   const refresh = useCallback(async () => {
@@ -244,7 +248,7 @@ export function MotionPresentation({
     onClose();
   };
   const playerUrl = deck
-    ? motionHtmlUrl(deck.id, html.notes, html.narration)
+    ? motionHtmlUrl(deck.id, html.notes, html.narration, html.presenter)
     : "";
   const previewUrl =
     deck && page
@@ -286,6 +290,7 @@ export function MotionPresentation({
       wide
       onClose={close}
     >
+      {risk.dialog}
       <div className="motion-studio">
         {error && (
           <p className="error-text" role="alert">
@@ -358,10 +363,14 @@ export function MotionPresentation({
               </button>
             </div>
             <div className="motion-explain">
-              <p>
+              <Feedback kind="risk">
                 <strong>转换与校准</strong>{" "}
-                每页调用一次视觉分析；复杂背景可能再调用一次图片编辑。费用由当前模型服务收取，转换可停止并继续。播放、调整动效与下载不调用模型。
-              </p>
+                每页调用一次视觉分析；复杂背景可能再调用一次图片编辑。
+                {hosted
+                  ? "使用管理员提供的额度。"
+                  : "将调用当前模型服务，可能产生费用。"}
+                转换可停止并继续。播放、调整动效与下载不调用模型。
+              </Feedback>
               <p>
                 字号、字重、颜色和位置从原图估计，内嵌字体保证离线显示一致。特殊字体可导入
                 WOFF2；生成后请对照原图校对，再用于正式演讲。
@@ -387,20 +396,25 @@ export function MotionPresentation({
                 loading={busy}
                 disabled={!chosen.length || !!missing.length || active(deck)}
                 onClick={() =>
-                  run(async () => {
-                    const d = await post<Deck>(
-                      `/projects/${project.id}/motion`,
-                      {
-                        revision: project.revision,
-                        slideIds: chosen.map((s) => s.id),
-                      },
-                    );
-                    setDeckId(d.id);
-                    setDeck(d);
-                    setPageId("");
-                    setDraft(null);
-                    setCreating(false);
-                  })
+                  risk.ask(
+                    "转换动态演示",
+                    () =>
+                      run(async () => {
+                        const d = await post<Deck>(
+                          `/projects/${project.id}/motion`,
+                          {
+                            revision: project.revision,
+                            slideIds: chosen.map((s) => s.id),
+                          },
+                        );
+                        setDeckId(d.id);
+                        setDeck(d);
+                        setPageId("");
+                        setDraft(null);
+                        setCreating(false);
+                      }),
+                    `将把${scope === "selected" ? "选中的" : "整个项目的"} ${chosen.length} 页转换为动态演示；每页进行视觉分析，复杂背景可能额外调用图片编辑。`,
+                  )
                 }
               >
                 转换 {chosen.length} 页
@@ -431,7 +445,11 @@ export function MotionPresentation({
                     <Button
                       loading={busy}
                       onClick={() =>
-                        run(() => post(`/motion/${deck.id}/retry`))
+                        risk.ask(
+                          "继续转换未完成页面",
+                          () => run(() => post(`/motion/${deck.id}/retry`)),
+                          `将继续演示「${deck.title}」中未完成的 ${deck.pages.length - ready} 页，重新调用视觉分析，复杂背景可能额外调用图片编辑。`,
+                        )
                       }
                     >
                       <ArrowsClockwise />
@@ -534,10 +552,15 @@ export function MotionPresentation({
                       {page?.status === "failed" && !active(deck) && (
                         <Button
                           onClick={() =>
-                            run(() =>
-                              post(`/motion/${deck.id}/retry`, {
-                                pageIds: [page.id],
-                              }),
+                            risk.ask(
+                              "重试这一页",
+                              () =>
+                                run(() =>
+                                  post(`/motion/${deck.id}/retry`, {
+                                    pageIds: [page.id],
+                                  }),
+                                ),
+                              `仅重新转换演示「${deck.title}」的第 ${page.number} 页「${page.title}」，会调用视觉分析，复杂背景可能额外调用图片编辑。`,
                             )
                           }
                         >
@@ -732,7 +755,11 @@ export function MotionPresentation({
                     播放本页
                   </Button>
                   <Button
-                    disabled={ready !== deck.pages.length || dirtyValue}
+                    disabled={
+                      ready !== deck.pages.length ||
+                      dirtyValue ||
+                      html.presenterBlocked
+                    }
                     onClick={() => window.open(playerUrl, "_blank", "noopener")}
                   >
                     <Play />
@@ -741,10 +768,19 @@ export function MotionPresentation({
                   <Button
                     variant="primary"
                     loading={busy}
-                    disabled={ready !== deck.pages.length || dirtyValue}
+                    disabled={
+                      ready !== deck.pages.length ||
+                      dirtyValue ||
+                      html.presenterBlocked
+                    }
                     onClick={() =>
                       run(() =>
-                        downloadMotionHtml(deck.id, html.notes, html.narration),
+                        downloadMotionHtml(
+                          deck.id,
+                          html.notes,
+                          html.narration,
+                          html.presenter,
+                        ),
                       )
                     }
                   >

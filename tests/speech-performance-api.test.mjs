@@ -395,6 +395,10 @@ test(
           .getByRole("button", { name: "重新编排演讲", exact: true })
           .click();
         await page
+          .getByRole("dialog", { name: "确认编排整场演讲", exact: true })
+          .getByRole("button", { name: "确认编排整场演讲", exact: true })
+          .click();
+        await page
           .getByText("演绎编排已完成，请逐页检查后生成口播", { exact: true })
           .waitFor();
         assert(
@@ -446,6 +450,10 @@ test(
         await verifySpeechPreview(page, ready.pages[0].clips[0].file, out);
         await page
           .getByRole("button", { name: "生成整场口播 · 2 页", exact: true })
+          .click();
+        await page
+          .getByRole("dialog", { name: "确认生成整场口播", exact: true })
+          .getByRole("button", { name: "确认生成整场口播", exact: true })
           .click();
         await page
           .getByRole("button", { name: "使用新口播版本", exact: true })
@@ -544,6 +552,10 @@ test(
           .click();
         await page
           .getByRole("button", { name: "重新编排演讲", exact: true })
+          .click();
+        await page
+          .getByRole("dialog", { name: "确认编排整场演讲", exact: true })
+          .getByRole("button", { name: "确认编排整场演讲", exact: true })
           .click();
         await page
           .getByRole("alert")

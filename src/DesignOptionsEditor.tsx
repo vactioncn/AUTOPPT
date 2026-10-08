@@ -1,3 +1,4 @@
+import { useRiskConfirmation } from "./Feedback";
 import { useEffect, useRef, useState } from "react";
 import type { DesignOptions } from "./types";
 import { api } from "./api";
@@ -56,6 +57,7 @@ export function DesignOptionsEditor({
   disabled?: boolean;
   onBusyChange?: (busy: boolean) => void;
 }) {
+  const risk = useRiskConfirmation();
   const [supported, setSupported] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -128,6 +130,7 @@ export function DesignOptionsEditor({
       : ["#FFFFFF", "#202020", "#3972B8"];
   return (
     <div className="design-options-editor simple-options">
+      {risk.dialog}
       <Field label="内容倾向（可选）">
         <input
           value={value.audience?.description || ""}
@@ -172,7 +175,7 @@ export function DesignOptionsEditor({
             type="button"
             disabled={locked}
             loading={busy}
-            onClick={expand}
+            onClick={() => risk.ask("细化内容倾向", expand)}
           >
             AI 完善说明
           </Button>

@@ -64,6 +64,10 @@ export default function App() {
     null,
   );
   const [styleRepair, setStyleRepair] = useState(false);
+  const toastRoute = useRef(route);
+  useEffect(() => {
+    if (toastRoute.current !== route) setToast("");
+  }, [route]);
   const previousRoute = useRef(
     ["intro", "help"].includes(route) ? "projects" : route,
   );
@@ -124,7 +128,10 @@ export default function App() {
     ? contentRoute.slice(8).split("/")[0]
     : null;
   const currentArea = projectArea(contentRoute.split("/")[2]);
-  const notify = (text: string) => setToast(text);
+  const notify = (text: string) => {
+    toastRoute.current = location.hash.slice(1) || "projects";
+    setToast(text);
+  };
   if (!data)
     return (
       <div className="boot">
@@ -451,7 +458,12 @@ export default function App() {
         />
       )}
       {toast && (
-        <div className="toast" role="status">
+        <div
+          className="toast"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
           <CheckCircle size={19} />
           {toast}
         </div>

@@ -109,6 +109,9 @@ test(
         .getByRole("button", { name: "生成统一封面", exact: true })
         .click();
       await page
+        .getByRole("button", { name: "确认生成风格封面", exact: true })
+        .click();
+      await page
         .getByRole("alert")
         .filter({ hasText: "当前后台还是旧版本" })
         .waitFor();
@@ -116,6 +119,9 @@ test(
       await page.unroute("**/api/bootstrap");
       await page
         .getByRole("button", { name: "生成统一封面", exact: true })
+        .click();
+      await page
+        .getByRole("button", { name: "确认生成风格封面", exact: true })
         .click();
       await page.getByText("已更新为风格封面", { exact: false }).waitFor();
       assert.equal(await draft.inputValue(), "保留这段尚未生成的试做草稿。");

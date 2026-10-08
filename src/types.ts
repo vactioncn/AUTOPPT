@@ -368,6 +368,7 @@ export type Proposal = {
   plans: Plan[];
 };
 export type Project = {
+  rehearsal?: import("../shared/rehearsal.mjs").RehearsalRecord;
   designOptions?: DesignOptions;
   id: string;
   title: string;

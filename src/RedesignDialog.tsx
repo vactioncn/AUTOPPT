@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { Feedback } from "./Feedback";
+import { useAccount } from "./Account";
+import { useRef, useState } from "react";
 import { ArrowsClockwise } from "@phosphor-icons/react";
 import { Button, Modal, SlideImage } from "./components";
 import { post } from "./api";
@@ -20,6 +22,8 @@ export function RedesignDialog({
   onClose: () => void;
   onSubmitted: (count: number) => void;
 }) {
+  const { hosted } = useAccount();
+  const lock = useRef(false);
   const [scope, setScope] = useState(selected.length ? "selected" : "all");
   const [chosen, setChosen] = useState(selected);
   const [submitting, setSubmitting] = useState(false);
@@ -31,6 +35,15 @@ export function RedesignDialog({
   const locked = pages.filter((p) => pageBusy(p.id));
   const available = project.slides.filter((p) => !pageBusy(p.id));
   const submit = async () => {
+    if (
+      lock.current ||
+      !pages.length ||
+      locked.length ||
+      !style ||
+      style.deletedAt
+    )
+      return;
+    lock.current = true;
     setSubmitting(true);
     setError("");
     try {
@@ -41,6 +54,7 @@ export function RedesignDialog({
       onSubmitted(pages.length);
     } catch (e) {
       setError((e as Error).message);
+      lock.current = false;
       setSubmitting(false);
     }
   };
@@ -127,9 +141,16 @@ export function RedesignDialog({
             <p>
               使用当前项目风格：<strong>{style?.name || "尚未选择"}</strong>
             </p>
-            <p>
-              按当前保存的讲稿、内容附件和配色重新出图。旧图在成功后存入历史版本，失败时保留。点击开始后会调用模型并产生费用。
-            </p>
+            <Feedback kind="risk">
+              <p>
+                按当前保存的讲稿、内容附件和配色重新出图。旧图在成功后存入历史版本，失败时保留。
+              </p>
+              <p>
+                {hosted
+                  ? "确认后使用管理员提供的图片额度。"
+                  : "确认后将调用模型，可能产生费用。"}
+              </p>
+            </Feedback>
             {scope === "selected" && pages.length > 0 && (
               <p>
                 本次页码：
@@ -158,6 +179,13 @@ export function RedesignDialog({
               loading={submitting}
               disabled={
                 !pages.length || !!locked.length || !style || !!style.deletedAt
+              }
+              disabledReason={
+                !pages.length
+                  ? "请至少选择一页。"
+                  : locked.length
+                    ? "所选页面正在制作，请等待完成或更换范围。"
+                    : "请先选择可用的项目风格。"
               }
               onClick={submit}
             >

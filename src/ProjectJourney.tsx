@@ -6,6 +6,8 @@ import {
   downloadMotionHtml,
   type ExportFormat,
 } from "./HtmlExportOptions";
+import { Feedback } from "./Feedback";
+import { AvatarPresenter } from "./AvatarPresenter";
 import { Button } from "./components";
 import type { Project } from "./types";
 import type { Capabilities } from "../shared/diagnostics.mjs";
@@ -100,18 +102,19 @@ export function ProjectOverview({
   const action = projectPrimaryAction("overview", journey);
   return (
     <section aria-label="概览" className="journey-panel">
-      <div className="journey-section-heading">
-        <h2>{journey.tasks.length ? "当前待办" : "页面已齐备"}</h2>
-        <p>
-          {journey.tasks.length
-            ? "查看下面的具体原因，选择现在处理或稍后继续。"
-            : "打开播放器核对画面与讲稿，再检查交付文件。"}
-        </p>
+      <section className="journey-focus" aria-label="当前最重要任务">
+        <div className="journey-section-heading">
+          <h2>当前最重要任务</h2>
+          <p>{journey.tasks[0]?.reason}</p>
+        </div>
         <Button variant="primary" onClick={() => onAction(action)}>
           {action.label}
         </Button>
-      </div>
-      <TaskList journey={journey} onAction={onAction} />
+      </section>
+      <TaskList
+        journey={{ ...journey, tasks: journey.tasks.slice(1) }}
+        onAction={onAction}
+      />
       <dl className="journey-stats" aria-label="页面摘要">
         {[
           ["总页数", journey.total],
@@ -136,6 +139,7 @@ function TaskList({
   journey: Journey;
   onAction: (action: JourneyAction) => void;
 }) {
+  if (!journey.tasks.length) return null;
   return (
     <section className="journey-tasks" aria-label="待处理事项">
       <h3>待处理事项</h3>
@@ -209,7 +213,10 @@ export function RehearsalCenter({
   records,
   capabilities,
   selectedCount,
+  interrupted,
   onSpeech,
+  onStandard,
+  onDelivery,
   onMotion,
   onSettings,
   onStudio,
@@ -219,7 +226,10 @@ export function RehearsalCenter({
   records: Presentations;
   capabilities: Capabilities;
   selectedCount: number;
+  interrupted: boolean;
   onSpeech: (prepare?: boolean) => void;
+  onStandard: () => void;
+  onDelivery: () => void;
   onMotion: () => void;
   onSettings: () => void;
   onStudio: () => void;
@@ -258,36 +268,32 @@ export function RehearsalCenter({
     <section aria-label="演练中心" className="journey-panel">
       <section className="journey-focus" aria-label="标准放映">
         <div className="journey-section-heading">
-          <span className="journey-eyebrow">开始演练</span>
-          <h2>标准放映</h2>
+          <h2>标准演练</h2>
           <p>
-            {journey.illustrated} / {journey.total} 页可演练 · 当前母版 r
-            {project.revision}
+            {journey.illustrated} / {journey.total} 页可演练
           </p>
         </div>
-        <Button
-          variant="primary"
-          disabled={action.disabled}
-          aria-describedby={
-            !speechAvailable ? "standard-presentation-reason" : undefined
+        <p>从头逐页完成后，记录当前版本的标准演练完成状态。</p>
+        <Feedback
+          id="standard-presentation-state"
+          kind={
+            journey.rehearsal.status === "complete"
+              ? "success"
+              : "recommendation"
           }
-          onClick={action.target === "player" ? () => onSpeech() : onStudio}
         >
-          {action.label}
-        </Button>
-        {!speechAvailable ? (
-          <p id="standard-presentation-reason" className="journey-warning">
-            {capabilities.standardPresentation.reason}
-          </p>
-        ) : null}
-        {!journey.illustrated ? (
-          <p>先到制作台生成至少一页画面，再开始放映。</p>
-        ) : (
-          speechAvailable && <p>翻页演讲并查看讲稿，无需配置语音服务。</p>
+          {interrupted && journey.rehearsal.status === "unstarted"
+            ? "本次演练未完成，完成记录未更新；再次演练需从头开始。"
+            : journey.rehearsal.label}
+        </Feedback>
+        {interrupted && journey.rehearsal.status !== "unstarted" && (
+          <Feedback kind="recommendation">
+            本次演练未完成，完成记录未更新；再次演练需从头开始。
+          </Feedback>
         )}
-        {!!journey.missing.length && !!journey.illustrated && (
-          <p className="journey-warning">
-            {journey.missing.length} 页缺少画面，请回制作台补齐后完整演练。
+        {journey.rehearsal.status === "stale" && (
+          <p>
+            建议重新演练以核对本次修改；这不是交付阻断，仍可前往交付中心下载。
           </p>
         )}
         {!!journey.stale && (
@@ -296,12 +302,40 @@ export function RehearsalCenter({
             页讲稿修改后尚未核对画面，可在项目概览查看明细并确认保留。
           </p>
         )}
-        {speechAvailable &&
-          !!journey.illustrated &&
-          !journey.missing.length &&
-          !journey.stale && (
-            <p className="journey-success">画面已齐备，可从头演练。</p>
-          )}
+        {!speechAvailable && (
+          <Button
+            disabled
+            aria-describedby="standard-presentation-state-description"
+          >
+            标准放映不可用
+          </Button>
+        )}
+        {speechAvailable ? (
+          <Button
+            variant="primary"
+            onClick={
+              action.area === "delivery"
+                ? onDelivery
+                : action.target === "player"
+                  ? onStandard
+                  : onStudio
+            }
+          >
+            {action.label}
+          </Button>
+        ) : (
+          <Button variant="primary" onClick={onDelivery}>
+            检查交付
+          </Button>
+        )}
+        {!!journey.missing.length && (
+          <p>请先补齐 {journey.missing.length} 页画面，再完整演练。</p>
+        )}
+        {journey.rehearsal.status === "complete" && speechAvailable && (
+          <Button variant="ghost" onClick={onStandard}>
+            再练一次
+          </Button>
+        )}
       </section>
       <section className="journey-secondary" aria-label="AI 口播">
         <h3>
@@ -328,7 +362,11 @@ export function RehearsalCenter({
         {speechAvailable && (
           <p>
             {journey.illustrated
-              ? "已有口播可直接播放；制作新口播会保留旧版本。"
+              ? capabilities.aiNarration.enabled &&
+                records.voice.ready === true &&
+                !records.voice.error
+                ? "可选择已有口播或制作新口播。"
+                : "可自由播放画面或已有口播；当前无法制作新口播。"
               : "先制作至少一页画面，即可普通放映；无需配置语音服务。"}
           </p>
         )}
@@ -339,12 +377,21 @@ export function RehearsalCenter({
             kind="口播"
           />
         )}
+        {speechAvailable && !!journey.illustrated && (
+          <div>
+            <p>自由播放，不记录标准演练完成。</p>
+            <Button onClick={() => onSpeech()}>打开演讲播放器</Button>
+          </div>
+        )}
         {speechAvailable &&
           !!journey.illustrated &&
           (records.voice.ready === false || records.voice.error) && (
             <Button onClick={onSettings}>配置语音服务</Button>
           )}
       </section>
+      {speechAvailable && (
+        <AvatarPresenter key={project.id} project={project} />
+      )}
       <section className="journey-secondary" aria-label="动态演示">
         <h3>
           动态演示 <span>可选增强</span>
@@ -371,12 +418,17 @@ export function RehearsalCenter({
         <p>
           {selectedCount
             ? `制作台已选 ${selectedCount} 页，打开后可选择转换范围。`
-            : "支持整个项目或选中的页面；转换前会确认范围与费用。"}
+            : "支持整个项目或选中的页面。"}
         </p>
         <Button
           disabled={
             !motionAvailable ||
             (!journey.illustrated && !records.dynamic.records.length)
+          }
+          disabledReason={
+            !motionAvailable
+              ? capabilities.motionPresentation.reason
+              : "先到制作台生成至少一页画面。"
           }
           onClick={onMotion}
         >
@@ -417,7 +469,7 @@ export function DeliveryCenter({
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState("");
   const [chosen, setChosen] = useState("");
-  const html = useHtmlExportOptions(project.id);
+  const html = useHtmlExportOptions(project.id, project.revision);
   const deck =
     records.dynamic.records.find((d) => d.id === chosen) ||
     records.dynamic.records[0];
@@ -482,7 +534,15 @@ export function DeliveryCenter({
           </Button>
         )}
         {!!journey.tasks.length && (
-          <TaskList journey={journey} onAction={onAction} />
+          <TaskList
+            journey={{
+              ...journey,
+              tasks: journey.tasks.filter(
+                (t) => t.id !== "checks" && t.id !== "player",
+              ),
+            }}
+            onAction={onAction}
+          />
         )}
         <Button variant="ghost" onClick={onReport}>
           查看制作报告
@@ -549,6 +609,9 @@ export function DeliveryCenter({
             )}
             <Button
               disabled={!journey.total || !!journey.unsegmented}
+              disabledReason={
+                journey.unsegmented ? "请先完成讲稿拆页。" : "请先添加讲稿。"
+              }
               loading={scriptExporting}
               onClick={onManuscript}
             >
@@ -656,19 +719,22 @@ export function DeliveryCenter({
             )}
             <div className="journey-card-actions">
               <Button
-                disabled={!motionAvailable || !ready}
+                disabled={!motionAvailable || !ready || html.presenterBlocked}
                 loading={downloading}
                 onClick={async () => {
                   if (!deck) return;
                   setDownloading(true);
                   setError("");
                   try {
-                    await downloadMotionHtml(
+                    const filename = await downloadMotionHtml(
                       deck.id,
                       html.notes,
                       html.narration,
+                      html.presenter,
                     );
-                    notify("动态 HTML 已开始下载。");
+                    notify(
+                      `已生成并发起下载：${filename}。请在浏览器下载列表查看；保存位置以浏览器设置或所选文件夹为准。`,
+                    );
                   } catch (e) {
                     setError((e as Error).message);
                   } finally {
@@ -701,6 +767,7 @@ export function DeliveryCenter({
           )}
           <Button
             disabled={!capabilities.projectPackages.enabled}
+            disabledReason={capabilities.projectPackages.reason}
             onClick={() => onExport("project")}
           >
             导出项目源文件

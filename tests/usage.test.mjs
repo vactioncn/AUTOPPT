@@ -409,7 +409,24 @@ test(
           body: JSON.stringify({ id: "bad-topup-123456", amount: "10" }),
         });
         assert.equal(csrf.status, 403);
-        await call("/projects/p1/suggest-split", { slideId: "slide-1" });
+        const splitRequest = {
+          slideId: "slide-1",
+          requestId: "usage-split-request-0001",
+        };
+        const splitResult = await call(
+          "/projects/p1/suggest-split",
+          splitRequest,
+        );
+        const afterSplit = calls;
+        assert.deepEqual(
+          await call("/projects/p1/suggest-split", splitRequest),
+          splitResult,
+        );
+        assert.equal(
+          calls,
+          afterSplit,
+          "replaying a split request must not add model usage",
+        );
         report = await call("/usage?projectId=p1");
         assert(
           report.rows.some(

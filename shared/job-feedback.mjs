@@ -1,7 +1,17 @@
 // Explain observed failures, without promising that a provider fault can be repaired locally.
 export function failureAdvice(error = "") {
+  if (/overload|服务.*拥堵|服务.*繁忙/i.test(error))
+    return {
+      reason: "模型服务拥堵",
+      action: "服务方暂时无法处理请求，稍后手动继续；无需修改原稿。",
+    };
+  if (/auth_unavailable/i.test(error))
+    return {
+      reason: "模型服务没有可用通道",
+      action: "服务方暂无可用模型通道，稍后继续或检查服务商状态；这条提示本身不能证明你的密钥有误。",
+    };
   if (
-    /401|403|auth_unavailable|unauthorized|api.?key|权限|密钥|认证/i.test(error)
+    /401|403|unauthorized|api.?key|权限|密钥|认证/i.test(error)
   )
     return {
       reason: "模型服务认证或权限不可用",

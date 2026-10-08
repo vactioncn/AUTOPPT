@@ -5,8 +5,10 @@ import { failureAdvice } from "../shared/job-feedback.mjs";
 test("observed provider errors distinguish permissions, limits, uncertain responses and validation without promising automatic repair", () => {
   assert.match(
     failureAdvice("503 auth_unavailable: no auth available").reason,
-    /认证或权限/,
+    /没有可用通道/,
   );
+  assert.match(failureAdvice("503 auth_unavailable: no auth available; last upstream error: server_is_overloaded").reason, /服务拥堵/);
+  assert.match(failureAdvice("401 unauthorized").reason, /认证或权限/);
   assert.match(failureAdvice("429 rate limit").reason, /限制/);
   assert.match(
     failureAdvice("408 stream disconnected before completion").action,

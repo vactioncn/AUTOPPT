@@ -49,7 +49,12 @@ export function createSpeechRequestPolicy({
           const reason = error.rateLimited ? "rate-limit" : error.retryReason;
           const delays =
             reason === "rate-limit" ? retryDelays : serviceRetryDelays;
-          if (signal?.aborted || !reason || attempt >= delays.length) {
+          if (
+            signal?.aborted ||
+            error.uncertain ||
+            !reason ||
+            attempt >= delays.length
+          ) {
             if (!signal?.aborted && attempt)
               error.message += ` 已自动重试 ${attempt} 次仍未恢复，请稍后继续。`;
             throw error;

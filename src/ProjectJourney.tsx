@@ -390,7 +390,11 @@ export function RehearsalCenter({
           )}
       </section>
       {speechAvailable && (
-        <AvatarPresenter key={project.id} project={project} />
+        <AvatarPresenter
+          key={project.id}
+          project={project}
+          onDelivery={onDelivery}
+        />
       )}
       <section className="journey-secondary" aria-label="动态演示">
         <h3>

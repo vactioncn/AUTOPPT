@@ -1,3 +1,4 @@
+import { userError } from "../../shared/user-error.mjs";
 import express from "express";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -501,7 +502,10 @@ app.use(["/api", "/assets"], authenticated, async (req, res) => {
   // Express routes are case-insensitive by default. Normalize policy checks too,
   // otherwise a mixed-case URL could reach the worker with hosted restrictions bypassed.
   if (
-    req.originalUrl.split("?", 1)[0].toLowerCase().startsWith("/api/settings") &&
+    req.originalUrl
+      .split("?", 1)[0]
+      .toLowerCase()
+      .startsWith("/api/settings") &&
     req.method !== "GET"
   )
     fail("模型由管理员统一配置。", 403);
@@ -520,7 +524,14 @@ app.use(["/api", "/assets"], authenticated, async (req, res) => {
     "x-autoppt-worker": w.token,
     "x-autoppt-model-ready": modelsReady() ? "1" : "0",
   };
-  for (const key of ["content-type", "content-length", "accept"])
+  for (const key of [
+    "content-type",
+    "content-length",
+    "accept",
+    "x-autoppt-request-id",
+    "x-autoppt-retry-of",
+    "x-autoppt-retry-confirmed",
+  ])
     if (req.headers[key]) headers[key] = req.headers[key];
   let response;
   try {
@@ -537,7 +548,12 @@ app.use(["/api", "/assets"], authenticated, async (req, res) => {
     fail("工作区连接暂时中断，已保存内容不会丢失，请稍后刷新。", 502);
   }
   res.status(response.status);
-  for (const key of ["content-type", "content-disposition"])
+  for (const key of [
+    "content-type",
+    "content-disposition",
+    "x-autoppt-replayed",
+    "x-autoppt-retry-allowed",
+  ])
     if (response.headers.has(key)) res.set(key, response.headers.get(key));
   // Never allow one account's cached assets to survive an account switch.
   res.set("Cache-Control", "private, no-store");
@@ -550,7 +566,7 @@ app.get("/{*path}", (req, res) =>
 app.use((err, req, res, next) => {
   if (res.headersSent) return res.end();
   res.status(err.status || 400).json({
-    error: err.status ? err.message : "操作未完成，请检查输入或稍后重试。",
+    error: userError(err),
   });
 });
 const server = app.listen(

@@ -1,3 +1,4 @@
+import { assertPaidClaim } from "../operation-context.mjs";
 // MiniMax native speech protocol; deliberately separate from the image/text gateway.
 import { createHash } from "node:crypto";
 import { createSpeechRequestPolicy } from "./request-policy.mjs";
@@ -39,6 +40,7 @@ function serviceError(code, response, data) {
   );
 }
 async function request(config, endpoint, body, signal) {
+  assertPaidClaim();
   if (!config.apiKey || signal?.aborted || endpoint === "/files/upload")
     return providerRequest(config, endpoint, body, signal);
   const { trackUsage } = await import("../usage/index.mjs");

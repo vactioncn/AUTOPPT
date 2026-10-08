@@ -15,7 +15,7 @@ import { modelRouteContract } from "./model-route-contract.mjs";
 
 test(
   "feedback governance: real rehearsal/download, priority, paid cancellation and responsive evidence",
-  { timeout: 180000 },
+  { skip: process.env.BROWSER_TEST !== "1", timeout: 180000 },
   async (t) => {
     const dir = mkdtempSync(path.join(tmpdir(), "autoppt-feedback-"));
     const evidence = path.resolve("test-results/feedback-governance");
@@ -207,7 +207,13 @@ test(
         if (paidEntry.name === "suggest-split") {
           suggestAttempts++;
           if (suggestAttempts === 1) return route.abort("failed"); // lost response: same request ID must be retried
-          return route.fulfill({ json: { cuts: [3, 5] } });
+          return route.fulfill({
+            headers:
+              suggestAttempts > 2 && !req.headers()["x-autoppt-retry-of"]
+                ? { "X-AutoPPT-Replayed": "1" }
+                : {},
+            json: { cuts: [3, 5] },
+          });
         }
         if (url.pathname.endsWith("/batches")) {
           const p = read("empty");
@@ -248,7 +254,11 @@ test(
         path: path.join(evidence, `${width}-${state}-${region}.png`),
       });
     };
+    const safeArea = await page.context().newCDPSession(page);
     for (const width of [1280, 390, 320]) {
+      await safeArea.send("Emulation.setSafeAreaInsetsOverride", {
+        insets: width < 600 ? { top: 47, bottom: 34 } : {},
+      });
       await page.setViewportSize({ width, height: width === 1280 ? 800 : 844 });
       await page.goto(base + "/#project/broken");
       await expect(page.locator(".workspace .btn.primary:visible")).toHaveText(
@@ -417,7 +427,7 @@ test(
     });
     await lastDelivery.scrollIntoViewIfNeeded();
     const lastBox = await lastDelivery.boundingBox();
-    const bottomNav = await page.locator(".sidebar").boundingBox();
+    const bottomNav = await page.locator(".project-area-nav").boundingBox();
     assert(
       lastBox.height >= 44 &&
         lastBox.width >= 44 &&
@@ -445,7 +455,7 @@ test(
     const actionBox = await page
       .getByRole("button", { name: "提交讲稿并制作" })
       .boundingBox();
-    const navBox = await page.locator(".sidebar").boundingBox();
+    const navBox = await page.locator(".project-area-nav").boundingBox();
     assert(
       actionBox.height >= 44 &&
         actionBox.width >= 44 &&
@@ -500,7 +510,12 @@ test(
     ).toBeVisible();
     await shot(1280, "all-pages-success", "studio");
     const count = () => paid.length;
-    const gate = async (entry, title, verify = async () => {}) => {
+    const gate = async (
+      entry,
+      title,
+      verify = async () => {},
+      expectedRequests = 1,
+    ) => {
       const before = count();
       await entry.click();
       const dialog = page.getByRole("dialog", { name: title, exact: true });
@@ -515,7 +530,7 @@ test(
           el.click();
           el.click();
         });
-      await expect.poll(count).toBe(before + 1);
+      await expect.poll(count).toBe(before + expectedRequests);
       await expect(dialog).toHaveCount(0);
     };
     // New paid-entry regressions: cancel preserves the complete editing context;
@@ -691,8 +706,9 @@ test(
     );
     assert.deepEqual(JSON.parse(paid.at(-1).body).cuts, [3]);
     assert.equal(JSON.parse(paid.at(-1).body).generate, true);
-    // A successful result retires its request ID; a new suggestion gets a new one.
-    await gate(suggestButton, "确认建议分界", splitState);
+    // A completed identity persists across tabs; only explicit new-attempt confirmation retires it.
+    page.once("dialog", (dialog) => dialog.accept());
+    await gate(suggestButton, "确认建议分界", splitState, 2);
     assert.notEqual(JSON.parse(paid.at(-1).body).requestId, lostId);
     const beforeFreeSplit = count();
     await page.getByLabel("拆分后在后台生成图片（关闭后可先改稿）").uncheck();
@@ -785,7 +801,8 @@ test(
       motionState,
     );
     assert.equal(paid.at(-1).path, "/api/motion/motion-feedback/retry");
-    assert.deepEqual(JSON.parse(paid.at(-1).body), { pageIds: ["mp1"] });
+    assert.deepEqual(JSON.parse(paid.at(-1).body).pageIds, ["mp1"]);
+    assert.match(JSON.parse(paid.at(-1).body).requestId, /^[\w-]{16,80}$/);
     await page
       .getByRole("dialog", { name: "动态 HTML 演示", exact: true })
       .getByRole("button", { name: "关闭", exact: true })

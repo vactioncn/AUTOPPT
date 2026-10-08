@@ -1,3 +1,4 @@
+import { userError } from "../shared/user-error.mjs";
 import { failureAdvice } from "../shared/job-feedback.mjs";
 import type { Job } from "./types";
 
@@ -66,7 +67,7 @@ export function JobFeedback({ job }: { job: Job }) {
                   <p>{advice.action}</p>
                   <details>
                     <summary>具体错误</summary>
-                    <p className="job-raw-error">{issue.error}</p>
+                    <p className="job-raw-error">{userError(issue.error)}</p>
                   </details>
                 </li>
               );

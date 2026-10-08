@@ -1,3 +1,4 @@
+import { assertPaidClaim } from "../operation-context.mjs";
 import { createHash } from "node:crypto";
 import { mkdir, writeFile, lstat } from "node:fs/promises";
 import path from "node:path";
@@ -197,6 +198,7 @@ export async function inspectPresenter(version) {
   };
 }
 export async function createPresenter(projectId, input, provider) {
+  assertPaidClaim();
   if (input.confirmed !== true)
     throw fail("请先确认数字人生成的素材发送和费用风险");
   assertProvider(provider);
@@ -364,6 +366,7 @@ export async function runPresenter(key, provider) {
           })),
         );
         const expectedDuration = expectedPlaybackDuration(clips);
+        assertPaidClaim();
         const result = await provider.generate({
           requestId: hash([
             v.requestId,

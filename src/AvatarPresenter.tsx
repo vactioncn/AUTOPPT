@@ -1,3 +1,4 @@
+import { userError } from "../shared/user-error.mjs";
 import { useEffect, useRef, useState } from "react";
 import { api, asset, post } from "./api";
 import { Button, Field, Modal } from "./components";
@@ -14,7 +15,13 @@ import {
 } from "./presenter-types";
 import "./presenter.css";
 
-export function AvatarPresenter({ project }: { project: Project }) {
+export function AvatarPresenter({
+  project,
+  onDelivery,
+}: {
+  project: Project;
+  onDelivery: () => void;
+}) {
   const storageKey = "autoppt-presenter-setup:" + project.id;
   const [selection, setSelection] = useState(() => {
     try {
@@ -50,7 +57,7 @@ export function AvatarPresenter({ project }: { project: Project }) {
   const [versionId, setVersionId] = useState("");
   const [pageId, setPageId] = useState("");
   const [request] = useState(() =>
-    createGenerationRequest("presenter:" + project.id, () => sessionStorage),
+    createGenerationRequest("presenter:" + project.id),
   );
   const mutationLock = useRef(false);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -160,6 +167,16 @@ export function AvatarPresenter({ project }: { project: Project }) {
         上传或选择头像 → 选择已就绪口播 →
         生成逐页数字人。圆形视频独立叠加在页面角落。
       </p>
+      {!state.configured && (
+        <Feedback
+          kind="blocking"
+          id="presenter-service-status"
+          title="数字人服务尚未接入"
+        >
+          暂不能生成，但可以先预配置；已选头像、口播版本和位置会保留。
+          服务接入并就绪后即可生成。
+        </Feedback>
+      )}
       {state.testOnly && (
         <p className="journey-warning">
           测试模式：使用本地样本视频，不代表真实口型生成。
@@ -221,6 +238,25 @@ export function AvatarPresenter({ project }: { project: Project }) {
           </select>
         </Field>
       </div>
+      {!narrations.length && (
+        <p>请先在 AI 口播中完成一个与当前页面一致的口播版本。</p>
+      )}
+      <Button
+        variant="primary"
+        disabled={
+          busy ||
+          running ||
+          !state.configured ||
+          !selectedAvatar ||
+          !selection.narrationId
+        }
+        aria-describedby={
+          !state.configured ? "presenter-service-status-description" : undefined
+        }
+        onClick={() => setConfirmation("new")}
+      >
+        生成数字人
+      </Button>
       {selectedAvatar && (
         <img
           className="presenter-avatar"
@@ -305,36 +341,22 @@ export function AvatarPresenter({ project }: { project: Project }) {
           </div>
         )}
       </details>
-      {!state.configured && (
-        <Feedback
-          kind="blocking"
-          id="presenter-service-status"
-          title="数字人服务尚未接入"
-        >
-          数字人服务尚未接入，因此暂不能生成。已选头像、口播版本和位置会保留。
-          待 API 接入后，可在本机设置中配置服务并继续生成；设置入口届时提供。
-        </Feedback>
-      )}
-      {!narrations.length && (
-        <p>请先在 AI 口播中完成一个与当前页面一致的口播版本。</p>
-      )}
-      <Button
-        disabled={
-          busy ||
-          running ||
-          !state.configured ||
-          !selectedAvatar ||
-          !selection.narrationId
-        }
-        aria-describedby={
-          !state.configured ? "presenter-service-status-description" : undefined
-        }
-        onClick={() => setConfirmation("new")}
-      >
-        {version ? "更新数字人" : "生成数字人"}
-      </Button>
       {version && (
         <div className="presenter-result">
+          {preview && (
+            <div className="presenter-next-actions">
+              <Button
+                onClick={() =>
+                  document
+                    .getElementById("presenter-video-preview")
+                    ?.scrollIntoView({ block: "center", behavior: "smooth" })
+                }
+              >
+                预览数字人
+              </Button>
+              <Button onClick={onDelivery}>前往交付中心</Button>
+            </div>
+          )}
           <Field label="数字人版本">
             <select
               value={version.id}
@@ -374,7 +396,7 @@ export function AvatarPresenter({ project }: { project: Project }) {
                           failed: "失败",
                         } as Record<string, string>
                       )[p.status] || p.status}
-                {p.error && " · " + p.error}
+                {p.error && " · " + userError(p.error)}
               </li>
             ))}
           </ol>
@@ -402,6 +424,7 @@ export function AvatarPresenter({ project }: { project: Project }) {
                 </select>
               </Field>
               <video
+                id="presenter-video-preview"
                 className="presenter-preview"
                 key={version.id + preview.pageId}
                 src={presenterVideo(version.id, preview.pageId)}

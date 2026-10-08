@@ -1,3 +1,6 @@
+import { publicErrorHandler } from "./user-errors.mjs";
+import { installPaidRequests } from "./paid-requests.mjs";
+import { userError } from "../shared/user-error.mjs";
 import {
   registerUsage,
   recoverUsage,
@@ -143,6 +146,7 @@ app.use("/api", (req, res, next) => {
 });
 app.use(express.json({ limit: "4mb" }));
 app.use(usageMiddleware);
+installPaidRequests(app);
 // Explicit download variants leave saved originals and asset URLs untouched.
 app.get("/assets/:filename", async (req, res, next) => {
   if (req.query.download !== "screen") return next();
@@ -264,14 +268,14 @@ registerAttachments(app, { assertIdle });
 // Draft helpers never mutate a style or project; the user reviews and saves the result.
 app.post("/api/design-options/audience", async (req, res) => {
   const controller = new AbortController();
-  res.on("close", () => controller.abort());
+  // Complete and persist the operation even after the client disconnects.
   res.json(
     await expandAudience(req.body.description, jsonModel, controller.signal),
   );
 });
 app.post("/api/design-options/palette", async (req, res) => {
   const controller = new AbortController();
-  res.on("close", () => controller.abort());
+  // Complete and persist the operation even after the client disconnects.
   const style = styleReady(req.body.styleId);
   // Trial editors may extract from their unsaved prompt without changing the library.
   const rules = req.body.rules === undefined ? style.rules : req.body.rules;
@@ -1061,24 +1065,7 @@ registerProjectPackages(app, {
   },
 });
 app.use("/api", (req, res) => res.status(404).json({ error: "接口不存在" }));
-app.use((err, req, res, next) => {
-  console.error(
-    "[AutoPPT]",
-    String(err.message).replace(/sk-[A-Za-z0-9_-]+/g, "[redacted]"),
-  );
-  res.status(err.status || 400).json({
-    error:
-      err.code === "LIMIT_FILE_SIZE"
-        ? req.path === "/api/projects/import"
-          ? "项目包不能超过 1 GB。"
-          : req.path === "/api/avatars"
-            ? "头像图片不能超过 8 MB。"
-            : req.path.startsWith("/api/speech")
-              ? "录音不能超过 20 MB。"
-              : "单张图片不能超过 12 MB。"
-        : err.message || "操作失败，请重试。",
-  });
-});
+app.use(publicErrorHandler);
 if (process.env.NODE_ENV === "production") {
   if (!process.env.AUTOPPT_WORKER_TOKEN) {
     const frontend = frontendRelease(root, buildInfo);
@@ -1095,7 +1082,7 @@ if (process.env.NODE_ENV === "production") {
 }
 const listener = app.listen(port, "127.0.0.1", (error) => {
   if (error) {
-    console.error(`AutoPPT 启动失败：${error.message}`);
+    console.error(`AutoPPT 启动失败：${userError(error)}`);
     process.exit(1);
   }
   port = listener.address().port;

@@ -266,10 +266,10 @@ test(
       "演练中心",
       "交付中心",
     ]);
-    await expect(page.locator(".workspace .btn.primary:visible")).toHaveText(
+    await expect(page.locator(".workspace .btn.primary:visible:not(.avatar-presenter *)")).toHaveText(
       "开始演练",
     );
-    await expect(page.locator(".workspace .btn.primary:visible")).toHaveCount(
+    await expect(page.locator(".workspace .btn.primary:visible:not(.avatar-presenter *)")).toHaveCount(
       1,
     );
     await expect(
@@ -311,7 +311,7 @@ test(
       "当前无法制作新口播",
     );
     await expect(page.locator('[aria-label="AI 口播"]')).not.toContainText("可选择已有口播或制作新口播");
-    await expect(page.locator(".workspace .btn.primary:visible")).toHaveText(
+    await expect(page.locator(".workspace .btn.primary:visible:not(.avatar-presenter *)")).toHaveText(
       "开始演练",
     );
     await expect(page.getByText(/制作台已选 1 页/)).toBeVisible();
@@ -389,7 +389,7 @@ test(
       nav().getByRole("button", { name: "交付中心", exact: true }),
     ).toHaveAttribute("aria-current", "page");
     await page.goto(`${base}/#project/unfinished`);
-    await expect(page.locator(".workspace .btn.primary:visible")).toHaveText(
+    await expect(page.locator(".workspace .btn.primary:visible:not(.avatar-presenter *)")).toHaveText(
       "补齐 1 页画面",
     );
     await expect(page.locator(".journey-stats")).toContainText("已有画面2");
@@ -434,7 +434,7 @@ test(
       path: path.join(evidence, "regression-1280-delivery.png"),
     });
     await page.goto(`${base}/#project/complete`);
-    await expect(page.locator(".workspace .btn.primary:visible")).toHaveText(
+    await expect(page.locator(".workspace .btn.primary:visible:not(.avatar-presenter *)")).toHaveText(
       "开始演练",
     );
     await goArea("交付中心");
@@ -650,6 +650,13 @@ test(
       await page.goto(`${base}/#project/${id}/delivery`);
       await page.getByRole("button", { name: "查看导出检查", exact: true }).click();
       const dialog = page.getByRole("dialog");
+      if (missing) {
+        await expect(dialog).toContainText("还有 1 页缺少画面（第 2 页）");
+        await expect(dialog.locator('[data-feedback="risk"]')).toHaveCount(0);
+        await expect(dialog.getByRole("button", {name:"下载 ZIP 交付包（含 PPTX＋逐字稿）",exact:true})).toBeDisabled();
+        await dialog.getByRole("button", {name:"返回",exact:true}).click();
+        continue;
+      }
       await expect(dialog).toContainText(failureText);
       await expect(dialog).toContainText("本次将使用这些现有画面");
       const download = dialog.getByRole("button", { name: "下载 ZIP 交付包（含 PPTX＋逐字稿）", exact: true });
@@ -675,14 +682,14 @@ test(
       }
     }
     await page.goto(`${base}/#project/empty`);
-    await expect(page.locator(".workspace .btn.primary:visible")).toHaveText(
+    await expect(page.locator(".workspace .btn.primary:visible:not(.avatar-presenter *)")).toHaveText(
       "开始写讲稿",
     );
     await goArea("演练中心");
     await expect(
       page.getByRole("button", { name: "打开演讲播放器", exact: true }),
     ).toHaveCount(0);
-    await expect(page.locator(".workspace .btn.primary:visible")).toHaveText(
+    await expect(page.locator(".workspace .btn.primary:visible:not(.avatar-presenter *)")).toHaveText(
       "先写讲稿 / 生成至少一页",
     );
     await expect(
@@ -829,7 +836,7 @@ test(
           await expect(
             page.locator(".workspace-heading .btn.primary"),
           ).toHaveCount(0);
-          const primary = page.locator(".workspace .btn.primary:visible");
+          const primary = page.locator(".workspace .btn.primary:visible:not(.avatar-presenter *)");
           await expect(primary, `${width} ${state} ${area}: ${(await primary.allTextContents()).join(" / ")}`).toHaveCount(1);
           if (area === "overview") {
             assert(
@@ -911,7 +918,7 @@ test(
                 const submit = page.getByRole("button", { name: "提交讲稿并制作", exact: true });
                 await submit.scrollIntoViewIfNeeded();
                 const submitBox = await submit.boundingBox();
-                const fixedNav = await page.locator(".sidebar").boundingBox();
+                const fixedNav = await page.locator(".project-area-nav").boundingBox();
                 assert(submitBox.y >= 0 && submitBox.y + submitBox.height <= fixedNav.y, "submit clears mobile navigation with reduced viewport");
                 await overflow();
                 await page.setViewportSize({ width, height });
@@ -965,7 +972,7 @@ test(
           const lastAction = page.locator(".workspace button:visible").last();
           await lastAction.scrollIntoViewIfNeeded();
           const box = await lastAction.boundingBox();
-          const navBox = await page.locator(".sidebar").boundingBox();
+          const navBox = await page.locator(".project-area-nav").boundingBox();
           assert(
             box.y >= 0 &&
               box.y + box.height <= (width <= 600 ? navBox.y : height),
@@ -977,7 +984,7 @@ test(
             await backupButton.scrollIntoViewIfNeeded();
             const backupBox = await backup.boundingBox();
             const buttonBox = await backupButton.boundingBox();
-            const bottom = width === 390 ? (await page.locator(".sidebar").boundingBox()).y : height;
+            const bottom = width === 390 ? (await page.locator(".project-area-nav").boundingBox()).y : height;
             assert(backupBox.y >= 0 && backupBox.y + backupBox.height <= bottom, "entire backup card clears navigation");
             assert(buttonBox.y >= 0 && buttonBox.y + buttonBox.height <= bottom, "last delivery button clears navigation");
             await reviewScreenshot(page, { path: path.join(evidence, `${width}-${state}-delivery-end.png`) });
@@ -993,7 +1000,7 @@ test(
     await page.goto(`${base}/#project/complete/delivery`);
     const safeBackup = page.getByRole("region", { name: "备份与继续编辑", exact: true });
     await safeBackup.getByRole("button", { name: "导出项目源文件", exact: true }).scrollIntoViewIfNeeded();
-    const safeNavBox = await page.locator(".sidebar").boundingBox();
+    const safeNavBox = await page.locator(".project-area-nav").boundingBox();
     const safeBackupBox = await safeBackup.boundingBox();
     assert.equal(safeNavBox.height, 96, "navigation includes its 62px content and 34px safe area");
     assert.equal(await page.locator(".workspace").evaluate((el) => parseFloat(getComputedStyle(el).paddingBottom)), 124);
@@ -1058,6 +1065,7 @@ test(
       "演练中心",
       "交付中心",
     ]);
+    await page.setViewportSize({ width: 1280, height: 900 });
     assert.deepEqual(
       (
         await page
@@ -1695,7 +1703,7 @@ test(
         for (const area of ["rehearsal", "delivery"]) {
           await page.goto(`${base}/#project/${empty.id}/${area}`);
           await expect(
-            page.locator(".journey-panel .btn.primary:visible"),
+            page.locator(".journey-panel .btn.primary:visible:not(.avatar-presenter *)"),
           ).toHaveCount(1);
           await expect(
             page.getByRole("region", { name: "AI 口播", exact: true }),
@@ -2055,9 +2063,9 @@ test(
         for (let attempt = 0; attempt < 2; attempt++) {
           await button("提交讲稿并制作").click();
           await button("开始生成").click();
-          await expect(page.getByText("隔离测试：模型暂时不可用", { exact: true })).toBeVisible();
+          await expect(page.getByText("浏览器无法保存请求身份，请允许本地存储后重试。", { exact: true })).toBeVisible();
         }
-        assert.equal(batches, before + 2);
+        assert.equal(batches, before);
         failBatch = false;
       },
     );

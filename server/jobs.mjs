@@ -1,3 +1,5 @@
+import { assertPaidClaim } from "./operation-context.mjs";
+import { userError } from "../shared/user-error.mjs";
 import { withUsage, usageScope } from "./usage/index.mjs";
 import { withProjectPageNumber } from "../shared/page-number.mjs";
 import {
@@ -123,6 +125,7 @@ export function assertIdle(projectId, slideIds = null, exceptJobId = null) {
     );
 }
 export function enqueue(type, projectId, payload = {}) {
+  assertPaidClaim();
   if (
     !projectId &&
     payload.styleId &&
@@ -167,6 +170,7 @@ export function cancel(jobId) {
   return j;
 }
 export function retry(jobId) {
+  assertPaidClaim();
   const j = get("job", jobId);
   if (!j || !["failed", "interrupted", "cancelled"].includes(j.status))
     throw new Error("这个任务不需要重试。");
@@ -470,14 +474,14 @@ async function renderSlides(j, ids, signal, redesign = false) {
       p = projectOrThrow(j.projectId);
       s = p.slides.find((x) => x.id === sid);
       s.status = "error";
-      s.error = e.message;
+      s.error = userError(e);
       saveProject(p);
       failures++;
       completed++;
       j.pageProgress.failed.push({
         id: sid,
         page: pageNumber,
-        error: e.message,
+        error: userError(e),
       });
       j.pageProgress.current = null;
       progress(
@@ -522,7 +526,7 @@ async function run(j, signal) {
       const current = get("style", style.id);
       if (current && !current.deletedAt) {
         current.status = current.rules ? "ready" : "error";
-        current.error = e.message;
+        current.error = userError(e);
         put("style", current);
       }
       throw e;
@@ -702,7 +706,7 @@ async function execute(j, controller) {
     j.status = controller.signal.aborted ? "cancelled" : "failed";
     j.error = controller.signal.aborted
       ? "任务已停止，已完成的内容已保存。"
-      : e.message;
+      : userError(e);
     progress(j, controller.signal.aborted ? "已停止" : "需要处理");
   } finally {
     delete j.autoRetry;

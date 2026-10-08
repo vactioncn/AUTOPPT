@@ -705,6 +705,15 @@ export function Workspace({
   return (
     <div className="page workspace">
       {risk.dialog}
+      <div className="project-mobile-links">
+        <a href="#projects">返回项目</a>
+        <details>
+          <summary>更多</summary>
+          <a href="#styles">风格库</a>
+          <a href="#intro">产品介绍</a>
+          <a href="#help">使用帮助</a>
+        </details>
+      </div>
       <div className="workspace-heading">
         <div>
           <div className="project-title-row">
@@ -1944,8 +1953,8 @@ function ExportDialog({
   };
   return (
     <Modal
+      subtitle={`交付中心 · ${project.title}`}
       title="导出演讲"
-      subtitle="下载用于放映的文件，或打包项目带到另一台电脑继续编辑。"
       onClose={() => {
         if (!exporting) onClose();
       }}
@@ -2019,13 +2028,13 @@ function ExportDialog({
                   : "还没有页面，请先添加讲稿并完成制作。"}
         </Feedback>
       )}
-      {!!stale && format !== "project" && (
+      {!!stale && !blocked && format !== "project" && (
         <Feedback kind="risk">
           有 {stale}{" "}
           页讲稿已修改，图片尚未更新。本次将使用当前图片，备注采用最新讲稿。可返回修改，或确认下载。
         </Feedback>
       )}
-      {!!failedWithImage.length && format !== "project" && (
+      {!!failedWithImage.length && !blocked && format !== "project" && (
         <Feedback kind="risk">
           <p id="failed-export-reason">
             有 {failedWithImage.length} 页生成失败（第{" "}

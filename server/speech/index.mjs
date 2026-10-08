@@ -1,3 +1,4 @@
+import { userError } from "../../shared/user-error.mjs";
 import { withUsage, recordCache } from "../usage/index.mjs";
 import { createHash } from "node:crypto";
 import { mkdirSync, existsSync } from "node:fs";
@@ -176,7 +177,7 @@ async function drain() {
           } catch (e) {
             if (signal.aborted) throw e;
             p.status = "failed";
-            p.error = e.message;
+            p.error = userError(e);
             // Stop on a provider failure; don't repeat a bad/expensive request for every page.
             throw e;
           }
@@ -186,7 +187,7 @@ async function drain() {
         d.progress = "口播已就绪，可以开始演讲";
       } catch (e) {
         d.status = signal.aborted ? "cancelled" : "partial";
-        d.progress = signal.aborted ? "已停止，完成的语音已保留" : e.message;
+        d.progress = signal.aborted ? "已停止，完成的语音已保留" : userError(e);
         for (const p of d.pages)
           if (p.status === "running") p.status = "pending";
       } finally {
@@ -280,7 +281,7 @@ export function registerSpeech(app) {
       throw new Error("试听文本过长或为空");
     quickOperation = true;
     const controller = new AbortController();
-    res.on("close", () => controller.abort());
+    // Complete and persist even when the response is lost.
     try {
       res.json(await cachedAudio(config, text, options, controller.signal));
     } finally {

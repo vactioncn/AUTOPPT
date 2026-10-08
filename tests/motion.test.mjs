@@ -1,3 +1,4 @@
+import { requestIdentity } from "./helpers/request-identity.mjs";
 import test from "node:test";
 import { htmlPayload } from "./helpers/html-payload.mjs";
 import assert from "node:assert/strict";
@@ -322,7 +323,10 @@ test(
     const request = async (url, body, method = "POST", status = 200) => {
       const res = await fetch(base + url, {
         method,
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...requestIdentity(body),
+        },
         body: JSON.stringify(body),
       });
       const value = await res.json();

@@ -95,10 +95,11 @@ test("downloads reject empty/JSON/wrong archive responses and error feedback rem
       "Authorization: Bearer secret",
       "API Key is secret",
     ]) {
-      assert.equal(
+      assert.doesNotMatch(
         userMessage(message),
-        "操作没有完成，请检查当前内容后重试。",
+        /provider|worker|requestId|private|secret|Bearer|API Key/i,
       );
+      assert.match(userMessage(message), /检查|凭据|网络/);
     }
     assert.equal(userMessage("请先补齐页面。"), "请先补齐页面。");
   } finally {

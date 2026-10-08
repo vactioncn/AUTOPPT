@@ -1,3 +1,4 @@
+import { userError } from "../shared/user-error.mjs";
 import { useEffect, useState } from "react";
 import { api, post, active } from "./api";
 import { Button, Field } from "./components";
@@ -260,13 +261,13 @@ export function SpeechPerformance({
           <p>{failureAdvice(task.progress).action}</p>
           <details>
             <summary>具体错误</summary>
-            <p className="job-raw-error">{task.progress}</p>
+            <p className="job-raw-error">{userError(task.progress)}</p>
           </details>
         </div>
       ) : (
         task && (
           <p role="status" className="speech-callout">
-            {task.progress}
+            {userError(task.progress)}
             {running
               ? ` · 已保存 ${task.completed} / ${task.total} 页，无需重复点击。`
               : ""}

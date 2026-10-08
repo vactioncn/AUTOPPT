@@ -162,7 +162,9 @@ export default function App() {
   const readiness = onboardingReadiness(data, capabilities, account);
   const current = data.projects.find((p) => p.id === currentId);
   return (
-    <div className="app-shell">
+    <div
+      className={`app-shell ${currentId && !informationRoute ? "project-context" : ""}`}
+    >
       <aside className="sidebar">
         <button className="brand" onClick={() => go("projects")}>
           <span className="brand-icon">A</span>

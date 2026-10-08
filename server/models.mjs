@@ -1,3 +1,5 @@
+import { assertPaidClaim } from "./operation-context.mjs";
+import { userError } from "../shared/user-error.mjs";
 import { trackUsage } from "./usage/index.mjs";
 import {
   meteredImage,
@@ -27,11 +29,8 @@ import {
 } from "./model-request-policy.mjs";
 
 export class ProviderError extends Error {}
-const safeError = (message) =>
-  String(message || "模型服务请求失败")
-    .replace(/(?:sk-|Bearer\s+)[A-Za-z0-9_.-]+/g, "[密钥已隐藏]")
-    .slice(0, 500);
 export async function request(kind, route, body, signal, form = false) {
+  assertPaidClaim();
   const config = settings()[kind];
   if (!config.apiKey || signal?.aborted)
     return providerRequest(kind, route, body, signal, form);
@@ -102,11 +101,12 @@ async function providerRequest(
         ),
         { retryableConnection: kind === "text", uncertain: true },
       );
-    const message = safeError(
+    const message = userError(
       data.error?.message ||
         (typeof data.error === "string" ? data.error : "") ||
         data.message ||
         "请检查接口设置。",
+      { external: true, status: response.status },
     );
     if (
       response.status === 429 &&

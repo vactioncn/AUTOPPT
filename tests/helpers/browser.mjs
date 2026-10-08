@@ -37,6 +37,14 @@ export async function launchBrowser(t) {
     (candidate) => candidate && existsSync(candidate),
   );
   if (!executablePath) {
+    if (
+      process.env.REQUIRE_BROWSER === "1" ||
+      process.env.BROWSER_TEST === "1" ||
+      process.env.PRESENTER_BROWSER_TEST === "1"
+    )
+      throw new Error(
+        "Browser gate requires Chromium; set CHROMIUM_EXECUTABLE or install Playwright Chromium.",
+      );
     t.skip(
       "No Chromium browser found; install Playwright Chromium or set CHROMIUM_EXECUTABLE.",
     );

@@ -49,6 +49,12 @@ test(
             usage: { prompt_tokens: 12, completion_tokens: 3 },
           });
     });
+    await assert.rejects(
+      request("text", "/chat/completions", { model: config.model }),
+      { uncertain: true },
+    );
+    assert.equal(calls, 1, "uncertain TLS result cannot automatically resend");
+    // This direct dispatcher call represents a separately confirmed attempt.
     await request("text", "/chat/completions", { model: config.model });
     assert.equal(calls, 2);
     const events = store.all("usage-event");
@@ -238,32 +244,22 @@ test(
       existingVersions,
       "saved pages are never submitted or modified by retry",
     );
-    // The live job exposes the same bounded connection wait as the request policy.
+    // A TLS interruption fails each pending page once; no automatic re-dispatch.
     let designCalls = 0;
     fetchMock.mock.mockImplementation(async () => {
       designCalls++;
-      return designCalls === 1
-        ? response(500, handshake)
-        : response(400, { error: "fixture stops before image generation" });
+      return response(500, handshake);
     });
     retry(job.id);
-    let waitingJob;
-    for (let i = 0; i < 300; i++) {
-      waitingJob = store.get("job", job.id);
-      if (waitingJob.autoRetry) break;
-      await delay(10);
-    }
-    assert.equal(waitingJob.autoRetry.attempt, 1);
-    assert.equal(waitingJob.autoRetry.seconds, 2);
-    assert.equal(waitingJob.pageProgress.current.page, 16);
-    assert.equal(
-      waitingJob.pageProgress.failed.length,
-      0,
-      "prior attempt failures must clear on retry",
-    );
     saved = await finished();
+    assert.equal(
+      designCalls,
+      2,
+      "one uncertain call for each of the two pending pages",
+    );
     assert.equal(saved.autoRetry, undefined);
     assert.equal(saved.pageProgress.failed.length, 2);
+    let waitingJob;
     // A 503 recovery keeps the page running; no failure is exposed until recovery ends.
     designCalls = 0;
     fetchMock.mock.mockImplementation(async () => {

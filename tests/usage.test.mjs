@@ -1,3 +1,4 @@
+import { requestIdentity } from "./helpers/request-identity.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -385,7 +386,10 @@ test(
             body
               ? {
                   method: "POST",
-                  headers: { "content-type": "application/json" },
+                  headers: {
+                    "content-type": "application/json",
+                    ...requestIdentity(body),
+                  },
                   body: JSON.stringify(body),
                 }
               : {},

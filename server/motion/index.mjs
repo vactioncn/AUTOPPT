@@ -1,3 +1,4 @@
+import { userError } from "../../shared/user-error.mjs";
 import { withUsage } from "../usage/index.mjs";
 import {
   withModelRequestProgress,
@@ -60,11 +61,8 @@ function revision(d, req) {
       { status: 409 },
     );
 }
-function sanitizeError(e) {
-  return String(e.message || "转换失败")
-    .replace(/(?:sk-|Bearer\s+)[A-Za-z0-9_.-]+/g, "[密钥已隐藏]")
-    .slice(0, 600);
-}
+const sanitizeError = userError;
+
 function withRecovery(d, operation) {
   let stage;
   return withModelRequestProgress((waiting) => {

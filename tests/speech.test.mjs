@@ -1,3 +1,4 @@
+import { requestIdentity } from "./helpers/request-identity.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -217,12 +218,13 @@ test(
           ...extra,
         },
       });
+      let startupOutput = "";
       proc.stdout.on("data", () => {});
-      proc.stderr.on("data", () => {});
+      proc.stderr.on("data", (chunk) => { startupOutput += chunk; });
       const [ready] = await Promise.race([
         once(proc, "message"),
-        once(proc, "exit").then(() => {
-          throw new Error("server exited");
+        once(proc, "exit").then(([code, signal]) => {
+          throw new Error(`isolated test server exited (${code}, ${signal}): ${startupOutput}`);
         }),
       ]);
       base = `http://127.0.0.1:${ready.port}`;
@@ -247,7 +249,10 @@ test(
     const request = async (url, body, method = "POST", status = 200) => {
       const res = await fetch(base + url, {
         method,
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...requestIdentity(body),
+        },
         body: JSON.stringify(body),
       });
       const data = await res.json();
@@ -376,6 +381,7 @@ test(
       form.set("audio", new Blob([sample]), "sample.wav");
       const res = await fetch(base + "/api/speech/voices/clone", {
         method: "POST",
+        headers: requestIdentity(),
         body: form,
       });
       assert.equal(res.status, status);
@@ -609,7 +615,7 @@ test(
             animations: "disabled",
           });
         }
-        await page.getByRole("tab", {name:"放映",exact:true}).click();
+        await page.getByRole("tab", { name: "放映", exact: true }).click();
         await page
           .getByRole("button", { name: "仅放映 PPT", exact: true })
           .click();
@@ -626,8 +632,10 @@ test(
         await page
           .getByRole("button", { name: "返回演播台", exact: true })
           .click();
-        await page.getByRole("button", {name:"关闭演讲播放器",exact:true}).click();
-        await page.getByRole("button", {name:"设置",exact:true}).click();
+        await page
+          .getByRole("button", { name: "关闭演讲播放器", exact: true })
+          .click();
+        await page.getByRole("button", { name: "设置", exact: true }).click();
         await page.getByText("采集演讲者的声音", { exact: true }).click();
         await page.getByLabel("上传演讲者录音").setInputFiles({
           name: "test.wav",
@@ -670,7 +678,7 @@ test(
             ),
           ),
         );
-        await page.getByRole("button", {name:"项目",exact:true}).click();
+        await page.getByRole("button", { name: "项目", exact: true }).click();
         assert.equal(await page.locator(".voice-capture").count(), 0);
         assert(
           await page.evaluate(() =>

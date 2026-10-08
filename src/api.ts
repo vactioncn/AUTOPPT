@@ -1,34 +1,43 @@
+import { preparePaidRequest } from "./paid-request";
+import { userError, sanitizeErrorFields } from "../shared/user-error.mjs";
 import { exportManuscript } from "../shared/manuscript.mjs";
 import type { Project } from "./types";
-export function userMessage(
+export const userMessage = (
   value: unknown,
   fallback = "操作没有完成，请检查当前内容后重试。",
-) {
-  if (
-    typeof value !== "string" ||
-    /provider|worker|requestId|api[_ -]?key|authorization|bearer|\/(?:Users|private|home|var|tmp)\/|[A-Z]:\\|任务\s*ID|https?:\/\//i.test(
-      value,
-    )
-  )
-    return fallback;
-  return value.slice(0, 600);
-}
+) => userError(value, { fallback });
 export async function api<T = any>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const form = options.body instanceof FormData;
-  const response = await fetch("/api" + path, {
-    ...options,
-    headers: {
-      ...(!form ? { "Content-Type": "application/json" } : {}),
-      ...options.headers,
-    },
-  });
-  const data = await response.json();
+  const identity = await preparePaidRequest(path, options);
+  const send = () => {
+    const headers = new Headers(options.headers);
+    if (!(options.body instanceof FormData))
+      headers.set("Content-Type", "application/json");
+    return fetch("/api" + path, { ...options, headers });
+  };
+  let response = await send();
+  let data = sanitizeErrorFields(await response.json());
+  const completedReplay =
+    response.ok &&
+    identity?.wasComplete &&
+    response.headers.get("X-AutoPPT-Replayed") === "1";
+  if (
+    identity &&
+    (completedReplay ||
+      (!response.ok &&
+        (data.retryAllowed ||
+          response.headers.get("X-AutoPPT-Retry-Allowed") === "1"))) &&
+    identity.retry(!!completedReplay)
+  ) {
+    response = await send();
+    data = sanitizeErrorFields(await response.json());
+  }
   if (response.status === 401)
     window.dispatchEvent(new Event("autoppt-session-expired"));
   if (!response.ok) throw new Error(userMessage(data.error));
+  identity?.accepted();
   return data;
 }
 export const post = <T = any>(path: string, body: unknown = {}) =>

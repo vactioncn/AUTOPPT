@@ -1,3 +1,4 @@
+import { requestIdentity } from "./helpers/request-identity.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -219,6 +220,7 @@ test(
           Origin: origin,
           "Content-Type": "application/json",
           Cookie: cookie,
+          ...requestIdentity(body),
           ...headers,
         },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),

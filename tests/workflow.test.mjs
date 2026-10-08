@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+import { requestIdentity } from "./helpers/request-identity.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, readFileSync, mkdirSync } from "node:fs";
@@ -330,7 +332,7 @@ test(
       const r = await fetch(base + url, {
         method,
         headers:
-          body === undefined ? {} : { "Content-Type": "application/json" },
+          body === undefined ? {} : { "Content-Type": "application/json", ...requestIdentity(body) },
         body: body === undefined ? undefined : JSON.stringify(body),
       });
       const d = await r.json();
@@ -411,7 +413,7 @@ test(
     form.append("name", "图片风格验收");
     form.append("images", new Blob([image], { type: "image/png" }), "ref.png");
     const upload = await (
-      await fetch(base + "/styles", { method: "POST", body: form })
+      await fetch(base + "/styles", { method: "POST", headers: requestIdentity(), body: form })
     ).json();
     assert.equal((await poll(upload.job)).status, "completed");
     let style = (await req("/bootstrap")).styles.find(
@@ -451,7 +453,7 @@ test(
     const appendRequestId = await client.request.forText(submittedText);
     await req(
       `/projects/${id}/batches`,
-      { requestId: appendRequestId, text: "# 只有大标题\n\n## 没有正文" },
+      { requestId: randomUUID(), text: "# 只有大标题\n\n## 没有正文" },
       "POST",
       400,
     );
@@ -1206,7 +1208,7 @@ test(
     assert.equal(middle.project.slides[1].styleId, style.id);
     assert.deepEqual([calls.length, imageCalls], beforeInsertCalls);
     assert.equal(
-      (await req(ip + "/slides", middleBody)).slideId,
+      (await req(ip + "/slides", middleBody, "POST", 201)).slideId,
       middle.slideId,
     );
     assert.equal((await req(ip)).slides.length, 3);
@@ -2993,7 +2995,7 @@ test(
     failImage = true;
     const failedJob = await rendered(attachmentIds.slice(0, 2));
     assert.equal(failedJob.status, "failed");
-    assert.match((await read()).slides[0].error, /Images Edits/);
+    assert.match((await read()).slides[0].error, /模型服务繁忙或限流/);
     assert.equal((await read()).slides[0].image, savedImage);
     const plansBeforeRetry = calls.filter((c) => c.type === "copy").length;
     const textOnlyBeforeRetry = imageRequests.length;

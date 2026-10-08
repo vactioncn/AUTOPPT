@@ -1,3 +1,4 @@
+import { userError } from "../shared/user-error.mjs";
 import { designOptions, designOptionsKey } from "./design-options.mjs";
 import { all, get, put, id, now, transaction, assetPath } from "./store.mjs";
 import { existsSync } from "node:fs";
@@ -346,7 +347,7 @@ export async function runTrial(job, signal, progress) {
     });
   } catch (e) {
     t.status = signal.aborted ? "cancelled" : "failed";
-    t.error = e.message;
+    t.error = userError(e);
     put("trial", t);
     throw e;
   }

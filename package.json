@@ -17,7 +17,8 @@
     "deploy:intro": "node scripts/deploy-intro.mjs",
     "start:hosted": "node server/hosted/index.mjs",
     "desktop": "electron .",
-    "build:mac": "node scripts/build-mac.mjs"
+    "build:mac": "node scripts/build-mac.mjs",
+    "check:integration": "node scripts/check-integration.mjs"
   },
   "dependencies": {
     "@fontsource-variable/noto-sans-sc": "^5.3.0",

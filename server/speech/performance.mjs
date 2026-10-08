@@ -1,3 +1,4 @@
+import { userError } from "../../shared/user-error.mjs";
 import { withUsage } from "../usage/index.mjs";
 import {
   withModelRequestProgress,
@@ -187,7 +188,7 @@ export function registerPerformance(app, assertIdle) {
         job.status = controller.signal.aborted ? "cancelled" : "failed";
         job.progress = controller.signal.aborted
           ? "已停止编排，已保存进度；上一份方案和音频保留"
-          : e.message;
+          : userError(e);
         update(project.id, job);
       } finally {
         controllers.delete(job.id);

@@ -1,3 +1,4 @@
+import { userError } from "../shared/user-error.mjs";
 import { userMessage } from "./api";
 import { useRiskConfirmation } from "./Feedback";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -1197,7 +1198,9 @@ export function SpeechPresentation({
                                 第 {i + 1} 页 · {failureAdvice(p.error).reason}
                               </strong>
                               <p>{failureAdvice(p.error).action}</p>
-                              <p className="job-raw-error">{p.error}</p>
+                              <p className="job-raw-error">
+                                {userError(p.error)}
+                              </p>
                             </div>,
                           ]
                         : [],

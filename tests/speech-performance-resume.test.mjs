@@ -1,3 +1,4 @@
+import { requestIdentity } from "./helpers/request-identity.mjs";
 import test from "node:test";
 import { mockGlobalPlan } from "./helpers/performance-model.mjs";
 import assert from "node:assert/strict";
@@ -181,7 +182,10 @@ test(
         body
           ? {
               method,
-              headers: { "content-type": "application/json" },
+              headers: {
+                "content-type": "application/json",
+                ...requestIdentity(body),
+              },
               body: JSON.stringify(body),
             }
           : {},

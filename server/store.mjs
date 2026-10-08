@@ -1,3 +1,4 @@
+import { sanitizeErrorFields } from "../shared/user-error.mjs";
 import { RELEASE_STYLES } from "../shared/builtin-style-catalog.mjs";
 import { DatabaseSync } from "node:sqlite";
 import {
@@ -26,15 +27,16 @@ export function get(kind, key) {
   const row = db
     .prepare("SELECT data FROM records WHERE kind=? AND id=?")
     .get(kind, key);
-  return row ? JSON.parse(row.data) : null;
+  return row ? sanitizeErrorFields(JSON.parse(row.data)) : null;
 }
 export function all(kind) {
   return db
     .prepare("SELECT data FROM records WHERE kind=?")
     .all(kind)
-    .map((r) => JSON.parse(r.data));
+    .map((r) => sanitizeErrorFields(JSON.parse(r.data)));
 }
 export function put(kind, value) {
+  sanitizeErrorFields(value);
   db.prepare(
     "INSERT INTO records(kind,id,data) VALUES(?,?,?) ON CONFLICT(kind,id) DO UPDATE SET data=excluded.data",
   ).run(kind, value.id, JSON.stringify(value));

@@ -1,3 +1,4 @@
+import { createScaleMedia, scalePresentation } from "./helpers/scale-media.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -295,6 +296,19 @@ test(
             fullPage: true,
           });
           if (width === 390) {
+            const safe = await page.context().newCDPSession(page);
+            await safe.send("Emulation.setSafeAreaInsetsOverride", {
+              insets: { top: 47, bottom: 34 },
+            });
+            const nav = page.getByRole("navigation", { name: "项目区域" });
+            for (const name of ["概览", "制作台", "演练中心", "交付中心"])
+              await expect(
+                nav.getByRole("button", { name, exact: true }),
+              ).toBeVisible();
+            await expect(
+              nav.getByRole("button", { name: "演练中心", exact: true }),
+            ).toHaveAttribute("aria-current", "page");
+            await safe.detach();
             await page.locator("#avatar-presenter").scrollIntoViewIfNeeded();
             await page.screenshot({
               path: path.join(evidence, "candidate-settings-390.png"),
@@ -357,14 +371,14 @@ test(
         }
         const cdp = await page.context().newCDPSession(page);
         await cdp.send("Emulation.setSafeAreaInsetsOverride", {
-          insets: { bottom: 34 },
+          insets: { top: 47, bottom: 34 },
         });
         await page.evaluate(() =>
           window.scrollTo(0, document.body.scrollHeight),
         );
         assert.equal(
           await page
-            .locator(".sidebar")
+            .locator(".project-area-nav")
             .evaluate((el) => el.getBoundingClientRect().height),
           96,
         );
@@ -379,6 +393,15 @@ test(
         });
         await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: {} });
         await cdp.detach();
+        await page
+          .getByRole("navigation", { name: "项目区域" })
+          .getByRole("button", { name: "交付中心", exact: true })
+          .click();
+        await expect(
+          page
+            .getByRole("navigation", { name: "项目区域" })
+            .getByRole("button", { name: "交付中心", exact: true }),
+        ).toHaveAttribute("aria-current", "page");
       },
     );
     await t.test(
@@ -388,7 +411,7 @@ test(
         for (const width of [1280, 390]) {
           await page.setViewportSize({ width, height: 900 });
           await cdp.send("Emulation.setSafeAreaInsetsOverride", {
-            insets: width === 390 ? { bottom: 34 } : {},
+            insets: width === 390 ? { top: 47, bottom: 34 } : {},
           });
           await page.goto(base + "/#project/" + project.id + "/delivery");
           await page
@@ -440,11 +463,9 @@ test(
         }
         await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: {} });
         await cdp.detach();
-        const dynamic = page
-          .locator("article")
-          .filter({
-            has: page.getByRole("heading", { name: "动态 HTML", exact: true }),
-          });
+        const dynamic = page.locator("article").filter({
+          has: page.getByRole("heading", { name: "动态 HTML", exact: true }),
+        });
         await dynamic
           .getByLabel("HTML 口播版本", { exact: true })
           .selectOption(narration.id);
@@ -723,28 +744,23 @@ test(
             }
           }
         assert.deepEqual(errors, []);
-        const manyProject = {
-          ...project,
-          slides: Array.from({ length: 128 }, (_, i) => ({
-            ...project.slides[0],
-            id: "many-" + i,
-          })),
-        };
-        const manyNarration = {
-          ...narration,
-          pages: manyProject.slides.map((s) => ({
-            ...narration.pages[0],
-            id: s.id,
-          })),
-        };
-        const source = store.get("presenter", presenterId);
-        const manyPresenter = {
-          ...source,
-          pages: manyProject.slides.map((s) => ({
-            ...source.pages[0],
-            pageId: s.id,
-          })),
-        };
+        const media = await createScaleMedia(dir);
+        for (const [kind, count] of [
+          ["images", 133],
+          ["audio", 759],
+          ["videos", 133],
+        ]) {
+          assert.equal(new Set(media[kind].map((m) => m.file)).size, count);
+          assert.equal(new Set(media[kind].map((m) => m.hash)).size, count);
+        }
+        const {
+          project: manyProject,
+          narration: manyNarration,
+          presenter: manyPresenter,
+        } = scalePresentation(media, 128, {
+          manyClips: false,
+          presenter: true,
+        });
         const manyFile = path.join(evidence, "lazy-128-pages.html");
         rmSync(manyFile, { force: true });
         await writeStaticHtml(
@@ -770,30 +786,33 @@ test(
         await lazy.goto(pathToFileURL(manyFile).href);
         await lazy.waitForFunction(() => window.__motionReady);
         assert.equal(await lazy.evaluate(() => window.__videos.size), 1);
+        const firstVideo = await lazy
+          .locator("#presenter-video")
+          .getAttribute("src");
         await lazy.locator("#speech-start").click();
         await lazy.keyboard.press("End");
         await expect(lazy.locator("#counter")).toHaveText("128 / 128");
+        assert.notEqual(
+          await lazy.locator("#presenter-video").getAttribute("src"),
+          firstVideo,
+        );
         assert.equal(await lazy.evaluate(() => window.__videos.size), 1);
+        const lazyAssets = await lazy
+          .locator('script[type="application/octet-stream"]')
+          .allTextContents();
+        assert.equal(
+          lazyAssets.filter((x) => x.startsWith("data:video/mp4")).length,
+          128,
+        );
+        assert.equal(
+          new Set(lazyAssets.filter((x) => x.startsWith("data:video/mp4")))
+            .size,
+          128,
+        );
         await lazy.close();
         // Preserve the mainline's long-talk scale without reading private data.
-        const longProject = {
-          ...project,
-          title: "候选 · 133 页 759 段口播",
-          slides: Array.from({ length: 133 }, (_, i) => ({
-            ...project.slides[0],
-            id: "long-" + i,
-          })),
-        };
-        const longNarration = {
-          ...narration,
-          pages: longProject.slides.map((s, i) => ({
-            ...narration.pages[0],
-            id: s.id,
-            clips: Array.from({ length: i < 94 ? 6 : 5 }, () => ({
-              ...narration.pages[0].clips[0],
-            })),
-          })),
-        };
+        const { project: longProject, narration: longNarration } =
+          scalePresentation(media);
         assert.equal(
           longNarration.pages.reduce((sum, p) => sum + p.clips.length, 0),
           759,
@@ -817,6 +836,38 @@ test(
         });
         await longPlayer.goto(pathToFileURL(longFile).href);
         await longPlayer.waitForFunction(() => window.__motionReady);
+        const independentAssets = [
+          ...readFileSync(longFile, "utf8").matchAll(
+            /<script type="application\/octet-stream"[^>]*>([^<]*)<\/script>/g,
+          ),
+        ].map((m) => m[1]);
+        assert.equal(
+          new Set(
+            independentAssets.filter((x) => x.startsWith("data:image/jpeg")),
+          ).size,
+          133,
+        );
+        assert.equal(
+          new Set(
+            independentAssets.filter((x) => x.startsWith("data:audio/mpeg")),
+          ).size,
+          759,
+        );
+        const firstImage = await longPlayer
+          .locator("#stage img")
+          .first()
+          .getAttribute("src");
+        for (let i = 0; i < 66; i++)
+          await longPlayer.keyboard.press("ArrowRight");
+        await expect(longPlayer.locator("#counter")).toHaveText("67 / 133");
+        await longPlayer.waitForFunction(
+          () => !!document.querySelector("#stage img")?.naturalWidth,
+        );
+        assert.notEqual(
+          await longPlayer.locator("#stage img").first().getAttribute("src"),
+          firstImage,
+        );
+        await longPlayer.keyboard.press("Home");
         await longPlayer.locator("#speech-start").click();
         await longPlayer.waitForFunction(
           () => document.querySelector("#speech-audio").currentTime > 0.05,
@@ -1075,13 +1126,13 @@ test(
           .locator('[data-feedback="blocking"]')
           .filter({ hasText: "数字人服务尚未接入" });
         await expect(unavailable).toContainText(
-          "数字人服务尚未接入，因此暂不能生成",
+          "暂不能生成，但可以先预配置",
         );
         await expect(unavailable).toContainText(
           "已选头像、口播版本和位置会保留",
         );
         await expect(unavailable).toContainText(
-          "待 API 接入后，可在本机设置中配置服务并继续生成；设置入口届时提供",
+          "服务接入并就绪后即可生成",
         );
         const generate = region.getByRole("button", {
           name: "生成数字人",
@@ -1089,7 +1140,7 @@ test(
         });
         await expect(generate).toBeDisabled();
         await expect(generate).toHaveAccessibleDescription(
-          /待 API 接入后，可在本机设置中配置服务并继续生成/,
+          /服务接入并就绪后即可生成/,
         );
         await expect(
           region.getByLabel("数字人头像", { exact: true }),
@@ -1107,9 +1158,16 @@ test(
         await expect(
           region.getByRole("link", { name: /配置|设置/ }),
         ).toHaveCount(0);
-        await unavailable.evaluate((el) =>
-          el.scrollIntoView({ block: "center" }),
-        );
+        const mobileSafe = await page.context().newCDPSession(page);
+        await mobileSafe.send("Emulation.setSafeAreaInsetsOverride", {
+          insets: { top: 47, bottom: 34 },
+        });
+        await region.evaluate((el) => el.scrollIntoView({ block: "start" }));
+        await expect(
+          page
+            .getByRole("navigation", { name: "项目区域" })
+            .getByRole("button", { name: "演练中心", exact: true }),
+        ).toHaveAttribute("aria-current", "page");
         await expect(generate).toBeInViewport();
         await page.screenshot({
           path: path.join(evidence, "provider-unconfigured-390.png"),

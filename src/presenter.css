@@ -97,3 +97,25 @@
     );
   }
 }
+
+.presenter-setup {
+  width: 100%;
+}
+.presenter-setup .field {
+  margin-bottom: 0;
+}
+@media (max-width: 600px) {
+  .presenter-setup {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-block: 8px;
+  }
+  .presenter-setup .field:nth-child(-n + 2) {
+    grid-column: 1 / -1;
+  }
+  .avatar-presenter {
+    scroll-margin-top: max(
+      16px,
+      var(--safe-area-top, env(safe-area-inset-top, 0px))
+    );
+  }
+}

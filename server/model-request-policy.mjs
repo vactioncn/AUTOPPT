@@ -117,6 +117,7 @@ export function createModelRequestPolicy({
           reason === "connection" ? retryDelays : serviceRetryDelays;
         if (signal?.aborted) throw error;
         if (
+          error.uncertain ||
           !reason ||
           attempt >= delays.length ||
           error.retryAfterMs > 600000

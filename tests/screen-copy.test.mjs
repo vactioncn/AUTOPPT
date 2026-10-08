@@ -59,6 +59,31 @@ const reviewed = (data) => ({
   changes: ["移去客服例子的完整解释，保留统计范围与指标"],
 });
 
+test("every manuscript evidence field tolerates layout but still protects qualifiers", () => {
+  const raw = draft();
+  raw.spokenOnly = [
+    { sourceQuote: raw.entries[2].sourceQuote, reason: "口播展开" },
+  ];
+  raw.semanticSupport = [{ sourceQuote: raw.entries[1].sourceQuote }];
+  const formatted = notes
+    .replace("不是销售额增长", "**不是销售额增长**")
+    .replaceAll("，", "，\n\n");
+  const original = structuredClone(raw);
+  assert.doesNotThrow(() => validateScreenCopy(raw, { notes: formatted }));
+  assert.deepEqual(raw, original);
+  for (const key of ["entries", "mustKeep", "spokenOnly", "semanticSupport"]) {
+    const invalid = structuredClone(raw);
+    invalid[key][0].sourceQuote = "已在所有门店增长120%。";
+    assert.throws(
+      () => validateScreenCopy(invalid, { notes: formatted }),
+      /来源|原稿/,
+    );
+  }
+  const lost = structuredClone(raw);
+  lost.entries[1].text = "销售额增长";
+  assert.throws(() => validateScreenCopy(lost, { notes: formatted }), /限定词/);
+});
+
 test("semantic context is sourced, independently reviewed and stays outside primary copy", async () => {
   const source =
     "第一层指个人赋能，第二层指进入业务流程。今天大多数团队在哪一层？";

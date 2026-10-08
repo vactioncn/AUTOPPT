@@ -21,6 +21,38 @@ const brief = (p, relationship) => ({
   visualTask: "表达关系",
   mustNotImply: [],
 });
+test("content relationship evidence accepts formatting-only differences and preserves source", () => {
+  const page = {
+    id: "page-78",
+    notes:
+      "**第二组：四件具体事情。**\n\n添改讲义——认真负责。\n\n纠正解剖图——严谨治学。",
+  };
+  const original = structuredClone(page);
+  const evidence =
+    "第二组：四件具体事情。\n添改讲义——认真负责。\n纠正解剖图——严谨治学。";
+  assert.equal(
+    validateBriefs({ pages: [{ ...brief(page, "list"), evidence }] }, [page])[
+      page.id
+    ].evidence,
+    evidence,
+  );
+  assert.deepEqual(page, original);
+  assert.throws(
+    () =>
+      validateBriefs(
+        {
+          pages: [
+            {
+              ...brief(page, "list"),
+              evidence: evidence.replace("认真负责", "不负责任"),
+            },
+          ],
+        },
+        [page],
+      ),
+    /原文依据/,
+  );
+});
 test("semantic briefs preserve page mapping and evidence; a metaphor cannot silently become spatial data", () => {
   const out = validateBriefs(
     { pages: [brief(pages[0], "positioning"), brief(pages[1], "causality")] },

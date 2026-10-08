@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { hasSourceEvidence } from "./source-evidence.mjs";
 
 // Copy budgets are editorial warning thresholds, never truncation limits.
 export const COPY_VERSION = 3;
@@ -220,7 +221,7 @@ function validEvidence(item, notes, attachments) {
     nonempty(item?.sourceQuote) &&
     (item.attachmentId
       ? attachments.some((a) => a.id === item.attachmentId)
-      : notes.includes(item.sourceQuote))
+      : hasSourceEvidence(notes, item.sourceQuote))
   );
 }
 
@@ -304,7 +305,7 @@ export function validateScreenCopy(
       (item) =>
         !nonempty(item?.reason) ||
         !nonempty(item.sourceQuote) ||
-        !notes.includes(item.sourceQuote),
+        !hasSourceEvidence(notes, item.sourceQuote),
     )
   )
     throw new Error("口播保留内容缺少逐字原稿依据，请重新设计。");

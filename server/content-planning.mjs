@@ -1,3 +1,5 @@
+import { hasSourceEvidence } from "./source-evidence.mjs";
+
 // Content structures constrain meaning, not style or fixed template geometry.
 export const PLANNING_VERSION = 10;
 
@@ -57,7 +59,7 @@ export function validateBriefs(raw, pages) {
       ![b.claim, b.visualTask, b.evidence].every(
         (v) => typeof v === "string" && v.trim(),
       ) ||
-      !page.notes.includes(b.evidence) ||
+      !hasSourceEvidence(page.notes, b.evidence) ||
       !Array.isArray(b.entities) ||
       b.entities.some((v) => typeof v !== "string" || !v.trim()) ||
       !Array.isArray(b.mustNotImply) ||

@@ -1,3 +1,4 @@
+import { withUsage, recordCache } from "../usage/index.mjs";
 import { createHash } from "node:crypto";
 import { mkdirSync, existsSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
@@ -95,7 +96,10 @@ async function cachedAudio(config, text, options, signal, onWait) {
     options,
   ]);
   const cached = get("speech-cache", key);
-  if (cached && existsSync(assetFile(cached.file))) return cached;
+  if (cached && existsSync(assetFile(cached.file))) {
+    recordCache(config, cached.duration);
+    return cached;
+  }
   signal?.throwIfAborted();
   const { audio, duration } = await synthesize(
     config,
@@ -138,19 +142,28 @@ async function drain() {
               if (clip.file && existsSync(assetFile(clip.file))) continue;
               d.progress = `正在生成第 ${p.number} 页口播`;
               save(d);
-              const audio = await cachedAudio(
-                config,
-                clip.text,
-                { ...d.options, emotion: p.emotion, ...clip.delivery },
-                signal,
-                (waiting) => {
-                  d.progress = !waiting
-                    ? `正在生成第 ${p.number} 页口播`
-                    : waiting.reason === "rate-limit"
-                      ? `第 ${p.number} 页遇到 MiniMax 限流，等待 ${Math.ceil(waiting.ms / 1000)} 秒后自动继续（重试 ${waiting.attempt}/${waiting.maxRetries}）`
-                      : `正在控制请求频率，稍后生成第 ${p.number} 页口播`;
-                  save(d);
+              const audio = await withUsage(
+                {
+                  projectId: d.projectId,
+                  pageId: p.id,
+                  taskId: d.id,
+                  feature: "整场口播",
                 },
+                () =>
+                  cachedAudio(
+                    config,
+                    clip.text,
+                    { ...d.options, emotion: p.emotion, ...clip.delivery },
+                    signal,
+                    (waiting) => {
+                      d.progress = !waiting
+                        ? `正在生成第 ${p.number} 页口播`
+                        : waiting.reason === "rate-limit"
+                          ? `第 ${p.number} 页遇到 MiniMax 限流，等待 ${Math.ceil(waiting.ms / 1000)} 秒后自动继续（重试 ${waiting.attempt}/${waiting.maxRetries}）`
+                          : `正在控制请求频率，稍后生成第 ${p.number} 页口播`;
+                      save(d);
+                    },
+                  ),
               );
               signal.throwIfAborted();
               clip.file = audio.file;

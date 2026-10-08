@@ -1022,6 +1022,8 @@ export function SpeechPresentation({
               <>
                 <SpeechPreview
                   body={{
+                    projectId,
+                    pageId: scriptPage?.id,
                     options: {
                       ...options,
                       emotion: pageEmotions[scriptPage?.id] || options.emotion,
@@ -1032,9 +1034,7 @@ export function SpeechPresentation({
                       : Array.from(spokenText).slice(0, 180).join(""),
                     ...(usePerformance
                       ? {
-                          projectId,
                           performanceId: performance?.id,
-                          pageId: scriptPage?.id,
                         }
                       : {}),
                   }}

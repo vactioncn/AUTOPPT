@@ -1,3 +1,4 @@
+import { UsagePage } from "./Usage";
 import { Help } from "./Help";
 import { useOnboarding, WorkspaceReadiness } from "./OnboardingUI";
 import {
@@ -30,6 +31,7 @@ import {
   FolderSimple,
   Info,
   SpinnerGap,
+  Coins,
 } from "@phosphor-icons/react";
 import { api, post, asset, formatDate, active } from "./api";
 import type { Bootstrap, ProjectSummary, Style, Project } from "./types";
@@ -205,6 +207,15 @@ export default function App() {
             <Info size={20} />
             使用帮助
           </button>
+          {!account.hosted && (
+            <button
+              className={route === "usage" ? "active" : ""}
+              onClick={() => go("usage")}
+            >
+              <Coins size={20} />
+              用量与账单
+            </button>
+          )}
           <button
             className={route === "settings" ? "active" : ""}
             onClick={() => go("settings")}
@@ -253,13 +264,15 @@ export default function App() {
                 : route === "help"
                   ? "使用帮助"
                   : current?.title ||
-                    (route === "styles"
-                      ? "风格库"
-                      : route === "account"
-                        ? "账号与额度"
-                        : route === "settings"
-                          ? "设置"
-                          : "项目")}
+                    (route === "usage"
+                      ? "用量与账单"
+                      : route === "styles"
+                        ? "风格库"
+                        : route === "account"
+                          ? "账号与额度"
+                          : route === "settings"
+                            ? "设置"
+                            : "项目")}
             </strong>
           </div>
           <span className="top-hint">
@@ -368,6 +381,8 @@ export default function App() {
               notify={notify}
               onUse={(styleId) => create(styleId)}
             />
+          ) : contentRoute === "usage" && !account.hosted ? (
+            <UsagePage />
           ) : contentRoute === "account" ? (
             <AccountPage />
           ) : contentRoute === "settings" ? (

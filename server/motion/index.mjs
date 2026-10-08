@@ -1,3 +1,4 @@
+import { withUsage } from "../usage/index.mjs";
 import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import multer from "multer";
@@ -81,20 +82,32 @@ async function drain() {
           save(d);
           try {
             if (!p.analysis) {
-              p.analysis = await analyzeImage(p.source, signal);
+              p.analysis = await withUsage(
+                {
+                  projectId: d.projectId,
+                  pageId: p.id,
+                  taskId: d.id,
+                  feature: "动态页面识别",
+                },
+                () => analyzeImage(p.source, signal),
+              );
               save(d);
             }
             signal.throwIfAborted();
             d.progress = `第 ${p.number} 页：分离图层`;
             save(d);
-            const result = await extractLayers(
-              p.source,
-              p.analysis,
-              signal,
-              (message) => {
-                d.progress = `第 ${p.number} 页：${message}`;
-                save(d);
+            const result = await withUsage(
+              {
+                projectId: d.projectId,
+                pageId: p.id,
+                taskId: d.id,
+                feature: "动态页面图层提取",
               },
+              () =>
+                extractLayers(p.source, p.analysis, signal, (message) => {
+                  d.progress = `第 ${p.number} 页：${message}`;
+                  save(d);
+                }),
             );
             signal.throwIfAborted();
             Object.assign(p, result, { status: "ready", reviewed: false });

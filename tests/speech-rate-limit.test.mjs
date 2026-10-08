@@ -1,3 +1,14 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { after } from "node:test";
+const usageDir = mkdtempSync(path.join(tmpdir(), "autoppt-speech-meter-"));
+process.env.AUTOPPT_DATA_DIR = usageDir;
+after(async () => {
+  const { db } = await import("../server/store.mjs");
+  db.close();
+  rmSync(usageDir, { recursive: true, force: true });
+});
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createSpeechRequestPolicy } from "../server/speech/request-policy.mjs";

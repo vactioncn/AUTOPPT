@@ -39,6 +39,23 @@ function serviceError(code, response) {
   );
 }
 async function request(config, endpoint, body, signal) {
+  if (!config.apiKey || signal?.aborted || endpoint === "/files/upload")
+    return providerRequest(config, endpoint, body, signal);
+  const { trackUsage } = await import("../usage/index.mjs");
+  return trackUsage(
+    config,
+    endpoint === "/voice_clone" ? "clone" : "speech",
+    body,
+    (capture) => providerRequest(config, endpoint, body, signal, capture),
+  );
+}
+async function providerRequest(
+  config,
+  endpoint,
+  body,
+  signal,
+  capture = () => {},
+) {
   if (!config.apiKey)
     throw new Error("请先在模型设置中配置 MiniMax 语音服务密钥");
   const form = body instanceof FormData;
@@ -65,6 +82,7 @@ async function request(config, endpoint, body, signal) {
       "语音服务连接失败或超时，请检查接口地址和网络；已发出请求可能计费",
     );
   }
+  capture(null, response.status);
   if (response.status === 429) throw serviceError(null, response);
   if (!response.ok)
     throw new Error(
@@ -77,6 +95,7 @@ async function request(config, endpoint, body, signal) {
   } catch {
     throw new Error("语音服务返回了无效响应");
   }
+  capture(data, response.status);
   if (data.base_resp?.status_code !== 0)
     throw serviceError(Number(data.base_resp?.status_code), response);
   return data;

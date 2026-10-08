@@ -1,4 +1,9 @@
 import {
+  registerUsage,
+  recoverUsage,
+  usageMiddleware,
+} from "./usage/index.mjs";
+import {
   designOptions,
   expandAudience,
   extractPalette,
@@ -140,6 +145,7 @@ app.use("/api", (req, res, next) => {
   next();
 });
 app.use(express.json({ limit: "4mb" }));
+app.use(usageMiddleware);
 app.use(
   "/assets",
   express.static(assetsDir, {
@@ -156,6 +162,7 @@ app.use("/api", (req, res, next) => {
   res.set("Cache-Control", "no-store");
   next();
 });
+registerUsage(app);
 const safeJob = (j) => ({
   ...j,
   styleId: j.payload.styleId || j.payload.styleSnapshot?.id,
@@ -1090,6 +1097,7 @@ const listener = app.listen(port, "127.0.0.1", (error) => {
   }
   port = listener.address().port;
   // A second process must never mark the real server's jobs as interrupted.
+  recoverUsage();
   recoverJobs();
   recoverMotion();
   recoverSpeech();

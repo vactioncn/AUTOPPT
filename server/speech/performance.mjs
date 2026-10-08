@@ -1,3 +1,4 @@
+import { withUsage } from "../usage/index.mjs";
 import { all, get, put, id, now, settings, projectOrThrow } from "../store.mjs";
 import { jsonModel } from "../models.mjs";
 import { saveSpeechScript, speechScript } from "./scripts.mjs";
@@ -76,21 +77,23 @@ export async function analyzePerformance(
         `正在编排第 ${i + 1}/${pages.length} 页 · ${start}/${units.length} 句`,
         i,
       );
-      const out = await callModel(
-        PERFORMANCE_PROMPT,
-        JSON.stringify({
-          settings: config,
-          outline,
-          page: i + 1,
-          title: page.title,
-          sourceNotes: page.notes.slice(0, 10000),
-          previous: pages[i - 1]?.text.slice(-700) || "",
-          next: pages[i + 1]?.text.slice(0, 700) || "",
-          previousDelivery,
-          units: batch,
-        }),
-        [],
-        signal,
+      const out = await withUsage({ pageId: page.id }, () =>
+        callModel(
+          PERFORMANCE_PROMPT,
+          JSON.stringify({
+            settings: config,
+            outline,
+            page: i + 1,
+            title: page.title,
+            sourceNotes: page.notes.slice(0, 10000),
+            previous: pages[i - 1]?.text.slice(-700) || "",
+            next: pages[i + 1]?.text.slice(0, 700) || "",
+            previousDelivery,
+            units: batch,
+          }),
+          [],
+          signal,
+        ),
       );
       annotated.push(...validateDelivery(batch, out.units, config, page.notes));
       previousDelivery = annotated
@@ -145,15 +148,19 @@ export function registerPerformance(app, assertIdle) {
     res.status(202).json(speechScript(project));
     void (async () => {
       try {
-        const annotated = await analyzePerformance(
-          pages,
-          config,
-          controller.signal,
-          (progress, completed) => {
-            job.progress = progress;
-            job.completed = completed;
-            update(project.id, job);
-          },
+        const annotated = await withUsage(
+          { projectId: project.id, taskId: job.id, feature: "演绎编排" },
+          () =>
+            analyzePerformance(
+              pages,
+              config,
+              controller.signal,
+              (progress, completed) => {
+                job.progress = progress;
+                job.completed = completed;
+                update(project.id, job);
+              },
+            ),
         );
         controller.signal.throwIfAborted();
         job.status = "ready";

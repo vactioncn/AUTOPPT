@@ -1,3 +1,4 @@
+import { withUsage, usageScope } from "./usage/index.mjs";
 import { withProjectPageNumber } from "../shared/page-number.mjs";
 import {
   designOptions,
@@ -317,6 +318,7 @@ async function renderSlides(j, ids, signal, redesign = false) {
     signal,
   );
   for (const sid of ids) {
+    usageScope({ pageId: sid });
     signal.throwIfAborted();
     let p = projectOrThrow(j.projectId);
     let s = p.slides.find((x) => x.id === sid);
@@ -616,7 +618,22 @@ function pump() {
 }
 async function execute(j, controller) {
   try {
-    await run(j, controller.signal);
+    await withUsage(
+      {
+        projectId: j.projectId,
+        pageId: "",
+        taskId: j.id,
+        feature:
+          {
+            trial: "风格试做",
+            style: "风格分析",
+            append: "演讲制作",
+            render: "页面制作",
+            proposal: "页面调整",
+          }[j.type] || "页面制作",
+      },
+      () => run(j, controller.signal),
+    );
     controller.signal.throwIfAborted();
     j.status = "completed";
     progress(j, "制作完成", j.total, j.total);

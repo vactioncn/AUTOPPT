@@ -1,3 +1,4 @@
+import { trackUsage } from "./usage/index.mjs";
 import {
   meteredImage,
   meterHeaders,
@@ -23,6 +24,21 @@ const safeError = (message) =>
     .replace(/(?:sk-|Bearer\s+)[A-Za-z0-9_.-]+/g, "[密钥已隐藏]")
     .slice(0, 500);
 export async function request(kind, route, body, signal, form = false) {
+  const config = settings()[kind];
+  if (!config.apiKey || signal?.aborted)
+    return providerRequest(kind, route, body, signal, form);
+  return trackUsage(config, kind, body, (capture) =>
+    providerRequest(kind, route, body, signal, form, capture),
+  );
+}
+async function providerRequest(
+  kind,
+  route,
+  body,
+  signal,
+  form = false,
+  capture = () => {},
+) {
   const config = settings()[kind];
   const requestTimeout = hostedWorker ? 1200000 : 600000;
   if (!config.apiKey)
@@ -57,6 +73,7 @@ export async function request(kind, route, body, signal, form = false) {
       { uncertain: true },
     );
   }
+  capture(null, response.status);
   const data = await response.json().catch(() => {
     if (hostedWorker && kind === "image")
       throw Object.assign(new ProviderError("图片响应中断，结果待核对。"), {
@@ -64,6 +81,7 @@ export async function request(kind, route, body, signal, form = false) {
       });
     return {};
   });
+  capture(data, response.status);
   if (!response.ok) {
     const message = safeError(
       data.error?.message ||

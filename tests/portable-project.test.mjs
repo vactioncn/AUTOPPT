@@ -1,4 +1,5 @@
 import test, { after } from "node:test";
+import { htmlPayload as payload } from "./helpers/html-payload.mjs";
 import assert from "node:assert/strict";
 import {
   mkdtempSync,
@@ -180,13 +181,6 @@ const motion = put("motion", {
     layers: [],
   })),
 });
-function payload(html) {
-  return JSON.parse(
-    html.match(
-      /<script type="application\/json" id="deck-data">([^]*?)<\/script>/,
-    )[1],
-  );
-}
 
 test("speech drafts preserve original notes and expire when their source text changes", () => {
   const first = speechScript(p);

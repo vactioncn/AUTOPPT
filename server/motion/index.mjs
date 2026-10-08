@@ -20,7 +20,8 @@ import {
 import { renderSceneSvg } from "../../shared/slides.mjs";
 import { validateLayers, MOTION_VERSION } from "../../shared/motion/schema.mjs";
 import { analyzeImage, extractLayers } from "./extract.mjs";
-import { renderMotionHtml } from "./render.mjs";
+import { renderMotionHtml, writeMotionHtml } from "./render.mjs";
+import { sendHtmlDownload } from "../html-download.mjs";
 import { exportFilename } from "../export.mjs";
 import { narrationForExport } from "../speech/export.mjs";
 const controllers = new Map();
@@ -422,21 +423,25 @@ export function registerMotion(app) {
       preview = req.query.preview === "1";
     const pageId =
       typeof req.query.pageId === "string" ? req.query.pageId : null;
-    const html = await renderMotionHtml(d, {
-      preview,
-      pageId,
-      includeNotes: req.query.notes === "1",
-      compare: preview,
-      narration: preview
-        ? null
-        : narrationForExport(req.query.narration, d.projectId),
-    });
-    res.set("Content-Type", "text/html; charset=utf-8");
-    if (req.query.download === "1")
-      res.set(
-        "Content-Disposition",
-        `attachment; filename="presentation.html"; filename*=UTF-8''${encodeURIComponent(exportFilename(d.title).replace(/\.pptx$/, "-动态演示.html"))}`,
-      );
-    res.send(html);
+    await sendHtmlDownload(
+      res,
+      exportFilename(d.title).replace(/\.pptx$/, "-动态演示.html"),
+      req.query.download === "1",
+      (file, signal) =>
+        writeMotionHtml(
+          d,
+          {
+            preview,
+            pageId,
+            includeNotes: req.query.notes === "1",
+            compare: preview,
+            narration: preview
+              ? null
+              : narrationForExport(req.query.narration, d.projectId),
+          },
+          file,
+          { signal },
+        ),
+    );
   });
 }

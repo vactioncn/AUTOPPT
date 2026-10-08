@@ -34,22 +34,15 @@ export function matchNarrationPage(narration, page, motion = false) {
     throw new Error("所选页面的口播尚未完成");
   return n;
 }
-export async function embedAudio(pages) {
-  const audio = {};
-  for (const p of pages)
-    for (const clip of p.clips || []) {
-      if (!/^[a-f0-9-]{36}\.mp3$/.test(clip.file))
-        throw new Error("已保存口播的音频路径无效");
-      if (audio[clip.file]) continue;
-      let data;
-      try {
-        data = await readFile(path.join(dataDir, "speech-audio", clip.file));
-      } catch {
-        throw new Error(`第 ${p.number} 页的音频文件缺失，无法导出完整口播`);
-      }
-      if (!data.length)
-        throw new Error(`第 ${p.number} 页的音频为空，无法导出`);
-      audio[clip.file] = "data:audio/mpeg;base64," + data.toString("base64");
-    }
-  return audio;
+export async function readExportAudio(clip, pageNumber) {
+  if (!/^[a-f0-9-]{36}\.mp3$/.test(clip.file))
+    throw new Error("已保存口播的音频路径无效");
+  let data;
+  try {
+    data = await readFile(path.join(dataDir, "speech-audio", clip.file));
+  } catch {
+    throw new Error(`第 ${pageNumber} 页的音频文件缺失，无法导出完整口播`);
+  }
+  if (!data.length) throw new Error(`第 ${pageNumber} 页的音频为空，无法导出`);
+  return data;
 }

@@ -2,6 +2,40 @@
 (async function () {
   "use strict";
   const deck = JSON.parse(document.getElementById("deck-data").textContent);
+  for (const node of document.querySelectorAll("script.deck-page")) {
+    deck.pages.push(JSON.parse(node.textContent));
+    node.remove();
+  }
+  const audioData = document.getElementById("deck-audio");
+  if (audioData) {
+    Object.assign(deck.audio, JSON.parse(audioData.textContent));
+    audioData.remove();
+  }
+  const media = new Map();
+  function mediaSource(reference) {
+    if (!reference?.startsWith("asset:")) return reference || "";
+    if (media.has(reference)) return media.get(reference);
+    const node = document.getElementById(reference.slice(6));
+    if (!node) throw new Error("演示素材缺失，请重新导出完整 HTML");
+    const encoded = node.textContent,
+      comma = encoded.indexOf(",");
+    const mime = encoded.slice(5, comma).replace(/;base64$/, "");
+    const buffers = [];
+    // Decode bounded pieces only when a page or clip is used. Remove its
+    // encoded DOM block after creating a reusable local Blob URL.
+    for (let i = comma + 1; i < encoded.length; i += 65536) {
+      const bytes = atob(encoded.slice(i, i + 65536));
+      buffers.push(Uint8Array.from(bytes, (c) => c.charCodeAt(0)));
+    }
+    const url = URL.createObjectURL(new Blob(buffers, { type: mime }));
+    media.set(reference, url);
+    node.remove();
+    return url;
+  }
+  window.addEventListener("pagehide", (event) => {
+    if (!event.persisted)
+      for (const url of media.values()) URL.revokeObjectURL(url);
+  });
   const stage = document.getElementById("stage"),
     viewport = document.getElementById("viewport");
   const toolbar = document.getElementById("toolbar"),
@@ -88,7 +122,7 @@
     const key = `${index}:${clipIndex}`;
     if (audioKey !== key || audio.ended) {
       audioKey = key;
-      audio.src = deck.audio[clip.file];
+      audio.src = mediaSource(deck.audio[clip.file]);
       audio.load();
     }
     try {
@@ -248,7 +282,7 @@
     scene.setAttribute("aria-label", p.title || `第 ${index + 1} 页`);
     const bg = document.createElement("img");
     bg.className = "background";
-    bg.src = p.background;
+    bg.src = mediaSource(p.background);
     bg.alt = "";
     scene.append(bg);
     for (const [i, l] of p.layers.entries()) {
@@ -268,7 +302,7 @@
       if (l.type === "text") renderText(l, content);
       else {
         const img = document.createElement("img");
-        img.src = l.asset;
+        img.src = mediaSource(l.asset);
         img.alt = l.label || "";
         img.draggable = false;
         content.append(img);
@@ -284,7 +318,7 @@
     fit();
     notes.textContent = p.notes || "本页没有演讲备注。";
     const original = document.getElementById("original");
-    original.src = p.original || "";
+    original.src = mediaSource(p.original);
     reveal();
     if (animate && motion && !reduced.matches)
       animations.push(
@@ -576,7 +610,7 @@
             const im = new Image();
             im.onload = resolve;
             im.onerror = resolve;
-            im.src = src;
+            im.src = mediaSource(src);
           }),
       ),
   );

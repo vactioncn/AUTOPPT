@@ -1,4 +1,5 @@
 import test from "node:test";
+import { htmlPayload } from "./helpers/html-payload.mjs";
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -460,9 +461,7 @@ test(
     assert(!html.includes("私密备注"));
     assert(!html.includes("<script>window.pwned"));
     assert(htmlResponse.headers.get("content-disposition").includes(".html"));
-    const payload = JSON.parse(
-      html.match(/id="deck-data">([\s\S]*?)<\/script>/)[1],
-    );
+    const payload = htmlPayload(html);
     assert.equal(payload.pages[0].layers[0].text, patched[0].text);
     assert.equal(calls, callsBefore + 1, "editing/export do not call model");
     assert.deepEqual(
@@ -529,7 +528,10 @@ test(
         await p.setViewportSize({ width: 1440, height: 1000 });
         await p.goto(base);
         await p.getByText("演讲测试 </script>", { exact: true }).last().click();
-        await p.getByRole("button", { name: "动态 HTML", exact: true }).click();
+        await p.getByRole("button", { name: "演练中心", exact: true }).click();
+        await p
+          .getByRole("button", { name: "打开动态演示", exact: true })
+          .click();
         await p.getByText("HTML 还原 · 点击文字可选中校准").waitFor();
         await p.getByLabel("文字", { exact: true }).fill("已校准标题");
         await p.getByRole("button", { name: "保存并标记已校对" }).click();

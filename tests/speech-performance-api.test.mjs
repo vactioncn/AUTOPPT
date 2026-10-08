@@ -9,6 +9,7 @@ import { once } from "node:events";
 import http from "node:http";
 import { DatabaseSync } from "node:sqlite";
 import { silenceMp3 } from "./helpers/speech-audio.mjs";
+import { verifySpeechPreview } from "./helpers/speech-preview-browser.mjs";
 import { SPEECH_DEFAULTS } from "../shared/speech.mjs";
 
 test(
@@ -406,6 +407,7 @@ test(
           .getByRole("tab", { name: "2 · 声音制作", exact: true })
           .click();
         assert(await page.getByLabel("整体情绪", { exact: true }).isDisabled());
+        await verifySpeechPreview(page, ready.pages[0].clips[0].file, out);
         await page
           .getByRole("button", { name: "生成整场口播 · 2 页", exact: true })
           .click();
@@ -437,7 +439,13 @@ test(
         await page
           .getByText("演讲已结束", { exact: true })
           .waitFor({ timeout: 15000 });
-        assert.equal(speech.length, 2);
+        assert.equal(
+          speech.length,
+          2,
+          JSON.stringify(
+            speech.map((r) => ({ text: r.text, voice: r.voice_setting })),
+          ),
+        );
         await page
           .getByRole("button", { name: "返回演播台", exact: true })
           .click();

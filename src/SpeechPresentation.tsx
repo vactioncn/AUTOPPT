@@ -30,6 +30,7 @@ import {
 } from "./speech-types";
 import "./speech.css";
 import { SpeechPerformance } from "./SpeechPerformance";
+import { SpeechPreview } from "./SpeechPreview";
 import {
   performanceMatches,
   supportsDeliverySounds,
@@ -79,8 +80,8 @@ export function SpeechPresentation({
     [notesOpen, setNotesOpen] = useState(false),
     [error, setError] = useState(""),
     [message, setMessage] = useState("");
-  const [busy, setBusy] = useState(false),
-    [preview, setPreview] = useState(""),
+  const [actionBusy, setBusy] = useState(false),
+    [previewBusy, setPreviewBusy] = useState(false),
     [elapsed, setElapsed] = useState(0),
     [duration, setDuration] = useState(0);
   const [audioError, setAudioError] = useState(""),
@@ -90,6 +91,7 @@ export function SpeechPresentation({
     audio = useRef<HTMLAudioElement>(null),
     previewAudio = useRef<HTMLAudioElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
+  const busy = actionBusy || previewBusy;
   const job = pendingDeck || deck;
   const polling = !!job && active(job.status);
   const draftPages =
@@ -460,37 +462,6 @@ export function SpeechPresentation({
       setBusy(false);
     }
   }
-  async function audition() {
-    setBusy(true);
-    setPlaying(false);
-    setError("");
-    previewAudio.current?.pause();
-    try {
-      const data = await post<{ file: string }>("/speech/preview", {
-        options: {
-          ...options,
-          emotion: pageEmotions[scriptPage?.id] || options.emotion,
-        },
-        prepared: true,
-        text: usePerformance
-          ? spokenText
-          : Array.from(spokenText).slice(0, 180).join(""),
-        ...(usePerformance
-          ? {
-              projectId,
-              performanceId: performance?.id,
-              pageId: scriptPage?.id,
-            }
-          : {}),
-      });
-      setPreview(speechAudio(data.file));
-      setMessage("试听已生成，请点击音频播放按钮。");
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
   async function jobAction(action: string) {
     if (!job) return;
     setBusy(true);
@@ -847,7 +818,6 @@ export function SpeechPresentation({
                         ...t,
                         [scriptPage.id]: e.target.value,
                       }));
-                      setPreview("");
                       setTextFeedback(null);
                     }}
                   />
@@ -891,7 +861,6 @@ export function SpeechPresentation({
                           ),
                         );
                         previewAudio.current?.pause();
-                        setPreview("");
                         setTextReviewed(true);
                         setTextFeedback({
                           text: `已重新识别 ${draftPages.length} 页，过滤 ${omitted} 处非口播内容。${updated ? `已更新 ${updated} 页文本，请逐页检查后保存或生成口播。` : "当前文本与识别结果一致，无需修改。"} 本次仅处理文本，不生成音频、不计费。`,
@@ -977,7 +946,6 @@ export function SpeechPresentation({
                       value={options.voiceId}
                       onChange={(e) => {
                         setOptions({ ...options, voiceId: e.target.value });
-                        setPreview("");
                       }}
                     >
                       {voices.map((v) => (
@@ -1047,41 +1015,60 @@ export function SpeechPresentation({
                       </select>
                     </Field>
                   )}
-                  <Button
-                    disabled={
-                      !config?.hasKey ||
-                      !spokenText.trim() ||
-                      performanceBusy ||
-                      !!performanceBlocked
-                    }
-                    onClick={audition}
-                  >
-                    试听本页开头
-                  </Button>
-                  {usePerformance && (
-                    <p className="speech-callout">
-                      {performanceBlocked
-                        ? "演绎方案尚未就绪、正文已改变或模型不支持辅助声音，请回到口播文本检查。"
-                        : "将按演绎方案逐段生成情绪、停顿和重点表达；整体与逐页情绪由编排接管。"}
-                    </p>
-                  )}
-                  <p className="speech-subtle">
-                    生成语速决定新音频的表达。放映时可用左侧“播放倍速”即时调整。
-                  </p>
-                  <Button variant="ghost" onClick={onSettings}>
-                    管理声音与采集 → 设置
-                  </Button>
                 </>
               )}
             </fieldset>
-            {panel === "voice" && preview && (
-              <audio
-                ref={previewAudio}
-                controls
-                src={preview}
-                onPlay={() => setPlaying(false)}
-                aria-label="合成口播试听"
-              />
+            {panel === "voice" && (
+              <>
+                <SpeechPreview
+                  body={{
+                    options: {
+                      ...options,
+                      emotion: pageEmotions[scriptPage?.id] || options.emotion,
+                    },
+                    prepared: true,
+                    text: usePerformance
+                      ? spokenText
+                      : Array.from(spokenText).slice(0, 180).join(""),
+                    ...(usePerformance
+                      ? {
+                          projectId,
+                          performanceId: performance?.id,
+                          pageId: scriptPage?.id,
+                        }
+                      : {}),
+                  }}
+                  disabledReason={
+                    actionBusy
+                      ? "正在处理其他操作，请稍候。"
+                      : polling
+                        ? "整场口播正在生成，完成后可试听。"
+                        : !config?.hasKey
+                          ? "请先配置语音服务，再试听。"
+                          : !spokenText.trim()
+                            ? "本页没有口播正文，请先在口播文本中检查。"
+                            : performanceBusy
+                              ? "演绎编排进行中，完成后可试听。"
+                              : performanceBlocked
+                                ? "演绎方案尚未就绪、正文已改变或模型不支持辅助声音，请回到口播文本检查。"
+                                : ""
+                  }
+                  audioRef={previewAudio}
+                  onBusy={setPreviewBusy}
+                  onStart={() => setPlaying(false)}
+                />
+                {usePerformance && !performanceBlocked && (
+                  <p className="speech-callout">
+                    将按演绎方案逐段生成情绪、停顿和重点表达；整体与逐页情绪由编排接管。
+                  </p>
+                )}
+                <p className="speech-subtle">
+                  生成语速决定新音频的表达。放映时可用左侧“播放倍速”即时调整。
+                </p>
+                <Button variant="ghost" onClick={onSettings} disabled={busy}>
+                  管理声音与采集 → 设置
+                </Button>
+              </>
             )}
             <div className="speech-generate" hidden={panel !== "voice"}>
               <Button
@@ -1096,7 +1083,7 @@ export function SpeechPresentation({
                 }
                 onClick={generate}
               >
-                {busy
+                {actionBusy
                   ? "处理中…"
                   : `生成整场口播 · ${project?.slides.length || 0} 页`}
               </Button>

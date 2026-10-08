@@ -672,3 +672,22 @@
   color: #47533d;
   padding: 3px 7px;
 }
+
+.speech-preview {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+.speech-preview p {
+  margin: 0;
+}
+.speech-preview audio {
+  width: 100%;
+  min-width: 0;
+}
+.speech-preview .speech-inline > .btn:first-child {
+  flex: 1;
+}
+.speech-preview audio[hidden] {
+  display: none;
+}

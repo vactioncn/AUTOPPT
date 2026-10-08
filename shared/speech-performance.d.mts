@@ -30,6 +30,9 @@ export type PerformanceTask = {
   progress: string;
   completed: number;
   total: number;
+  savedUnits?: number;
+  canResume?: boolean;
+  resumeSettings?: PerformanceSettings;
 };
 export const PERFORMANCE_VERSION: number;
 export const DELIVERY_EMOTIONS: { id: string; name: string }[];

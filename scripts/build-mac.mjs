@@ -8,12 +8,16 @@ import path from "node:path";
 if (process.platform !== "darwin")
   throw new Error("请在 Mac 上构建并验证安装包。");
 const root = path.resolve(import.meta.dirname, "..");
+// Keep a new package separate when an older release App is still running.
+const outputDir = path.resolve(
+  process.env.AUTOPPT_MAC_OUTPUT_DIR || path.join(root, "release"),
+);
 execFileSync("npm", ["run", "build"], {
   cwd: root,
   stdio: "inherit",
   env: { ...process.env, AUTOPPT_RUNTIME_MODE: "desktop" },
 });
-const iconset = path.join(root, "release", "AutoPPT.iconset");
+const iconset = path.join(outputDir, "AutoPPT.iconset");
 mkdirSync(iconset, { recursive: true });
 for (const size of [16, 32, 128, 256, 512]) {
   for (const scale of [1, 2])
@@ -27,7 +31,7 @@ for (const size of [16, 32, 128, 256, 512]) {
         ),
       );
 }
-const icon = path.join(root, "release", "AutoPPT.icns");
+const icon = path.join(outputDir, "AutoPPT.icns");
 execFileSync("iconutil", ["-c", "icns", iconset, "-o", icon]);
 rmSync(iconset, { recursive: true });
 const { version } = JSON.parse(
@@ -45,7 +49,7 @@ const allowed = new Set([
 ]);
 const outputs = await packager({
   dir: root,
-  out: path.join(root, "release"),
+  out: outputDir,
   name: "AutoPPT",
   platform: "darwin",
   arch: process.arch,
@@ -73,7 +77,7 @@ console.log(
   "Mac App 已生成：\n" +
     outputs.map((p) => path.join(p, "AutoPPT.app")).join("\n"),
 );
-const zip = path.join(root, "release", `AutoPPT-mac-${process.arch}.zip`);
+const zip = path.join(outputDir, `AutoPPT-mac-${process.arch}.zip`);
 await verifyMacApp(path.join(outputs[0], "AutoPPT.app"));
 rmSync(zip, { force: true });
 execFileSync("ditto", [

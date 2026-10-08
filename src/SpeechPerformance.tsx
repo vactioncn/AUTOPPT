@@ -52,11 +52,20 @@ export function SpeechPerformance({
     },
   );
   const [task, setTask] = useState<PerformanceTask | null>(null);
+  const [resumePages, setResumePages] = useState<Script["pages"]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const running = !!task && active(task.status),
     matches = performanceMatches(plan, pages);
   const page = plan?.pages.find((p) => p.id === pageId);
+  const canResume =
+    !!task?.canResume &&
+    settings.style === task.resumeSettings?.style &&
+    settings.sounds === task.resumeSettings?.sounds &&
+    pages.length === resumePages.length &&
+    pages.every(
+      (p, i) => p.id === resumePages[i].id && p.text === resumePages[i].text,
+    );
   useEffect(() => {
     let stopped = false;
     let timer: ReturnType<typeof setTimeout>;
@@ -68,6 +77,12 @@ export function SpeechPerformance({
         if (stopped) return;
         onPlan(result.performance);
         setTask(result.performanceTask);
+        setResumePages(result.pages);
+        if (
+          result.performanceTask?.canResume &&
+          result.performanceTask.resumeSettings
+        )
+          setSettings(result.performanceTask.resumeSettings);
         if (result.performanceTask && active(result.performanceTask.status))
           timer = setTimeout(poll, 1500);
       } catch (e) {
@@ -83,7 +98,7 @@ export function SpeechPerformance({
   useEffect(() => {
     onWorking(running);
   }, [running, onWorking]);
-  async function arrange() {
+  async function arrange(resume = false) {
     setBusy(true);
     setError("");
     try {
@@ -92,6 +107,7 @@ export function SpeechPerformance({
         {
           revision,
           settings,
+          resume,
           pageTexts: Object.fromEntries(pages.map((p) => [p.id, p.text])),
         },
       );
@@ -189,11 +205,26 @@ export function SpeechPerformance({
         </Button>
       ) : (
         <Button
-          variant={matches ? "secondary" : "primary"}
-          onClick={arrange}
+          variant={matches && !canResume ? "secondary" : "primary"}
+          onClick={() => arrange(canResume)}
           disabled={disabled || busy || !pages.length}
         >
-          {busy ? "正在提交…" : plan ? "重新编排演讲" : "AI 编排整场演讲"}
+          {busy
+            ? "正在提交…"
+            : canResume
+              ? "继续编排 · 从中断处继续"
+              : plan
+                ? "重新编排演讲"
+                : "AI 编排整场演讲"}
+        </Button>
+      )}
+      {canResume && !running && (
+        <Button
+          variant="ghost"
+          disabled={disabled || busy}
+          onClick={() => arrange(false)}
+        >
+          从头重新编排
         </Button>
       )}
       <p className="speech-subtle">
@@ -204,7 +235,12 @@ export function SpeechPerformance({
           <strong>
             表达编排未完成 · {failureAdvice(task.progress).reason}
           </strong>
-          <p>编排已停止，不会自动重试。可重新编排，或选择普通口播继续。</p>
+          <p>
+            编排已停止，不会自动重试。
+            {canResume
+              ? "可从中断处继续，已保存部分不会重复请求。"
+              : "可重新编排，或选择普通口播继续。"}
+          </p>
           <p>{failureAdvice(task.progress).action}</p>
           <details>
             <summary>具体错误</summary>
@@ -220,6 +256,15 @@ export function SpeechPerformance({
               : ""}
           </p>
         )
+      )}
+      {!running && !!task?.savedUnits && task.status !== "ready" && (
+        <p role="status" className="speech-subtle">
+          已保存 {task.completed} / {task.total} 页，共 {task.savedUnits}{" "}
+          句（含当前页已完成部分）。
+          {canResume
+            ? "继续编排只处理剩余内容。"
+            : "当前内容、设置或模型与保存进度不一致，需从头编排。"}
+        </p>
       )}
       {error && (
         <p role="alert" className="speech-error">

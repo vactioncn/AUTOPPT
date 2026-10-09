@@ -20,7 +20,7 @@ Mac 用户可直接打开 `AutoPPT.app`，无需登录、部署服务器或另�
 
 制作进度按本次实际需要制作的页面计数，另列已保存并跳过的页数。当前页标注原项目页码；已生成、失败与待处理分别显示。可恢复的临时故障先自动等待并重试，无需反复点击继续；恢复成功后正常制作，重试耗尽或需人工处理时才加入失败明细，其余页面继续。任务结束后点击继续仅补做未完成部分。“已处理”包括成功和失败，不代表全部成图。内容分析进度与图片数量分开显示。
 
-开发者在 Mac 上运行 `npm ci`、`npx install-electron`，再执行 `npm run build:mac`。如旧发布包仍在运行，可设置 `AUTOPPT_MAC_OUTPUT_DIR=release/next` 将新包构建到独立目录。默认输出位于 `release/AutoPPT-darwin-arm64/AutoPPT.app` 和 `release/AutoPPT-mac-arm64.zip`（架构跟随构建电脑）。把 App 拖入“应用程序”后打开。当前提供 Apple Silicon 内部构建；Intel Mac 尚未实机验证，Developer ID 签名与 Apple 公证尚未配置，其他电脑可能受到 macOS 安全检查限制。
+开发者在 Mac 上运行 `npm ci`、`npx install-electron`，再执行 `npm run build:mac`。构建在全新临时目录完成，验证 App 与压缩包后只保留 `release/AutoPPT-mac-arm64.zip`（架构跟随构建电脑）；临时 App 自动清理，避免启动列表重复。`AUTOPPT_MAC_OUTPUT_DIR` 可指定 ZIP 输出目录，构建不修改已安装程序。解压后将 App 放到固定的 `/Applications/AutoPPT.app`；升级前等任务结束并退出旧版，备份数据，再替换同名程序。确认新版本可打开、项目完整后，将解压目录中多余的 App 移到废纸篓，勿用卸载工具清理关联数据。当前提供 Apple Silicon 内部构建；Intel Mac 尚未实机验证，Developer ID 签名与 Apple 公证尚未配置，其他电脑可能受到 macOS 安全检查限制。
 
 App 的项目、风格与模型配置独立保存在 `~/Library/Application Support/AutoPPT/workspace/`，通过菜单“AutoPPT → 打开数据文件夹”查看。安装包不包含开发者的项目或 Key。关闭窗口会保留后台任务；通过菜单退出时，有任务会提醒。重开 App 会保留本机项目和草稿。
 

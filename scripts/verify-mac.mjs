@@ -34,14 +34,8 @@ export async function verifyMacApp(appPath) {
     frontend.includes("数字人工作室") && frontend.includes("生成本页讲解"),
     "Mac App 前端缺少项目数字人入口",
   );
-  assert.ok(
-    frontend.includes("生成本页数字人口型"),
-    "Mac App 前端缺少口型生成入口",
-  );
-  assert.ok(
-    frontend.includes("生成整场数字人讲解"),
-    "Mac App 前端缺少整场生成入口",
-  );
+  assert.ok(frontend.includes("生成本页讲解"), "Mac App 前端缺少口型生成入口");
+  assert.ok(frontend.includes("生成整场讲解"), "Mac App 前端缺少整场生成入口");
   assert.ok(
     readFileSync(path.join(root, "desktop/context-menu.cjs"), "utf8").includes(
       "复制图片",

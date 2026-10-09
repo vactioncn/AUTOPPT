@@ -6,7 +6,7 @@ import {
   renameSync,
   rmSync,
 } from "node:fs";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import sharp from "sharp";
 import { verifyMacApp } from "./verify-mac.mjs";
 import path from "node:path";
@@ -110,12 +110,23 @@ try {
   try {
     // Running the bundled executable for verification may register it even in a
     // .noindex folder. Remove only this build's registration before its files.
-    if (verifiedApp)
-      execFileSync(
+    if (verifiedApp) {
+      const result = spawnSync(
         "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister",
         ["-u", verifiedApp],
-        { stdio: "inherit" },
+        { encoding: "utf8" },
       );
+      // A bundle rejected before launch was never registered (-10814).
+      // Cleanup must not hide the validation error that caused that rejection.
+      if (
+        result.status !== 0 &&
+        !`${result.stdout}${result.stderr}`.includes("-10814")
+      )
+        console.warn(
+          "临时 App 注册清理未完成：",
+          result.error?.message || result.stderr,
+        );
+    }
   } finally {
     rmSync(temporaryZip, { force: true });
     rmSync(buildRoot, { recursive: true, force: true });

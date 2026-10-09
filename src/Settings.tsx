@@ -12,6 +12,7 @@ import type { Settings, Connection } from "./types";
 import { api, post } from "./api";
 import { Button, Field, Status } from "./components";
 import { SpeechSettings } from "./SpeechSettings";
+import { PresenterSettings } from "./PresenterSettings";
 export function SettingsPage({
   initial,
   notify,
@@ -48,6 +49,15 @@ export function SettingsPage({
         >
           语音与声音 · 采集演讲者声音
         </Button>
+        <Button
+          onClick={() =>
+            document
+              .getElementById("presenter-settings")
+              ?.scrollIntoView({ behavior: "smooth" })
+          }
+        >
+          数字人讲解员 · HeyGen
+        </Button>
       </div>
       <div className="settings-intro" id="model-settings">
         <Info size={20} />
@@ -74,6 +84,7 @@ export function SettingsPage({
       <p className="settings-footnote">
         接口使用 OpenAI 兼容协议。修改服务地址后，请为新服务重新填写密钥。
       </p>
+      <PresenterSettings notify={notify} />
       <SpeechSettings notify={notify} />
     </div>
   );

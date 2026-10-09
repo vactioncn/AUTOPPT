@@ -29,6 +29,7 @@ export async function verifyMacApp(appPath) {
     .join("\n");
   for (const key of ["gitSha", "buildTime", "appVersion"])
     assert.ok(frontend.includes(expectedBuild[key]), `前端构建缺少 ${key}`);
+  assert.ok(frontend.includes("HeyGen"), "Mac App 前端缺少数字人设置入口");
   for (const privateName of [".local", ".hosted", ".env", "deploy", "tests"])
     assert(
       !existsSync(path.join(root, privateName)),
@@ -83,6 +84,40 @@ export async function verifyMacApp(appPath) {
     assert.equal(data.styles.length, 13);
     assert.equal(data.settings.image.hasKey, false);
     assert.equal(data.settings.text.hasKey, false);
+    const presenterUrl = url + "/api/settings/presenter";
+    const presenterHeaders = { ...headers, "Content-Type": "application/json" };
+    const emptyPresenterSettings = {
+      provider: "heygen",
+      hasKey: false,
+      generationAvailable: false,
+    };
+    assert.equal((await fetch(presenterUrl)).status, 403);
+    assert.deepEqual(
+      await (await fetch(presenterUrl, { headers })).json(),
+      emptyPresenterSettings,
+    );
+    const savedPresenter = await fetch(presenterUrl, {
+      method: "PUT",
+      headers: presenterHeaders,
+      body: JSON.stringify({ apiKey: "synthetic-package-check-only" }),
+    });
+    assert.equal(savedPresenter.status, 200);
+    assert.deepEqual(await savedPresenter.json(), {
+      ...emptyPresenterSettings,
+      hasKey: true,
+    });
+    const clearedPresenter = await fetch(presenterUrl, {
+      method: "PUT",
+      headers: presenterHeaders,
+      body: JSON.stringify({ clearKey: true }),
+    });
+    assert.deepEqual(await clearedPresenter.json(), emptyPresenterSettings);
+    const missingPresenter = await fetch(presenterUrl + "/test", {
+      method: "POST",
+      headers: presenterHeaders,
+    });
+    assert.equal(missingPresenter.status, 200);
+    assert.equal((await missingPresenter.json()).ok, false);
     for (const expected of RELEASE_STYLES) {
       const style = data.styles.find((s) => s.id === expected.id);
       assert.equal(style?.name, expected.name);

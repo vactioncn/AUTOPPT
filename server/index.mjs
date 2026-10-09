@@ -16,6 +16,7 @@ import { createBuildInfo, readBuildInfo } from "./build-info.mjs";
 import { frontendRelease } from "./frontend-release.mjs";
 import { diagnostics } from "./diagnostics.mjs";
 import { publicSpeechSettings } from "./speech/settings.mjs";
+import { registerPresenterSettings } from "./presenter/settings.mjs";
 import multer from "multer";
 import { screenImage } from "./image-storage.mjs";
 import { readFile, writeFile } from "node:fs/promises";
@@ -1064,6 +1065,7 @@ app.post("/api/settings/test", async (req, res) => {
 });
 registerMotion(app);
 registerSpeech(app);
+registerPresenterSettings(app);
 registerHtmlExport(app);
 registerProjectPackages(app, {
   assertIdle: (projectId) => {

@@ -18,6 +18,10 @@ import { createHeyGenProvider } from "./heygen.mjs";
 import { speakerNotes } from "../manuscript.mjs";
 import { prepareSpeechText } from "../../shared/speech-text.mjs";
 import { splitSpeech } from "../../shared/speech.mjs";
+import { requirePresenterSpeech } from "./speech.mjs";
+import { cachedAudio, optionsFor } from "../speech/index.mjs";
+import { speechSettings, providerIdentity } from "../speech/settings.mjs";
+import { withUsage } from "../usage/index.mjs";
 
 const kind = "presenter-generation";
 const running = new Map();
@@ -30,11 +34,20 @@ const uuid = (v) =>
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 export const pageStamp = (slide) =>
   hash(JSON.stringify([slide.image, slide.scene || null, speakerNotes(slide)]));
-export const textClip = (text, imageHash, voiceId, index = 0) => ({
+export const textClip = (text, imageHash, speech, index = 0) => ({
   index,
   text,
   duration: 0,
-  fingerprint: hash(JSON.stringify(["heygen-text", imageHash, voiceId, text])),
+  fingerprint: hash(
+    JSON.stringify([
+      "minimax-audio",
+      imageHash,
+      speech.provider,
+      speech.config.model,
+      speech.options,
+      text,
+    ]),
+  ),
 });
 
 async function textSources(projectId) {
@@ -46,8 +59,7 @@ async function textSources(projectId) {
   );
   if (!avatar || avatar.deletedAt)
     throw fail("请先在设置的数字人工作室保存一个头像，再回来选择。");
-  if (!avatar.voiceId)
-    throw fail("这个数字人还没有声音，请到数字人工作室选择中文声音并保存。");
+  const speech = requirePresenterSpeech(avatar);
   const image = await readLocal(assetPath(avatar.sourceAsset));
   const imageHash = hash(image);
   if (!image.length || image.length > 8 * 1024 * 1024)
@@ -61,10 +73,18 @@ async function textSources(projectId) {
       sourceFingerprint: pageStamp(s),
       clips: splitSpeech(text, 800)
         .filter((t) => t.trim())
-        .map((t, i) => textClip(t, imageHash, avatar.voiceId, i)),
+        .map((t, i) => textClip(t, imageHash, speech, i)),
     };
   });
-  return { project, avatar, imageHash, narration: { id: "" }, setup, pages };
+  return {
+    project,
+    avatar,
+    imageHash,
+    narration: { id: "" },
+    setup,
+    pages,
+    speech,
+  };
 }
 
 async function sources(projectId, setup = get("presenter-setup", projectId)) {
@@ -145,7 +165,7 @@ export function recoverPresenters() {
 }
 async function compatible(job) {
   try {
-    if (job.mode === "text") {
+    if (["text", "minimax"].includes(job.mode)) {
       const avatar = get("avatar", job.avatarId);
       if (
         !avatar ||
@@ -202,7 +222,7 @@ export async function publicGeneration(job) {
       clips: p.clips.map((c) => ({
         index: c.index,
         duration: c.duration,
-        text: job.mode === "text" ? c.text : undefined,
+        text: ["text", "minimax"].includes(job.mode) ? c.text : undefined,
         status: c.status,
         file: c.status === "ready" ? c.videoFile : undefined,
       })),
@@ -300,10 +320,16 @@ export async function createGeneration(
     imageAsset: source.avatar.sourceAsset,
     imageHash: source.imageHash,
     narrationId: source.narration.id,
-    mode: input.mode === "text" ? "text" : "audio",
+    mode: input.mode === "text" ? "minimax" : "audio",
     avatarName: source.avatar.name,
-    voiceName: source.avatar.voiceName,
-    voiceId: input.mode === "text" ? source.avatar.voiceId : undefined,
+    voiceName: source.speech?.voice.name || source.narration.voiceName,
+    ...(source.speech
+      ? {
+          speechOptions: source.speech.options,
+          speechProvider: source.speech.provider,
+          speechModel: source.speech.config.model,
+        }
+      : {}),
     placement: source.setup.placement || "bottom-right",
     size: source.setup.size || "small",
     accountHash: hash(apiKey),
@@ -341,8 +367,9 @@ export async function createPreview(
   )
     throw fail("已有试播正在生成，请稍候或停止后续生成。", 409);
   const avatar = get("avatar", input.avatarId);
-  if (!avatar || avatar.deletedAt || !avatar.voiceId)
+  if (!avatar || avatar.deletedAt)
     throw fail("请先保存数字人的头像和声音，再进行试播。");
+  const speech = requirePresenterSpeech(avatar);
   const { apiKey } = presenterSettings();
   if (!apiKey) throw fail("请先在数字人工作室连接 HeyGen。");
   const imageHash = hash(await readLocal(assetPath(avatar.sourceAsset)));
@@ -350,7 +377,9 @@ export async function createPreview(
     (j) => j.preview && j.requestId === input.requestId,
   );
   if (repeated) return repeated;
-  const clip = textClip(input.text.trim(), imageHash, avatar.voiceId);
+  const text = prepareSpeechText(input.text).text.trim();
+  if (!text) throw fail("试播文字没有可讲述的正文，请填写一段话。");
+  const clip = textClip(text, imageHash, speech);
   if (
     all(kind).some(
       (j) =>
@@ -376,14 +405,16 @@ export async function createPreview(
     requestId: input.requestId,
     projectId: null,
     preview: true,
-    mode: "text",
+    mode: "minimax",
     scope: "page",
     avatarId: avatar.id,
     avatarName: avatar.name,
     imageAsset: avatar.sourceAsset,
     imageHash,
-    voiceId: avatar.voiceId,
-    voiceName: avatar.voiceName,
+    voiceName: speech.voice.name,
+    speechOptions: speech.options,
+    speechProvider: speech.provider,
+    speechModel: speech.config.model,
     narrationId: "",
     accountHash: hash(apiKey),
     status: "queued",
@@ -464,7 +495,11 @@ export function stopGeneration(projectId, jobId) {
   return { stopped: true };
 }
 
-async function run(job, provider, { pollMs = 10000, maxPolls = 180 } = {}) {
+async function run(
+  job,
+  provider,
+  { pollMs = 10000, maxPolls = 180, audioFactory = cachedAudio } = {},
+) {
   const save = () => {
     job.stopRequested = get(kind, job.id)?.stopRequested || false;
     job.updatedAt = now();
@@ -497,13 +532,74 @@ async function run(job, provider, { pollMs = 10000, maxPolls = 180 } = {}) {
       for (const clip of page.clips) {
         checkStop();
         if (clip.status === "ready") continue;
-        // Match immutable media fingerprints, not page numbers or titles.
+        // Resolve the saved MiniMax voice before any new paid video submission.
+        // Existing audio is durable, so a download/resume never synthesizes it again.
+        if (
+          job.mode === "minimax" &&
+          !clip.audioFile &&
+          !clip.providerVideoId
+        ) {
+          const config = speechSettings();
+          if (
+            !config.apiKey ||
+            providerIdentity(config) !== job.speechProvider ||
+            config.model !== job.speechModel
+          )
+            throw fail(
+              "MiniMax 配置已改变，请恢复生成时的配置后继续；已有音频和视频会保留。",
+            );
+          const speechOptions = optionsFor(job.speechOptions, config);
+          job.message = "正在用 MiniMax 合成" + job.voiceName + "的声音";
+          save();
+          const audio = await withUsage(
+            {
+              projectId: job.projectId,
+              pageId: page.id,
+              taskId: job.id,
+              feature: "数字人声音",
+            },
+            () =>
+              audioFactory(config, clip.text, speechOptions, undefined, () => {
+                job.message = "MiniMax 正在排队或重试，请稍候";
+                save();
+              }),
+          );
+          if (
+            !uuid((audio.file || "").replace(/\.mp3$/, "")) ||
+            !Number.isFinite(audio.duration) ||
+            audio.duration <= 0 ||
+            audio.duration > 1800
+          )
+            throw fail("MiniMax 未返回有效口播音频，请检查语音服务后继续。");
+          const bytes = await readLocal(
+            path.join(dataDir, "speech-audio", audio.file),
+          );
+          if (!bytes.length || bytes.length > 32 * 1024 * 1024)
+            throw fail("MiniMax 音频缺失或超过 32 MB。");
+          Object.assign(clip, {
+            audioFile: audio.file,
+            audioHash: hash(bytes),
+            duration: audio.duration,
+            mediaFingerprint: hash(
+              JSON.stringify([job.imageHash, hash(bytes), audio.duration]),
+            ),
+          });
+          save();
+          checkStop();
+        }
+        // Exact audio bytes can reuse an older narration-driven video; never
+        // reuse the previous HeyGen text voice merely because the text matches.
         let reused = false;
         for (const old of all(kind)) {
           const cached = old.pages
             .flatMap((p) => p.clips)
             .find(
-              (c) => c.status === "ready" && c.fingerprint === clip.fingerprint,
+              (c) =>
+                c.status === "ready" &&
+                (c.fingerprint === clip.fingerprint ||
+                  (clip.mediaFingerprint &&
+                    (c.mediaFingerprint || c.fingerprint) ===
+                      clip.mediaFingerprint)),
             );
           if (!cached) continue;
           try {

@@ -184,16 +184,24 @@ export function ProjectPresenter({
       <div className="project-presenter-heading">
         <div>
           <h3>数字人讲解</h3>
-          <p>选一个已准备好的数字人，直接用逐页讲稿生成讲解。</p>
+          <p>
+            {mode === "audio"
+              ? "沿用所选 AI 口播的原声音，再同步头像嘴型。"
+              : "使用数字人的 MiniMax 声音讲述逐页讲稿，再同步头像嘴型。"}
+          </p>
         </div>
         <Status tone={ready ? "good" : "warm"}>
           {ready
             ? "可以生成讲解"
             : !studio?.hasKey
               ? "待连接 HeyGen"
-              : !avatar?.ready
+              : !avatar
                 ? "待准备数字人"
-                : "待选择口播"}
+                : mode === "audio"
+                  ? "待选择口播"
+                  : !avatar?.ready
+                    ? "待准备数字人"
+                    : "待选择口播"}
         </Status>
       </div>
       {!studio?.avatars.length ? (
@@ -230,7 +238,7 @@ export function ProjectPresenter({
             {(!studio.hasKey || (mode === "text" && !avatar?.ready)) && (
               <p>
                 到数字人工作室
-                {!studio.hasKey ? "连接 HeyGen" : "为这个数字人保存中文声音"}
+                {!studio.hasKey ? "连接 HeyGen" : "连接 MiniMax 并保存声音"}
                 ，回来即可生成。
               </p>
             )}
@@ -281,7 +289,7 @@ export function ProjectPresenter({
               </div>
             </div>
             {!eligiblePages.length && (
-              <p>先在稿件中添加逐页讲稿，文字会直接交给数字人讲述。</p>
+              <p>先在稿件中添加逐页讲稿，再用 MiniMax 声音生成讲解。</p>
             )}
             <details className="presenter-style-tools">
               <summary>显示位置与其他方式</summary>
@@ -320,7 +328,7 @@ export function ProjectPresenter({
                       setMode(e.target.value as "text" | "audio")
                     }
                   >
-                    <option value="text">直接使用逐页讲稿</option>
+                    <option value="text">逐页讲稿 → MiniMax 声音</option>
                     <option value="audio">沿用已有 AI 口播</option>
                   </select>
                 </Field>
@@ -357,7 +365,9 @@ export function ProjectPresenter({
         onUpdate={(job) =>
           setJobs((before) => [job, ...before.filter((j) => j.id !== job.id)])
         }
-        onPlay={(job) => (job.mode === "text" ? setPlaying(job) : onPlayback())}
+        onPlay={(job) =>
+          job.mode === "audio" || !job.mode ? onPlayback() : setPlaying(job)
+        }
       />
       {confirmation && (
         <Modal
@@ -377,8 +387,10 @@ export function ProjectPresenter({
             </blockquote>
           )}
           <p>
-            {mode === "text" ? "头像和所选页面的讲稿" : "头像和所选口播音频"}
-            将发送到 HeyGen，按 API 规则计费。已完成的相同片段会优先复用。
+            {mode === "text"
+              ? "讲稿先用所选 MiniMax 声音合成音频，头像和音频再交给 HeyGen 同步嘴型，会使用两项服务的额度。"
+              : "头像和所选口播音频将发送到 HeyGen，同步原音频的嘴型并按 API 规则计费，不会更换声音。"}
+            已完成的相同片段会优先复用。
           </p>
           <div className="presenter-actions">
             <Button

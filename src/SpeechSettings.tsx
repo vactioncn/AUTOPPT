@@ -25,6 +25,7 @@ export function SpeechSettings({ notify }: { notify: (text: string) => void }) {
         }),
       );
       setKey("");
+      window.dispatchEvent(new Event("autoppt-speech-updated"));
       notify(
         clearKey ? "语音密钥已移除。" : "语音设置已保存；可在播放演讲中试听。",
       );
@@ -97,7 +98,10 @@ export function SpeechSettings({ notify }: { notify: (text: string) => void }) {
       <VoiceCapture
         disabled={busy || !config?.hasKey}
         onRecordingStart={() => setError("")}
-        onVoices={() => notify("声音已保存，可在演播台的声音制作中选择。")}
+        onVoices={() => {
+          window.dispatchEvent(new Event("autoppt-speech-updated"));
+          notify("声音已保存，可在演播台或数字人工作室选择。");
+        }}
       />
       {error && (
         <p className="error-text" role="alert">

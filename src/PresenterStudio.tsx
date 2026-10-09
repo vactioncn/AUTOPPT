@@ -70,7 +70,7 @@ export function PresenterStudio({
   useEffect(() => {
     setName(avatar?.name || "");
     setStyle(avatar?.style || "original");
-    setVoiceId(avatar?.voiceId || "");
+    setVoiceId(avatar?.voiceId || state?.defaultSpeechVoiceId || "");
     setFile(null);
     if (fileInput.current) fileInput.current.value = "";
     try {
@@ -92,11 +92,14 @@ export function PresenterStudio({
   async function loadVoices(refresh = false) {
     setVoiceBusy(true);
     try {
-      setVoices(
-        await api<PresenterVoice[]>(
+      const [list, studio] = await Promise.all([
+        api<PresenterVoice[]>(
           "/presenter/voices" + (refresh ? "?refresh=1" : ""),
         ),
-      );
+        api<PresenterStudioState>("/presenter/studio"),
+      ]);
+      setVoices(list);
+      setState(studio);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -104,8 +107,10 @@ export function PresenterStudio({
     }
   }
   useEffect(() => {
-    if (hasKey) void loadVoices();
-    else setVoices([]);
+    void loadVoices();
+    const refresh = () => void loadVoices(true);
+    window.addEventListener("autoppt-speech-updated", refresh);
+    return () => window.removeEventListener("autoppt-speech-updated", refresh);
   }, [hasKey]);
   async function run(
     action: "save" | "default" | "preview" | "style" | "remove",
@@ -184,12 +189,18 @@ export function PresenterStudio({
       <div className="presenter-studio-intro">
         <h3>你的数字人</h3>
         <p>
-          在这里准备形象和声音、输入文字试播。满意后，每个项目都可以直接使用。
+          形象配上你的 MiniMax
+          声音，输入文字试播。满意后，每个项目都可以直接使用。
         </p>
       </div>
       {!hasKey && (
         <p className="journey-warning">
           先在上方连接 HeyGen。头像可以先保存到本机。
+        </p>
+      )}
+      {state && !state.hasSpeechKey && (
+        <p className="journey-warning">
+          先在“语音与声音 · MiniMax”保存语音服务配置。HeyGen 只负责同步嘴型。
         </p>
       )}
       <div className="presenter-studio-layout">
@@ -224,7 +235,7 @@ export function PresenterStudio({
                   {styleName(a.style)}
                   {a.id === state.defaultAvatarId ? " · 默认" : ""}
                 </small>
-                <small>{a.ready ? a.voiceName : "需要选择声音"}</small>
+                <small>MiniMax · {a.voiceName}</small>
               </span>
             </button>
           ))}
@@ -292,18 +303,19 @@ export function PresenterStudio({
                     ))}
                   </select>
                 </Field>
-                <Field label="中文声音">
+                <Field
+                  label="MiniMax 声音"
+                  hint="选择已采集的本人声音，或 MiniMax 播音员。生成的音频会交给 HeyGen 同步嘴型。"
+                >
                   <select
                     value={voiceId}
-                    disabled={busy || !hasKey || voiceBusy}
+                    disabled={busy || voiceBusy}
                     onChange={(e) => setVoiceId(e.target.value)}
                   >
                     <option value="">
                       {voiceBusy
-                        ? "正在读取中文声音…"
-                        : hasKey
-                          ? "选择中文声音"
-                          : "连接 HeyGen 后选择"}
+                        ? "正在读取 MiniMax 声音…"
+                        : "选择 MiniMax 声音"}
                     </option>
                     {voiceId && !voices.some((v) => v.id === voiceId) && (
                       <option value={voiceId}>
@@ -313,14 +325,7 @@ export function PresenterStudio({
                     {voices.map((v) => (
                       <option key={v.id} value={v.id}>
                         {v.name}
-                        {v.gender
-                          ? " · " +
-                            (v.gender === "male"
-                              ? "男声"
-                              : v.gender === "female"
-                                ? "女声"
-                                : v.gender)
-                          : ""}
+                        {v.custom ? " · 已采集声音" : " · 播音员"}
                       </option>
                     ))}
                   </select>
@@ -349,10 +354,10 @@ export function PresenterStudio({
                 </Button>
               )}
               <Button
-                disabled={!hasKey || busy || voiceBusy}
+                disabled={busy || voiceBusy}
                 onClick={() => void loadVoices(true)}
               >
-                刷新声音列表
+                刷新 MiniMax 声音
               </Button>
             </div>
             {dirty && <p role="status">有未保存的修改，保存后即可试播。</p>}
@@ -394,11 +399,11 @@ export function PresenterStudio({
           <div className="presenter-preview-panel">
             <div className="presenter-editor-heading">
               <h4>文字试播</h4>
-              <span>先听声音，再看嘴型</span>
+              <span>MiniMax 配音 → 同步嘴型</span>
             </div>
             <Field
               label="试播文字"
-              hint="1–300 字。使用这个数字人保存的头像和声音，直接生成视频。"
+              hint="1–300 字。先用所选 MiniMax 声音生成音频，再与头像合成视频。"
             >
               <textarea
                 rows={3}
@@ -429,7 +434,11 @@ export function PresenterStudio({
               </Button>
               <span>{text.length} / 300 字</span>
             </div>
-            {!avatar?.ready && <p>先保存头像和中文声音，试播按钮就会启用。</p>}
+            {!avatar?.ready && (
+              <p>
+                先连接 MiniMax，并保存头像和 MiniMax 声音，试播按钮就会启用。
+              </p>
+            )}
             <PresenterJobs
               jobs={jobs.filter((j) => j.avatarId === selected)}
               endpoint="/presenter/previews"
@@ -478,8 +487,8 @@ export function PresenterStudio({
                 {request.current?.text || text}
               </blockquote>
               <p>
-                这张头像和这段文字会发送到 HeyGen，生成声音与嘴型，并按 API
-                规则计费。
+                文字先发送到 MiniMax，使用所选声音合成音频；头像和音频再发送到
+                HeyGen 同步嘴型。会使用两项服务的额度，已完成素材优先复用。
               </p>
             </>
           ) : confirm === "style" ? (

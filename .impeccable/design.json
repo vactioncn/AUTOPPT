@@ -4,7 +4,7 @@
   "title": "Design System: AutoPPT",
   "extensions": {
     "presenterStudio": {
-      "recordedAt": "2026-10-09T03:45:57Z",
+      "recordedAt": "2026-10-09T07:58:33Z",
       "scope": "Digital-presenter component extension within the incumbent Quiet Personal Speech Studio world. Existing frontmatter primitives, components, narrative and historical records are preserved.",
       "directionContract": ".impeccable/presenter-studio.md",
       "designSections": [
@@ -18,15 +18,35 @@
         },
         {
           "file": "src/PresenterStudio.tsx",
-          "observed": "Saved-avatar choices expose identity, default and voice readiness. A ready identity starts collapsed; text preview stays visible. Upload and style tools remain in settings, and confirmations describe upload, billing and separate saving of a new style identity."
+          "observed": "Saved-avatar choices expose identity, default and MiniMax voice readiness. The MiniMax voice selector uses collected personal voices and announcers from the shared speech configuration. A ready identity starts collapsed; text preview stays visible. Preview hints and confirmation explain MiniMax audio followed by HeyGen mouth synchronization and both services' usage. Upload and style tools remain in settings, and confirmations describe upload, billing and separate saving of a new style identity."
         },
         {
           "file": "src/ProjectPresenter.tsx",
-          "observed": "Projects select an existing identity and use page notes directly; page and whole-speech actions remain visible. Position, size and optional existing audio are in a disclosure, followed by an explicit generation confirmation."
+          "observed": "Projects select an existing identity and synthesize page notes with its saved MiniMax voice; page and whole-speech actions remain visible. Position, size and optional existing audio are in a disclosure. Selecting existing AI narration changes the primary description to retaining its original voice, shows 待选择口播 when no narration is selected, and explains original-audio upload without replacing the voice. Each source has an explicit generation confirmation."
         },
         {
           "file": "src/PresenterJobs.tsx",
-          "observed": "Preview and project work share written status, progress, available-clip playback, incompatible-result text and a continuation confirmation."
+          "observed": "Preview and project work share written status, progress, available-clip playback, incompatible-result text and a continuation confirmation. Voice labels distinguish MiniMax · [voice], 沿用原口播声音 and preserved 旧版 HeyGen 配音 · [voice] history."
+        },
+        {
+          "file": "src/SpeechSettings.tsx",
+          "observed": "语音与声音 · MiniMax is the shared speech-service configuration and personal-voice collection entry, separate from the HeyGen connection."
+        },
+        {
+          "file": "src/presenter-types.ts",
+          "observed": "Avatar voiceSource identifies minimax. Job modes distinguish current minimax synthesis, original audio and legacy text dubbing for source-aware records."
+        },
+        {
+          "file": "server/presenter/speech.mjs",
+          "observed": "A portrait does not identify a voice. Resolve a saved MiniMax voice against the configured provider, or use an available recent narration voice for a legacy avatar; absent speech configuration or an unresolved voice prevents text generation instead of substituting a HeyGen platform voice."
+        },
+        {
+          "file": "server/presenter/library.mjs",
+          "observed": "Presenter voices come from the same voices(speechSettings()) list as AI narration. Saved identities bind the selected speech voice and provider; readiness requires a resolved MiniMax voice and speech key."
+        },
+        {
+          "file": "server/presenter/generation.mjs",
+          "observed": "New text requests create minimax jobs, persist MiniMax audio before video submission, then upload its audio bytes to HeyGen for mouth synchronization. Existing-audio jobs upload original narration bytes directly. Query/download recovery reuses saved audio, while preserved legacy text jobs remain distinguishable."
         },
         {
           "file": "src/PresenterPlayer.tsx",
@@ -37,7 +57,23 @@
           "observed": "Local library/workbench grid, 700px stacking, selected avatar treatment, wrapping presenter actions, quiet job dividers and dark media surfaces."
         }
       ],
-      "normalizationBoundary": "Local presenter heading sizes, selected-surface tint and video-stage colors remain component details. They are not added to the global primitive scales; task-specific eyebrow labels are not made system conventions."
+      "normalizationBoundary": "Local presenter heading sizes, selected-surface tint and video-stage colors remain component details. They are not added to the global primitive scales; task-specific eyebrow labels are not made system conventions. Voice provenance is scoped to the digital-presenter component. Test portrait placeholders establish no new asset requirement.",
+      "voiceCorrectionEvidence": {
+        "date": "2026-10-09",
+        "direction": "Operate",
+        "screenshots": [
+          "test-results/presenter-minimax/review/studio-desktop.png",
+          "test-results/presenter-minimax/review/studio-mobile.png",
+          "test-results/presenter-minimax/review/voice-desktop.png",
+          "test-results/presenter-minimax/review/voice-mobile.png",
+          "test-results/presenter-minimax/review/project-desktop.png",
+          "test-results/presenter-minimax/review/project-mobile.png",
+          "test-results/presenter-minimax/review/audio-desktop.png",
+          "test-results/presenter-minimax/review/audio-mobile.png"
+        ],
+        "review": "The sole material fix, the primary existing-audio description and unselected narration status, was scored resolved. The independent review disposition is ship only for that resolved fix; it is not a general output-quality approval.",
+        "validation": "Completed suite: 209 passed, 11 skipped, 0 failed. Saved personal MiniMax audio to HeyGen video was verified for a 2.64-second sample; audio correlation with the original MiniMax source was 0.999983. This verifies short-sample source retention, not all avatar styles or long-form mouth synchronization."
+      }
     },
     "outputStyleCorrection": {
       "date": "2026-09-30",
@@ -486,6 +522,11 @@
       {
         "name": "The Opaque Image Rule",
         "body": "Image requests require an opaque background. Requests without content attachments are text-only; selected content attachments are actual inputs to the design and multi-image editing steps. Unexpected transparent output is rejected while retaining the previous image and pending plan.",
+        "section": "components"
+      },
+      {
+        "name": "The Presenter Voice Provenance Rule",
+        "body": "“MiniMax 声音” uses the same configured voice list as AI narration, including collected personal voices and MiniMax announcers. A portrait does not identify a voice. Text preview and page-note generation first synthesize audio with the selected saved MiniMax voice, then send that audio and portrait to HeyGen to synchronize the mouth. The selector, readiness text, preview hint and confirmation name this source. New generation never substitutes a HeyGen platform voice.",
         "section": "components"
       }
     ],

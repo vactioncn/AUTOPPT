@@ -89,6 +89,13 @@ export function PresenterJobs({
               </strong>
               <span>{new Date(job.createdAt).toLocaleString("zh-CN")}</span>
             </div>
+            <p>
+              {job.mode === "minimax"
+                ? "MiniMax · " + job.voiceName
+                : job.mode === "text"
+                  ? "旧版 HeyGen 配音 · " + (job.voiceName || "平台声音")
+                  : "沿用原口播声音"}
+            </p>
             <p role={running ? "status" : undefined}>
               {job.status === "ready"
                 ? `已完成 · ${ready.length} 段 · ${Math.round(ready.reduce((n, c) => n + c.duration, 0))} 秒`
@@ -145,8 +152,8 @@ export function PresenterJobs({
       {resume && (
         <Modal title="继续这个任务" onClose={() => !busy && setResume(null)}>
           <p>
-            已提交的片段只查询和下载；尚未提交的片段会继续生成并按 HeyGen API
-            规则计费。
+            已生成的音频和已提交的视频会继续复用、查询和下载；尚未生成的片段会调用相应的
+            MiniMax 或 HeyGen 服务并按 API 规则计费。
           </p>
           <Button
             variant="primary"

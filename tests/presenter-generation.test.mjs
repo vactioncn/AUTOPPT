@@ -62,7 +62,7 @@ test("HeyGen generation uses durable idempotency, preserves content, reuses comp
   };
   store.put("project", project);
   const original = JSON.stringify(project);
-  mkdirSync(path.join(dir, "speech-audio"));
+  mkdirSync(path.join(dir, "speech-audio"), { recursive: true });
   const audioFile = randomUUID() + ".mp3";
   writeFileSync(path.join(dir, "speech-audio", audioFile), "synthetic-audio");
   store.put("narration", {

@@ -45,7 +45,13 @@ export const activeSpeechCount = (projectId = null) =>
     (d) => running(d) && (!projectId || d.projectId === projectId),
   ).length +
   (!projectId && quickOperation ? 1 : 0) +
-  activePerformanceCount(projectId);
+  activePerformanceCount(projectId) +
+  all("presenter-generation").filter(
+    (d) =>
+      d.mode === "minimax" &&
+      running(d) &&
+      (!projectId || d.projectId === projectId),
+  ).length;
 const save = (d) => put("narration", { ...d, updatedAt: now() });
 const safeDeck = ({ provider, ...d }) => d;
 function deck(key) {
@@ -60,7 +66,7 @@ function assertIdle() {
       status: 409,
     });
 }
-function voices(config) {
+export function voices(config) {
   return [
     ...SPEECH_VOICES,
     ...all("speaker")
@@ -74,7 +80,7 @@ function voices(config) {
       })),
   ];
 }
-function optionsFor(input, config) {
+export function optionsFor(input, config) {
   const options = speechOptions(input);
   if (!voices(config).some((v) => v.id === options.voiceId))
     throw new Error("这个声音不属于当前语音服务账号，请重新选择或采集");
@@ -87,7 +93,7 @@ function assetFile(name) {
   if (!/^[a-f0-9-]{36}\.mp3$/.test(name)) throw new Error("音频路径无效");
   return path.join(audioDir, name);
 }
-async function cachedAudio(config, text, options, signal, onWait) {
+export async function cachedAudio(config, text, options, signal, onWait) {
   const key = hash([
     "speech-v1",
     providerIdentity(config),

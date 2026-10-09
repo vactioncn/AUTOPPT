@@ -1,9 +1,10 @@
-import { createHash } from "node:crypto";
 import { all, get, put, id, now, settings, assetPath } from "../store.mjs";
 import multer from "multer";
 import { createLocalAvatar } from "./project-setup.mjs";
-import { presenterSettings, publicPresenterSettings } from "./settings.mjs";
-import { createHeyGenProvider } from "./heygen.mjs";
+import { publicPresenterSettings } from "./settings.mjs";
+import { presenterSpeech } from "./speech.mjs";
+import { voices } from "../speech/index.mjs";
+import { speechSettings } from "../speech/settings.mjs";
 import {
   createPreview,
   publicGeneration,
@@ -22,16 +23,20 @@ export const avatarStyles = [
 ];
 const fail = (message, status = 400) =>
   Object.assign(new Error(message), { status });
-const publicAvatar = (a) => ({
-  id: a.id,
-  name: a.name,
-  previewAsset: a.previewAsset,
-  style: a.style || "original",
-  voiceId: a.voiceId || "",
-  voiceName: a.voiceName || "未选择声音",
-  ready: !!a.voiceId,
-  createdAt: a.createdAt,
-});
+const publicAvatar = (a) => {
+  const speech = presenterSpeech(a);
+  return {
+    id: a.id,
+    name: a.name,
+    previewAsset: a.previewAsset,
+    style: a.style || "original",
+    voiceId: speech.voice?.id || "",
+    voiceName: speech.voice?.name || "未选择 MiniMax 声音",
+    voiceSource: "minimax",
+    ready: !!speech.voice && !!speech.config.apiKey,
+    createdAt: a.createdAt,
+  };
+};
 let styleBusy = false;
 export const activeAvatarCount = () => (styleBusy ? 1 : 0);
 function avatar(id) {
@@ -51,38 +56,33 @@ export function studioState() {
       get("presenter-library", "default")?.avatarId || avatars[0]?.id || "",
     styles: avatarStyles,
     imageAvailable: !!settings().image.apiKey,
+    hasSpeechKey: !!speechSettings().apiKey,
+    voiceSource: "minimax",
+    defaultSpeechVoiceId: presenterSpeech().voice?.id || "",
   };
 }
-export async function studioVoices(
-  refresh = false,
-  providerFactory = createHeyGenProvider,
-) {
-  const { apiKey } = presenterSettings();
-  if (!apiKey) throw fail("先连接 HeyGen，再选择数字人的中文声音。");
-  const key = createHash("sha256").update(apiKey).digest("hex"),
-    cached = get("presenter-voices", key);
-  if (!refresh && cached && Date.now() - Date.parse(cached.createdAt) < 600000)
-    return cached.voices;
-  const voices = await providerFactory({ apiKey }).voices();
-  put("presenter-voices", { id: key, voices, createdAt: now() });
-  return voices;
+export async function studioVoices() {
+  return voices(speechSettings());
 }
 async function fields(input, old = {}) {
   const name = input.name ?? old.name,
     style = input.style ?? old.style ?? "original",
-    voiceId = input.voiceId ?? old.voiceId ?? "";
+    voiceId = input.voiceId ?? presenterSpeech(old).voice?.id ?? "";
   if (typeof name !== "string" || !name.trim() || name.trim().length > 80)
     throw fail("请填写 1–80 字数字人名称。");
   if (!avatarStyles.some((s) => s.id === style))
     throw fail("请选择原始照片、职业照、卡通或古装风格。");
-  let voiceName = old.voiceName || "";
-  if (voiceId && voiceId !== old.voiceId) {
-    const voice = (await studioVoices()).find((v) => v.id === voiceId);
-    if (!voice)
-      throw fail("这个声音不在当前账号的中文列表，请刷新声音列表后重选。");
-    voiceName = voice.name;
-  }
-  return { name: name.trim(), style, voiceId, voiceName };
+  const speech = presenterSpeech(old);
+  const voice = voiceId && (await studioVoices()).find((v) => v.id === voiceId);
+  if (voiceId && !voice)
+    throw fail("这个声音不属于当前 MiniMax 账号，请刷新声音列表后重选。");
+  return {
+    name: name.trim(),
+    style,
+    speechVoiceId: voiceId,
+    speechVoiceName: voice?.name || "",
+    speechProvider: speech.provider,
+  };
 }
 export async function saveAvatar(id, input) {
   const old = avatar(id);

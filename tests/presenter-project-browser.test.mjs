@@ -72,17 +72,22 @@ test(
       ],
     };
     put("project", project);
-    put("presenter-voices", {
-      id: createHash("sha256").update("synthetic-browser-secret").digest("hex"),
+    const speechConfig = {
+      baseUrl: "https://api.minimax.cn/v1",
+      model: "speech-2.8-hd",
+      apiKey: "synthetic-speech-key",
+    };
+    writeFileSync(
+      path.join(dir, "speech-settings.json"),
+      JSON.stringify(speechConfig),
+    );
+    put("speaker", {
+      id: "chinese-voice",
+      name: "我的演讲声音",
+      provider: createHash("sha256")
+        .update(speechConfig.baseUrl + "\n" + speechConfig.apiKey)
+        .digest("hex"),
       createdAt: now,
-      voices: [
-        {
-          id: "chinese-voice",
-          name: "测试中文声音",
-          language: "Chinese",
-          gender: "male",
-        },
-      ],
     });
     const child = fork("server/index.mjs", [], {
       silent: true,
@@ -144,8 +149,8 @@ test(
             id: isPreview ? "preview" : "generation",
             avatarId: avatar.id,
             avatarName: avatar.name,
-            voiceName: avatar.voiceName,
-            mode: "text",
+            voiceName: avatar.speechVoiceName,
+            mode: "minimax",
             preview: isPreview,
             scope: "page",
             status: isPreview ? "ready" : "running",
@@ -200,18 +205,16 @@ test(
     ).toBeVisible();
     const studio = page.locator("#presenter-settings");
     await studio.getByLabel("数字人名称", { exact: true }).fill("中文讲解员");
-    await studio
-      .getByLabel("上传头像")
-      .setInputFiles({
-        name: "portrait.png",
-        mimeType: "image/png",
-        buffer: image,
-      });
+    await studio.getByLabel("上传头像").setInputFiles({
+      name: "portrait.png",
+      mimeType: "image/png",
+      buffer: image,
+    });
     await studio
       .getByLabel("头像风格", { exact: true })
       .selectOption("cartoon");
     await studio
-      .getByLabel("中文声音", { exact: true })
+      .getByLabel("MiniMax 声音", { exact: true })
       .selectOption("chinese-voice");
     await studio
       .getByRole("button", { name: "保存数字人", exact: true })
@@ -221,13 +224,79 @@ test(
     ).toBeEnabled();
     await studio.getByLabel("试播文字").fill("你好，数字人试播。");
     await studio.getByRole("button", { name: "生成试播视频" }).click();
-    await expect(page.getByRole("dialog")).toContainText("按 API 规则计费");
+    await expect(page.getByRole("dialog")).toContainText(
+      "文字先发送到 MiniMax",
+    );
+    await expect(page.getByRole("dialog")).toContainText(
+      "头像和音频再发送到 HeyGen",
+    );
     await page.getByRole("button", { name: "确认生成", exact: true }).click();
     await expect(studio.getByLabel("数字人试播视频")).toBeVisible();
+    if (process.env.PRESENTER_REVIEW_DIR) {
+      mkdirSync(process.env.PRESENTER_REVIEW_DIR, { recursive: true });
+      await expect(
+        page.getByText("试播已开始，完成后视频会显示在这里。"),
+      ).toHaveCount(0);
+      await studio
+        .getByRole("heading", { name: "你的数字人", exact: true })
+        .scrollIntoViewIfNeeded();
+      await page.screenshot({
+        path: path.join(process.env.PRESENTER_REVIEW_DIR, "studio-desktop.png"),
+      });
+      await page.setViewportSize({ width: 390, height: 844 });
+      await studio
+        .getByRole("heading", { name: "文字试播", exact: true })
+        .scrollIntoViewIfNeeded();
+      await page.screenshot({
+        path: path.join(process.env.PRESENTER_REVIEW_DIR, "studio-mobile.png"),
+      });
+      await page.setViewportSize({ width: 1280, height: 900 });
+      await studio.locator(".presenter-editor > summary").click();
+      await studio
+        .getByLabel("MiniMax 声音", { exact: true })
+        .scrollIntoViewIfNeeded();
+      await page.screenshot({
+        path: path.join(process.env.PRESENTER_REVIEW_DIR, "voice-desktop.png"),
+      });
+      await page.setViewportSize({ width: 390, height: 844 });
+      await studio
+        .getByLabel("MiniMax 声音", { exact: true })
+        .scrollIntoViewIfNeeded();
+      await page.screenshot({
+        path: path.join(process.env.PRESENTER_REVIEW_DIR, "voice-mobile.png"),
+      });
+      await page.setViewportSize({ width: 1280, height: 900 });
+    }
     await page.goto(base + "/#project/presenter-project/rehearsal");
     await expect(
       page.getByRole("button", { name: "生成本页讲解" }),
     ).toBeEnabled();
+    await page.locator("#project-presenter summary").click();
+    await page.getByLabel("讲解来源", { exact: true }).selectOption("audio");
+    await expect(
+      page.getByText("沿用所选 AI 口播的原声音，再同步头像嘴型。", {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(page.getByText("待选择口播", { exact: true })).toBeVisible();
+    if (process.env.PRESENTER_REVIEW_DIR) {
+      await page
+        .getByRole("heading", { name: "数字人讲解", exact: true })
+        .scrollIntoViewIfNeeded();
+      await page.screenshot({
+        path: path.join(process.env.PRESENTER_REVIEW_DIR, "audio-desktop.png"),
+      });
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page
+        .getByRole("heading", { name: "数字人讲解", exact: true })
+        .scrollIntoViewIfNeeded();
+      await page.screenshot({
+        path: path.join(process.env.PRESENTER_REVIEW_DIR, "audio-mobile.png"),
+      });
+      await page.setViewportSize({ width: 1280, height: 900 });
+    }
+    await page.getByLabel("讲解来源", { exact: true }).selectOption("text");
+    await page.locator("#project-presenter summary").click();
     assert.equal(await page.getByLabel("上传头像").count(), 0);
     await page.getByRole("button", { name: "生成本页讲解" }).click();
     await expect(page.getByRole("dialog")).toContainText(
@@ -261,5 +330,23 @@ test(
       0,
     );
     assert.equal(errors.length, 0, errors.join("\n"));
+    if (process.env.PRESENTER_REVIEW_DIR) {
+      await page
+        .getByRole("heading", { name: "数字人讲解", exact: true })
+        .scrollIntoViewIfNeeded();
+      await page.screenshot({
+        path: path.join(
+          process.env.PRESENTER_REVIEW_DIR,
+          "project-desktop.png",
+        ),
+      });
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page
+        .getByRole("heading", { name: "数字人讲解", exact: true })
+        .scrollIntoViewIfNeeded();
+      await page.screenshot({
+        path: path.join(process.env.PRESENTER_REVIEW_DIR, "project-mobile.png"),
+      });
+    }
   },
 );

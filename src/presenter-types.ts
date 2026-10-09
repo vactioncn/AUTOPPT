@@ -5,6 +5,7 @@ export type PresenterAvatar = {
   style: string;
   voiceId: string;
   voiceName: string;
+  voiceSource?: "minimax";
   ready: boolean;
 };
 export type PresenterStudioState = {
@@ -14,12 +15,14 @@ export type PresenterStudioState = {
   defaultAvatarId: string;
   styles: { id: string; name: string }[];
   imageAvailable: boolean;
+  hasSpeechKey: boolean;
+  defaultSpeechVoiceId: string;
 };
 export type PresenterVoice = {
   id: string;
   name: string;
-  language: string;
-  gender: string;
+  description?: string;
+  custom?: boolean;
 };
 export type PresenterGeneration = {
   id: string;
@@ -27,7 +30,7 @@ export type PresenterGeneration = {
   avatarId: string;
   avatarName?: string;
   voiceName?: string;
-  mode?: "text" | "audio";
+  mode?: "text" | "audio" | "minimax";
   preview?: boolean;
   placement: string;
   size: string;

@@ -13,31 +13,54 @@ import { createHash, randomUUID } from "node:crypto";
 import sharp from "sharp";
 import { createServer } from "node:http";
 import { once } from "node:events";
+import { silenceMp3 } from "./helpers/speech-audio.mjs";
 
-test("centralized avatars and text preview generate without narration, deduplicate concurrent submissions, and preserve project content", async (t) => {
+test("MiniMax voice audio drives previews and projects without manual narration; upload bytes, cache, retry, and content are preserved", async (t) => {
   const dir = mkdtempSync(path.join(tmpdir(), "autoppt-studio-"));
   process.env.AUTOPPT_DATA_DIR = dir;
   const store = await import("../server/store.mjs"),
     settings = await import("../server/presenter/settings.mjs"),
     library = await import("../server/presenter/library.mjs"),
     gen = await import("../server/presenter/generation.mjs"),
-    setup = await import("../server/presenter/project-setup.mjs");
+    setup = await import("../server/presenter/project-setup.mjs"),
+    speechSettings = await import("../server/speech/settings.mjs");
   t.after(() => {
     store.db.close();
     rmSync(dir, { recursive: true, force: true });
   });
   settings.savePresenterSettings({ apiKey: "synthetic-key" });
-  store.put("presenter-voices", {
-    id: createHash("sha256").update("synthetic-key").digest("hex"),
+  let speechCalls = 0;
+  const speechBodies = [];
+  const speechService = createServer(async (req, res) => {
+    assert.equal(req.url, "/v1/t2a_v2");
+    assert.equal(req.headers.authorization, "Bearer synthetic-voice-key");
+    let raw = "";
+    for await (const bytes of req) raw += bytes;
+    const body = JSON.parse(raw);
+    speechBodies.push(body);
+    speechCalls++;
+    assert.equal(body.voice_setting.voice_id, "voice");
+    res.setHeader("Content-Type", "application/json");
+    res.end(
+      JSON.stringify({
+        base_resp: { status_code: 0 },
+        data: { status: 2, audio: silenceMp3.toString("hex") },
+        extra_info: { audio_length: 2000 },
+      }),
+    );
+  });
+  speechService.listen(0, "127.0.0.1");
+  await once(speechService, "listening");
+  t.after(() => new Promise((resolve) => speechService.close(resolve)));
+  speechSettings.saveSpeechSettings({
+    baseUrl: `http://127.0.0.1:${speechService.address().port}/v1`,
+    apiKey: "synthetic-voice-key",
+  });
+  store.put("speaker", {
+    id: "voice",
+    name: "我的测试声音",
+    provider: speechSettings.providerIdentity(speechSettings.speechSettings()),
     createdAt: store.now(),
-    voices: [
-      {
-        id: "voice",
-        name: "测试中文男声",
-        language: "Chinese",
-        gender: "male",
-      },
-    ],
   });
   const image = await sharp({
     create: { width: 64, height: 64, channels: 3, background: "#ccd5c2" },
@@ -50,7 +73,19 @@ test("centralized avatars and text preview generate without narration, deduplica
     "image/png",
   );
   const avatar = state.avatars[0];
-  assert.equal(avatar.voiceName, "测试中文男声");
+  assert.equal(avatar.voiceName, "我的测试声音");
+  assert.equal(avatar.voiceSource, "minimax");
+  const storedAvatar = store.get("avatar", avatar.id);
+  store.put("avatar", {
+    ...storedAvatar,
+    voiceId: "old-heygen-stock-voice",
+    voiceName: "旧配音",
+  });
+  assert.equal(
+    library.studioState().avatars[0].voiceId,
+    "voice",
+    "legacy HeyGen voice must never override MiniMax selection",
+  );
   assert.equal(avatar.ready, true);
   assert.equal(state.defaultAvatarId, avatar.id);
   assert.equal(JSON.stringify(state).includes("synthetic-key"), false);
@@ -63,10 +98,15 @@ test("centralized avatars and text preview generate without narration, deduplica
   );
   const payloads = [],
     uploads = [];
-  let creates = 0;
+  let creates = 0,
+    failDownload = false;
   const factory = () => ({
-    upload: async (_bytes, name) => {
+    upload: async (uploaded, name) => {
       uploads.push(name);
+      if (name === "narration.mp3") {
+        assert.deepEqual(uploaded, silenceMp3);
+        return "audio-id";
+      }
       return "image-id";
     },
     create: async (payload) => {
@@ -78,11 +118,17 @@ test("centralized avatars and text preview generate without narration, deduplica
       status: "completed",
       url: "https://media.example.com/video.mp4",
     }),
-    download: async () => ({
-      status: 200,
-      body: bytes,
-      headers: { "content-type": "binary/octet-stream" },
-    }),
+    download: async () => {
+      if (failDownload) {
+        failDownload = false;
+        throw new Error("synthetic download interruption");
+      }
+      return {
+        status: 200,
+        body: bytes,
+        headers: { "content-type": "binary/octet-stream" },
+      };
+    },
   });
   await assert.rejects(
     () =>
@@ -106,10 +152,14 @@ test("centralized avatars and text preview generate without narration, deduplica
   const preview = await gen.waitForGeneration(one.id);
   assert.equal(preview.status, "ready");
   assert.equal(creates, 1);
-  assert.deepEqual(uploads, ["presenter.png"]);
-  assert.equal(payloads[0].script, input.text);
-  assert.equal(payloads[0].voice_id, "voice");
-  assert.equal(payloads[0].audio_asset_id, undefined);
+  assert.deepEqual(uploads, ["presenter.png", "narration.mp3"]);
+  assert.equal(speechCalls, 1);
+  assert.equal(speechBodies[0].text, input.text);
+  assert.equal(payloads[0].script, undefined);
+  assert.equal(payloads[0].voice_id, undefined);
+  assert.equal(payloads[0].audio_asset_id, "audio-id");
+  assert.equal(preview.mode, "minimax");
+  assert.equal(preview.voiceName, "我的测试声音");
   mkdirSync(path.join(dir, "assets"), { recursive: true });
   writeFileSync(path.join(dir, "assets", "slide.png"), image);
   const project = {
@@ -150,6 +200,11 @@ test("centralized avatars and text preview generate without narration, deduplica
     "same text/voice/photo reuses the preview, without another paid request",
   );
   assert.equal(done.pages[0].clips[0].duration, 2);
+  assert.equal(
+    speechCalls,
+    1,
+    "existing MiniMax audio cache must avoid another TTS call",
+  );
   assert.equal((await gen.publicGeneration(done)).compatible, true);
   assert.equal(JSON.stringify(store.get("project", project.id)), original);
   store.put("project", {
@@ -194,6 +249,44 @@ test("centralized avatars and text preview generate without narration, deduplica
   assert.equal(styleCalls, 3);
   assert.deepEqual(store.get("avatar", avatar.id), originalAvatar);
   assert.equal(library.activeAvatarCount(), 0);
+  // Corrupt cached metadata: it must not hide a new voice/audio operation.
+  for (const j of store.all("presenter-generation")) {
+    for (const p of j.pages)
+      for (const c of p.clips) c.videoHash = "damaged-cache";
+    store.put("presenter-generation", j);
+  }
+  failDownload = true;
+  const interrupted = await gen.createPreview(
+    { ...input, text: "你好，恢复测试。", requestId: randomUUID() },
+    factory,
+  );
+  const failed = await gen.waitForGeneration(interrupted.id);
+  assert.equal(failed.status, "interrupted");
+  assert.ok(
+    failed.pages[0].clips[0].audioFile,
+    "MiniMax audio must be saved before submitting the video",
+  );
+  assert.equal(speechCalls, 2);
+  assert.equal(creates, 2);
+  await gen.resumeGeneration(null, failed.id, true, factory);
+  const recovered = await gen.waitForGeneration(failed.id);
+  assert.equal(recovered.status, "ready");
+  assert.equal(
+    speechCalls,
+    2,
+    "download retry must not synthesize another MiniMax clip",
+  );
+  assert.equal(creates, 2, "download retry must not submit another paid video");
+  speechSettings.saveSpeechSettings({ apiKey: "another-speech-account" });
+  assert.equal(
+    library.studioState().avatars[0].ready,
+    false,
+    "changing MiniMax accounts must require a new valid voice selection",
+  );
+  await assert.rejects(
+    () => gen.createPreview({ ...input, requestId: randomUUID() }, factory),
+    /MiniMax 声音/,
+  );
 });
 
 test("MP4 download accepts binary MIME and bounded AAC priming while rejecting truncated or inconsistent media", async () => {

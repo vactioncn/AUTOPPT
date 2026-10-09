@@ -30,6 +30,10 @@ export async function verifyMacApp(appPath) {
   for (const key of ["gitSha", "buildTime", "appVersion"])
     assert.ok(frontend.includes(expectedBuild[key]), `前端构建缺少 ${key}`);
   assert.ok(frontend.includes("HeyGen"), "Mac App 前端缺少数字人设置入口");
+  assert.ok(
+    frontend.includes("配置数字人讲解员"),
+    "Mac App 前端缺少项目数字人入口",
+  );
   for (const privateName of [".local", ".hosted", ".env", "deploy", "tests"])
     assert(
       !existsSync(path.join(root, privateName)),
@@ -118,6 +122,48 @@ export async function verifyMacApp(appPath) {
     });
     assert.equal(missingPresenter.status, 200);
     assert.equal((await missingPresenter.json()).ok, false);
+    const projectResponse = await fetch(url + "/api/projects", {
+      method: "POST",
+      headers: presenterHeaders,
+      body: JSON.stringify({
+        title: "安装包数字人配置验证",
+        styleId: data.styles[0].id,
+      }),
+    });
+    assert.equal(projectResponse.status, 201);
+    const project = await projectResponse.json();
+    const projectSetupUrl = `${url}/api/projects/${project.id}/presenter/setup`;
+    assert.equal((await fetch(projectSetupUrl)).status, 403);
+    const projectSetup = await (
+      await fetch(projectSetupUrl, { headers })
+    ).json();
+    assert.equal(projectSetup.generationAvailable, false);
+    assert.deepEqual(projectSetup.setup, {
+      avatarId: "",
+      narrationId: "",
+      placement: "bottom-right",
+      size: "small",
+    });
+    const savedSetup = await fetch(projectSetupUrl, {
+      method: "PUT",
+      headers: presenterHeaders,
+      body: JSON.stringify({
+        ...projectSetup.setup,
+        placement: "top-left",
+        size: "large",
+      }),
+    });
+    assert.equal(savedSetup.status, 200);
+    assert.equal((await savedSetup.json()).setup.placement, "top-left");
+    assert.equal(
+      (await (await fetch(projectSetupUrl, { headers })).json()).setup.size,
+      "large",
+    );
+    const unchanged = await (
+      await fetch(`${url}/api/projects/${project.id}`, { headers })
+    ).json();
+    assert.equal(unchanged.revision, project.revision);
+    assert.deepEqual(unchanged.slides, project.slides);
     for (const expected of RELEASE_STYLES) {
       const style = data.styles.find((s) => s.id === expected.id);
       assert.equal(style?.name, expected.name);

@@ -7,6 +7,7 @@ import {
   type ExportFormat,
 } from "./HtmlExportOptions";
 import { Button } from "./components";
+import { ProjectPresenter } from "./ProjectPresenter";
 import type { Project } from "./types";
 import type { Capabilities } from "../shared/diagnostics.mjs";
 import {
@@ -226,6 +227,13 @@ export function RehearsalCenter({
 }) {
   const speechAvailable = capabilities.standardPresentation.enabled;
   const motionAvailable = capabilities.motionPresentation.enabled;
+  const narrationKey = JSON.stringify(
+    records.narration.records.map((n) => [
+      n.id,
+      n.status,
+      n.pages.map((p) => p.status),
+    ]),
+  );
   if (!journey.total)
     return (
       <section aria-label="演练中心" className="journey-panel journey-empty">
@@ -249,6 +257,15 @@ export function RehearsalCenter({
             <Button onClick={() => onSpeech()}>打开已有口播</Button>
           )}
         </details>
+        {capabilities.localModelSettings.enabled && (
+          <ProjectPresenter
+            key={project.id}
+            project={project}
+            onSpeech={() => onSpeech(true)}
+            onSettings={onSettings}
+            narrationKey={narrationKey}
+          />
+        )}
       </section>
     );
   const action = projectPrimaryAction("rehearsal", journey, {
@@ -303,6 +320,15 @@ export function RehearsalCenter({
             <p className="journey-success">画面已齐备，可从头演练。</p>
           )}
       </section>
+      {capabilities.localModelSettings.enabled && (
+        <ProjectPresenter
+          key={project.id}
+          project={project}
+          onSpeech={() => onSpeech(true)}
+          onSettings={onSettings}
+          narrationKey={narrationKey}
+        />
+      )}
       <section className="journey-secondary" aria-label="AI 口播">
         <h3>
           AI 口播 <span>可选增强</span>

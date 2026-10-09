@@ -8,6 +8,7 @@ const {
   systemPreferences,
 } = require("electron");
 const { ownedFrame, allowRequest } = require("./media-permissions.cjs");
+const { imageContextMenu } = require("./context-menu.cjs");
 const { fork } = require("node:child_process");
 const {
   mkdirSync,
@@ -131,6 +132,10 @@ function showWindow() {
     },
   });
   window.once("ready-to-show", () => window.show());
+  window.webContents.on("context-menu", (_event, params) => {
+    const items = imageContextMenu(window.webContents, params, ownedURL);
+    if (items.length) Menu.buildFromTemplate(items).popup({ window });
+  });
   window.webContents.on("will-navigate", (event, url) => {
     if (!ownedURL(url)) {
       event.preventDefault();

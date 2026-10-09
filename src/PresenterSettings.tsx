@@ -87,7 +87,7 @@ export function PresenterSettings({
         </Status>
       </div>
       <p>
-        当前可保存密钥并测试连接；视频生成仍在接入中。测试连接只查询 HeyGen
+        保存密钥后，在项目的演练中心配置并生成数字人口型。测试连接只查询 HeyGen
         账号，不上传头像、音频或生成视频。
       </p>
       {config && (

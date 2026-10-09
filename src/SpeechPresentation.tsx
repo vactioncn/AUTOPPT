@@ -30,6 +30,7 @@ import {
   type SpeechConnection,
 } from "./speech-types";
 import "./speech.css";
+import { PresenterOverlay } from "./PresenterOverlay";
 import { SpeechPerformance } from "./SpeechPerformance";
 import { SpeechPreview } from "./SpeechPreview";
 import {
@@ -66,6 +67,8 @@ export function SpeechPresentation({
     initialPanel,
   );
   const [playbackRate, setPlaybackRate] = useState(1);
+  const [hasPresenter, setHasPresenter] = useState(false);
+  const [showPresenter, setShowPresenter] = useState(true);
   const [pendingDeck, setPendingDeck] = useState<Narration | null>(null);
   const [pageTexts, setPageTexts] = useState<Record<string, string>>({});
   const [performance, setPerformance] = useState<Performance | null>(null);
@@ -216,8 +219,11 @@ export function SpeechPresentation({
         performance: Performance | null;
         performanceTask: { status: string } | null;
       }>(`/projects/${projectId}/speech-script`),
+      api<{ setup: { narrationId: string } }>(
+        `/projects/${projectId}/presenter/setup`,
+      ).catch(() => null),
     ])
-      .then(([p, v, c, h, script]) => {
+      .then(([p, v, c, h, script, presenter]) => {
         if (cancelled) return;
         setProject(p);
         setPerformance(script.performance);
@@ -229,6 +235,10 @@ export function SpeechPresentation({
         setConfig(c);
         setHistory(h);
         const selected =
+          h.find(
+            (d) =>
+              d.id === presenter?.setup.narrationId && d.status === "ready",
+          ) ||
           h.find(
             (d) => d.status === "ready" && d.sourceRevision === p.revision,
           ) ||
@@ -607,6 +617,17 @@ export function SpeechPresentation({
                 {project ? "先生成 PPT 页面，再开始演讲。" : "正在载入演讲…"}
               </div>
             )}
+            {deck && page && (
+              <PresenterOverlay
+                projectId={projectId}
+                narrationId={deck.id}
+                pageId={page.id}
+                clipIndex={clipIndex}
+                audio={audio}
+                enabled={showPresenter}
+                onAvailable={setHasPresenter}
+              />
+            )}
           </div>
           <div className="speech-transport">
             <Button
@@ -627,6 +648,16 @@ export function SpeechPresentation({
               <ArrowRight size={18} />
             </Button>
             <div className="speech-transport-gap" />
+            {hasPresenter && (
+              <label className="speech-presenter-toggle">
+                <input
+                  type="checkbox"
+                  checked={showPresenter}
+                  onChange={(e) => setShowPresenter(e.target.checked)}
+                />
+                显示数字人
+              </label>
+            )}
             <label className="speech-rate">
               播放倍速
               <select

@@ -925,7 +925,8 @@ test(
               state === "empty" ? "先写讲稿 / 生成至少一页" : "打开演讲播放器",
             );
             if (state === "empty") {
-              await expect(page.locator(".journey-panel .btn:enabled")).toHaveCount(1);
+              await expect(page.locator(".journey-empty > .btn:enabled")).toHaveCount(1);
+              await expect(page.getByRole("button", { name: "配置数字人讲解员", exact: true })).toBeEnabled();
               await expect(page.getByText(/打开上方播放器/)).toHaveCount(0);
             }
           }

@@ -3,6 +3,7 @@ import { api, asset } from "./api";
 import { Button, Field, Status } from "./components";
 import type { Project } from "./types";
 import "./project-presenter.css";
+import { PresenterGeneration } from "./PresenterGeneration";
 
 type Setup = {
   avatarId: string;
@@ -13,7 +14,7 @@ type Setup = {
 type Avatar = { id: string; name: string; previewAsset: string };
 type State = {
   hasKey: boolean;
-  generationAvailable: false;
+  generationAvailable: boolean;
   savedAt: string | null;
   setup: Setup;
   avatars: Avatar[];
@@ -37,11 +38,13 @@ const sizes = { small: "小", medium: "中", large: "大" };
 export function ProjectPresenter({
   project,
   onSpeech,
+  onPlayback,
   onSettings,
   narrationKey,
 }: {
   project: Project;
   onSpeech: () => void;
+  onPlayback: () => void;
   onSettings: () => void;
   narrationKey: string;
 }) {
@@ -141,7 +144,9 @@ export function ProjectPresenter({
         <h3>
           数字人讲解员 <span>可选增强</span>
         </h3>
-        <Status tone="warm">可配置 · 视频生成尚未开放</Status>
+        <Status tone={state?.hasKey ? "good" : "warm"}>
+          {state?.hasKey ? "可以生成数字人口型" : "待配置 HeyGen Key"}
+        </Status>
       </div>
       <p>
         为本项目选择头像、已完成口播及显示位置。项目配置与全局 API Key
@@ -161,7 +166,7 @@ export function ProjectPresenter({
       </div>
       <p className="journey-warning">
         {state?.hasKey ? "HeyGen 密钥已保存。" : ""}
-        当前可保存项目配置，真实头像口播视频生成仍在接入中，播放器暂不显示数字人。
+        保存头像和口播版本后，在下方“生成数字人口型”中先试一页，再生成整场。
       </p>
       {error && (
         <p className="error-text" role="alert">
@@ -329,7 +334,7 @@ export function ProjectPresenter({
                 />
               )}
             </div>
-            <p>这里展示头像的位置和大小，真实讲解视频尚未生成。</p>
+            <p>这里展示头像的位置和大小；生成后可在演讲播放器中随口播显示。</p>
           </figure>
           <div className="project-presenter-actions">
             <Button
@@ -349,7 +354,9 @@ export function ProjectPresenter({
                   } catch {
                     /* Saved configuration is authoritative. */
                   }
-                  setMessage("本项目的数字人配置已保存。视频生成尚未开放。");
+                  setMessage(
+                    "本项目的数字人配置已保存，可在下方生成数字人口型。",
+                  );
                 })
               }
             >
@@ -370,6 +377,22 @@ export function ProjectPresenter({
           )}
           {busy && <p role="status">正在保存，请稍候…</p>}
           {message && <p role="status">{message}</p>}
+          <PresenterGeneration
+            projectId={project.id}
+            narrationId={state.setup.narrationId}
+            enabled={
+              !!(
+                state.hasKey &&
+                state.savedAt &&
+                state.setup.avatarId &&
+                state.setup.narrationId &&
+                !dirty &&
+                !busy &&
+                !invalidSelection
+              )
+            }
+            onSpeech={onPlayback}
+          />
         </div>
       )}
     </section>

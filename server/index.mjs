@@ -16,6 +16,11 @@ import { createBuildInfo, readBuildInfo } from "./build-info.mjs";
 import { frontendRelease } from "./frontend-release.mjs";
 import { diagnostics } from "./diagnostics.mjs";
 import { publicSpeechSettings } from "./speech/settings.mjs";
+import {
+  registerPresenterGeneration,
+  activePresenterCount,
+  recoverPresenters,
+} from "./presenter/generation.mjs";
 import { registerPresenterSettings } from "./presenter/settings.mjs";
 import { registerProjectPresenterSetup } from "./presenter/project-setup.mjs";
 import multer from "multer";
@@ -214,7 +219,8 @@ app.get("/api/activity", (req, res) =>
       all("job").filter((j) => ["queued", "running"].includes(j.status))
         .length +
       activeMotionCount() +
-      activeSpeechCount(),
+      activeSpeechCount() +
+      activePresenterCount(),
   }),
 );
 if (process.env.AUTOPPT_DESKTOP_TOKEN)
@@ -224,7 +230,8 @@ if (process.env.AUTOPPT_DESKTOP_TOKEN)
         all("job").filter((job) => ["queued", "running"].includes(job.status))
           .length +
         activeMotionCount() +
-        activeSpeechCount(),
+        activeSpeechCount() +
+        activePresenterCount(),
     }),
   );
 app.get("/api/bootstrap", (req, res) =>
@@ -310,6 +317,8 @@ app.post("/api/projects", (req, res) => {
 });
 app.delete("/api/projects/:id", (req, res) => {
   const p = projectOrThrow(req.params.id);
+  if (activePresenterCount(p.id))
+    throw new Error("请先完成或停止本项目的数字人生成，再删除项目。");
   if (activeSpeechCount(p.id))
     throw new Error("请先完成或停止本项目的口播生成，再删除项目。");
   if (activeMotionCount(p.id))
@@ -1066,15 +1075,20 @@ app.post("/api/settings/test", async (req, res) => {
 });
 registerMotion(app);
 registerSpeech(app);
-registerPresenterSettings(app);
+registerPresenterSettings(app, activePresenterCount);
+registerPresenterGeneration(app);
 registerProjectPresenterSetup(app);
 registerHtmlExport(app);
 registerProjectPackages(app, {
   assertIdle: (projectId) => {
     assertIdle(projectId);
-    if (activeMotionCount(projectId) || activeSpeechCount(projectId))
+    if (
+      activeMotionCount(projectId) ||
+      activeSpeechCount(projectId) ||
+      activePresenterCount(projectId)
+    )
       throw Object.assign(
-        new Error("请等待此项目的动画或口播任务结束后再打包"),
+        new Error("请等待此项目的动画、口播或数字人任务结束后再打包"),
         { status: 409 },
       );
   },
@@ -1121,6 +1135,7 @@ const listener = app.listen(port, "127.0.0.1", (error) => {
   recoverJobs();
   recoverMotion();
   recoverSpeech();
+  recoverPresenters();
   migrateManuscripts();
   process.send?.({ type: "ready", port: listener.address().port });
   console.log(`AutoPPT → http://127.0.0.1:${listener.address().port}`);

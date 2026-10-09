@@ -37,7 +37,7 @@ test("project presenter configuration stays local, keeps projects unchanged, and
   store.put("project", { ...project, id: "second-project", slides: [] });
   const original = JSON.stringify(store.get("project", project.id));
   const empty = await setup.projectPresenterSetup(project.id);
-  assert.equal(empty.generationAvailable, false);
+  assert.equal(empty.generationAvailable, true);
   assert.equal(empty.setup.placement, "bottom-right");
   assert.equal(empty.savedAt, null);
   settings.savePresenterSettings({
@@ -111,7 +111,7 @@ test("project presenter configuration stays local, keeps projects unchanged, and
   });
   const state = await setup.projectPresenterSetup(project.id);
   assert.equal(state.hasKey, true);
-  assert.equal(state.generationAvailable, false);
+  assert.equal(state.generationAvailable, true);
   assert.equal(JSON.stringify(state).includes("synthetic-key"), false);
   assert.equal(state.narrations.length, 2);
   assert.equal(

@@ -262,6 +262,7 @@ export function RehearsalCenter({
             key={project.id}
             project={project}
             onSpeech={() => onSpeech(true)}
+            onPlayback={() => onSpeech(false)}
             onSettings={onSettings}
             narrationKey={narrationKey}
           />
@@ -325,6 +326,7 @@ export function RehearsalCenter({
           key={project.id}
           project={project}
           onSpeech={() => onSpeech(true)}
+          onPlayback={() => onSpeech(false)}
           onSettings={onSettings}
           narrationKey={narrationKey}
         />

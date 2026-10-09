@@ -13,7 +13,7 @@ const accountUrl = "https://api.heygen.com/v3/users/me";
 const fail = (message, status = 400) =>
   Object.assign(new Error(message), { status });
 
-export function registerPresenterSettings(app) {
+export function registerPresenterSettings(app, activeCount = () => 0) {
   app.use("/api/settings/presenter", (_req, _res, next) =>
     process.env.AUTOPPT_WORKER_TOKEN
       ? next(fail("数字人设置目前仅在本机版提供", 403))
@@ -22,9 +22,11 @@ export function registerPresenterSettings(app) {
   app.get("/api/settings/presenter", (_req, res) =>
     res.json(publicPresenterSettings()),
   );
-  app.put("/api/settings/presenter", (req, res) =>
-    res.json(savePresenterSettings(req.body)),
-  );
+  app.put("/api/settings/presenter", (req, res) => {
+    if (activeCount())
+      throw fail("请先完成或停止数字人任务，再更改 HeyGen 密钥。", 409);
+    res.json(savePresenterSettings(req.body));
+  });
   app.post("/api/settings/presenter/test", async (_req, res) =>
     res.json(await testPresenterConnection()),
   );
@@ -41,7 +43,7 @@ export function publicPresenterSettings() {
   return {
     provider: "heygen",
     hasKey: !!presenterSettings().apiKey,
-    generationAvailable: false,
+    generationAvailable: true,
   };
 }
 
@@ -98,6 +100,6 @@ export async function testPresenterConnection(fetchAccount = fetch) {
   // Do not expose the account's name, email, balance, or raw provider response.
   return {
     ok: true,
-    message: "HeyGen 连接成功，密钥已验证。视频生成仍在接入中。",
+    message: "HeyGen 连接成功，密钥已验证。可在项目的演练中心生成数字人口型。",
   };
 }

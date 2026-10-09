@@ -6,7 +6,7 @@ import path from "node:path";
 import { once } from "node:events";
 import express from "express";
 
-test("presenter credentials remain local, masked, and cannot enable unfinished generation", async (t) => {
+test("presenter credentials remain local, masked, and never return API credentials", async (t) => {
   const dir = mkdtempSync(path.join(tmpdir(), "autoppt-heygen-settings-"));
   process.env.AUTOPPT_DATA_DIR = dir;
   const store = await import("../server/store.mjs");
@@ -30,7 +30,7 @@ test("presenter credentials remain local, masked, and cannot enable unfinished g
     baseUrl: "https://untrusted.invalid",
   });
   assert.equal(saved.hasKey, true);
-  assert.equal(saved.generationAvailable, false);
+  assert.equal(saved.generationAvailable, true);
   assert.equal(JSON.stringify(saved).includes(fake), false);
   const file = path.join(dir, "presenter-settings.json");
   assert.equal(statSync(file).mode & 0o777, 0o600);

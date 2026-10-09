@@ -104,6 +104,32 @@
 .project-presenter-avatar[data-placement$="right"] {
   right: 4%;
 }
+.presenter-generation {
+  border-top: 1px solid var(--line);
+  padding-top: 20px;
+  display: grid;
+  gap: 14px;
+}
+.presenter-generation h4,
+.presenter-generation p {
+  margin: 0;
+}
+.presenter-generation-job {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+}
+.presenter-generation-job video {
+  width: min(100%, 400px);
+  max-height: 400px;
+  background: #111;
+  border-radius: 8px;
+}
+.presenter-generation-job figure {
+  margin: 12px 0;
+}
 @media (max-width: 640px) {
   .project-presenter-fields {
     grid-template-columns: 1fr;

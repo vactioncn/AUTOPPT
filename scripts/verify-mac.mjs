@@ -34,6 +34,20 @@ export async function verifyMacApp(appPath) {
     frontend.includes("配置数字人讲解员"),
     "Mac App 前端缺少项目数字人入口",
   );
+  assert.ok(
+    frontend.includes("生成本页数字人口型"),
+    "Mac App 前端缺少口型生成入口",
+  );
+  assert.ok(
+    frontend.includes("生成整场数字人讲解"),
+    "Mac App 前端缺少整场生成入口",
+  );
+  assert.ok(
+    readFileSync(path.join(root, "desktop/context-menu.cjs"), "utf8").includes(
+      "复制图片",
+    ),
+    "Mac App 缺少原生图片复制菜单",
+  );
   for (const privateName of [".local", ".hosted", ".env", "deploy", "tests"])
     assert(
       !existsSync(path.join(root, privateName)),
@@ -93,7 +107,7 @@ export async function verifyMacApp(appPath) {
     const emptyPresenterSettings = {
       provider: "heygen",
       hasKey: false,
-      generationAvailable: false,
+      generationAvailable: true,
     };
     assert.equal((await fetch(presenterUrl)).status, 403);
     assert.deepEqual(
@@ -137,7 +151,7 @@ export async function verifyMacApp(appPath) {
     const projectSetup = await (
       await fetch(projectSetupUrl, { headers })
     ).json();
-    assert.equal(projectSetup.generationAvailable, false);
+    assert.equal(projectSetup.generationAvailable, true);
     assert.deepEqual(projectSetup.setup, {
       avatarId: "",
       narrationId: "",
@@ -155,6 +169,22 @@ export async function verifyMacApp(appPath) {
     });
     assert.equal(savedSetup.status, 200);
     assert.equal((await savedSetup.json()).setup.placement, "top-left");
+    const generationUrl = `${url}/api/projects/${project.id}/presenter/generations`;
+    assert.equal((await fetch(generationUrl)).status, 403);
+    assert.deepEqual(
+      await (await fetch(generationUrl, { headers })).json(),
+      [],
+    );
+    assert.equal(
+      (
+        await fetch(generationUrl, {
+          method: "POST",
+          headers: presenterHeaders,
+          body: JSON.stringify({ confirmed: false }),
+        })
+      ).status,
+      400,
+    );
     assert.equal(
       (await (await fetch(projectSetupUrl, { headers })).json()).setup.size,
       "large",

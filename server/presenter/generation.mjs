@@ -15,6 +15,9 @@ import { matchNarrationPage } from "../speech/export.mjs";
 import { presenterSettings } from "./settings.mjs";
 import { readLocal, videoPath, validateVideo } from "./media.mjs";
 import { createHeyGenProvider } from "./heygen.mjs";
+import { speakerNotes } from "../manuscript.mjs";
+import { prepareSpeechText } from "../../shared/speech-text.mjs";
+import { splitSpeech } from "../../shared/speech.mjs";
 
 const kind = "presenter-generation";
 const running = new Map();
@@ -25,6 +28,44 @@ const uuid = (v) =>
   typeof v === "string" &&
   /^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(v);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+export const pageStamp = (slide) =>
+  hash(JSON.stringify([slide.image, slide.scene || null, speakerNotes(slide)]));
+export const textClip = (text, imageHash, voiceId, index = 0) => ({
+  index,
+  text,
+  duration: 0,
+  fingerprint: hash(JSON.stringify(["heygen-text", imageHash, voiceId, text])),
+});
+
+async function textSources(projectId) {
+  const project = projectOrThrow(projectId);
+  const setup = get("presenter-setup", projectId) || {};
+  const avatar = get(
+    "avatar",
+    setup.avatarId || get("presenter-library", "default")?.avatarId,
+  );
+  if (!avatar || avatar.deletedAt)
+    throw fail("请先在设置的数字人工作室保存一个头像，再回来选择。");
+  if (!avatar.voiceId)
+    throw fail("这个数字人还没有声音，请到数字人工作室选择中文声音并保存。");
+  const image = await readLocal(assetPath(avatar.sourceAsset));
+  const imageHash = hash(image);
+  if (!image.length || image.length > 8 * 1024 * 1024)
+    throw fail("头像文件缺失或过大，请到数字人工作室重新保存。");
+  const pages = project.slides.map((s, index) => {
+    const text = prepareSpeechText(speakerNotes(s)).text;
+    return {
+      id: s.id,
+      number: index + 1,
+      title: s.plan?.title || `第 ${index + 1} 页`,
+      sourceFingerprint: pageStamp(s),
+      clips: splitSpeech(text, 800)
+        .filter((t) => t.trim())
+        .map((t, i) => textClip(t, imageHash, avatar.voiceId, i)),
+    };
+  });
+  return { project, avatar, imageHash, narration: { id: "" }, setup, pages };
+}
 
 async function sources(projectId, setup = get("presenter-setup", projectId)) {
   const project = projectOrThrow(projectId);
@@ -104,6 +145,22 @@ export function recoverPresenters() {
 }
 async function compatible(job) {
   try {
+    if (job.mode === "text") {
+      const avatar = get("avatar", job.avatarId);
+      if (
+        !avatar ||
+        avatar.deletedAt ||
+        hash(await readLocal(assetPath(avatar.sourceAsset))) !== job.imageHash
+      )
+        return false;
+      if (job.preview) return true;
+      const project = projectOrThrow(job.projectId);
+      return job.pages.every((p) =>
+        project.slides.some(
+          (s) => s.id === p.id && pageStamp(s) === p.sourceFingerprint,
+        ),
+      );
+    }
     const source = await sources(job.projectId, job);
     return (
       source.imageHash === job.imageHash &&
@@ -127,6 +184,10 @@ export async function publicGeneration(job) {
     id: job.id,
     narrationId: job.narrationId,
     avatarId: job.avatarId,
+    avatarName: job.avatarName,
+    voiceName: job.voiceName,
+    mode: job.mode || "audio",
+    preview: !!job.preview,
     placement: job.placement,
     size: job.size,
     scope: job.scope,
@@ -137,9 +198,11 @@ export async function publicGeneration(job) {
     pages: job.pages.map((p) => ({
       id: p.id,
       title: p.title,
+      number: p.number,
       clips: p.clips.map((c) => ({
         index: c.index,
         duration: c.duration,
+        text: job.mode === "text" ? c.text : undefined,
         status: c.status,
         file: c.status === "ready" ? c.videoFile : undefined,
       })),
@@ -188,12 +251,19 @@ export async function createGeneration(
     throw fail("本项目已有数字人生成任务，请等待完成或停止后续生成。", 409);
   const { apiKey } = presenterSettings();
   if (!apiKey) throw fail("请先在设置中保存 HeyGen API Key。");
-  const source = await sources(projectId);
+  const source =
+    input.mode === "text"
+      ? await textSources(projectId)
+      : await sources(projectId);
   const pages = source.pages.filter(
     (p) => input.scope === "all" || p.id === input.pageId,
   );
   if (!pages.length || !pages.some((p) => p.clips.length))
-    throw fail("所选页面没有可生成的口播音频。");
+    throw fail(
+      input.mode === "text"
+        ? "所选页面还没有逐页讲稿，请先填写讲稿。"
+        : "所选页面没有可生成的口播音频。",
+    );
   const wanted = new Set(
     pages.flatMap((p) => p.clips.map((c) => c.fingerprint)),
   );
@@ -230,8 +300,12 @@ export async function createGeneration(
     imageAsset: source.avatar.sourceAsset,
     imageHash: source.imageHash,
     narrationId: source.narration.id,
-    placement: source.setup.placement,
-    size: source.setup.size,
+    mode: input.mode === "text" ? "text" : "audio",
+    avatarName: source.avatar.name,
+    voiceName: source.avatar.voiceName,
+    voiceId: input.mode === "text" ? source.avatar.voiceId : undefined,
+    placement: source.setup.placement || "bottom-right",
+    size: source.setup.size || "small",
     accountHash: hash(apiKey),
     status: "queued",
     createdAt: now(),
@@ -240,6 +314,88 @@ export async function createGeneration(
       ...p,
       clips: p.clips.map((c) => ({ ...c, status: "pending" })),
     })),
+  });
+  start(job, providerFactory({ apiKey }), options);
+  return job;
+}
+
+export async function createPreview(
+  input,
+  providerFactory = createHeyGenProvider,
+  options = {},
+) {
+  if (
+    input?.confirmed !== true ||
+    !uuid(input.requestId) ||
+    typeof input.text !== "string" ||
+    !input.text.trim() ||
+    input.text.length > 300
+  )
+    throw fail("请输入 1–300 字试播文本，确认上传和费用后再生成。");
+  const previous = all(kind).find(
+    (j) => j.preview && j.requestId === input.requestId,
+  );
+  if (previous) return previous;
+  if (
+    all(kind).some((j) => j.preview && ["queued", "running"].includes(j.status))
+  )
+    throw fail("已有试播正在生成，请稍候或停止后续生成。", 409);
+  const avatar = get("avatar", input.avatarId);
+  if (!avatar || avatar.deletedAt || !avatar.voiceId)
+    throw fail("请先保存数字人的头像和声音，再进行试播。");
+  const { apiKey } = presenterSettings();
+  if (!apiKey) throw fail("请先在数字人工作室连接 HeyGen。");
+  const imageHash = hash(await readLocal(assetPath(avatar.sourceAsset)));
+  const repeated = all(kind).find(
+    (j) => j.preview && j.requestId === input.requestId,
+  );
+  if (repeated) return repeated;
+  const clip = textClip(input.text.trim(), imageHash, avatar.voiceId);
+  if (
+    all(kind).some(
+      (j) =>
+        j.preview &&
+        j.pages.some((p) =>
+          p.clips.some(
+            (c) =>
+              c.fingerprint === clip.fingerprint &&
+              c.videoRequest &&
+              c.status !== "ready" &&
+              !c.remoteFailed,
+          ),
+        ),
+    )
+  )
+    throw fail("相同试播已有未完成提交，请继续查询原任务，避免重复计费。", 409);
+  if (
+    all(kind).some((j) => j.preview && ["queued", "running"].includes(j.status))
+  )
+    throw fail("已有试播正在生成。", 409);
+  const job = put(kind, {
+    id: id(),
+    requestId: input.requestId,
+    projectId: null,
+    preview: true,
+    mode: "text",
+    scope: "page",
+    avatarId: avatar.id,
+    avatarName: avatar.name,
+    imageAsset: avatar.sourceAsset,
+    imageHash,
+    voiceId: avatar.voiceId,
+    voiceName: avatar.voiceName,
+    narrationId: "",
+    accountHash: hash(apiKey),
+    status: "queued",
+    createdAt: now(),
+    updatedAt: now(),
+    pages: [
+      {
+        id: "preview",
+        title: "数字人试播",
+        clips: [{ ...clip, status: "pending" }],
+      },
+    ],
   });
   start(job, providerFactory({ apiKey }), options);
   return job;
@@ -264,7 +420,7 @@ export async function resumeGeneration(
   providerFactory = createHeyGenProvider,
   options = {},
 ) {
-  projectOrThrow(projectId);
+  if (projectId) projectOrThrow(projectId);
   const job = get(kind, jobId);
   if (!job || job.projectId !== projectId)
     throw fail("数字人任务不存在。", 404);
@@ -299,7 +455,7 @@ export async function resumeGeneration(
   return job;
 }
 export function stopGeneration(projectId, jobId) {
-  projectOrThrow(projectId);
+  if (projectId) projectOrThrow(projectId);
   const job = get(kind, jobId);
   if (!job || job.projectId !== projectId)
     throw fail("数字人任务不存在。", 404);
@@ -357,12 +513,13 @@ async function run(job, provider, { pollMs = 10000, maxPolls = 180 } = {}) {
               bytes,
               status: 200,
               contentType: "video/mp4",
-              expectedDuration: clip.duration,
+              expectedDuration: job.mode === "text" ? undefined : clip.duration,
             });
             Object.assign(clip, {
               status: "ready",
               videoFile: cached.videoFile,
               videoHash: cached.videoHash,
+              duration: cached.duration,
             });
             save();
             reused = true;
@@ -374,10 +531,16 @@ async function run(job, provider, { pollMs = 10000, maxPolls = 180 } = {}) {
         if (reused) continue;
         if (!clip.providerVideoId) {
           const image = await readLocal(assetPath(job.imageAsset));
-          const audio = await readLocal(
-            path.join(dataDir, "speech-audio", clip.audioFile),
-          );
-          if (hash(image) !== job.imageHash || hash(audio) !== clip.audioHash)
+          const audio =
+            job.mode === "text"
+              ? null
+              : await readLocal(
+                  path.join(dataDir, "speech-audio", clip.audioFile),
+                );
+          if (
+            hash(image) !== job.imageHash ||
+            (audio && hash(audio) !== clip.audioHash)
+          )
             throw fail("素材发生变化，请按当前配置重新生成。");
           if (!job.imageUploadId) {
             job.message = "正在上传头像";
@@ -391,7 +554,7 @@ async function run(job, provider, { pollMs = 10000, maxPolls = 180 } = {}) {
             save();
           }
           checkStop();
-          if (!clip.audioUploadId) {
+          if (audio && !clip.audioUploadId) {
             job.message = "正在上传所选口播片段";
             save();
             clip.audioUploadId = await provider.upload(
@@ -406,7 +569,9 @@ async function run(job, provider, { pollMs = 10000, maxPolls = 180 } = {}) {
           clip.payload ||= {
             type: "image",
             image: { type: "asset_id", asset_id: job.imageUploadId },
-            audio_asset_id: clip.audioUploadId,
+            ...(job.mode === "text"
+              ? { script: clip.text, voice_id: job.voiceId }
+              : { audio_asset_id: clip.audioUploadId }),
             title: "AutoPPT presenter",
             resolution: "720p",
             aspect_ratio: "1:1",
@@ -443,11 +608,11 @@ async function run(job, provider, { pollMs = 10000, maxPolls = 180 } = {}) {
         job.message = "正在保存已生成视频";
         save();
         const media = await provider.download(result.url);
-        validateVideo({
+        const validated = validateVideo({
           bytes: media.body,
           status: media.status,
           contentType: media.headers["content-type"],
-          expectedDuration: clip.duration,
+          expectedDuration: job.mode === "text" ? undefined : clip.duration,
         });
         await mkdir(path.join(dataDir, "presenter-video"), {
           recursive: true,
@@ -462,6 +627,7 @@ async function run(job, provider, { pollMs = 10000, maxPolls = 180 } = {}) {
           status: "ready",
           videoFile: filename,
           videoHash: hash(media.body),
+          duration: validated.duration,
         });
         save();
       }
@@ -510,8 +676,9 @@ export function registerPresenterGeneration(app) {
   app.get(media, async (req, res) => {
     const owner = all(kind).find(
       (j) =>
-        get("project", j.projectId) &&
-        !get("project", j.projectId).deletedAt &&
+        (j.preview ||
+          (get("project", j.projectId) &&
+            !get("project", j.projectId).deletedAt)) &&
         j.pages.some((p) =>
           p.clips.some(
             (c) => c.status === "ready" && c.videoFile === req.params.file,
@@ -519,7 +686,7 @@ export function registerPresenterGeneration(app) {
         ),
     );
     if (!owner) throw fail("数字人视频不存在。", 404);
-    projectOrThrow(owner.projectId);
+    if (!owner.preview) projectOrThrow(owner.projectId);
     const bytes = await readLocal(videoPath(req.params.file));
     res.set({
       "Content-Type": "video/mp4",

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import { Button, Field, Status } from "./components";
+import { PresenterStudio } from "./PresenterStudio";
 
 type Connection = {
   provider: "heygen";
@@ -75,81 +76,86 @@ export function PresenterSettings({
     <section
       className="connection-form"
       id="presenter-settings"
-      aria-label="HeyGen 数字人设置"
+      aria-label="数字人工作室"
     >
       <div className="connection-form-heading">
         <div>
-          <h2>数字人讲解员 · HeyGen</h2>
-          <p>用头像和已有口播制作讲解视频。</p>
+          <h2>数字人工作室</h2>
+          <p>统一准备形象、声音和试播，供所有项目使用。</p>
         </div>
         <Status tone={config?.hasKey ? "good" : "warm"}>
           {config?.hasKey ? "密钥已保存" : "待配置密钥"}
         </Status>
       </div>
-      <p>
-        保存密钥后，在项目的演练中心配置并生成数字人口型。测试连接只查询 HeyGen
-        账号，不上传头像、音频或生成视频。
-      </p>
-      {config && (
-        <>
-          <Field
-            label="HeyGen API Key"
-            hint="只保存在当前本机工作区，不随项目包导出。留空保存会保留已有密钥。"
-          >
-            <input
-              type="password"
-              autoComplete="off"
-              spellCheck={false}
-              value={key}
-              disabled={busy}
-              placeholder={
-                config.hasKey ? "已保存，留空保持" : "填写 HeyGen API Key"
-              }
-              onChange={(e) => {
-                setKey(e.target.value);
-                setResult("");
-                setError("");
-              }}
-            />
-          </Field>
-          <p>
-            <a
-              href="https://app.heygen.com/developers/api"
-              target="_blank"
-              rel="noreferrer"
-            >
-              前往 HeyGen 获取 API Key
-            </a>
-          </p>
-          <div className="connection-actions">
-            <Button
-              disabled={busy || (!config.hasKey && !key.trim())}
-              onClick={() => run("save")}
-            >
-              保存 HeyGen 设置
-            </Button>
-            <Button
-              disabled={busy || !config.hasKey || !!key.trim()}
-              onClick={() => run("test")}
-            >
-              测试 HeyGen 连接
-            </Button>
-            {config.hasKey && (
-              <Button disabled={busy} onClick={() => run("remove")}>
-                移除 HeyGen 密钥
-              </Button>
-            )}
-          </div>
-          {!!key.trim() && <p>请先保存新密钥，再测试连接。</p>}
-        </>
-      )}
-      {busy && <p role="status">正在处理，请稍候…</p>}
-      {result && <p role="status">{result}</p>}
-      {error && (
-        <p className="error-text" role="alert">
-          {error}
+      <details className="presenter-key-connection" open={!config?.hasKey}>
+        <summary>
+          连接 HeyGen · {config?.hasKey ? "已连接" : "填写 API Key"}
+        </summary>
+        <p>
+          连接后选择中文声音。测试连接只查询账号；生成试播才会上传头像、文字并计费。
         </p>
-      )}
+        {config && (
+          <>
+            <Field
+              label="HeyGen API Key"
+              hint="只保存在当前本机工作区，不随项目包导出。留空保存会保留已有密钥。"
+            >
+              <input
+                type="password"
+                autoComplete="off"
+                spellCheck={false}
+                value={key}
+                disabled={busy}
+                placeholder={
+                  config.hasKey ? "已保存，留空保持" : "填写 HeyGen API Key"
+                }
+                onChange={(e) => {
+                  setKey(e.target.value);
+                  setResult("");
+                  setError("");
+                }}
+              />
+            </Field>
+            <p>
+              <a
+                href="https://app.heygen.com/developers/api"
+                target="_blank"
+                rel="noreferrer"
+              >
+                前往 HeyGen 获取 API Key
+              </a>
+            </p>
+            <div className="connection-actions">
+              <Button
+                disabled={busy || (!config.hasKey && !key.trim())}
+                onClick={() => run("save")}
+              >
+                保存 HeyGen 设置
+              </Button>
+              <Button
+                disabled={busy || !config.hasKey || !!key.trim()}
+                onClick={() => run("test")}
+              >
+                测试 HeyGen 连接
+              </Button>
+              {config.hasKey && (
+                <Button disabled={busy} onClick={() => run("remove")}>
+                  移除 HeyGen 密钥
+                </Button>
+              )}
+            </div>
+            {!!key.trim() && <p>请先保存新密钥，再测试连接。</p>}
+          </>
+        )}
+        {busy && <p role="status">正在处理，请稍候…</p>}
+        {result && <p role="status">{result}</p>}
+        {error && (
+          <p className="error-text" role="alert">
+            {error}
+          </p>
+        )}
+      </details>
+      {config && <PresenterStudio hasKey={config.hasKey} notify={notify} />}
     </section>
   );
 }

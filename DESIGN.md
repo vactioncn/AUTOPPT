@@ -163,6 +163,8 @@ The style workbench leads with a centered image (1040px maximum width, 24px vert
 
 Content attachments form a two-column grid beneath the page-redesign feedback, with complete thumbnails (110px high) and a visible filename and remove control. The production report uses the existing wide modal: four metrics across the top, followed by a comparison summary, any first difference and an expandable page list. At the mobile breakpoint (600px), metrics become two columns and page rows omit the secondary image-status label; attachment thumbnails remain in two columns.
 
+The digital-presenter settings pair a saved-avatar library (240px) with a flexible workbench, separated by an open gap (28px). Identity editing and text preview follow the same border-and-spacing hierarchy as the existing studio. At its local narrow breakpoint (at most 700px), the library moves above the workbench and retains two avatar columns; identity fields stack beneath the portrait, and action rows wrap. This layout applies to the presenter settings, without changing the shell's existing breakpoints.
+
 | Viewport | Implemented behavior |
 | --- | --- |
 | At least 1600px | Wider page padding (44px 60px), larger home display (42px), larger gallery gaps. |
@@ -212,6 +214,16 @@ Small rounded badges communicate neutral, good and warm states. They are informa
 ### Cards / Containers
 
 Project cards combine a 16:9 cover, name and compact metadata. Style cards add reference or starting-style labels, description and color swatches. Their previews may show a reference image or a typography/color sample; built-in choices are labeled “内置起始风格”. White composer and connection panels use the same border and radius language.
+
+### Digital Presenter
+
+Saved-avatar choices use compact square portraits beside the name, style, default marker and voice-readiness text. A selected choice gains a terracotta border and pale warm fill, with a pressed state. The surrounding fields, status badges and actions reuse the existing paper, ink and control language. Presenter actions allow wrapped labels and a comfortable minimum height (44px), scoped to this workflow.
+
+Native disclosures make readiness determine the initial hierarchy: a saved connection and a ready identity are collapsed, while incomplete configuration remains open. “文字试播” stays visible beneath identity editing; unsaved edits carry an explicit message and disable preview generation. Uploading a portrait and creating another style remain within the settings workbench. The style-generation confirmation states the upload and cost, and explains that the new identity is saved separately while the original remains.
+
+In a project, a saved-avatar selector and thumbnail lead directly to the page choice and “生成本页讲解” / “生成整场讲解” actions. Position, size and the optional existing-audio source remain in “显示位置与其他方式”. The primary path uses page notes directly. Generation confirmations show the chosen identity, scope and text excerpt, followed by the upload and cost explanation and explicit confirmation action.
+
+Preview and project generation share quiet records separated by fine borders. Each record pairs identity, scope and timestamp with a written status; active work adds progress, and available clips expose playback, including a clearly labeled completed portion. Changed pages or identity make the previous result's incompatibility explicit. Continuing a task uses a confirmation explaining which work is queried or downloaded and which remaining work may be billed. Video occupies a dark media surface; project playback places it over the page in a wide dialog with segment navigation, continuous play, speed and readable script below. The media surface is local to playback and does not establish a new application palette.
 
 ### Page Preview and Detail
 

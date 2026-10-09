@@ -276,7 +276,6 @@ export function RehearsalCenter({
     <section aria-label="演练中心" className="journey-panel">
       <section className="journey-focus" aria-label="标准放映">
         <div className="journey-section-heading">
-          <span className="journey-eyebrow">开始演练</span>
           <h2>标准放映</h2>
           <p>
             {journey.illustrated} / {journey.total} 页可演练 · 当前母版 r

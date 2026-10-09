@@ -129,7 +129,9 @@ export function validateVideo({
   };
   if (
     status !== 200 ||
-    contentType?.split(";")[0] !== "video/mp4" ||
+    !["video/mp4", "application/octet-stream", "binary/octet-stream"].includes(
+      contentType?.split(";")[0],
+    ) ||
     !Buffer.isBuffer(bytes) ||
     bytes.length < 32 ||
     bytes.length > MAX_VIDEO
@@ -457,7 +459,14 @@ export function validateVideo({
       if (!Number.isSafeInteger(decodeTicks)) invalid();
       sample += count;
     }
-    if (sample !== sampleCount || decodeTicks !== media.ticks) invalid();
+    // AAC encoders can declare mdhd after subtracting a priming packet while
+    // stts still includes that packet. The edit list maps presentation time;
+    // keep the sample count exact and bound this timing difference to 50 ms.
+    if (
+      sample !== sampleCount ||
+      Math.abs(decodeTicks - media.ticks) / media.scale > 0.05
+    )
+      invalid();
     let ptsMin = Infinity,
       ptsEnd = 0,
       decodeTime = 0,

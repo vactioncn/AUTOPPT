@@ -3,6 +3,42 @@
   "generatedAt": "2026-10-01T02:07:45Z",
   "title": "Design System: AutoPPT",
   "extensions": {
+    "presenterStudio": {
+      "recordedAt": "2026-10-09T03:45:57Z",
+      "scope": "Digital-presenter component extension within the incumbent Quiet Personal Speech Studio world. Existing frontmatter primitives, components, narrative and historical records are preserved.",
+      "directionContract": ".impeccable/presenter-studio.md",
+      "designSections": [
+        "Layout",
+        "Components / Digital Presenter"
+      ],
+      "sources": [
+        {
+          "file": "src/PresenterSettings.tsx",
+          "observed": "Connection disclosure opens when no key is saved; connection help separates the account test from paid preview generation."
+        },
+        {
+          "file": "src/PresenterStudio.tsx",
+          "observed": "Saved-avatar choices expose identity, default and voice readiness. A ready identity starts collapsed; text preview stays visible. Upload and style tools remain in settings, and confirmations describe upload, billing and separate saving of a new style identity."
+        },
+        {
+          "file": "src/ProjectPresenter.tsx",
+          "observed": "Projects select an existing identity and use page notes directly; page and whole-speech actions remain visible. Position, size and optional existing audio are in a disclosure, followed by an explicit generation confirmation."
+        },
+        {
+          "file": "src/PresenterJobs.tsx",
+          "observed": "Preview and project work share written status, progress, available-clip playback, incompatible-result text and a continuation confirmation."
+        },
+        {
+          "file": "src/PresenterPlayer.tsx",
+          "observed": "Wide-dialog playback combines the page and video with segment navigation, continuous play, speed selection and script below."
+        },
+        {
+          "file": "src/presenter-studio.css",
+          "observed": "Local library/workbench grid, 700px stacking, selected avatar treatment, wrapping presenter actions, quiet job dividers and dark media surfaces."
+        }
+      ],
+      "normalizationBoundary": "Local presenter heading sizes, selected-surface tint and video-stage colors remain component details. They are not added to the global primitive scales; task-specific eyebrow labels are not made system conventions."
+    },
     "outputStyleCorrection": {
       "date": "2026-09-30",
       "scope": "Generated output only; application palette and navigation unchanged; original 示例演讲 source slides untouched.",

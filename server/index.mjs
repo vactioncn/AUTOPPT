@@ -23,6 +23,10 @@ import {
 } from "./presenter/generation.mjs";
 import { registerPresenterSettings } from "./presenter/settings.mjs";
 import { registerProjectPresenterSetup } from "./presenter/project-setup.mjs";
+import {
+  registerPresenterLibrary,
+  activeAvatarCount,
+} from "./presenter/library.mjs";
 import multer from "multer";
 import { screenImage } from "./image-storage.mjs";
 import { readFile, writeFile } from "node:fs/promises";
@@ -220,7 +224,8 @@ app.get("/api/activity", (req, res) =>
         .length +
       activeMotionCount() +
       activeSpeechCount() +
-      activePresenterCount(),
+      activePresenterCount() +
+      activeAvatarCount(),
   }),
 );
 if (process.env.AUTOPPT_DESKTOP_TOKEN)
@@ -231,7 +236,8 @@ if (process.env.AUTOPPT_DESKTOP_TOKEN)
           .length +
         activeMotionCount() +
         activeSpeechCount() +
-        activePresenterCount(),
+        activePresenterCount() +
+        activeAvatarCount(),
     }),
   );
 app.get("/api/bootstrap", (req, res) =>
@@ -1075,8 +1081,12 @@ app.post("/api/settings/test", async (req, res) => {
 });
 registerMotion(app);
 registerSpeech(app);
-registerPresenterSettings(app, activePresenterCount);
+registerPresenterSettings(
+  app,
+  () => activePresenterCount() + activeAvatarCount(),
+);
 registerPresenterGeneration(app);
+registerPresenterLibrary(app);
 registerProjectPresenterSetup(app);
 registerHtmlExport(app);
 registerProjectPackages(app, {

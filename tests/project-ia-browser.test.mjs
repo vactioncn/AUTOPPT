@@ -926,7 +926,7 @@ test(
             );
             if (state === "empty") {
               await expect(page.locator(".journey-empty > .btn:enabled")).toHaveCount(1);
-              await expect(page.getByRole("button", { name: "配置数字人讲解员", exact: true })).toBeEnabled();
+              await expect(page.getByRole("button", { name: "前往数字人工作室", exact: true })).toBeEnabled();
               await expect(page.getByText(/打开上方播放器/)).toHaveCount(0);
             }
           }

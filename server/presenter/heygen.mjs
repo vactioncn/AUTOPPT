@@ -30,7 +30,22 @@ export function createHeyGenProvider({
       );
     }
     // Provider bodies can contain signed URLs, account details or credentials. Never log them.
-    if (!response.ok)
+    const result = await response.json().catch(() => null);
+    if (!response.ok) {
+      const code = result?.error?.code;
+      const messages = {
+        insufficient_balance:
+          "HeyGen API 余额不足，请充值 API 钱包后继续查询原任务。网页会员额度与 API 余额可能不同。",
+        insufficient_credits:
+          "HeyGen API 额度不足，请检查 API 钱包后继续原任务。",
+        invalid_voice:
+          "HeyGen 不接受所选声音，请在数字人工作室刷新声音列表并重新选择。",
+        voice_not_found: "所选声音已不可用，请在数字人工作室重新选择。",
+        invalid_image: "HeyGen 无法识别头像，请使用清晰、正面的单人头像。",
+        face_not_detected:
+          "HeyGen 未识别到人脸，请在数字人工作室换一张清晰头像。",
+      };
+      if (messages[code]) throw new Error(messages[code]);
       throw new Error(
         response.status === 401 || response.status === 403
           ? "HeyGen 拒绝访问，请检查密钥及 API 权限。"
@@ -42,12 +57,31 @@ export function createHeyGenProvider({
                 ? "HeyGen 请求繁忙，请稍后继续查询。"
                 : "HeyGen 未接受请求，请检查账号额度及照片、音频要求后重试。",
       );
-    const result = await response.json().catch(() => null);
+    }
     if (!result?.data || result.error)
       throw new Error("HeyGen 返回结果不完整，请稍后继续查询。");
     return result.data;
   }
   return {
+    async voices() {
+      const data = await request("/voices?language=Chinese&limit=100", "GET");
+      if (!Array.isArray(data))
+        throw new Error("HeyGen 声音列表暂时不可用，请稍后刷新。");
+      return data
+        .filter((v) => safeId(v.voice_id))
+        .map((v) => ({
+          id: v.voice_id,
+          name: String(v.name || "中文声音")
+            .trim()
+            .slice(0, 100),
+          language: String(v.language || ""),
+          gender: String(v.gender || ""),
+          previewUrl:
+            typeof v.preview_audio_url === "string"
+              ? v.preview_audio_url
+              : null,
+        }));
+    },
     async upload(bytes, filename, mime, key) {
       if (!bytes.length || bytes.length > 32 * 1024 * 1024)
         throw new Error("HeyGen 单个上传素材不能超过 32 MB。");
@@ -78,7 +112,11 @@ export function createHeyGenProvider({
         )
       )
         throw new Error("HeyGen 未返回有效视频状态，请稍后继续查询。");
-      return { status: data.status, url: data.video_url };
+      return {
+        status: data.status,
+        url: data.video_url,
+        failureCode: data.error?.code || data.failure_reason?.code,
+      };
     },
     async download(url) {
       let parsed;

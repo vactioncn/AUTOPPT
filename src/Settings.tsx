@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Plug,
   CheckCircle,
@@ -22,6 +22,16 @@ export function SettingsPage({
   notify: (s: string) => void;
   refresh: () => Promise<void>;
 }) {
+  useEffect(() => {
+    if (
+      sessionStorage.getItem("autoppt-settings-focus") !== "presenter-settings"
+    )
+      return;
+    sessionStorage.removeItem("autoppt-settings-focus");
+    requestAnimationFrame(() =>
+      document.getElementById("presenter-settings")?.scrollIntoView(),
+    );
+  }, []);
   return (
     <div className="page settings-page">
       <div className="page-heading">
@@ -56,7 +66,7 @@ export function SettingsPage({
               ?.scrollIntoView({ behavior: "smooth" })
           }
         >
-          数字人讲解员 · HeyGen
+          数字人工作室
         </Button>
       </div>
       <div className="settings-intro" id="model-settings">

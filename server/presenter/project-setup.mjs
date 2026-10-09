@@ -32,8 +32,7 @@ const profile = (avatar) => ({
   previewAsset: avatar.previewAsset,
 });
 
-export async function createProjectAvatar(projectId, name, bytes, mime) {
-  projectOrThrow(projectId);
+export async function createLocalAvatar(name, bytes, mime, extra = {}) {
   if (typeof name !== "string" || !name.trim() || name.trim().length > 80)
     throw fail("请填写 1–80 字的头像名称");
   const formats = {
@@ -85,8 +84,14 @@ export async function createProjectAvatar(projectId, name, bytes, mime) {
     provider: "unconfigured",
     createdAt: now(),
     updatedAt: now(),
+    ...extra,
   });
   return profile(avatar);
+}
+
+export async function createProjectAvatar(projectId, name, bytes, mime) {
+  projectOrThrow(projectId);
+  return createLocalAvatar(name, bytes, mime);
 }
 
 async function narrationChoice(project, narration) {
@@ -137,6 +142,7 @@ export async function projectPresenterSetup(projectId) {
           )
         : {}),
     },
+    sourceMode: saved?.sourceMode || "text",
     savedAt: saved?.updatedAt || null,
     avatars: all("avatar")
       .filter((a) => !a.deletedAt)
@@ -175,6 +181,7 @@ export async function saveProjectPresenterSetup(projectId, input) {
     ...Object.fromEntries(
       Object.keys(defaults).map((key) => [key, input[key]]),
     ),
+    sourceMode: input.sourceMode === "audio" ? "audio" : "text",
     updatedAt: now(),
   });
   // This separate record cannot bump revisions or overwrite slides, scripts or voices.

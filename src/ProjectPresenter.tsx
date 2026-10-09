@@ -1,43 +1,36 @@
 import { useEffect, useRef, useState } from "react";
-import { api, asset } from "./api";
-import { Button, Field, Status } from "./components";
+import { api, asset, post } from "./api";
+import { Button, Field, Modal, Status } from "./components";
 import type { Project } from "./types";
+import type {
+  PresenterStudioState,
+  PresenterGeneration,
+} from "./presenter-types";
+import { PresenterJobs, usePresenterJobs } from "./PresenterJobs";
+import { PresenterPlayer } from "./PresenterPlayer";
 import "./project-presenter.css";
-import { PresenterGeneration } from "./PresenterGeneration";
-
+import "./presenter-studio.css";
 type Setup = {
   avatarId: string;
   narrationId: string;
   placement: string;
   size: string;
+  sourceMode?: string;
 };
-type Avatar = { id: string; name: string; previewAsset: string };
 type State = {
-  hasKey: boolean;
-  generationAvailable: boolean;
-  savedAt: string | null;
   setup: Setup;
-  avatars: Avatar[];
-  narrations: {
-    id: string;
-    title: string;
-    voiceName: string;
-    sourceRevision: number;
-    available: boolean;
-    reason: string;
-  }[];
+  sourceMode?: string;
+  narrations: { id: string; voiceName: string; available: boolean }[];
 };
 const positions = {
-  "top-left": "左上角",
-  "top-right": "右上角",
-  "bottom-left": "左下角",
-  "bottom-right": "右下角",
-};
-const sizes = { small: "小", medium: "中", large: "大" };
-
+    "top-left": "左上角",
+    "top-right": "右上角",
+    "bottom-left": "左下角",
+    "bottom-right": "右下角",
+  },
+  sizes = { small: "小", medium: "中", large: "大" };
 export function ProjectPresenter({
   project,
-  onSpeech,
   onPlayback,
   onSettings,
   narrationKey,
@@ -48,45 +41,67 @@ export function ProjectPresenter({
   onSettings: () => void;
   narrationKey: string;
 }) {
-  const endpoint = `/projects/${encodeURIComponent(project.id)}/presenter`;
-  const draftKey = "autoppt-presenter-project-draft:" + project.id;
-  const [state, setState] = useState<State | null>(null);
-  const [selection, setSelection] = useState<Setup | null>(null);
-  const [open, setOpen] = useState(false);
-  const [dirty, setDirty] = useState(false);
-  const [name, setName] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
-  const lock = useRef(false);
-  const fileInput = useRef<HTMLInputElement>(null);
-  const selectionRef = useRef(selection);
-  selectionRef.current = selection;
+  const endpoint = `/projects/${encodeURIComponent(project.id)}/presenter`,
+    draftKey = "autoppt-presenter-project-draft:" + project.id;
+  const [state, setState] = useState<State | null>(null),
+    [studio, setStudio] = useState<PresenterStudioState | null>(null),
+    [selection, setSelection] = useState<Setup | null>(null);
+  const [mode, setMode] = useState<"text" | "audio">("text"),
+    [pageId, setPageId] = useState(
+      project.slides.find((s) => s.notes.trim())?.id || "",
+    ),
+    [confirmation, setConfirmation] = useState<"page" | "all" | null>(null),
+    [playing, setPlaying] = useState<PresenterGeneration | null>(null);
+  const [busy, setBusy] = useState(false),
+    [error, setError] = useState("");
+  const lock = useRef(false),
+    choice = useRef(selection),
+    request = useRef<{
+      requestId: string;
+      scope: "page" | "all";
+      pageId?: string;
+      mode: string;
+      setup: Setup;
+    } | null>(null);
+  choice.current = selection;
+  const {
+    jobs,
+    error: jobsError,
+    setJobs,
+    active,
+  } = usePresenterJobs(endpoint + "/generations");
   useEffect(() => {
     let alive = true;
-    api<State>(endpoint + "/setup")
-      .then((value) => {
+    Promise.all([
+      api<State>(endpoint + "/setup"),
+      api<PresenterStudioState>("/presenter/studio"),
+    ])
+      .then(([s, l]) => {
         if (!alive) return;
-        setState(value);
-        if (selectionRef.current) return;
+        setState(s);
+        setStudio(l);
+        if (choice.current) return;
         let draft: Setup | null = null;
         try {
-          const saved = JSON.parse(localStorage.getItem(draftKey) || "null");
+          const value = JSON.parse(localStorage.getItem(draftKey) || "null");
           if (
-            saved &&
+            value &&
             ["avatarId", "narrationId", "placement", "size"].every(
-              (k) => typeof saved[k] === "string",
+              (k) => typeof value[k] === "string",
             ) &&
-            Object.hasOwn(positions, saved.placement) &&
-            Object.hasOwn(sizes, saved.size)
+            Object.hasOwn(positions, value.placement) &&
+            Object.hasOwn(sizes, value.size)
           )
-            draft = saved;
+            draft = value;
         } catch {
-          /* A damaged browser draft never replaces saved project configuration. */
+          /* Saved configuration remains authoritative. */
         }
-        setSelection(draft || value.setup);
-        setDirty(!!draft);
+        const config = draft || s.setup;
+        setSelection({
+          ...config,
+          avatarId: config.avatarId || l.defaultAvatarId,
+        });
+        setMode(s.sourceMode === "audio" ? "audio" : "text");
       })
       .catch((e) => {
         if (alive) setError(e.message);
@@ -96,28 +111,63 @@ export function ProjectPresenter({
     };
   }, [endpoint, draftKey, project.revision, narrationKey]);
   useEffect(() => {
-    if (!selection || !dirty) return;
-    try {
-      localStorage.setItem(draftKey, JSON.stringify(selection));
-    } catch {
-      /* The explicit save remains available. */
-    }
-  }, [selection, dirty, draftKey]);
-
+    if (selection)
+      try {
+        localStorage.setItem(draftKey, JSON.stringify(selection));
+      } catch {
+        /* Selection is also saved when generating. */
+      }
+  }, [selection, draftKey]);
   function choose(key: keyof Setup, value: string) {
     setSelection((before) => before && { ...before, [key]: value });
-    setDirty(true);
-    setMessage("");
     setError("");
   }
-  async function mutate(action: () => Promise<void>) {
-    if (lock.current) return;
+  function settings() {
+    sessionStorage.setItem("autoppt-settings-focus", "presenter-settings");
+    onSettings();
+  }
+  const avatar = studio?.avatars.find((a) => a.id === selection?.avatarId),
+    eligiblePages = project.slides.filter((s) => s.notes.trim());
+  const ready =
+    !!studio?.hasKey &&
+    !!avatar &&
+    (mode === "text"
+      ? avatar.ready
+      : !!state?.narrations.some(
+          (n) => n.id === selection?.narrationId && n.available,
+        ));
+  const selectedPages =
+    confirmation === "all"
+      ? eligiblePages
+      : eligiblePages.filter((s) => s.id === pageId);
+  async function submit() {
+    if (lock.current || !confirmation || !selection) return;
     lock.current = true;
     setBusy(true);
     setError("");
-    setMessage("");
     try {
-      await action();
+      request.current ||= {
+        requestId: crypto.randomUUID(),
+        scope: confirmation,
+        ...(confirmation === "page" ? { pageId } : {}),
+        mode,
+        setup: { ...selection, sourceMode: mode },
+      };
+      const pending = request.current;
+      await api(endpoint + "/setup", {
+        method: "PUT",
+        body: JSON.stringify(pending.setup),
+      });
+      const job = (await post(endpoint + "/generations", {
+        requestId: pending.requestId,
+        scope: pending.scope,
+        pageId: pending.pageId,
+        mode: pending.mode,
+        confirmed: true,
+      })) as PresenterGeneration;
+      request.current = null;
+      setJobs((before) => [job, ...before.filter((j) => j.id !== job.id)]);
+      setConfirmation(null);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -125,275 +175,231 @@ export function ProjectPresenter({
       setBusy(false);
     }
   }
-  const avatar = state?.avatars.find((a) => a.id === selection?.avatarId);
-  const narration = state?.narrations.find(
-    (n) => n.id === selection?.narrationId,
-  );
-  const invalidSelection =
-    (!!selection?.avatarId && !avatar) ||
-    (!!selection?.narrationId && !narration?.available);
-  const slide = project.slides.find((s) => s.image);
-
   return (
     <section
       className="journey-secondary project-presenter"
-      aria-label="数字人讲解员"
+      aria-label="数字人讲解"
       id="project-presenter"
     >
       <div className="project-presenter-heading">
-        <h3>
-          数字人讲解员 <span>可选增强</span>
-        </h3>
-        <Status tone={state?.hasKey ? "good" : "warm"}>
-          {state?.hasKey ? "可以生成数字人口型" : "待配置 HeyGen Key"}
+        <div>
+          <h3>数字人讲解</h3>
+          <p>选一个已准备好的数字人，直接用逐页讲稿生成讲解。</p>
+        </div>
+        <Status tone={ready ? "good" : "warm"}>
+          {ready
+            ? "可以生成讲解"
+            : !studio?.hasKey
+              ? "待连接 HeyGen"
+              : !avatar?.ready
+                ? "待准备数字人"
+                : "待选择口播"}
         </Status>
       </div>
-      <p>
-        为本项目选择头像、已完成口播及显示位置。项目配置与全局 API Key
-        分别保存。
-      </p>
-      <div className="project-presenter-actions">
-        <Button
-          aria-expanded={open}
-          aria-controls="project-presenter-form"
-          onClick={() => setOpen(!open)}
-        >
-          {open ? "收起数字人配置" : "配置数字人讲解员"}
-        </Button>
-        <Button onClick={onSettings}>
-          {state?.hasKey ? "查看 HeyGen API 设置" : "配置 HeyGen API Key"}
-        </Button>
-      </div>
-      <p className="journey-warning">
-        {state?.hasKey ? "HeyGen 密钥已保存。" : ""}
-        保存头像和口播版本后，在下方“生成数字人口型”中先试一页，再生成整场。
-      </p>
-      {error && (
-        <p className="error-text" role="alert">
-          {error}
-        </p>
-      )}
-      {open && !state && <p role="status">正在读取项目数字人配置…</p>}
-      {open && state && selection && (
-        <div id="project-presenter-form" className="project-presenter-form">
-          <div className="project-presenter-fields">
-            <Field label="数字人头像">
-              <select
-                value={selection.avatarId}
-                disabled={busy}
-                onChange={(e) => choose("avatarId", e.target.value)}
-              >
-                <option value="">选择头像</option>
-                {!!selection.avatarId && !avatar && (
-                  <option value={selection.avatarId} disabled>
-                    原头像不可用，请重新选择
-                  </option>
-                )}
-                {state.avatars.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="数字人口播版本">
-              <select
-                value={selection.narrationId}
-                disabled={busy}
-                onChange={(e) => choose("narrationId", e.target.value)}
-              >
-                <option value="">选择已完成口播</option>
-                {!!selection.narrationId && !narration && (
-                  <option value={selection.narrationId} disabled>
-                    原口播不可用，请重新选择
-                  </option>
-                )}
-                {state.narrations.map((n) => (
-                  <option key={n.id} value={n.id} disabled={!n.available}>
-                    {n.voiceName} · 母版 r{n.sourceRevision}
-                    {n.available ? "" : " · 需更新"}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="数字人位置">
-              <select
-                value={selection.placement}
-                disabled={busy}
-                onChange={(e) => choose("placement", e.target.value)}
-              >
-                {Object.entries(positions).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="数字人大小">
-              <select
-                value={selection.size}
-                disabled={busy}
-                onChange={(e) => choose("size", e.target.value)}
-              >
-                {Object.entries(sizes).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          </div>
-          {!state.narrations.some((n) => n.available) && (
-            <div>
-              <p>
-                请先在 AI
-                口播中完成与当前画面和讲稿匹配的口播版本，已有头像与位置可先保存。
-              </p>
-              {!!project.slides.length && (
-                <Button onClick={onSpeech}>前往制作 AI 口播</Button>
-              )}
-            </div>
-          )}
-          {narration && !narration.available && (
-            <p className="journey-warning">{narration.reason}</p>
-          )}
-          <details
-            open={!state.avatars.length}
-            className="project-presenter-upload"
-          >
-            <summary>添加头像</summary>
-            <Field label="新头像名称">
-              <input
-                value={name}
-                maxLength={80}
-                disabled={busy}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </Field>
-            <Field label="头像图片">
-              <input
-                ref={fileInput}
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                disabled={busy}
-                onChange={(e) => {
-                  setFile(e.target.files?.[0] || null);
-                  setError("");
-                }}
-              />
-            </Field>
-            <p>
-              JPEG、PNG 或 WebP，最大 8 MB。选择正面清晰照片；头像只保存到本机。
-            </p>
-            <Button
-              disabled={busy || !file || !name.trim()}
-              onClick={() =>
-                void mutate(async () => {
-                  const body = new FormData();
-                  body.set("name", name);
-                  body.set("image", file!);
-                  const added = await api<Avatar>(endpoint + "/avatars", {
-                    method: "POST",
-                    body,
-                  });
-                  setState(
-                    (before) =>
-                      before && {
-                        ...before,
-                        avatars: [...before.avatars, added],
-                      },
-                  );
-                  choose("avatarId", added.id);
-                  setName("");
-                  setFile(null);
-                  if (fileInput.current) fileInput.current.value = "";
-                  setMessage(
-                    "头像已保存到本机；点击下方按钮保存本项目的选择。",
-                  );
-                })
-              }
-            >
-              保存头像
-            </Button>
-          </details>
-          <figure className="project-presenter-preview">
-            <figcaption>位置示意（静态）</figcaption>
-            <div className="project-presenter-canvas">
-              {slide?.image ? (
-                <img src={asset(slide.image)} alt="项目画面位置示意" />
-              ) : (
-                <span>页面位置示意</span>
-              )}
+      {!studio?.avatars.length ? (
+        <div className="presenter-actions">
+          <p>先到数字人工作室保存头像和声音，输入文字试播。</p>
+          <Button onClick={settings}>前往数字人工作室</Button>
+        </div>
+      ) : (
+        selection && (
+          <>
+            <div className="presenter-project-choice">
               {avatar && (
                 <img
-                  className="project-presenter-avatar"
-                  data-placement={selection.placement}
-                  data-size={selection.size}
                   src={asset(avatar.previewAsset)}
-                  alt={avatar.name + " · 头像位置示意"}
+                  alt={avatar.name + "头像"}
                 />
               )}
+              <Field label="使用哪个数字人">
+                <select
+                  value={selection.avatarId}
+                  disabled={busy || active || !!request.current}
+                  onChange={(e) => choose("avatarId", e.target.value)}
+                >
+                  <option value="">选择数字人</option>
+                  {studio.avatars.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name} · {a.voiceName}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Button onClick={settings}>管理数字人 / 试播</Button>
             </div>
-            <p>这里展示头像的位置和大小；生成后可在演讲播放器中随口播显示。</p>
-          </figure>
-          <div className="project-presenter-actions">
+            {(!studio.hasKey || (mode === "text" && !avatar?.ready)) && (
+              <p>
+                到数字人工作室
+                {!studio.hasKey ? "连接 HeyGen" : "为这个数字人保存中文声音"}
+                ，回来即可生成。
+              </p>
+            )}
+            <div className="presenter-project-generate">
+              <Field label="讲解页面">
+                <select
+                  value={pageId}
+                  disabled={busy || active || !!request.current}
+                  onChange={(e) => setPageId(e.target.value)}
+                >
+                  {!eligiblePages.length && (
+                    <option value="">还没有逐页讲稿</option>
+                  )}
+                  {eligiblePages.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      第 {project.slides.indexOf(s) + 1} 页 ·{" "}
+                      {s.plan?.title || "页面"}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <div className="presenter-actions">
+                <Button
+                  variant="primary"
+                  disabled={!ready || busy || active || !pageId}
+                  onClick={() =>
+                    setConfirmation(request.current?.scope || "page")
+                  }
+                >
+                  {active
+                    ? "正在生成…"
+                    : request.current
+                      ? "查询上次提交结果"
+                      : "生成本页讲解"}
+                </Button>
+                <Button
+                  disabled={
+                    !ready ||
+                    busy ||
+                    active ||
+                    !eligiblePages.length ||
+                    !!request.current
+                  }
+                  onClick={() => setConfirmation("all")}
+                >
+                  生成整场讲解
+                </Button>
+              </div>
+            </div>
+            {!eligiblePages.length && (
+              <p>先在稿件中添加逐页讲稿，文字会直接交给数字人讲述。</p>
+            )}
+            <details className="presenter-style-tools">
+              <summary>显示位置与其他方式</summary>
+              <div className="project-presenter-fields">
+                <Field label="数字人位置">
+                  <select
+                    value={selection.placement}
+                    disabled={busy || active || !!request.current}
+                    onChange={(e) => choose("placement", e.target.value)}
+                  >
+                    {Object.entries(positions).map(([v, l]) => (
+                      <option key={v} value={v}>
+                        {l}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="数字人大小">
+                  <select
+                    value={selection.size}
+                    disabled={busy || active || !!request.current}
+                    onChange={(e) => choose("size", e.target.value)}
+                  >
+                    {Object.entries(sizes).map(([v, l]) => (
+                      <option key={v} value={v}>
+                        {l}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="讲解来源">
+                  <select
+                    value={mode}
+                    disabled={busy || active || !!request.current}
+                    onChange={(e) =>
+                      setMode(e.target.value as "text" | "audio")
+                    }
+                  >
+                    <option value="text">直接使用逐页讲稿</option>
+                    <option value="audio">沿用已有 AI 口播</option>
+                  </select>
+                </Field>
+                {mode === "audio" && (
+                  <Field label="已有口播版本">
+                    <select
+                      value={selection.narrationId}
+                      disabled={busy || active || !!request.current}
+                      onChange={(e) => choose("narrationId", e.target.value)}
+                    >
+                      <option value="">选择已完成口播</option>
+                      {state?.narrations.map((n) => (
+                        <option key={n.id} value={n.id} disabled={!n.available}>
+                          {n.voiceName}
+                          {n.available ? "" : " · 需更新"}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                )}
+              </div>
+            </details>
+          </>
+        )
+      )}
+      {(error || jobsError) && (
+        <p role="alert" className="error-text">
+          {error || jobsError}
+        </p>
+      )}
+      <PresenterJobs
+        jobs={jobs}
+        endpoint={endpoint + "/generations"}
+        onUpdate={(job) =>
+          setJobs((before) => [job, ...before.filter((j) => j.id !== job.id)])
+        }
+        onPlay={(job) => (job.mode === "text" ? setPlaying(job) : onPlayback())}
+      />
+      {confirmation && (
+        <Modal
+          title={
+            confirmation === "all" ? "生成整场数字人讲解" : "生成本页数字人讲解"
+          }
+          onClose={() => !busy && setConfirmation(null)}
+        >
+          <p>
+            {avatar?.name} ·{" "}
+            {mode === "text" ? avatar?.voiceName : "沿用所选口播声音"} ·{" "}
+            {selectedPages.length} 页
+          </p>
+          {mode === "text" && (
+            <blockquote className="presenter-confirm-text">
+              {selectedPages[0]?.notes}
+            </blockquote>
+          )}
+          <p>
+            {mode === "text" ? "头像和所选页面的讲稿" : "头像和所选口播音频"}
+            将发送到 HeyGen，按 API 规则计费。已完成的相同片段会优先复用。
+          </p>
+          <div className="presenter-actions">
             <Button
               variant="primary"
-              disabled={busy || !dirty || invalidSelection}
-              onClick={() =>
-                void mutate(async () => {
-                  const saved = await api<State>(endpoint + "/setup", {
-                    method: "PUT",
-                    body: JSON.stringify(selection),
-                  });
-                  setState(saved);
-                  setSelection(saved.setup);
-                  setDirty(false);
-                  try {
-                    localStorage.removeItem(draftKey);
-                  } catch {
-                    /* Saved configuration is authoritative. */
-                  }
-                  setMessage(
-                    "本项目的数字人配置已保存，可在下方生成数字人口型。",
-                  );
-                })
-              }
+              loading={busy}
+              onClick={() => void submit()}
             >
-              保存本项目数字人配置
+              确认生成
             </Button>
-            <span>
-              {dirty
-                ? "有未保存的项目选择"
-                : state.savedAt
-                  ? "本项目配置已保存"
-                  : "尚未保存项目配置"}
-            </span>
+            <Button disabled={busy} onClick={() => setConfirmation(null)}>
+              取消
+            </Button>
           </div>
-          {invalidSelection && (
-            <p className="journey-warning">
-              请重新选择可用头像和口播版本，或清空不可用的选择后保存。
-            </p>
-          )}
-          {busy && <p role="status">正在保存，请稍候…</p>}
-          {message && <p role="status">{message}</p>}
-          <PresenterGeneration
-            projectId={project.id}
-            narrationId={state.setup.narrationId}
-            enabled={
-              !!(
-                state.hasKey &&
-                state.savedAt &&
-                state.setup.avatarId &&
-                state.setup.narrationId &&
-                !dirty &&
-                !busy &&
-                !invalidSelection
-              )
-            }
-            onSpeech={onPlayback}
-          />
-        </div>
+        </Modal>
+      )}
+      {playing && (
+        <PresenterPlayer
+          project={project}
+          job={playing}
+          onClose={() => setPlaying(null)}
+        />
       )}
     </section>
   );

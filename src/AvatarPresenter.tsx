@@ -172,9 +172,17 @@ export function AvatarPresenter({
           kind="blocking"
           id="presenter-service-status"
           title="数字人服务尚未接入"
+          action={{
+            label: state.hasKey ? "查看 HeyGen 设置" : "配置 HeyGen 密钥",
+            onClick: () => {
+              location.hash = "settings";
+            },
+          }}
         >
           暂不能生成，但可以先预配置；已选头像、口播版本和位置会保留。
-          服务接入并就绪后即可生成。
+          {state.hasKey
+            ? "HeyGen 密钥已保存，视频生成仍在接入中。"
+            : "可先前往设置保存 HeyGen API Key 并测试连接。"}
         </Feedback>
       )}
       {state.testOnly && (

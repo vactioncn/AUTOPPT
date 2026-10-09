@@ -41,6 +41,7 @@ export type PresenterVersion = {
   }[];
 };
 export type PresenterState = {
+  hasKey?: boolean;
   configured: boolean;
   testOnly: boolean;
   versions: PresenterVersion[];

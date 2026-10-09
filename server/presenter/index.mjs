@@ -25,6 +25,11 @@ import {
   avatarFingerprint,
 } from "./media.mjs";
 import { configuredProvider } from "./mock.mjs";
+import {
+  publicPresenterSettings,
+  savePresenterSettings,
+  testPresenterConnection,
+} from "./settings.mjs";
 
 export const placements = [
   "top-left",
@@ -482,11 +487,25 @@ export async function presenterForExport(key, projectId, narrationId) {
 }
 export function registerPresenter(app) {
   app.use(
-    ["/api/avatars", "/api/presenter", "/api/projects/:id/presenter"],
+    [
+      "/api/avatars",
+      "/api/presenter",
+      "/api/projects/:id/presenter",
+      "/api/settings/presenter",
+    ],
     (_req, _res, next) =>
       process.env.AUTOPPT_WORKER_TOKEN
         ? next(fail("数字人目前仅在本机版提供", 403))
         : next(),
+  );
+  app.get("/api/settings/presenter", (_req, res) =>
+    res.json(publicPresenterSettings()),
+  );
+  app.put("/api/settings/presenter", (req, res) =>
+    res.json(savePresenterSettings(req.body)),
+  );
+  app.post("/api/settings/presenter/test", async (_req, res) =>
+    res.json(await testPresenterConnection()),
   );
   app.get("/api/avatars", (_req, res) => res.json(listAvatars()));
   const upload = multer({
@@ -512,6 +531,7 @@ export function registerPresenter(app) {
   app.get("/api/projects/:id/presenter", async (req, res) => {
     projectOrThrow(req.params.id);
     res.json({
+      hasKey: publicPresenterSettings().hasKey,
       configured: !!(await configuredProvider()),
       testOnly: !!(await configuredProvider()),
       versions: await Promise.all(

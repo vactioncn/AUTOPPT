@@ -14,7 +14,7 @@ import {
 import { matchNarrationPage } from "../speech/export.mjs";
 import { presenterSettings } from "./settings.mjs";
 import { readLocal, videoPath, validateVideo } from "./media.mjs";
-import { createHeyGenProvider } from "./heygen.mjs";
+import { createHeyGenProvider, heygenFailureMessage } from "./heygen.mjs";
 import { speakerNotes } from "../manuscript.mjs";
 import { prepareSpeechText } from "../../shared/speech-text.mjs";
 import { splitSpeech } from "../../shared/speech.mjs";
@@ -474,9 +474,13 @@ export async function resumeGeneration(
       "请使用生成此任务时的 HeyGen 密钥继续，避免跨账号重复提交。",
       409,
     );
-  if (job.pages.some((p) => p.clips.some((c) => c.remoteFailed)))
+  const failedClip = job.pages
+    .flatMap((p) => p.clips)
+    .find((c) => c.remoteFailed);
+  if (failedClip)
     throw fail(
-      "HeyGen 已明确报告生成失败。请重新选择生成范围并确认新任务计费。",
+      heygenFailureMessage(failedClip.failureCode) +
+        "请处理失败原因后重新选择生成范围，并确认新任务计费。",
       409,
     );
   job.stopRequested = false;
@@ -690,10 +694,9 @@ async function run(
           result = await provider.status(clip.providerVideoId);
           if (result.status === "failed") {
             clip.remoteFailed = true;
+            clip.failureCode = result.failureCode;
             save();
-            throw fail(
-              "HeyGen 报告此片段生成失败，请在 HeyGen 中检查照片、音频及账号额度。已有片段保留。",
-            );
+            throw fail(heygenFailureMessage(result.failureCode));
           }
           if (result.status === "completed") break;
           await sleep(pollMs);

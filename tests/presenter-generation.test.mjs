@@ -366,4 +366,93 @@ test("HeyGen generation uses durable idempotency, preserves content, reuses comp
   assert.equal((await gen.waitForGeneration(known.id)).status, "ready");
   assert.equal(creates, 1);
   assert.equal(downloads, 2);
+
+  // A completed HTTP request can still report a failed video and exhausted wallet.
+  const creditJob = structuredClone(known);
+  creditJob.id = store.id();
+  creditJob.status = "interrupted";
+  const creditClip = creditJob.pages[0].clips[0];
+  creditClip.status = "processing";
+  writeFileSync(path.join(dir, "speech-audio", audioFile), "credit-test-audio");
+  creditClip.audioHash = crypto
+    .createHash("sha256")
+    .update("credit-test-audio")
+    .digest("hex");
+  creditClip.fingerprint = crypto
+    .createHash("sha256")
+    .update(JSON.stringify([creditJob.imageHash, creditClip.audioHash, 2]))
+    .digest("hex");
+  delete creditClip.videoFile;
+  delete creditClip.videoHash;
+  store.put("presenter-generation", creditJob);
+  let creditQueries = 0;
+  const creditProvider = () => ({
+    upload: () => assert.fail("No new upload for a known video"),
+    create: () => assert.fail("No new paid submission for a known video"),
+    download: () => assert.fail("A failed video cannot be downloaded"),
+    status: async () => {
+      creditQueries++;
+      return {
+        status: "failed",
+        failureCode: "MOVIO_PAYMENT_INSUFFICIENT_CREDIT",
+      };
+    },
+  });
+  await gen.resumeGeneration(project.id, creditJob.id, true, creditProvider);
+  const creditResult = await gen.waitForGeneration(creditJob.id);
+  assert.equal(creditResult.status, "interrupted");
+  assert.match(creditResult.message, /HeyGen API 额度不足/);
+  assert.equal(
+    creditResult.pages[0].clips[0].failureCode,
+    "MOVIO_PAYMENT_INSUFFICIENT_CREDIT",
+  );
+  assert.equal(creditResult.pages[0].clips[0].audioFile, audioFile);
+  await assert.rejects(
+    gen.resumeGeneration(project.id, creditJob.id, true, creditProvider),
+    /额度不足.*新任务计费/,
+  );
+  assert.equal(creditQueries, 1);
+  assert.equal(JSON.stringify(store.get("project", project.id)), original);
+});
+
+test("HeyGen v3 top-level credit failure is recognized without exposing private failure messages", async () => {
+  const { createHeyGenProvider, heygenFailureMessage } =
+    await import("../server/presenter/heygen.mjs");
+  for (const fields of [
+    {
+      failure_code: "MOVIO_PAYMENT_INSUFFICIENT_CREDIT",
+      failure_message: "PRIVATE_ACCOUNT_AND_URL",
+    },
+    {
+      error: {
+        code: "insufficient_credits",
+        message: "PRIVATE_ACCOUNT_AND_URL",
+      },
+    },
+  ]) {
+    const provider = createHeyGenProvider({
+      apiKey: "synthetic",
+      fetchApi: async () =>
+        Response.json({ data: { status: "failed", ...fields } }),
+    });
+    const result = await provider.status("known-video");
+    assert.match(
+      heygenFailureMessage(result.failureCode),
+      /HeyGen API 额度不足/,
+    );
+    assert.doesNotMatch(JSON.stringify(result), /PRIVATE/);
+  }
+  const provider = createHeyGenProvider({
+    apiKey: "synthetic",
+    fetchApi: async () =>
+      Response.json({
+        data: {
+          status: "failed",
+          failure_code: "https://private.example/token",
+        },
+      }),
+  });
+  assert.equal((await provider.status("known-video")).failureCode, undefined);
+  assert.match(heygenFailureMessage(undefined), /检查照片、音频及账号额度/);
+  assert.match(heygenFailureMessage("constructor"), /检查照片、音频及账号额度/);
 });

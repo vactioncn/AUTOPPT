@@ -3,6 +3,20 @@ import { MAX_VIDEO } from "./media.mjs";
 
 const base = "https://api.heygen.com/v3";
 const safeId = (v) => typeof v === "string" && /^[A-Za-z0-9_-]{1,200}$/.test(v);
+const failureMessages = {
+  insufficient_balance:
+    "HeyGen API 余额不足，请检查或补充 API 钱包额度。网页会员额度与 API 余额可能不同。",
+  insufficient_credits:
+    "HeyGen API 额度不足，请检查或补充 API 钱包额度。已有音频会保留。",
+  MOVIO_PAYMENT_INSUFFICIENT_CREDIT:
+    "HeyGen API 额度不足，嘴型视频未生成。请检查或补充 HeyGen API 钱包额度；已有音频会保留。",
+};
+export function heygenFailureMessage(code) {
+  return (
+    (Object.hasOwn(failureMessages, code) && failureMessages[code]) ||
+    "HeyGen 报告此片段生成失败，请在 HeyGen 中检查照片、音频及账号额度。已有片段保留。"
+  );
+}
 export function createHeyGenProvider({
   apiKey,
   fetchApi = fetch,
@@ -34,10 +48,7 @@ export function createHeyGenProvider({
     if (!response.ok) {
       const code = result?.error?.code;
       const messages = {
-        insufficient_balance:
-          "HeyGen API 余额不足，请充值 API 钱包后继续查询原任务。网页会员额度与 API 余额可能不同。",
-        insufficient_credits:
-          "HeyGen API 额度不足，请检查 API 钱包后继续原任务。",
+        ...failureMessages,
         invalid_voice:
           "HeyGen 不接受所选声音，请在数字人工作室刷新声音列表并重新选择。",
         voice_not_found: "所选声音已不可用，请在数字人工作室重新选择。",
@@ -45,7 +56,7 @@ export function createHeyGenProvider({
         face_not_detected:
           "HeyGen 未识别到人脸，请在数字人工作室换一张清晰头像。",
       };
-      if (messages[code]) throw new Error(messages[code]);
+      if (Object.hasOwn(messages, code)) throw new Error(messages[code]);
       throw new Error(
         response.status === 401 || response.status === 403
           ? "HeyGen 拒绝访问，请检查密钥及 API 权限。"
@@ -115,7 +126,11 @@ export function createHeyGenProvider({
       return {
         status: data.status,
         url: data.video_url,
-        failureCode: data.error?.code || data.failure_reason?.code,
+        failureCode: safeId(
+          data.failure_code || data.error?.code || data.failure_reason?.code,
+        )
+          ? data.failure_code || data.error?.code || data.failure_reason?.code
+          : undefined,
       };
     },
     async download(url) {

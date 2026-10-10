@@ -221,6 +221,10 @@ Project-card deletion uses a 36px icon-only control at the top right, revealed o
 
 ### Digital Presenter
 
+Settings uses three underline tabs: model services, speech and voices, and labs. Only the selected panel is visible; visited panels retain unsaved inputs. Configured service editors start collapsed beneath a compact saved-model and endpoint summary. Saving is explicit and scoped to that connection. Speech leads with the default voice and places capture behind its existing disclosure; leaving the speech panel stops microphone capture, and hidden-panel media is paused. Keyboard arrows, Home and End select tabs; hash routes reopen the selected category.
+
+Digital presenters live in the labs panel with an experimental label and a short statement that quality and waiting time are still being improved. Rehearsal offers self and AI narration as the regular choices; the digital option is inside an experimental disclosure. New projects default to self, while saved rehearsal choices and legacy avatar setups are preserved. The laboratory resource dialog returns to rehearsal without resetting project choices or deleting media.
+
 Saved-avatar choices use compact square portraits beside the name, style, default marker and MiniMax voice-readiness text. A selected choice gains a terracotta border and pale warm fill, with a pressed state. The surrounding fields, status badges and actions reuse the existing paper, ink and control language. Presenter actions allow wrapped labels and a comfortable minimum height (44px), scoped to this workflow.
 
 Native disclosures make readiness determine the initial hierarchy: a saved connection and a ready identity are collapsed, while incomplete configuration remains open. “文字试播” stays visible beneath identity editing; unsaved edits carry an explicit message and disable preview generation. Uploading a portrait and creating another style remain within the settings workbench. The style-generation confirmation states the upload and cost, and explains that the new identity is saved separately while the original remains.

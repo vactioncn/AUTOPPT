@@ -525,9 +525,11 @@ test(
             : route.continue(),
         );
         await page.goto(base + "/#project/" + project.id + "/rehearsal");
+        await page.getByText("已有版本与高级调整", { exact: true }).click();
         await page
-          .getByRole("button", { name: "打开演讲播放器", exact: true })
+          .getByRole("button", { name: "已有口播 / 高级演绎", exact: true })
           .click();
+        await page.getByRole("tab", { name: "放映", exact: true }).click();
         await page
           .getByRole("heading", { name: "准备好，开始讲述。" })
           .waitFor();
@@ -628,6 +630,7 @@ test(
           .click();
         await page.getByRole("button", {name:"关闭演讲播放器",exact:true}).click();
         await page.getByRole("button", {name:"设置",exact:true}).click();
+        await page.getByRole("tab", { name: "语音与声音", exact: true }).click();
         await page.getByText("采集演讲者的声音", { exact: true }).click();
         await page.getByLabel("上传演讲者录音").setInputFiles({
           name: "test.wav",

@@ -27,7 +27,7 @@ export function SpeechVoiceDefault({
     return () => window.removeEventListener("autoppt-speech-updated", load);
   }, []);
   return (
-    <div className="connection-form">
+    <div className="speech-default-settings">
       <Field
         label="新项目默认声音"
         hint="只影响尚未保存本场声音的新项目。已有项目和音频保持原选择。"
@@ -37,7 +37,7 @@ export function SpeechVoiceDefault({
           disabled={busy}
           onChange={(e) => setValue(e.target.value)}
         >
-          <option value="">沿用数字人声音 / 最近使用声音</option>
+          <option value="">自动选择可用声音</option>
           {voices.map((v) => (
             <option key={v.id} value={v.id}>
               {v.name}

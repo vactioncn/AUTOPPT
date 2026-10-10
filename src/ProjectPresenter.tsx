@@ -183,7 +183,9 @@ export function ProjectPresenter({
     >
       <div className="project-presenter-heading">
         <div>
-          <h3>数字人讲解</h3>
+          <h3>
+            数字人讲解 <span className="experimental-label">实验室</span>
+          </h3>
           <p>
             {mode === "audio"
               ? "沿用所选 AI 口播的原声音，再同步头像嘴型。"

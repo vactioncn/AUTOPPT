@@ -1,0 +1,153 @@
+.settings-page {
+  max-width: 1000px;
+}
+.settings-tabs {
+  display: flex;
+  gap: 24px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 24px;
+}
+.settings-tabs > button {
+  min-height: 44px;
+  padding: 10px 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.settings-tabs > button[aria-selected="true"] {
+  border-bottom-color: var(--accent);
+  color: var(--ink);
+  font-weight: 600;
+}
+.settings-tabs > button:hover {
+  color: var(--ink);
+}
+.settings-tabs > button:last-child {
+  margin-left: auto;
+}
+.settings-page [role="tabpanel"][hidden] {
+  display: none;
+}
+.settings-page .settings-intro {
+  color: var(--muted);
+  margin: 0 0 20px;
+}
+.settings-page .connection-form-heading {
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+.settings-page .connection-form-heading p {
+  color: var(--muted);
+  font-size: 12px;
+}
+.settings-connection-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 16px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.settings-connection-summary strong {
+  color: var(--ink);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.settings-connection-summary span {
+  overflow-wrap: anywhere;
+}
+.settings-connection-editor {
+  margin-top: 18px;
+}
+.settings-connection-editor > summary,
+.settings-protocol-help > summary,
+.settings-maintenance > summary,
+.rehearsal-lab > summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
+  padding: 8px 0;
+}
+.settings-connection-editor[open] > summary {
+  color: var(--ink);
+  margin-bottom: 14px;
+}
+.settings-draft-note {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 0 0 16px;
+}
+.settings-maintenance {
+  margin-top: 16px;
+}
+.settings-protocol-help {
+  margin-top: 20px;
+}
+.settings-protocol-help p,
+.settings-lab-note {
+  font-size: 13px;
+  color: var(--muted);
+  max-width: 70ch;
+  line-height: 1.8;
+}
+.settings-lab-note {
+  margin: 0 0 22px;
+}
+.settings-voice-help {
+  margin: 24px 0 18px;
+}
+.speech-default-settings {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+}
+.experimental-label {
+  display: inline-block;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 1px 6px;
+  margin-right: 6px;
+  font-size: 12px;
+  font-weight: 400;
+  vertical-align: middle;
+}
+.rehearsal-lab {
+  margin-top: 12px;
+}
+.rehearsal-lab .btn {
+  margin-top: 10px;
+}
+.rehearsal-lab .btn[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--wash);
+  color: var(--accent);
+}
+@media (max-width: 600px) {
+  .settings-tabs {
+    gap: 18px;
+  }
+  .settings-page .connection-form {
+    padding: 20px;
+  }
+  .settings-page .connection-form-heading {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .settings-page .connection-form-heading > .status {
+    margin-left: 0;
+  }
+  .settings-page .settings-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .settings-page .connection-form-actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+  .settings-page .connection-form-actions .btn {
+    flex: 1 1 140px;
+  }
+}

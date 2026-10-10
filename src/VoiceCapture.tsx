@@ -54,10 +54,12 @@ export function VoiceCapture({
   onVoices,
   disabled,
   onRecordingStart,
+  active = true,
 }: {
   onVoices: (voices: Voice[]) => void;
   disabled: boolean;
   onRecordingStart: () => void;
+  active?: boolean;
 }) {
   const [name, setName] = useState("我的演讲声音"),
     [consent, setConsent] = useState(false);
@@ -72,6 +74,15 @@ export function VoiceCapture({
     stream = useRef<MediaStream | null>(null),
     alive = useRef(true);
   const localPreview = useRef<HTMLAudioElement>(null);
+  const activePanel = useRef(active);
+  activePanel.current = active;
+  useEffect(() => {
+    if (active) return;
+    localPreview.current?.pause();
+    if (recorder.current?.state === "recording") recorder.current.stop();
+    stream.current?.getTracks().forEach((track) => track.stop());
+    setRecording(false);
+  }, [active]);
   useEffect(() => {
     alive.current = true;
     return () => {
@@ -122,7 +133,7 @@ export function VoiceCapture({
     setBusy(true);
     try {
       const media = await navigator.mediaDevices.getUserMedia({ audio: true });
-      if (!alive.current) {
+      if (!alive.current || !activePanel.current) {
         media.getTracks().forEach((t) => t.stop());
         return;
       }

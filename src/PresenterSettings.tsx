@@ -81,7 +81,10 @@ export function PresenterSettings({
       <div className="connection-form-heading">
         <div>
           <h2>数字人工作室</h2>
-          <p>统一准备形象、声音和试播，供所有项目使用。</p>
+          <p>
+            <span className="experimental-label">实验功能</span>统一准备头像与
+            MiniMax 声音，先试播再用于项目。
+          </p>
         </div>
         <Status tone={config?.hasKey ? "good" : "warm"}>
           {config?.hasKey ? "密钥已保存" : "待配置密钥"}

@@ -14,8 +14,12 @@ export function RehearsalResourceSettings({
   return (
     <Modal
       wide
-      title={kind === "speech" ? "设置 · 语音与声音" : "设置 · 数字人库"}
-      subtitle="一次准备，供所有项目复用。关闭后回到本场演讲。"
+      title={kind === "speech" ? "设置 · 语音与声音" : "实验室 · 数字人工作室"}
+      subtitle={
+        kind === "speech"
+          ? "一次准备，供所有项目复用。关闭后回到本场演讲。"
+          : "实验功能。已有头像、声音和视频保留，关闭后回到演练。"
+      }
       onClose={onClose}
     >
       {kind === "speech" ? (

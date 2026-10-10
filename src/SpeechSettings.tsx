@@ -5,26 +5,39 @@ import { useEffect, useState } from "react";
 import { Button, Field, Status } from "./components";
 import { api } from "./api";
 import type { SpeechConnection } from "./speech-types";
-export function SpeechSettings({ notify }: { notify: (text: string) => void }) {
+export function SpeechSettings({
+  notify,
+  active = true,
+}: {
+  notify: (text: string) => void;
+  active?: boolean;
+}) {
   const [config, setConfig] = useState<SpeechConnection | null>(null);
+  const [saved, setSaved] = useState<SpeechConnection | null>(null);
+  const [expanded, setExpanded] = useState(false);
   const [key, setKey] = useState(""),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   useEffect(() => {
     api<SpeechConnection>("/settings/speech")
-      .then(setConfig)
+      .then((value) => {
+        setConfig(value);
+        setSaved(value);
+        setExpanded(!value.hasKey);
+      })
       .catch((e) => setError(e.message));
   }, []);
   async function save(clearKey = false) {
     setBusy(true);
     setError("");
     try {
-      setConfig(
-        await api("/settings/speech", {
-          method: "PUT",
-          body: JSON.stringify({ ...config, apiKey: key, clearKey }),
-        }),
-      );
+      const value = await api<SpeechConnection>("/settings/speech", {
+        method: "PUT",
+        body: JSON.stringify({ ...config, apiKey: key, clearKey }),
+      });
+      setConfig(value);
+      setSaved(value);
+      setExpanded(!value.hasKey);
       setKey("");
       window.dispatchEvent(new Event("autoppt-speech-updated"));
       notify(
@@ -47,62 +60,98 @@ export function SpeechSettings({ notify }: { notify: (text: string) => void }) {
           {config?.hasKey ? "已配置密钥" : "待连接"}
         </Status>
       </div>
+      {!config && !error && <p role="status">正在读取语音配置…</p>}
       {config && (
         <>
-          <div className="settings-fields">
-            <Field label="语音接口地址" hint="MiniMax 原生语音接口，填到 /v1。">
-              <input
-                value={config.baseUrl}
-                onChange={(e) =>
-                  setConfig({ ...config, baseUrl: e.target.value })
-                }
-              />
-            </Field>
-            <Field label="语音模型">
-              <input
-                value={config.model}
-                onChange={(e) =>
-                  setConfig({ ...config, model: e.target.value })
-                }
-              />
-            </Field>
-            <Field
-              label="语音 API Key"
-              hint="独立保存于本机；更换地址后需要重新填写密钥。"
-            >
-              <input
-                type="password"
-                autoComplete="off"
-                value={key}
-                placeholder={
-                  config.hasKey ? "已保存，留空保持" : "填写 MiniMax API Key"
-                }
-                onChange={(e) => setKey(e.target.value)}
-              />
-            </Field>
+          <div className="settings-connection-summary">
+            <strong>{saved?.model}</strong>
+            <span>{saved?.baseUrl}</span>
           </div>
-          <p>
-            试听、生成口播和声音复刻会使用你的语音服务额度。播放已生成的声音不再调用模型。声音复刻需在供应商平台完成实名认证。
-          </p>
-          <div className="connection-actions">
-            <Button disabled={busy} onClick={() => save()}>
-              保存语音设置
-            </Button>
-            {config.hasKey && (
-              <Button disabled={busy} onClick={() => save(true)}>
-                移除语音密钥
-              </Button>
+          <details
+            className="settings-connection-editor"
+            open={expanded}
+            onToggle={(event) => setExpanded(event.currentTarget.open)}
+          >
+            <summary>
+              {config.hasKey ? "修改 MiniMax 连接" : "连接 MiniMax"}
+            </summary>
+            <div className="settings-fields">
+              <Field
+                label="语音接口地址"
+                hint="MiniMax 原生语音接口，填到 /v1。"
+              >
+                <input
+                  disabled={busy}
+                  value={config.baseUrl}
+                  onChange={(e) =>
+                    setConfig({ ...config, baseUrl: e.target.value })
+                  }
+                />
+              </Field>
+              <Field label="语音模型">
+                <input
+                  disabled={busy}
+                  value={config.model}
+                  onChange={(e) =>
+                    setConfig({ ...config, model: e.target.value })
+                  }
+                />
+              </Field>
+              <Field
+                label="语音 API Key"
+                hint="独立保存于本机；更换地址后需要重新填写密钥。"
+              >
+                <input
+                  disabled={busy}
+                  type="password"
+                  autoComplete="off"
+                  value={key}
+                  placeholder={
+                    config.hasKey ? "已保存，留空保持" : "填写 MiniMax API Key"
+                  }
+                  onChange={(e) => setKey(e.target.value)}
+                />
+              </Field>
+            </div>
+            {(config.baseUrl !== saved?.baseUrl ||
+              config.model !== saved?.model ||
+              !!key) && (
+              <p className="settings-draft-note">
+                有未保存的修改，切换分类会保留当前输入。
+              </p>
             )}
-          </div>
+            <div className="connection-actions">
+              <Button variant="primary" disabled={busy} onClick={() => save()}>
+                保存语音设置
+              </Button>
+            </div>
+            {config.hasKey && (
+              <details className="settings-maintenance">
+                <summary>连接管理</summary>
+                <Button
+                  variant="ghost"
+                  disabled={busy}
+                  onClick={() => save(true)}
+                >
+                  移除语音密钥
+                </Button>
+              </details>
+            )}
+          </details>
         </>
       )}
+      <p className="detail-help settings-voice-help">
+        先选默认声音；需要使用本人的声音时，再展开录音采集。试听、生成与复刻会使用
+        MiniMax 额度，播放已有音频不再调用模型。
+      </p>
       <SpeechVoiceDefault notify={notify} />
       <VoiceCapture
         disabled={busy || !config?.hasKey}
+        active={active}
         onRecordingStart={() => setError("")}
         onVoices={() => {
           window.dispatchEvent(new Event("autoppt-speech-updated"));
-          notify("声音已保存，可在演播台或数字人工作室选择。");
+          notify("声音已保存，可在演练中心选择。");
         }}
       />
       {error && (

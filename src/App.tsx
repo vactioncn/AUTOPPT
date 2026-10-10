@@ -39,7 +39,7 @@ import { Button, Modal, Field, StylePreview } from "./components";
 import { Workspace } from "./Workspace";
 import { projectArea } from "./project-journey";
 import { StyleLibrary } from "./StyleLibrary";
-import { SettingsPage } from "./Settings";
+import { SettingsPage, type SettingsSection } from "./Settings";
 import { Introduction } from "./Introduction";
 import { VersionWorkspace } from "./VersionWorkspace";
 import {
@@ -217,7 +217,7 @@ export default function App() {
             </button>
           )}
           <button
-            className={route === "settings" ? "active" : ""}
+            className={route.split("/")[0] === "settings" ? "active" : ""}
             onClick={() => go("settings")}
           >
             <SlidersHorizontal size={20} />
@@ -270,7 +270,7 @@ export default function App() {
                         ? "风格库"
                         : route === "account"
                           ? "账号与额度"
-                          : route === "settings"
+                          : route.split("/")[0] === "settings"
                             ? "设置"
                             : "项目")}
             </strong>
@@ -385,7 +385,7 @@ export default function App() {
             <UsagePage />
           ) : contentRoute === "account" ? (
             <AccountPage />
-          ) : contentRoute === "settings" ? (
+          ) : contentRoute.split("/")[0] === "settings" ? (
             !capabilities.localModelSettings.enabled ? (
               <section className="page" aria-label="模型与服务">
                 <div className="page-heading">
@@ -409,6 +409,14 @@ export default function App() {
                 initial={data.settings}
                 notify={notify}
                 refresh={refresh}
+                section={
+                  (["models", "speech", "labs"].includes(
+                    contentRoute.split("/")[1],
+                  )
+                    ? contentRoute.split("/")[1]
+                    : "models") as SettingsSection
+                }
+                onSectionChange={(section) => go("settings/" + section)}
               />
             )
           ) : (

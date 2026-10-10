@@ -248,6 +248,8 @@ test(
       return route.continue();
     });
     await page.goto(base + "/#project/presenter-project/rehearsal");
+    await page.getByText("实验室 · 数字人讲解", { exact: true }).click();
+    await page.getByRole("button", { name: "数字人讲解", exact: true }).click();
     await expect(
       page.getByRole("button", { name: "管理 / 创建头像" }),
     ).toBeVisible();

@@ -27,7 +27,7 @@ export function rehearsalPlan(projectId) {
     "";
   return {
     id: projectId,
-    actor: "digital",
+    actor: old?.avatarId ? "digital" : "self",
     visual: "original",
     avatarId,
     voiceId: available.some((v) => v.id === preferred) ? preferred : "",

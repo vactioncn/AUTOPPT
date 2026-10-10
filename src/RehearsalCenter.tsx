@@ -339,9 +339,9 @@ export function RehearsalCenter({
         </Button>
         {capabilities.localModelSettings.enabled && (
           <details>
-            <summary>先准备声音与数字人</summary>
+            <summary>准备声音与实验室素材</summary>
             <Button onClick={() => setSettings("avatar")}>
-              前往数字人工作室
+              实验室 · 数字人工作室
             </Button>
             <Button onClick={() => setSettings("speech")}>
               管理声音 / 服务
@@ -381,7 +381,7 @@ export function RehearsalCenter({
       <header className="rehearsal-heading">
         <div>
           <h2>把这场演讲试好，再生成整场</h2>
-          <p>声音、讲稿、数字人和动态画面，在这里一起预览。</p>
+          <p>先预览讲稿、声音和画面，确认后再生成整场。</p>
         </div>
         <Button variant="ghost" onClick={() => onSpeech(false)}>
           普通放映
@@ -470,7 +470,7 @@ export function RehearsalCenter({
               <fieldset disabled={busy || !!request.current}>
                 <legend>这场演讲，谁来讲？</legend>
                 <div className="rehearsal-choice">
-                  {(["self", "voice", "digital"] as const).map((a) => (
+                  {(["self", "voice"] as const).map((a) => (
                     <button
                       key={a}
                       type="button"
@@ -481,6 +481,21 @@ export function RehearsalCenter({
                     </button>
                   ))}
                 </div>
+                <details
+                  className="rehearsal-lab"
+                  open={plan.actor === "digital"}
+                >
+                  <summary>实验室 · 数字人讲解</summary>
+                  <p className="detail-help">
+                    实验功能，生成效果和等待时间仍在优化。先试一页，已有视频保留。
+                  </p>
+                  <Button
+                    aria-pressed={plan.actor === "digital"}
+                    onClick={() => choose("actor", "digital")}
+                  >
+                    {labels.digital}
+                  </Button>
+                </details>
               </fieldset>
               <fieldset disabled={busy || !!request.current}>
                 <legend>画面怎么呈现？</legend>
@@ -606,7 +621,10 @@ export function RehearsalCenter({
               {plan.actor === "digital" && (
                 <>
                   <div className="rehearsal-field-heading">
-                    <strong>本场数字人</strong>
+                    <strong>
+                      本场数字人{" "}
+                      <span className="experimental-label">实验</span>
+                    </strong>
                     <Button
                       variant="ghost"
                       onClick={() => setSettings("avatar")}
@@ -628,7 +646,7 @@ export function RehearsalCenter({
                   </div>
                   {!avatar && (
                     <p>
-                      先在设置的数字人库保存头像，可上传本人照片或生成职业照、卡通等风格。头像可以先准备，无需先有口播。
+                      先在实验室的数字人工作室保存头像，可上传本人照片或生成职业照、卡通等风格。头像可以先准备，无需先有口播。
                     </p>
                   )}
                   {!resources.studio.hasKey && (

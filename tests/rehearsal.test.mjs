@@ -74,6 +74,10 @@ test("rehearsal separates resource settings, preserves projects, pins voice, sco
     "image/png",
   );
   const context = plans.rehearsalContext(project.id);
+  assert.equal(context.plan.actor, "self", "new projects do not opt into the digital-presenter experiment");
+  store.put("project", { ...project, id: "legacy-presenter" });
+  store.put("presenter-setup", { id: "legacy-presenter", avatarId: context.plan.avatarId });
+  assert.equal(plans.rehearsalPlan("legacy-presenter").actor, "digital", "existing avatar setups keep their digital actor");
   assert.equal(
     context.plan.voiceId,
     "personal",
@@ -92,6 +96,7 @@ test("rehearsal separates resource settings, preserves projects, pins voice, sco
     voiceId: "personal",
     pageId: "one",
   });
+  assert.equal(plans.rehearsalContext(project.id).plan.actor, "digital", "saved experimental choices remain usable");
   speech.saveSpeechSettings({
     defaultVoiceId: "Chinese (Mandarin)_News_Anchor",
   });

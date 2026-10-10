@@ -90,6 +90,88 @@
   overflow: visible;
   overflow-wrap: anywhere;
   padding-right: 0;
+  font-size: 14px;
+  line-height: 1.8;
+}
+.style-prompt-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--paper);
+  padding-bottom: 12px;
+}
+.style-detail-tabs {
+  display: flex;
+  gap: 16px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 16px;
+}
+.style-detail-tabs button {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 8px 0 12px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 14px;
+  min-height: 44px;
+}
+.style-detail-tabs button[aria-selected="true"] {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+  font-weight: 600;
+}
+.style-detail-tabs button:hover {
+  color: var(--ink);
+}
+.style-detail-tabs button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+.style-detail-modal .style-rules-heading {
+  margin: 0;
+  gap: 8px 16px;
+  flex-wrap: wrap;
+}
+.style-detail-modal .style-rules-heading h3 {
+  font-size: 20px;
+  margin: 0;
+}
+.style-prompt-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+.style-detail-modal .style-rules-heading .btn {
+  font-size: 12px;
+  min-height: 40px;
+}
+.style-prompt-caption {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 0 0 16px;
+}
+.style-generation-options {
+  border-top: 1px solid var(--line);
+  margin-top: 16px;
+  padding-top: 4px;
+}
+.style-generation-options > summary {
+  padding: 12px 0;
+  cursor: pointer;
+  font-weight: 500;
+}
+.style-generation-options > label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.style-detail-tab-panel > .style-prompt-results > .detail-help {
+  margin-top: 0;
+}
+.style-detail-tab-panel > .style-versions {
+  margin-top: 0;
 }
 .style-detail-modal .rules-editor {
   min-height: 280px;

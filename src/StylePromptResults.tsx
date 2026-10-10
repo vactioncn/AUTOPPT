@@ -20,12 +20,11 @@ export function StylePromptResults({
     candidates.find((entry) => entry.id === previewId) ||
     active ||
     candidates[0];
-  if (!candidate) return <div className="rules-text">{style.rules}</div>;
-  const changed = !active;
+  if (!candidate) return null;
   const copy = async (value: string) => {
     try {
       await navigator.clipboard.writeText(value);
-      notify("提示词已复制。");
+      notify("这组分析结果的提示词已复制，当前使用的提示词未改变。");
     } catch {
       notify("无法访问剪贴板，请选中提示词文字复制。");
     }
@@ -35,13 +34,9 @@ export function StylePromptResults({
       className="style-prompt-results"
       aria-label="视觉风格提示词生成结果"
     >
-      <p className="detail-help">{style.styleAnalysis?.relationReason}</p>
-      {!!style.styleAnalysis?.excludedReferences?.length && (
-        <p className="detail-help">
-          离群参考图 {style.styleAnalysis.excludedReferences.join("、")}{" "}
-          未并入主体风格。
-        </p>
-      )}
+      <p className="detail-help">
+        最近一次提炼记录。查看正在使用的完整原文，请切回“提示词”。
+      </p>
       {candidates.length > 1 && (
         <div
           className="style-result-switch"
@@ -54,33 +49,57 @@ export function StylePromptResults({
               aria-pressed={candidate.id === entry.id}
               onClick={() => setPreviewId(entry.id)}
             >
-              STYLE {String.fromCharCode(65 + i)} · {entry.nameCn}
+              风格 {String.fromCharCode(65 + i)} · {entry.nameCn}
               {active?.id === entry.id && " · 当前采用"}
             </button>
           ))}
         </div>
       )}
-      {active && active.id !== candidate.id && (
+      {active?.id !== candidate.id && (
         <p className="detail-help">
-          当前采用「{active.nameCn}
-          」。正在预览的提示词需点击“采用这组风格”后才用于试做与制作。
+          {active
+            ? `当前采用「${active.nameCn}」。`
+            : "当前提示词已手动调整或恢复版本。"}
+          这组分析结果尚未采用；点击“采用这组风格”才会更新提示词，并保留原版本。
         </p>
       )}
       <h3>{candidate.nameCn}</h3>
       <p className="style-result-english">{candidate.nameEn}</p>
       <p>{candidate.description}</p>
-      <p>{candidate.boundary}</p>
-      <p className="detail-help">
-        参考图 {candidate.references.join("、")} · {candidate.rationale}
-      </p>
-      <h4>核心视觉 DNA</h4>
-      <ul>
-        {candidate.visualDna.map((item, i) => (
-          <li key={i}>{item}</li>
-        ))}
-      </ul>
+      <div className="style-result-actions">
+        <Button onClick={() => void copy(candidate.rules)}>
+          复制这组分析提示词
+        </Button>
+        {active?.id !== candidate.id && (
+          <Button
+            disabled={disabled}
+            variant="primary"
+            onClick={() => onApply(candidate)}
+          >
+            采用这组风格
+          </Button>
+        )}
+      </div>
       <details className="studio-rule-details">
-        <summary>四级风格规则</summary>
+        <summary>查看风格判断与提炼要点</summary>
+        <p className="detail-help">{style.styleAnalysis?.relationReason}</p>
+        {!!style.styleAnalysis?.excludedReferences?.length && (
+          <p className="detail-help">
+            离群参考图 {style.styleAnalysis.excludedReferences.join("、")}{" "}
+            未并入主体风格。
+          </p>
+        )}
+        <p>{candidate.boundary}</p>
+        <p className="detail-help">
+          参考图 {candidate.references.join("、")} · {candidate.rationale}
+        </p>
+        <h4>核心视觉 DNA</h4>
+        <ul>
+          {candidate.visualDna.map((item, i) => (
+            <li key={i}>{item}</li>
+          ))}
+        </ul>
+        <h4>四级风格规则</h4>
         {(
           [
             ["mustKeep", "必须保持"],
@@ -98,57 +117,23 @@ export function StylePromptResults({
             </ul>
           </div>
         ))}
+        <h4>风格锁定语句</h4>
+        <ul>
+          {candidate.lockSentences.map((item, i) => (
+            <li key={i}>{item}</li>
+          ))}
+        </ul>
+        <h4>连续生成时的风险提醒</h4>
+        <ul>
+          {candidate.risks.map((item, i) => (
+            <li key={i}>{item}</li>
+          ))}
+        </ul>
       </details>
-      <h4>风格锁定语句</h4>
-      <ul>
-        {candidate.lockSentences.map((item, i) => (
-          <li key={i}>{item}</li>
-        ))}
-      </ul>
-      <h4>连续生成时的风险提醒</h4>
-      <ul>
-        {candidate.risks.map((item, i) => (
-          <li key={i}>{item}</li>
-        ))}
-      </ul>
-      <div className="style-result-actions">
-        <Button onClick={() => void copy(candidate.rules)}>
-          复制完整提示词
-        </Button>
-        {active?.id !== candidate.id && (
-          <Button
-            disabled={disabled}
-            variant="primary"
-            onClick={() => onApply(candidate)}
-          >
-            采用这组风格
-          </Button>
-        )}
-      </div>
-      {changed && (
-        <p className="detail-help">
-          当前提示词已手动调整或恢复，以下为最近分析记录；试做与制作使用下方当前正式提示词。采用一组风格会保存新版本。
-        </p>
-      )}
-      <details
-        className="style-full-prompt"
-        open={candidates.length === 1 && !changed}
-        key={candidate.id}
-      >
-        <summary>完整可复制提示词 · {candidate.nameCn}</summary>
-        <div className={changed ? "candidate-prompt" : "rules-text"}>
-          {candidate.rules}
-        </div>
+      <details className="style-full-prompt" key={candidate.id}>
+        <summary>查看这组完整提示词</summary>
+        <div className="candidate-prompt">{candidate.rules}</div>
       </details>
-      {changed && (
-        <details className="style-full-prompt" open>
-          <summary>当前正式提示词</summary>
-          <Button onClick={() => void copy(style.rules)}>
-            复制当前正式提示词
-          </Button>
-          <div className="rules-text">{style.rules}</div>
-        </details>
-      )}
     </section>
   );
 }

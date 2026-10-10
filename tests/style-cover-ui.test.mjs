@@ -86,7 +86,7 @@ test(
         .getByRole("button", { name: "查看风格" })
         .click();
       await page
-        .getByRole("button", { name: "生成一页 demo / 调试风格" })
+        .getByRole("button", { name: "试做一页" })
         .click();
       const draft = page.getByLabel("试做讲稿", { exact: true });
       await draft.fill("保留这段尚未生成的试做草稿。");

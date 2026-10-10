@@ -1,6 +1,6 @@
 import { PageNumberHelp } from "./PageNumberHelp";
 import { DeleteItem } from "./DeleteItem";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useId } from "react";
 import {
   Plus,
   ArrowRight,
@@ -672,7 +672,20 @@ function StyleDetail({
     [editing, setEditing] = useState(false),
     [editBase, setEditBase] = useState(style.versionToken),
     [confirmDelete, setConfirmDelete] = useState(false);
+  const [detailView, setDetailView] = useState<
+    "prompt" | "analysis" | "versions"
+  >("prompt");
+  const viewId = useId();
+  const detailViews = [
+    ["prompt", "提示词"],
+    ["analysis", "分析记录"],
+    ["versions", "历史版本"],
+  ] as const;
   const input = useRef<HTMLInputElement>(null);
+  const rulesPanel = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    rulesPanel.current?.scrollTo({ top: 0 });
+  }, [detailView]);
   const [context, setContext] = useState<StyleContext>(
     style.analysisContext || {},
   );
@@ -699,7 +712,7 @@ function StyleDetail({
       title={style.name}
       subtitle={
         style.builtin
-          ? "内置起始规则，可以加入自己的参考图继续调试。"
+          ? "内置起始规则，可以加入自己的参考图继续调整。"
           : style.refs.length
             ? `${style.refs.length} 张参考图 · 可用于你的所有演讲项目`
             : "提示词风格 · 无需参考图，可直接试做或用于演讲"
@@ -806,144 +819,222 @@ function StyleDetail({
                 </p>
               )}
             </div>
+            <details className="style-generation-options">
+              <summary>生成选项</summary>
+              <label className="detail-help">
+                <input
+                  type="checkbox"
+                  checked={style.compositionMode === "content-led"}
+                  disabled={busy || analyzing || editing}
+                  onChange={(event) => {
+                    const compositionMode = event.target.checked
+                      ? "content-led"
+                      : "direct";
+                    void act(
+                      () =>
+                        patch("/styles/" + style.id, {
+                          compositionMode,
+                          expectedVersion: style.versionToken,
+                        }),
+                      "当前风格的构图方式已保存，下次制作时使用。",
+                    );
+                  }}
+                />
+                按内容构思（仅当前风格）
+              </label>
+              <p className="detail-help">
+                开启后，每页先调用内容模型构思，再搭配这份提示词出图，会增加等待和服务费用。关闭时直接使用提示词与上屏文案出图。
+              </p>
+              <PageNumberHelp rules={editing ? rules : style.rules || ""} />
+            </details>
           </div>
           <div
             className="style-rules"
+            ref={rulesPanel}
             role="region"
             aria-label="风格提示词与分析"
             tabIndex={0}
           >
-            <label className="detail-help">
-              <input
-                type="checkbox"
-                checked={style.compositionMode === "content-led"}
-                disabled={busy || analyzing || editing}
-                onChange={(event) => {
-                  const compositionMode = event.target.checked
-                    ? "content-led"
-                    : "direct";
-                  void act(
-                    () =>
-                      patch("/styles/" + style.id, {
-                        compositionMode,
-                        expectedVersion: style.versionToken,
-                      }),
-                    "当前风格的构图方式已保存，下次制作时使用。",
-                  );
-                }}
-              />
-              按内容构思（仅当前风格）
-            </label>
-            <p className="detail-help">
-              开启后，每页增加一次内容模型调用，比较不同表达并做五维构思自检；批量制作参考附近页面的构图描述。方案可查看，并包含在完整提示词中。关闭则直接使用风格原文与内容出图。
-            </p>
-            <div className="style-rules-heading">
-              <h3>{style.refs.length ? "提炼出的设计语言" : "风格提示词"}</h3>
-              {!!style.rules && (
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    if (!editing) setEditBase(style.versionToken);
-                    setEditing(!editing);
-                  }}
-                  disabled={analyzing || busy}
-                >
-                  {editing ? "取消编辑" : "手动调整"}
-                </Button>
-              )}
-            </div>
-            {analyzing && (
-              <div className="analyzing-style">
-                <SpinnerGap size={24} className="spin" />
-                <p>{analysisStage || "正在逐图分析视觉特点…"}</p>
-                <span>判断图片关系后，将为每个独立风格生成完整提示词。</span>
-              </div>
-            )}
-            {style.error && <p className="error-text">{style.error}</p>}
-            {editing ? (
-              <>
-                <textarea
-                  className="rules-editor"
-                  aria-label="风格设计规则"
-                  value={rules}
-                  onChange={(e) => setRules(e.target.value)}
-                />
-                {editBase !== style.versionToken && (
-                  <div>
-                    <p className="error-text">
-                      正式提示词已有更新，你的输入仍保留。请在下方版本记录中比较，再确认继续编辑。
-                    </p>
-                    <Button
-                      disabled={busy}
-                      onClick={() => {
-                        setEditBase(style.versionToken);
-                        setError("");
-                      }}
-                    >
-                      已比较，继续编辑
-                    </Button>
-                  </div>
-                )}
-              </>
-            ) : style.rules ? (
-              style.styleAnalysis?.styles?.length ? (
-                <StylePromptResults
-                  style={style}
-                  disabled={busy || analyzing}
-                  notify={notify}
-                  onApply={(candidate) =>
-                    void act(
-                      () =>
-                        patch(`/styles/${style.id}`, {
-                          analysisStyleId: candidate.id,
-                          analysisId: style.styleAnalysis?.id,
-                          expectedVersion: style.versionToken,
-                        }),
-                      "这组完整提示词已保存为当前风格，上一版可恢复。",
-                    )
-                  }
-                />
-              ) : (
-                <>
-                  <Button
-                    onClick={async () => {
-                      try {
-                        await navigator.clipboard.writeText(style.rules);
-                        notify("提示词已复制。");
-                      } catch {
-                        notify("无法访问剪贴板，请选中文字复制。");
-                      }
+            <div className="style-prompt-toolbar">
+              <div
+                className="style-detail-tabs"
+                role="tablist"
+                aria-label="风格详情"
+              >
+                {detailViews.map(([view, label], index) => (
+                  <button
+                    key={view}
+                    id={`${viewId}-${view}`}
+                    role="tab"
+                    aria-selected={detailView === view}
+                    aria-controls={`${viewId}-panel`}
+                    tabIndex={detailView === view ? 0 : -1}
+                    onClick={() => setDetailView(view)}
+                    onKeyDown={(event) => {
+                      const next =
+                        event.key === "ArrowRight"
+                          ? (index + 1) % detailViews.length
+                          : event.key === "ArrowLeft"
+                            ? (index + detailViews.length - 1) %
+                              detailViews.length
+                            : event.key === "Home"
+                              ? 0
+                              : event.key === "End"
+                                ? detailViews.length - 1
+                                : null;
+                      if (next === null) return;
+                      event.preventDefault();
+                      setDetailView(detailViews[next][0]);
+                      event.currentTarget.parentElement
+                        ?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+                        [next]?.focus();
                     }}
                   >
-                    复制完整提示词
-                  </Button>
-                  <div className="rules-text">{style.rules}</div>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {detailView === "prompt" && (
+                <div className="style-rules-heading">
+                  <h3>{editing ? "编辑提示词" : "风格提示词"}</h3>
+                  {!!style.rules && (
+                    <div className="style-prompt-actions">
+                      {!editing && (
+                        <Button
+                          variant="ghost"
+                          onClick={async () => {
+                            try {
+                              await navigator.clipboard.writeText(style.rules);
+                              notify("当前提示词已完整复制。");
+                            } catch {
+                              notify("无法访问剪贴板，请选中文字复制。");
+                            }
+                          }}
+                        >
+                          复制完整提示词
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        onClick={() => {
+                          if (!editing) setEditBase(style.versionToken);
+                          setEditing(!editing);
+                        }}
+                        disabled={analyzing || busy}
+                      >
+                        {editing ? "取消编辑" : "手动调整"}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            <div
+              id={`${viewId}-panel`}
+              className="style-detail-tab-panel"
+              role="tabpanel"
+              aria-labelledby={`${viewId}-${detailView}`}
+              tabIndex={0}
+            >
+              {analyzing && (
+                <div className="analyzing-style">
+                  <SpinnerGap size={24} className="spin" />
+                  <p>{analysisStage || "正在逐图分析视觉特点…"}</p>
+                  <span>判断图片关系后，将为每个独立风格生成完整提示词。</span>
+                </div>
+              )}
+              {style.error && <p className="error-text">{style.error}</p>}
+              {detailView === "prompt" &&
+                (editing ? (
+                  <>
+                    <textarea
+                      className="rules-editor"
+                      aria-label="风格设计规则"
+                      value={rules}
+                      onChange={(e) => setRules(e.target.value)}
+                    />
+                    {editBase !== style.versionToken && (
+                      <div>
+                        <p className="error-text">
+                          正式提示词已有更新，你的输入仍保留。请在下方版本记录中比较，再确认继续编辑。
+                        </p>
+                        <Button
+                          disabled={busy}
+                          onClick={() => {
+                            setEditBase(style.versionToken);
+                            setError("");
+                          }}
+                        >
+                          已比较，继续编辑
+                        </Button>
+                      </div>
+                    )}
+                  </>
+                ) : style.rules ? (
+                  <>
+                    <p className="style-prompt-caption">
+                      试做和项目制作使用这份完整提示词。
+                    </p>
+                    <div className="rules-text" aria-label="当前完整风格提示词">
+                      {style.rules}
+                    </div>
+                  </>
+                ) : (
+                  !analyzing && (
+                    <p className="muted">
+                      参考图已保存。点击“重新提炼风格”获取完整提示词。
+                    </p>
+                  )
+                ))}
+              {detailView === "analysis" && (
+                <>
+                  {!!style.styleAnalysis?.styles?.length && (
+                    <StylePromptResults
+                      style={style}
+                      disabled={editing || busy || analyzing}
+                      notify={notify}
+                      onApply={(candidate) =>
+                        void act(
+                          () =>
+                            patch(`/styles/${style.id}`, {
+                              analysisStyleId: candidate.id,
+                              analysisId: style.styleAnalysis?.id,
+                              expectedVersion: style.versionToken,
+                            }),
+                          "这组完整提示词已保存为当前风格，上一版可恢复。",
+                        )
+                      }
+                    />
+                  )}
+                  <StyleAnalysis style={style} initiallyOpen />
+                  {!style.styleAnalysis && (
+                    <p className="detail-help">
+                      还没有参考图分析记录。当前提示词可以直接使用。
+                    </p>
+                  )}
                 </>
-              )
-            ) : (
-              !analyzing && (
-                <p className="muted">
-                  参考图已保存。点击“重新提炼风格”获取设计规则。
-                </p>
-              )
-            )}
-            <StyleAnalysis style={style} />
-            <PageNumberHelp rules={editing ? rules : style.rules || ""} />
-            <StyleVersions
-              style={style}
-              disabled={editing || busy || analyzing}
-              blockedReason={
-                editing ? "先保存或取消当前编辑，再恢复历史版本。" : undefined
-              }
-              onRestored={async (_saved, changed) => {
-                await refresh();
-                notify(
-                  changed
-                    ? "已恢复并保存为新版本。"
-                    : "当前内容已一致，无需恢复。",
-                );
-              }}
-            />
+              )}
+              {detailView === "versions" && (
+                <StyleVersions
+                  style={style}
+                  initiallyOpen
+                  disabled={editing || busy || analyzing}
+                  blockedReason={
+                    editing
+                      ? "先保存或取消当前编辑，再恢复历史版本。"
+                      : undefined
+                  }
+                  onRestored={async (_saved, changed) => {
+                    await refresh();
+                    notify(
+                      changed
+                        ? "已恢复并保存为新版本。"
+                        : "当前内容已一致，无需恢复。",
+                    );
+                  }}
+                />
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -955,7 +1046,9 @@ function StyleDetail({
         )}
         {!!style.rules && (
           <p className="detail-help">
-            保存后的设计语言将原文用于出图；只有主动重新提炼才会改写。
+            {editing
+              ? "保存后生效，上一版会保留。"
+              : "修改提示词不会自动重做已有图片。"}
           </p>
         )}
         <div className="modal-actions">
@@ -1025,7 +1118,7 @@ function StyleDetail({
               disabled={!style.rules || analyzing || busy || editing}
               onClick={onTest}
             >
-              生成一页 demo / 调试风格
+              试做一页
               <ArrowRight size={17} />
             </Button>
           </div>

@@ -2485,7 +2485,7 @@ test(
       await page.getByRole("button", { name: "保存风格", exact: true }).click();
       await expect(
         page.getByRole("button", {
-          name: "生成一页 demo / 调试风格",
+          name: "试做一页",
           exact: true,
         }),
       ).toBeVisible();
@@ -2552,7 +2552,7 @@ test(
       await expect(
         page.getByRole("button", { name: "手动调整", exact: true }),
       ).toBeVisible();
-      await page.locator(".style-versions > summary").click();
+      await page.getByRole("tab", { name: "历史版本", exact: true }).click();
       await page
         .getByLabel("选择提示词版本")
         .selectOption(beforeVersions[0].id);
@@ -2564,12 +2564,14 @@ test(
       await page
         .getByRole("button", { name: "恢复此版本", exact: true })
         .click();
+      await page.getByRole("tab", { name: "提示词", exact: true }).click();
       await expect(page.locator(".rules-text")).toHaveText(originalRules);
       const afterVersions = (await req(`/styles/${style.id}/versions`))
         .versions;
       assert.equal(afterVersions.length, beforeVersions.length + 4);
       assert.equal(afterVersions[0].source, "restore");
       assert.equal(afterVersions[1].rules, originalRules + "\n浏览器版本验证");
+      await page.getByRole("tab", { name: "历史版本", exact: true }).click();
       await page.setViewportSize({ width: 390, height: 844 });
       await page
         .getByRole("button", { name: "恢复此版本", exact: true })
@@ -2588,6 +2590,7 @@ test(
         path: path.join(dir, "style-versions-desktop.png"),
         fullPage: true,
       });
+      await page.getByText("生成选项", { exact: true }).click();
       await page
         .getByRole("checkbox", { name: "按内容构思（仅当前风格）" })
         .click();
@@ -2595,7 +2598,7 @@ test(
         page.getByRole("checkbox", { name: "按内容构思（仅当前风格）" }),
       ).toBeChecked();
       await page
-        .getByRole("button", { name: "生成一页 demo / 调试风格", exact: true })
+        .getByRole("button", { name: "试做一页", exact: true })
         .click();
       await page
         .getByRole("button", { name: "从正式风格重新开始", exact: true })
@@ -2779,7 +2782,7 @@ test(
         .getByRole("button", { name: "查看风格" })
         .click();
       await page
-        .getByRole("button", { name: "生成一页 demo / 调试风格", exact: true })
+        .getByRole("button", { name: "试做一页", exact: true })
         .click();
       await expect(page.getByLabel("试做讲稿", { exact: true })).toHaveValue(
         "这是浏览器图片试做。",

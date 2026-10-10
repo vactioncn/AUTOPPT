@@ -19,11 +19,20 @@ const dimensions: [keyof ReferenceProfile, string][] = [
   ["useCases", "适用场景"],
 ];
 
-export function StyleAnalysis({ style }: { style: Style }) {
+export function StyleAnalysis({
+  style,
+  initiallyOpen = false,
+}: {
+  style: Style;
+  initiallyOpen?: boolean;
+}) {
   const analysis = style.styleAnalysis;
   if (!analysis) return null;
   return (
-    <details className="studio-rules studio-rule-details style-analysis">
+    <details
+      className="studio-rules studio-rule-details style-analysis"
+      open={initiallyOpen || undefined}
+    >
       <summary>查看参考图分析与创作依据</summary>
       <p className="detail-help">
         记录最近一次提炼时的观察与设计取舍；手动调整或恢复版本后，出图以当前提示词为准。

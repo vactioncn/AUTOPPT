@@ -38,13 +38,15 @@ export function StyleVersions({
   disabled = false,
   blockedReason,
   onRestored,
+  initiallyOpen = false,
 }: {
   style: Style;
   disabled?: boolean;
   blockedReason?: string;
   onRestored: (style: Style, changed: boolean) => Promise<void>;
+  initiallyOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(false),
+  const [open, setOpen] = useState(initiallyOpen),
     [data, setData] = useState<Versions | null>(null),
     [selectedId, setSelectedId] = useState(""),
     [loading, setLoading] = useState(false),
@@ -107,6 +109,7 @@ export function StyleVersions({
   return (
     <details
       className="style-versions"
+      open={open}
       onToggle={(e) => setOpen(e.currentTarget.open)}
     >
       <summary>

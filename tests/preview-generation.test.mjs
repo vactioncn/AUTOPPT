@@ -21,6 +21,7 @@ test(
       .png()
       .toBuffer();
     const prompts = [];
+    let uncertainImage = false;
     const provider = http.createServer(async (req, res) => {
       const chunks = [];
       for await (const chunk of req) chunks.push(chunk);
@@ -28,6 +29,15 @@ test(
       res.setHeader("Content-Type", "application/json");
       if (req.url.includes("/images/")) {
         prompts.push(body.prompt);
+        if (uncertainImage) {
+          res.statusCode = 500;
+          res.end(
+            JSON.stringify({
+              error: { message: "mock provider result unknown" },
+            }),
+          );
+          return;
+        }
         res.end(
           JSON.stringify({ data: [{ b64_json: png.toString("base64") }] }),
         );
@@ -143,7 +153,7 @@ test(
       cookie = response.headers.get("set-cookie")?.split(";")[0] || cookie;
       return data;
     };
-    const finished = async (id) => {
+    const finished = async (id, expectedStatus = "completed") => {
       for (let n = 0; n < 300; n++) {
         const job = (await request("/api/jobs")).find((j) => j.id === id);
         if (
@@ -151,7 +161,7 @@ test(
             job.status,
           )
         ) {
-          assert.equal(job.status, "completed", JSON.stringify(job));
+          assert.equal(job.status, expectedStatus, JSON.stringify(job));
           return job;
         }
         await new Promise((resolve) => setTimeout(resolve, 50));
@@ -251,5 +261,59 @@ test(
     const account = await request("/api/account");
     assert.equal(account.user.available, 17);
     assert.equal(account.user.held, 0);
+    // An ambiguous provider response must survive page aggregation and restart,
+    // and must never be automatically reissued.
+    uncertainImage = true;
+    const failedProject = await request(
+      "/api/projects",
+      { title: "核对未知结果", styleId: style.id },
+      201,
+    );
+    const failedJob = await request(
+      `/api/projects/${failedProject.id}/batches`,
+      {
+        text: "先核对这次生成结果。",
+        generationMode: "preview",
+        requestId: randomUUID(),
+      },
+      202,
+    );
+    const failed = await finished(failedJob.id, "failed");
+    assert.equal(failed.uncertain, true);
+    assert.equal(failed.pageProgress.failed[0].uncertain, true);
+    assert.equal(prompts.length, 4);
+    const uncertainAccount = await request("/api/account");
+    assert.equal(uncertainAccount.user.available, 16);
+    assert.equal(uncertainAccount.user.held, 1);
+    await stop();
+    await start();
+    assert.equal(
+      (await request("/api/jobs")).find((job) => job.id === failed.id)
+        .uncertain,
+      true,
+    );
+    assert.equal(
+      prompts.length,
+      4,
+      "Unknown image result must not retry after restart",
+    );
+    await request(`/api/jobs/${failed.id}/retry`, {}, 409);
+    const failedState = await request(`/api/projects/${failedProject.id}`);
+    await request(
+      `/api/projects/${failedProject.id}/render`,
+      { slideIds: failedState.slides.map((page) => page.id), redesign: false },
+      409,
+    );
+    assert.equal(
+      prompts.length,
+      4,
+      "Other page generation entry points cannot bypass result review",
+    );
+    uncertainImage = false;
+    const retried = await request(`/api/jobs/${failed.id}/retry`, {
+      acknowledgeUncertain: true,
+    });
+    await finished(retried.id);
+    assert.equal(prompts.length, 5);
   },
 );

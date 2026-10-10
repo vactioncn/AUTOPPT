@@ -31,5 +31,5 @@ export function imageContentPrompt(copy) {
   const materials = excerpts
     ? `\n\n【可选语义辅助资料｜不作为主体】\n${excerpts}`
     : "";
-  return `【上屏主文案】\n${copy.displayText.join("\n\n")}${hierarchy}${materials}\n\n【辅助表达边界】\n${SEMANTIC_BOUNDARY}\n\n【本页文字核对清单｜仅作检查，不作为额外文案】\n${copy.displayText.map((text, i) => `${i + 1}. ${JSON.stringify(text)}`).join("\n")}\n生成成品前逐项核对：上述主文案必须完整出现在画面中，不能用风格里的样例标题、示例宣传语或其他行业的文案替换。风格原文决定视觉语言，本页清单决定要表达的内容；风格示例中不属于本页的文字不进入成品。保留中文、数字、否定与限定条件，辅助表达不能成为另一个主题。`;
+  return `【上屏主文案】\n${copy.displayText.join("\n\n")}${hierarchy}${materials}\n\n【辅助表达边界】\n${SEMANTIC_BOUNDARY}\n\n【本页文字核对清单｜仅作检查，不作为额外文案】\n逐项核对前述 ${copy.displayText.length} 组上屏主文案，清单本身不上屏。\n生成成品前逐项核对：上述主文案必须完整出现在画面中，不能用风格里的样例标题、示例宣传语或其他行业的文案替换。风格原文决定视觉语言，本页清单决定要表达的内容；风格示例中不属于本页的文字不进入成品。保留中文、数字、否定与限定条件，辅助表达不能成为另一个主题。`;
 }

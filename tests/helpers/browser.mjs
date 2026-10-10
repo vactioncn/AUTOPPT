@@ -6,6 +6,10 @@ import { chromium } from "@playwright/test";
 // then discover Playwright/system Chromium. Only missing browsers cause a skip;
 // launch failures with an installed browser remain test failures.
 export async function launchBrowser(t) {
+  if (process.env.AUTOPPT_SKIP_BROWSER_TESTS === "1") {
+    t.skip("Browser automation explicitly disabled; UI verification must be run separately.");
+    return null;
+  }
   const candidates = [
     process.env.CHROMIUM_EXECUTABLE,
     chromium.executablePath(),

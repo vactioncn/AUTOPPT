@@ -555,6 +555,22 @@ app.post("/api/projects/:id/render", (req, res) => {
     ids.some((id) => !p.slides.some((s) => s.id === id))
   )
     throw new Error("请选择需要制作的页面。");
+  const unresolved = all("job").find(
+    (job) =>
+      job.projectId === p.id &&
+      job.uncertain &&
+      !job.resultReviewedAt &&
+      job.pageProgress?.failed.some(
+        (page) => page.uncertain && ids?.includes(page.id),
+      ),
+  );
+  if (unresolved)
+    throw Object.assign(
+      new Error(
+        "所选页面有生成结果尚未核对。请在制作台通过“核对后继续”处理这次任务，再决定是否重新设计。",
+      ),
+      { status: 409 },
+    );
   assertIdle(p.id, ids);
   p.undo = null;
   if (req.body.attachmentIds !== undefined && ids.length !== 1)
@@ -878,7 +894,13 @@ app.get("/api/jobs", (req, res) =>
   ),
 );
 app.post("/api/jobs/:id/retry", (req, res) =>
-  res.json(safeJob(retry(req.params.id))),
+  res.json(
+    safeJob(
+      retry(req.params.id, {
+        acknowledgeUncertain: req.body?.acknowledgeUncertain === true,
+      }),
+    ),
+  ),
 );
 app.post("/api/jobs/:id/cancel", (req, res) =>
   res.json(safeJob(cancel(req.params.id))),

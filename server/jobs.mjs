@@ -165,12 +165,19 @@ export function cancel(jobId) {
   put("job", j);
   return j;
 }
-export function retry(jobId) {
+export function retry(jobId, { acknowledgeUncertain = false } = {}) {
   const j = get("job", jobId);
   if (!j || !["failed", "interrupted", "cancelled"].includes(j.status))
     throw new Error("这个任务不需要重试。");
   if (controllers.has(jobId))
     throw new Error("正在停止上一次制作，请稍后继续。");
+  if (j.projectId && j.uncertain && !acknowledgeUncertain)
+    throw Object.assign(
+      new Error(
+        "这次生成结果需要核对。请在制作台点击“核对后继续”，确认可能再次计费后再提交。",
+      ),
+      { status: 409 },
+    );
   if (j.projectId) {
     assertSubmission(j.type, j.projectId, j.payload, j.id);
     // A retry is a new attempt under the user's current choice, not the original job's style.
@@ -196,7 +203,10 @@ export function retry(jobId) {
       throw new Error("这个风格已有试做任务，请稍后再继续。");
   }
   j.status = "queued";
+  if (j.uncertain && acknowledgeUncertain) j.resultReviewedAt = now();
   j.error = null;
+  delete j.uncertain;
+  j.attemptStartedAt = now();
   delete j.pageProgress;
   delete j.autoRetry;
   j.done = 0;
@@ -478,6 +488,7 @@ async function renderSlides(j, ids, signal, redesign = false) {
         id: sid,
         page: pageNumber,
         error: e.message,
+        ...(e.uncertain ? { uncertain: true } : {}),
       });
       j.pageProgress.current = null;
       progress(
@@ -489,8 +500,11 @@ async function renderSlides(j, ids, signal, redesign = false) {
     }
   }
   if (failures)
-    throw new Error(
-      `${failures} 页生成失败，已完成的页面已保存。可继续失败页面，具体原因见页面提示。`,
+    throw Object.assign(
+      new Error(
+        `${failures} 页生成失败，已完成的页面已保存。可继续失败页面，具体原因见页面提示。`,
+      ),
+      { uncertain: j.pageProgress.failed.some((page) => page.uncertain) },
     );
 }
 async function run(j, signal) {
@@ -677,6 +691,7 @@ async function execute(j, controller) {
                 maxRetries: waiting.maxRetries,
                 seconds: Math.ceil(waiting.ms / 1000),
                 reason: recoveryReason(waiting.reason),
+                retryAt: new Date(Date.now() + waiting.ms).toISOString(),
               };
               stageBeforeRetry ??= j.stage;
               progress(
@@ -697,6 +712,8 @@ async function execute(j, controller) {
     progress(j, "制作完成", j.total, j.total);
   } catch (e) {
     j.status = controller.signal.aborted ? "cancelled" : "failed";
+    j.uncertain = Boolean(e.uncertain);
+    if (j.uncertain) delete j.resultReviewedAt;
     j.error = controller.signal.aborted
       ? "任务已停止，已完成的内容已保存。"
       : e.message;

@@ -153,6 +153,9 @@ export function Workspace({
   );
   const [completePreviewOpen, setCompletePreviewOpen] = useState(false);
   const [completingPreview, setCompletingPreview] = useState(false);
+  const [retryReview, setRetryReview] = useState<Job | null>(null);
+  const [reviewedRetry, setReviewedRetry] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   const submitLock = useRef(false);
   const latestModelsReady = useRef(modelsReady);
   latestModelsReady.current = modelsReady;
@@ -428,6 +431,32 @@ export function Workspace({
   };
   const pageBusy = (sid: string) =>
     activeJobs.some((j) => !j.slideIds || j.slideIds.includes(sid));
+  const retryTask = (job: Job) => {
+    if (
+      job.uncertain ||
+      job.pageProgress?.failed.some((page) => page.uncertain)
+    ) {
+      setReviewedRetry(false);
+      setRetryReview(job);
+    } else void run(() => post(`/jobs/${job.id}/retry`));
+  };
+  const confirmRetry = async () => {
+    if (!retryReview || !reviewedRetry || retrying) return;
+    setRetrying(true);
+    setError("");
+    try {
+      await post(`/jobs/${retryReview.id}/retry`, {
+        acknowledgeUncertain: true,
+      });
+      setRetryReview(null);
+      await refresh();
+      await onRefresh();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setRetrying(false);
+    }
+  };
   const proposalBusy = project.proposal?.sourceIds.some(pageBusy) ?? false;
   const submitProposal = async (commit: boolean) => {
     const proposalId = project.proposal?.id;
@@ -857,7 +886,8 @@ export function Workspace({
           </div>
           <div className="studio-topbar-actions">
             {(!!project.slides.length || !!project.batches.length) &&
-              !composerOpen && (
+              !composerOpen &&
+              !(previewPage && previewRemaining.length) && (
                 <Button
                   variant="primary"
                   onClick={() => followAction(primaryAction)}
@@ -958,7 +988,7 @@ export function Workspace({
                   />
                 )}
               </div>
-              <JobFeedback job={busy} />
+              <JobFeedback job={busy} hosted={hosted} />
             </section>
           ))}
           {!busy &&
@@ -971,16 +1001,12 @@ export function Workspace({
                     <strong>{lastJob.stage}</strong>
                     <p>{lastJob.error}</p>
                   </div>
-                  <Button
-                    onClick={() =>
-                      run(() => post("/jobs/" + lastJob.id + "/retry"))
-                    }
-                  >
-                    继续未完成任务
+                  <Button onClick={() => retryTask(lastJob)}>
+                    {lastJob.uncertain ? "核对后继续" : "继续未完成任务"}
                     <ArrowRight size={16} />
                   </Button>
                 </div>
-                <JobFeedback job={lastJob} />
+                <JobFeedback job={lastJob} hosted={hosted} />
               </section>
             )}
           {!busy &&
@@ -996,7 +1022,10 @@ export function Workspace({
                   {b.jobId && (
                     <Button
                       onClick={() =>
-                        run(() => post("/jobs/" + b.jobId + "/retry"))
+                        retryTask(
+                          jobs.find((job) => job.id === b.jobId) ||
+                            ({ id: b.jobId } as Job),
+                        )
                       }
                     >
                       继续这一段
@@ -1104,24 +1133,26 @@ export function Workspace({
                     <div>{secondaryActions}</div>
                   </details>
 
-                  {!busy && pending.some((s) => !(s.image || s.scene)) && (
-                    <Button
-                      className="fill-missing-pages"
-                      onClick={() =>
-                        run(() =>
-                          post("/projects/" + id + "/render", {
-                            slideIds: pending
-                              .filter((s) => !(s.image || s.scene))
-                              .map((s) => s.id),
-                            redesign: false,
-                          }),
-                        )
-                      }
-                    >
-                      <ArrowsClockwise size={15} />
-                      补齐未生成页面
-                    </Button>
-                  )}
+                  {!busy &&
+                    !(previewPage && previewRemaining.length) &&
+                    pending.some((s) => !(s.image || s.scene)) && (
+                      <Button
+                        className="fill-missing-pages"
+                        onClick={() =>
+                          run(() =>
+                            post("/projects/" + id + "/render", {
+                              slideIds: pending
+                                .filter((s) => !(s.image || s.scene))
+                                .map((s) => s.id),
+                              redesign: false,
+                            }),
+                          )
+                        }
+                      >
+                        <ArrowsClockwise size={15} />
+                        补齐未生成页面
+                      </Button>
+                    )}
                   {project.batches.length > 1 && (
                     <select
                       className="batch-select"
@@ -1687,6 +1718,48 @@ export function Workspace({
               </div>
             </>
           )}
+        </Modal>
+      )}
+      {retryReview && (
+        <Modal
+          title="先核对这次生成，再决定是否继续"
+          onClose={() => !retrying && setRetryReview(null)}
+        >
+          <p>
+            服务可能已经处理了部分请求，但没有返回可用结果。已完成的页面和原稿都会保留。
+          </p>
+          <p>
+            {hosted
+              ? "请先联系管理员核对账号中的待确认用量与生成记录。"
+              : "请先核对服务商的用量与生成记录。"}
+            继续会重新提交未完成部分，可能再次计费。
+          </p>
+          <label className="consent-line">
+            <input
+              type="checkbox"
+              checked={reviewedRetry}
+              onChange={(event) => setReviewedRetry(event.target.checked)}
+            />
+            我已核对记录，并决定重新提交未完成部分
+          </label>
+          {error && (
+            <p role="alert" className="error-text">
+              {error}
+            </p>
+          )}
+          <div className="modal-actions">
+            <Button disabled={retrying} onClick={() => setRetryReview(null)}>
+              暂不重试
+            </Button>
+            <Button
+              variant="primary"
+              disabled={!reviewedRetry}
+              loading={retrying}
+              onClick={() => void confirmRetry()}
+            >
+              重新提交未完成部分
+            </Button>
+          </div>
         </Modal>
       )}
       {completePreviewOpen && (

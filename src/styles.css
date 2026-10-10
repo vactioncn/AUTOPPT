@@ -1281,6 +1281,7 @@ img {
 .job-recovery {
   color: #4c673d;
 }
+.job-waiting { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 10px 0; font-variant-numeric: tabular-nums; }
 .inline-notice {
   background: #ecede5;
   font-size: 12px;

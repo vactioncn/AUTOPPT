@@ -1608,6 +1608,7 @@ test(
         assert.equal(batches, 3);
         assert.equal(readProject(projectId).batches.length, 1);
         assert.equal(await preference(), "direct");
+        await button("继续添加讲稿").click();
         await input.fill("第二段隔离文字，验证已明确选择的直接生成。");
         await button("提交讲稿并制作").click();
         await expect(input).toHaveValue("");

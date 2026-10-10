@@ -437,21 +437,24 @@ export type ProjectSummary = {
   coverScene?: Scene;
 };
 export type Job = {
+  uncertain?: boolean;
+  attemptStartedAt?: string;
   preview?: { slideId: string; totalPages: number };
-  failures?: { id: string; page: number; error: string }[];
+  failures?: { id: string; page: number; error: string; uncertain?: boolean }[];
   pageProgress?: {
     phase?: "analysis" | "images";
     total: number;
     preserved: number;
     succeeded: number;
     current: { id: string; page: number } | null;
-    failed: { id: string; page: number; error: string }[];
+    failed: { id: string; page: number; error: string; uncertain?: boolean }[];
   };
   autoRetry?: {
     attempt: number;
     maxRetries: number;
     seconds: number;
     reason?: string;
+    retryAt?: string;
   };
   slideIds?: string[] | null;
   targetSlideIds?: string[];

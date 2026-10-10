@@ -1,3 +1,4 @@
+import { publishRehearsalNarration } from "../rehearsal-narration.mjs";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -87,6 +88,58 @@ async function textSources(projectId) {
   };
 }
 
+// Only accept an already validated, server-owned rehearsal snapshot.
+async function rehearsalSources(projectId, runId) {
+  const run = get("rehearsal-run", runId),
+    project = projectOrThrow(projectId);
+  if (!run || run.projectId !== projectId || run.plan.actor !== "digital")
+    throw fail("演练任务不存在。", 404);
+  const avatar = get("avatar", run.plan.avatarId);
+  if (!avatar || avatar.deletedAt)
+    throw fail("请在设置中准备头像，再在本场演讲选择。");
+  const imageHash = hash(await readLocal(assetPath(avatar.sourceAsset)));
+  const config = speechSettings();
+  if (
+    !run.plan.narrationId &&
+    (!config.apiKey ||
+      providerIdentity(config) !== run.speechProvider ||
+      config.model !== run.speechModel)
+  )
+    throw fail("声音服务已改变，请检查设置后重新生成。");
+  const voice = run.plan.narrationId
+    ? run.options
+    : optionsFor(run.options, config);
+  const speech = {
+    config,
+    provider: providerIdentity(config),
+    options: voice,
+    voice: { name: run.voiceName },
+  };
+  const pages = run.pages.map((p) => ({
+    ...p,
+    clips: p.clips.map((c, i) =>
+      c.audioFile
+        ? {
+            ...c,
+            index: i,
+            fingerprint: hash(
+              JSON.stringify([imageHash, c.audioHash, c.duration]),
+            ),
+          }
+        : textClip(c.text, imageHash, speech, i),
+    ),
+  }));
+  return {
+    project,
+    avatar,
+    imageHash,
+    setup: run.plan,
+    pages,
+    speech: run.plan.narrationId ? null : speech,
+    narration: { id: run.plan.narrationId, voiceName: run.voiceName },
+  };
+}
+
 async function sources(projectId, setup = get("presenter-setup", projectId)) {
   const project = projectOrThrow(projectId);
   const avatar = get("avatar", setup?.avatarId);
@@ -165,7 +218,7 @@ export function recoverPresenters() {
 }
 async function compatible(job) {
   try {
-    if (["text", "minimax"].includes(job.mode)) {
+    if (job.rehearsalRunId || ["text", "minimax"].includes(job.mode)) {
       const avatar = get("avatar", job.avatarId);
       if (
         !avatar ||
@@ -215,6 +268,12 @@ export async function publicGeneration(job) {
     message: job.message || "",
     createdAt: job.createdAt,
     compatible: await compatible(job),
+    recovery: job.pages.some((p) => p.clips.some((c) => c.remoteFailed))
+      ? "new-task"
+      : "resume",
+    failureCode:
+      job.pages.flatMap((p) => p.clips).find((c) => c.remoteFailed)
+        ?.failureCode || "",
     pages: job.pages.map((p) => ({
       id: p.id,
       title: p.title,
@@ -224,6 +283,7 @@ export async function publicGeneration(job) {
         duration: c.duration,
         text: ["text", "minimax"].includes(job.mode) ? c.text : undefined,
         status: c.status,
+        audioFile: c.audioFile,
         file: c.status === "ready" ? c.videoFile : undefined,
       })),
     })),
@@ -271,8 +331,9 @@ export async function createGeneration(
     throw fail("本项目已有数字人生成任务，请等待完成或停止后续生成。", 409);
   const { apiKey } = presenterSettings();
   if (!apiKey) throw fail("请先在设置中保存 HeyGen API Key。");
-  const source =
-    input.mode === "text"
+  const source = input.rehearsalRunId
+    ? await rehearsalSources(projectId, input.rehearsalRunId)
+    : input.mode === "text"
       ? await textSources(projectId)
       : await sources(projectId);
   const pages = source.pages.filter(
@@ -320,7 +381,8 @@ export async function createGeneration(
     imageAsset: source.avatar.sourceAsset,
     imageHash: source.imageHash,
     narrationId: source.narration.id,
-    mode: input.mode === "text" ? "minimax" : "audio",
+    mode: source.speech ? "minimax" : "audio",
+    rehearsalRunId: input.rehearsalRunId || null,
     avatarName: source.avatar.name,
     voiceName: source.speech?.voice.name || source.narration.voiceName,
     ...(source.speech
@@ -508,6 +570,17 @@ async function run(
     job.stopRequested = get(kind, job.id)?.stopRequested || false;
     job.updatedAt = now();
     put(kind, job);
+    if (job.rehearsalRunId) {
+      const rehearsal = get("rehearsal-run", job.rehearsalRunId);
+      if (rehearsal)
+        publishRehearsalNarration(
+          rehearsal,
+          rehearsal.pages.map((p) => ({
+            ...p,
+            clips: job.pages.find((page) => page.id === p.id)?.clips || p.clips,
+          })),
+        );
+    }
   };
   const checkStop = () => {
     if (get(kind, job.id)?.stopRequested)
@@ -528,12 +601,14 @@ async function run(
       );
     return owner[key].key;
   };
+  let activeClip;
   try {
     job.status = "running";
     job.message = "正在准备数字人口型";
     save();
     for (const page of job.pages)
       for (const clip of page.clips) {
+        activeClip = clip;
         checkStop();
         if (clip.status === "ready") continue;
         // Resolve the saved MiniMax voice before any new paid video submission.
@@ -601,9 +676,10 @@ async function run(
               (c) =>
                 c.status === "ready" &&
                 (c.fingerprint === clip.fingerprint ||
-                  (clip.mediaFingerprint &&
+                  ((clip.mediaFingerprint ||
+                    (clip.audioFile && clip.fingerprint)) &&
                     (c.mediaFingerprint || c.fingerprint) ===
-                      clip.mediaFingerprint)),
+                      (clip.mediaFingerprint || clip.fingerprint))),
             );
           if (!cached) continue;
           try {
@@ -734,6 +810,11 @@ async function run(
     job.message = "数字人口型已完成，可以预览并打开演讲播放器。";
     save();
   } catch (error) {
+    if (error.rejected && activeClip && !activeClip.providerVideoId)
+      Object.assign(activeClip, {
+        remoteFailed: true,
+        failureCode: error.failureCode,
+      });
     job.status = error.status === 499 ? "stopped" : "interrupted";
     job.message = error.message;
     save();

@@ -1,5 +1,13 @@
 import { exportManuscript } from "../shared/manuscript.mjs";
 import type { Project } from "./types";
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+  }
+}
 export async function api<T = any>(
   path: string,
   options: RequestInit = {},
@@ -15,7 +23,8 @@ export async function api<T = any>(
   const data = await response.json();
   if (response.status === 401)
     window.dispatchEvent(new Event("autoppt-session-expired"));
-  if (!response.ok) throw new Error(data.error || "操作没有完成，请重试。");
+  if (!response.ok)
+    throw new ApiError(data.error || "操作没有完成，请重试。", response.status);
   return data;
 }
 export const post = <T = any>(path: string, body: unknown = {}) =>

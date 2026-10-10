@@ -122,7 +122,8 @@ test(
     page.on("pageerror", (e) => errors.push(e.message));
     const jobs = [],
       previews = [],
-      bodies = [];
+      bodies = [],
+      rehearsalRuns = [];
     let completed = false;
     const videoBytes = readFileSync(
       new URL("./fixtures/presenter/presenter.mp4", import.meta.url),
@@ -131,6 +132,57 @@ test(
       const req = route.request(),
         u = new URL(req.url());
       if (u.origin !== base) return route.abort();
+      if (u.pathname.endsWith("/rehearsal/runs")) {
+        if (req.method() === "POST") {
+          const body = req.postDataJSON();
+          bodies.push(body);
+          assert.equal(body.confirmed, true);
+          const plan = JSON.parse(
+            db
+              .prepare("SELECT data FROM records WHERE kind='rehearsal-plan'")
+              .get().data,
+          );
+          const run = {
+            id: body.requestId,
+            scope: body.scope,
+            trialLength: body.trialLength,
+            plan,
+            status: "running",
+            message: "正在生成",
+            compatible: true,
+            voiceName: "我的演讲声音",
+            createdAt: now,
+            pages: [
+              {
+                id: "page",
+                number: 1,
+                title: "测试页面",
+                text: project.slides[0].notes,
+                clips: [],
+              },
+            ],
+            presenter: null,
+            motion: null,
+          };
+          rehearsalRuns.unshift(run);
+          return route.fulfill({ status: 202, json: run });
+        }
+        if (completed && rehearsalRuns[0]) {
+          const run = rehearsalRuns[0];
+          run.status = "ready";
+          run.message = "已完成";
+          run.pages[0].clips = [
+            {
+              file: "fixture.mp4",
+              text: project.slides[0].notes,
+              duration: 2,
+              status: "ready",
+            },
+          ];
+        }
+        return route.fulfill({ json: rehearsalRuns });
+      }
+
       if (
         u.pathname.endsWith("/presenter/previews") ||
         u.pathname.endsWith("/presenter/generations")
@@ -197,9 +249,9 @@ test(
     });
     await page.goto(base + "/#project/presenter-project/rehearsal");
     await expect(
-      page.getByRole("button", { name: "前往数字人工作室" }),
+      page.getByRole("button", { name: "管理 / 创建头像" }),
     ).toBeVisible();
-    await page.getByRole("button", { name: "前往数字人工作室" }).click();
+    await page.getByRole("button", { name: "管理 / 创建头像" }).click();
     await expect(
       page.getByRole("heading", { name: "数字人工作室", exact: true }),
     ).toBeVisible();
@@ -224,10 +276,10 @@ test(
     ).toBeEnabled();
     await studio.getByLabel("试播文字").fill("你好，数字人试播。");
     await studio.getByRole("button", { name: "生成试播视频" }).click();
-    await expect(page.getByRole("dialog")).toContainText(
+    await expect(page.getByRole("dialog").last()).toContainText(
       "文字先发送到 MiniMax",
     );
-    await expect(page.getByRole("dialog")).toContainText(
+    await expect(page.getByRole("dialog").last()).toContainText(
       "头像和音频再发送到 HeyGen",
     );
     await page.getByRole("button", { name: "确认生成", exact: true }).click();
@@ -267,52 +319,34 @@ test(
       });
       await page.setViewportSize({ width: 1280, height: 900 });
     }
-    await page.goto(base + "/#project/presenter-project/rehearsal");
+    await page
+      .getByRole("button", { name: "完成设置，返回演练", exact: true })
+      .click();
     await expect(
-      page.getByRole("button", { name: "生成本页讲解" }),
+      page.getByRole("button", { name: "先试当前页", exact: true }),
     ).toBeEnabled();
-    await page.locator("#project-presenter summary").click();
-    await page.getByLabel("讲解来源", { exact: true }).selectOption("audio");
-    await expect(
-      page.getByText("沿用所选 AI 口播的原声音，再同步头像嘴型。", {
-        exact: true,
-      }),
-    ).toBeVisible();
-    await expect(page.getByText("待选择口播", { exact: true })).toBeVisible();
-    if (process.env.PRESENTER_REVIEW_DIR) {
-      await page
-        .getByRole("heading", { name: "数字人讲解", exact: true })
-        .scrollIntoViewIfNeeded();
-      await page.screenshot({
-        path: path.join(process.env.PRESENTER_REVIEW_DIR, "audio-desktop.png"),
-      });
-      await page.setViewportSize({ width: 390, height: 844 });
-      await page
-        .getByRole("heading", { name: "数字人讲解", exact: true })
-        .scrollIntoViewIfNeeded();
-      await page.screenshot({
-        path: path.join(process.env.PRESENTER_REVIEW_DIR, "audio-mobile.png"),
-      });
-      await page.setViewportSize({ width: 1280, height: 900 });
-    }
-    await page.getByLabel("讲解来源", { exact: true }).selectOption("text");
-    await page.locator("#project-presenter summary").click();
+    await expect(page.getByLabel("选择本场声音")).toHaveValue("chinese-voice");
+    await page.getByLabel("当前页口播正文").fill(project.slides[0].notes);
     assert.equal(await page.getByLabel("上传头像").count(), 0);
-    await page.getByRole("button", { name: "生成本页讲解" }).click();
-    await expect(page.getByRole("dialog")).toContainText(
-      project.slides[0].notes,
-    );
-    await page.getByRole("button", { name: "确认生成", exact: true }).click();
+    await page.getByRole("button", { name: "先试当前页", exact: true }).click();
+    await expect(page.getByRole("dialog")).toContainText("MiniMax");
+    await expect(page.getByRole("dialog")).toContainText("HeyGen");
+    await page
+      .getByRole("button", { name: "确认并开始生成", exact: true })
+      .click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
-    assert.equal(bodies.at(-1).mode, "text");
-    assert.equal(bodies.at(-1).pageId, "page");
+    assert.equal(bodies.at(-1).scope, "trial");
     completed = true;
-    await page.getByRole("button", { name: "播放讲解", exact: true }).click();
-    await expect(page.getByLabel("数字人讲解视频")).toBeVisible();
+    await page
+      .getByRole("button", { name: "播放数字人效果", exact: true })
+      .click();
+    await expect(page.getByLabel("数字人试播", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "连续播放", exact: true }).click();
     await expect
       .poll(() =>
-        page.getByLabel("数字人讲解视频").evaluate((v) => v.currentTime),
+        page
+          .getByLabel("数字人试播", { exact: true })
+          .evaluate((v) => v.currentTime),
       )
       .toBeGreaterThan(0);
     await page.getByRole("button", { name: "关闭", exact: true }).click();
@@ -332,7 +366,10 @@ test(
     assert.equal(errors.length, 0, errors.join("\n"));
     if (process.env.PRESENTER_REVIEW_DIR) {
       await page
-        .getByRole("heading", { name: "数字人讲解", exact: true })
+        .getByRole("heading", {
+          name: "把这场演讲试好，再生成整场",
+          exact: true,
+        })
         .scrollIntoViewIfNeeded();
       await page.screenshot({
         path: path.join(
@@ -342,7 +379,10 @@ test(
       });
       await page.setViewportSize({ width: 390, height: 844 });
       await page
-        .getByRole("heading", { name: "数字人讲解", exact: true })
+        .getByRole("heading", {
+          name: "把这场演讲试好，再生成整场",
+          exact: true,
+        })
         .scrollIntoViewIfNeeded();
       await page.screenshot({
         path: path.join(process.env.PRESENTER_REVIEW_DIR, "project-mobile.png"),

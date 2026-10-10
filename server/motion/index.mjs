@@ -192,91 +192,7 @@ export function registerMotion(app) {
     );
   });
   app.post("/api/projects/:id/motion", async (req, res) => {
-    const project = projectOrThrow(req.params.id);
-    if (all("motion").some((d) => d.projectId === project.id && isActive(d)))
-      throw new Error("本项目已有动态演示正在转换，请先查看现有任务");
-    if (req.body.revision !== project.revision)
-      throw Object.assign(new Error("项目已更新，请刷新后重新选择页面"), {
-        status: 409,
-      });
-    const requested = req.body.slideIds;
-    if (
-      !Array.isArray(requested) ||
-      !requested.length ||
-      requested.length > 500 ||
-      new Set(requested).size !== requested.length
-    )
-      throw new Error("请选择 1–500 页且不要重复");
-    if (requested.some((sid) => !project.slides.some((s) => s.id === sid)))
-      throw new Error("部分页面已不存在，请重新选择");
-    const selected = project.slides.filter((s) => requested.includes(s.id));
-    const missing = selected.filter((s) => !s.image && !s.scene);
-    if (missing.length)
-      throw new Error(`所选页面中有 ${missing.length} 页尚未生成图片`);
-    const config = settings();
-    if (!config.text.apiKey || !config.image.apiKey)
-      throw new Error(
-        "请先配置内容分析与图片生成模型；复杂背景需要图片编辑接口",
-      );
-    const pages = [];
-    for (const s of selected) {
-      let image = s.image;
-      if (s.scene) {
-        const stored = await pageImage(s);
-        image = id() + "." + stored.extension;
-        await writeFile(assetPath(image), stored.data);
-      }
-      const bytes = await readFile(assetPath(image));
-      const metadata = await sharp(bytes).metadata();
-      if (metadata.orientation && metadata.orientation !== 1) {
-        const stored = await screenImage(bytes, { resize: false });
-        image = id() + "." + stored.extension;
-        await writeFile(assetPath(image), stored.data);
-      }
-      pages.push({
-        id: s.id,
-        number: project.slides.indexOf(s) + 1,
-        title: s.plan?.title || `第 ${project.slides.indexOf(s) + 1} 页`,
-        status: "pending",
-        source: {
-          image,
-          notes: s.notes || "",
-          displayText: s.plan?.displayText || [],
-          stale: !!s.stale,
-          fingerprint: createHash("sha256")
-            .update(
-              JSON.stringify({
-                image: s.image,
-                scene: s.scene,
-                notes: s.notes,
-              }),
-            )
-            .digest("hex"),
-        },
-        layers: [],
-      });
-    }
-    const current = projectOrThrow(project.id);
-    if (current.revision !== project.revision)
-      throw Object.assign(new Error("准备期间项目已更新，请重试"), {
-        status: 409,
-      });
-    if (all("motion").some((d) => d.projectId === project.id && isActive(d)))
-      throw new Error("本项目已有动态演示正在转换");
-    const d = save({
-      id: id(),
-      version: MOTION_VERSION,
-      projectId: project.id,
-      sourceRevision: project.revision,
-      title: project.title,
-      createdAt: now(),
-      status: "queued",
-      progress: "等待转换",
-      pages,
-      customFont: null,
-    });
-    res.status(202).json(publicDeck(d));
-    void drain();
+    res.status(202).json(await createMotion(req.params.id, req.body));
   });
   app.get("/api/motion/:id", (req, res) =>
     res.json(publicDeck(getDeck(req.params.id))),
@@ -298,35 +214,7 @@ export function registerMotion(app) {
     }
   });
   app.post("/api/motion/:id/retry", (req, res) => {
-    const d = getDeck(req.params.id);
-    idle(d);
-    if (
-      all("motion").some(
-        (other) => other.projectId === d.projectId && isActive(other),
-      )
-    )
-      throw new Error("请等待本项目另一项转换完成");
-    const ids =
-      req.body.pageIds ??
-      d.pages.filter((p) => p.status !== "ready").map((p) => p.id);
-    if (
-      !Array.isArray(ids) ||
-      !ids.length ||
-      ids.some(
-        (key) => !d.pages.some((p) => p.id === key && p.status !== "ready"),
-      )
-    )
-      throw new Error("请选择未完成的页面重试");
-    for (const p of d.pages)
-      if (ids.includes(p.id)) {
-        p.status = "pending";
-        p.error = null;
-      }
-    d.status = "queued";
-    d.progress = "等待继续";
-    save(d);
-    res.status(202).json(publicDeck(d));
-    void drain();
+    res.status(202).json(retryMotion(req.params.id, req.body.pageIds));
   });
   app.patch("/api/motion/:id/pages/:pageId", (req, res) => {
     const d = getDeck(req.params.id);
@@ -431,4 +319,152 @@ export function registerMotion(app) {
         ),
     );
   });
+}
+
+export async function createMotion(projectId, input) {
+  const project = projectOrThrow(projectId);
+  if (all("motion").some((d) => d.projectId === project.id && isActive(d)))
+    throw new Error("本项目已有动态演示正在转换，请先查看现有任务");
+  if (input.revision !== project.revision)
+    throw Object.assign(new Error("项目已更新，请刷新后重新选择页面"), {
+      status: 409,
+    });
+  const requested = input.slideIds;
+  if (
+    !Array.isArray(requested) ||
+    !requested.length ||
+    requested.length > 500 ||
+    new Set(requested).size !== requested.length
+  )
+    throw new Error("请选择 1–500 页且不要重复");
+  if (requested.some((sid) => !project.slides.some((s) => s.id === sid)))
+    throw new Error("部分页面已不存在，请重新选择");
+  const selected = project.slides.filter((s) => requested.includes(s.id));
+  const missing = selected.filter((s) => !s.image && !s.scene);
+  if (missing.length)
+    throw new Error(`所选页面中有 ${missing.length} 页尚未生成图片`);
+  const config = settings();
+  if (!config.text.apiKey || !config.image.apiKey)
+    throw new Error("请先配置内容分析与图片生成模型；复杂背景需要图片编辑接口");
+  const pages = [];
+  for (const s of selected) {
+    let image = s.image;
+    if (s.scene) {
+      const stored = await pageImage(s);
+      image = id() + "." + stored.extension;
+      await writeFile(assetPath(image), stored.data);
+    }
+    const bytes = await readFile(assetPath(image));
+    const metadata = await sharp(bytes).metadata();
+    if (metadata.orientation && metadata.orientation !== 1) {
+      const stored = await screenImage(bytes, { resize: false });
+      image = id() + "." + stored.extension;
+      await writeFile(assetPath(image), stored.data);
+    }
+    pages.push({
+      id: s.id,
+      number: project.slides.indexOf(s) + 1,
+      title: s.plan?.title || `第 ${project.slides.indexOf(s) + 1} 页`,
+      status: "pending",
+      source: {
+        image,
+        notes: s.notes || "",
+        displayText: s.plan?.displayText || [],
+        stale: !!s.stale,
+        fingerprint: createHash("sha256")
+          .update(
+            JSON.stringify({
+              image: s.image,
+              scene: s.scene,
+              notes: s.notes,
+            }),
+          )
+          .digest("hex"),
+      },
+      layers: [],
+    });
+  }
+  for (const page of input.reuse === true ? pages : []) {
+    const ready = all("motion")
+      .filter(
+        (d) =>
+          d.projectId === project.id &&
+          d.version === MOTION_VERSION &&
+          !d.customFont,
+      )
+      .flatMap((d) => d.pages)
+      .find(
+        (p) =>
+          p.status === "ready" &&
+          p.source.fingerprint === page.source.fingerprint,
+      );
+    if (ready)
+      Object.assign(page, structuredClone(ready), {
+        id: page.id,
+        number: page.number,
+        title: page.title,
+        source: page.source,
+        reused: true,
+      });
+  }
+  const current = projectOrThrow(project.id);
+  if (current.revision !== project.revision)
+    throw Object.assign(new Error("准备期间项目已更新，请重试"), {
+      status: 409,
+    });
+  if (all("motion").some((d) => d.projectId === project.id && isActive(d)))
+    throw new Error("本项目已有动态演示正在转换");
+  const d = save({
+    id: id(),
+    version: MOTION_VERSION,
+    projectId: project.id,
+    sourceRevision: project.revision,
+    title: project.title,
+    createdAt: now(),
+    status: "queued",
+    progress: "等待转换",
+    pages,
+    customFont: null,
+  });
+  void drain();
+  return publicDeck(d);
+}
+
+export function retryMotion(deckId, pageIds) {
+  const d = getDeck(deckId);
+  idle(d);
+  if (
+    all("motion").some(
+      (other) => other.projectId === d.projectId && isActive(other),
+    )
+  )
+    throw new Error("请等待本项目另一项转换完成");
+  const ids =
+    pageIds ?? d.pages.filter((p) => p.status !== "ready").map((p) => p.id);
+  if (
+    !Array.isArray(ids) ||
+    !ids.length ||
+    ids.some(
+      (key) => !d.pages.some((p) => p.id === key && p.status !== "ready"),
+    )
+  )
+    throw new Error("请选择未完成的页面重试");
+  for (const p of d.pages)
+    if (ids.includes(p.id)) {
+      p.status = "pending";
+      p.error = null;
+    }
+  d.status = "queued";
+  d.progress = "等待继续";
+  save(d);
+  void drain();
+  return publicDeck(d);
+}
+
+export function stopMotion(deckId) {
+  const d = getDeck(deckId);
+  if (!isActive(d)) return;
+  if (controllers.has(d.id)) controllers.get(d.id).abort();
+  else
+    save({ ...d, status: "cancelled", progress: "已停止排队，完成的画面保留" });
 }

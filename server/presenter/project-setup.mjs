@@ -1,3 +1,4 @@
+import { registerRehearsal } from "../rehearsal.mjs";
 import { writeFile, lstat } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
@@ -189,6 +190,7 @@ export async function saveProjectPresenterSetup(projectId, input) {
 }
 
 export function registerProjectPresenterSetup(app) {
+  registerRehearsal(app);
   const route = "/api/projects/:id/presenter/setup";
   const avatarRoute = "/api/projects/:id/presenter/avatars";
   app.use([route, avatarRoute], (_req, _res, next) =>

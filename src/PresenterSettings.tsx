@@ -89,10 +89,11 @@ export function PresenterSettings({
       </div>
       <details className="presenter-key-connection" open={!config?.hasKey}>
         <summary>
-          连接 HeyGen · {config?.hasKey ? "已连接" : "填写 API Key"}
+          连接 HeyGen · {config?.hasKey ? "密钥已保存" : "填写 API Key"}
         </summary>
         <p>
-          连接后选择中文声音。测试连接只查询账号；生成试播才会上传头像、文字并计费。
+          声音沿用设置的
+          MiniMax。测试连接只查询账号，不代表可用额度；生成试播才会上传头像、音频并计费。
         </p>
         {config && (
           <>

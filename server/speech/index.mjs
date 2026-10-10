@@ -44,6 +44,12 @@ export const activeSpeechCount = (projectId = null) =>
   all("narration").filter(
     (d) => running(d) && (!projectId || d.projectId === projectId),
   ).length +
+  all("rehearsal-run").filter(
+    (r) =>
+      r.plan.actor === "voice" &&
+      running({ status: r.audioStatus }) &&
+      (!projectId || r.projectId === projectId),
+  ).length +
   (!projectId && quickOperation ? 1 : 0) +
   activePerformanceCount(projectId) +
   all("presenter-generation").filter(
@@ -206,6 +212,17 @@ async function drain() {
 }
 export function recoverSpeech() {
   recoverPerformances();
+  for (const run of all("rehearsal-run"))
+    if (
+      run.plan.actor === "voice" &&
+      ["queued", "running"].includes(run.audioStatus)
+    )
+      put("rehearsal-run", {
+        ...run,
+        audioStatus: "interrupted",
+        error: "上次口播中断。点击继续已有任务，已完成音频会复用。",
+        updatedAt: now(),
+      });
   for (const d of all("narration").filter(running)) {
     d.status = "interrupted";
     d.progress = "上次生成中断，点击继续才会恢复语音请求";

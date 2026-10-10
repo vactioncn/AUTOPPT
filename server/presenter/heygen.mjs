@@ -56,17 +56,28 @@ export function createHeyGenProvider({
         face_not_detected:
           "HeyGen 未识别到人脸，请在数字人工作室换一张清晰头像。",
       };
-      if (Object.hasOwn(messages, code)) throw new Error(messages[code]);
-      throw new Error(
-        response.status === 401 || response.status === 403
-          ? "HeyGen 拒绝访问，请检查密钥及 API 权限。"
-          : response.status === 402
-            ? "HeyGen 余额不足，请在 HeyGen 账号中检查额度。"
-            : response.status === 409
-              ? "HeyGen 正在处理同一请求，请稍后继续查询。"
-              : response.status === 429
-                ? "HeyGen 请求繁忙，请稍后继续查询。"
-                : "HeyGen 未接受请求，请检查账号额度及照片、音频要求后重试。",
+      if (Object.hasOwn(messages, code))
+        throw Object.assign(new Error(messages[code]), {
+          rejected: true,
+          failureCode: code,
+        });
+      throw Object.assign(
+        new Error(
+          response.status === 401 || response.status === 403
+            ? "HeyGen 拒绝访问，请检查密钥及 API 权限。"
+            : response.status === 402
+              ? "HeyGen 余额不足，请在 HeyGen 账号中检查额度。"
+              : response.status === 409
+                ? "HeyGen 正在处理同一请求，请稍后继续查询。"
+                : response.status === 429
+                  ? "HeyGen 请求繁忙，请稍后继续查询。"
+                  : "HeyGen 未接受请求，请检查账号额度及照片、音频要求后重试。",
+        ),
+        {
+          rejected: [401, 402, 403].includes(response.status),
+          failureCode:
+            response.status === 402 ? "insufficient_balance" : "authentication",
+        },
       );
     }
     if (!result?.data || result.error)

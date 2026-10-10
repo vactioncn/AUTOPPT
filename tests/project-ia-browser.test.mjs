@@ -303,28 +303,21 @@ test(
       path: path.join(evidence, "regression-1280-studio.png"),
     });
     await goArea("演练中心");
-    await expect(page.getByRole("heading", { name: "标准放映" })).toBeVisible();
-    await expect(
-      page.locator('[aria-label="AI 口播"]').getByText(/尚未配置语音服务/),
-    ).toBeVisible();
-    await expect(page.locator('[aria-label="AI 口播"]')).toContainText(
-      "已有口播可直接播放",
-    );
-    await expect(page.locator(".workspace .btn.primary:visible")).toHaveText(
-      "打开演讲播放器",
-    );
-    await expect(page.getByText(/制作台已选 1 页/)).toBeVisible();
+    await expect(page.getByRole("heading", { name: "把这场演讲试好，再生成整场" })).toBeVisible();
+    await expect(page.getByRole("button", { name:"管理声音 / 服务" })).toBeVisible();
+    await expect(page.getByText(/先在设置连接 MiniMax/)).toBeVisible();
+    await expect(page.getByRole("button", {name:"普通放映",exact:true})).toBeEnabled();
+    await expect(page.getByRole("group", {name:/整场范围/})).toBeVisible();
     await page
-      .getByRole("button", { name: "打开演讲播放器", exact: true })
+      .getByRole("button", { name: "普通放映", exact: true })
       .click();
     await expect(page.getByRole("dialog", { name: "播放演讲" })).toBeVisible();
     await page.getByRole("button", { name: "关闭演讲播放器" }).click();
     await expect(
       nav().getByRole("button", { name: "演练中心", exact: true }),
     ).toHaveAttribute("aria-current", "page");
-    await page
-      .getByRole("button", { name: "打开动态演示", exact: true })
-      .click();
+    await page.getByText("已有版本与高级调整",{exact:true}).click();
+    await page.getByRole("button", { name:"动态版本 / 图层校准",exact:true}).click();
     await expect(page.getByRole("dialog")).toBeVisible();
     await expect(
       page.getByRole("button", { name: /选中的页面/ }),
@@ -513,9 +506,8 @@ test(
     );
 
     await goArea("演练中心");
-    await page
-      .getByRole("button", { name: "打开动态演示", exact: true })
-      .click();
+    await page.getByText("已有版本与高级调整",{exact:true}).click();
+    await page.getByRole("button", { name:"动态版本 / 图层校准",exact:true}).click();
     await exportDialog
       .getByLabel("HTML 口播版本")
       .selectOption("complete-narration");
@@ -533,7 +525,7 @@ test(
       .click();
 
     await page
-      .getByRole("button", { name: "打开演讲播放器", exact: true })
+      .getByRole("button", { name: "普通放映", exact: true })
       .click();
     const playerResponse = page.waitForResponse(
       (r) => r.url().includes("/api/narration/") && r.url().includes("/html?"),
@@ -679,7 +671,7 @@ test(
     );
     await goArea("演练中心");
     await expect(
-      page.getByRole("button", { name: "打开演讲播放器", exact: true }),
+      page.getByRole("button", { name: "普通放映", exact: true }),
     ).toHaveCount(0);
     await expect(page.locator(".workspace .btn.primary:visible")).toHaveText(
       "先写讲稿 / 生成至少一页",
@@ -828,7 +820,7 @@ test(
           await expect(
             page.locator(".workspace-heading .btn.primary"),
           ).toHaveCount(0);
-          const primary = page.locator(".workspace .btn.primary:visible");
+          const primary = area === "rehearsal" && state !== "empty" ? page.getByRole("button",{name:"普通放映",exact:true}) : page.locator(".workspace .btn.primary:visible");
           await expect(primary).toHaveCount(1);
           if (area === "overview") {
             assert(
@@ -922,10 +914,11 @@ test(
           }
           if (area === "rehearsal") {
             await expect(primary).toHaveText(
-              state === "empty" ? "先写讲稿 / 生成至少一页" : "打开演讲播放器",
+              state === "empty" ? "先写讲稿 / 生成至少一页" : "普通放映",
             );
             if (state === "empty") {
               await expect(page.locator(".journey-empty > .btn:enabled")).toHaveCount(1);
+              await page.locator(".journey-empty summary").click();
               await expect(page.getByRole("button", { name: "前往数字人工作室", exact: true })).toBeEnabled();
               await expect(page.getByText(/打开上方播放器/)).toHaveCount(0);
             }

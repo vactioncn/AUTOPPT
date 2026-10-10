@@ -1,3 +1,4 @@
+import { SpeechVoiceDefault } from "./SpeechVoiceDefault";
 import { VoiceCapture } from "./VoiceCapture";
 import "./speech.css";
 import { useEffect, useState } from "react";
@@ -95,6 +96,7 @@ export function SpeechSettings({ notify }: { notify: (text: string) => void }) {
           </div>
         </>
       )}
+      <SpeechVoiceDefault notify={notify} />
       <VoiceCapture
         disabled={busy || !config?.hasKey}
         onRecordingStart={() => setError("")}

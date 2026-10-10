@@ -7,7 +7,8 @@ import {
 } from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
-import { dataDir } from "../store.mjs";
+import { SPEECH_VOICES } from "../../shared/speech.mjs";
+import { all, dataDir } from "../store.mjs";
 const filename = path.join(dataDir, "speech-settings.json");
 export function speechSettings() {
   const saved = existsSync(filename)
@@ -54,9 +55,24 @@ export function saveSpeechSettings(input) {
     ? ""
     : String(input.apiKey || "").trim() ||
       (baseUrl === previous.baseUrl ? previous.apiKey : "");
+  const defaultVoiceId =
+    input.defaultVoiceId ??
+    (baseUrl === previous.baseUrl && apiKey === previous.apiKey
+      ? previous.defaultVoiceId || ""
+      : "");
+  const provider = providerIdentity({ baseUrl, apiKey });
+  if (
+    typeof defaultVoiceId !== "string" ||
+    (defaultVoiceId &&
+      !SPEECH_VOICES.some((v) => v.id === defaultVoiceId) &&
+      !all("speaker").some(
+        (v) => v.id === defaultVoiceId && v.provider === provider,
+      ))
+  )
+    throw new Error("默认声音不属于当前 MiniMax 账号，请重新选择。");
   writeFileSync(
     filename + ".tmp",
-    JSON.stringify({ baseUrl, model, apiKey }, null, 2),
+    JSON.stringify({ baseUrl, model, apiKey, defaultVoiceId }, null, 2),
     { mode: 0o600 },
   );
   renameSync(filename + ".tmp", filename);

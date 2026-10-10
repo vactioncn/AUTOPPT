@@ -39,6 +39,8 @@ export type PresenterGeneration = {
   message: string;
   createdAt: string;
   compatible: boolean;
+  recovery?: "resume" | "new-task";
+  failureCode?: string;
   pages: {
     id: string;
     title: string;
@@ -48,6 +50,7 @@ export type PresenterGeneration = {
       duration: number;
       status: string;
       file?: string;
+      audioFile?: string;
       text?: string;
     }[];
   }[];

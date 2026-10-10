@@ -125,6 +125,11 @@ export function PresenterJobs({
                 播放讲解{job.status !== "ready" ? "（已完成部分）" : ""}
               </Button>
             )}
+            {job.recovery === "new-task" && (
+              <p className="journey-warning">
+                嘴型服务已明确失败。请处理服务额度或失败原因后，在演练中心重新确认生成。已有音频保留，不会再次配音。
+              </p>
+            )}
             {!job.compatible && (
               <p>页面或数字人已改变。原视频仍保留，请按当前配置重新生成。</p>
             )}
@@ -133,14 +138,18 @@ export function PresenterJobs({
                 停止后续生成
               </Button>
             )}
-            {!running && job.status !== "ready" && (
-              <Button
-                disabled={busy || !job.compatible || jobs.some(presenterActive)}
-                onClick={() => setResume(job)}
-              >
-                继续查询或下载
-              </Button>
-            )}
+            {!running &&
+              job.status !== "ready" &&
+              job.recovery !== "new-task" && (
+                <Button
+                  disabled={
+                    busy || !job.compatible || jobs.some(presenterActive)
+                  }
+                  onClick={() => setResume(job)}
+                >
+                  继续查询或下载
+                </Button>
+              )}
           </article>
         );
       })}

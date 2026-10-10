@@ -222,8 +222,11 @@ export function SpeechPresentation({
       api<{ setup: { narrationId: string } }>(
         `/projects/${projectId}/presenter/setup`,
       ).catch(() => null),
+      api<{ plan: { voiceId: string; emotion: string; speed: number } }>(
+        `/projects/${projectId}/rehearsal`,
+      ).catch(() => null),
     ])
-      .then(([p, v, c, h, script, presenter]) => {
+      .then(([p, v, c, h, script, presenter, rehearsal]) => {
         if (cancelled) return;
         setProject(p);
         setPerformance(script.performance);
@@ -247,6 +250,12 @@ export function SpeechPresentation({
           null;
         setPendingDeck(h.find((d) => active(d.status)) || null);
         selectDeck(selected, selected?.sourceRevision === p.revision);
+        if (!selected && rehearsal?.plan.voiceId)
+          setOptions({
+            voiceId: rehearsal.plan.voiceId,
+            emotion: rehearsal.plan.emotion,
+            speed: rehearsal.plan.speed,
+          });
         if (
           !selected ||
           selected.sourceRevision !== p.revision ||

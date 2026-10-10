@@ -31,11 +31,11 @@ export async function verifyMacApp(appPath) {
     assert.ok(frontend.includes(expectedBuild[key]), `前端构建缺少 ${key}`);
   assert.ok(frontend.includes("HeyGen"), "Mac App 前端缺少数字人设置入口");
   assert.ok(
-    frontend.includes("数字人工作室") && frontend.includes("生成本页讲解"),
+    frontend.includes("数字人工作室") && frontend.includes("先试当前页"),
     "Mac App 前端缺少项目数字人入口",
   );
-  assert.ok(frontend.includes("生成本页讲解"), "Mac App 前端缺少口型生成入口");
-  assert.ok(frontend.includes("生成整场讲解"), "Mac App 前端缺少整场生成入口");
+  assert.ok(frontend.includes("先试当前页"), "Mac App 前端缺少口型生成入口");
+  assert.ok(frontend.includes("生成整场"), "Mac App 前端缺少整场生成入口");
   assert.ok(
     readFileSync(path.join(root, "desktop/context-menu.cjs"), "utf8").includes(
       "复制图片",

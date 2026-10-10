@@ -74,7 +74,7 @@ test("project presenter configuration stays local, keeps projects unchanged, and
     setup.createProjectAvatar(project.id, " ", image, "image/jpeg"),
   );
 
-  mkdirSync(path.join(dir, "speech-audio"));
+  mkdirSync(path.join(dir, "speech-audio"), { recursive: true });
   const audio = "11111111-1111-4111-8111-111111111111.mp3";
   writeFileSync(path.join(dir, "speech-audio", audio), "local-test-audio");
   const narration = {

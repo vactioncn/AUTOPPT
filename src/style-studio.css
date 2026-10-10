@@ -1,0 +1,320 @@
+/* A single workbench: the result stays beside the task that produced it. */
+.style-studio {
+  padding-top: 24px;
+}
+.style-studio .studio-heading {
+  margin: 12px 0 18px;
+}
+.style-studio .studio-heading h1 {
+  font-size: 30px;
+  overflow-wrap: anywhere;
+}
+.style-studio .studio-heading p {
+  margin: 8px 0 0;
+}
+.studio-cover-tools {
+  margin-bottom: 20px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.studio-cover-tools > summary {
+  width: fit-content;
+  cursor: pointer;
+}
+.style-studio .unified-style-cover {
+  margin: 12px 0 0;
+}
+.studio-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
+  gap: 28px;
+  align-items: start;
+}
+.studio-preview-column {
+  min-width: 0;
+}
+.studio-preview-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 40px;
+  margin-bottom: 12px;
+}
+.studio-preview-heading h2,
+.studio-editor h2,
+.style-studio .studio-history h2 {
+  font-size: 20px;
+  margin: 0;
+}
+.style-studio .web-studio-canvas {
+  margin: 0;
+  max-width: none;
+}
+.style-studio .studio-slide-preview,
+.style-studio .studio-empty {
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--sidebar, #eeeee7);
+}
+.style-studio .studio-empty {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  min-height: 220px;
+  color: var(--muted);
+  gap: 14px;
+  text-align: center;
+}
+.studio-result-save {
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--line);
+}
+.studio-result-save strong {
+  font-size: 14px;
+}
+.studio-result-save p {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--muted);
+  margin: 4px 0 0;
+}
+.studio-result-save .btn {
+  flex-shrink: 0;
+}
+.style-studio .studio-rule-details {
+  margin-top: 16px;
+  padding: 16px 0;
+  border-width: 0 0 1px;
+  border-radius: 0;
+}
+.style-studio .trial-copy-preview {
+  margin-top: 0;
+  padding-top: 0;
+  border: 0;
+}
+.style-studio .trial-copy-preview h3 {
+  font-size: 20px;
+}
+.studio-analysis {
+  margin-top: 20px;
+}
+.style-studio .studio-history {
+  margin-top: 24px;
+}
+.style-studio .studio-history .section-heading {
+  margin-bottom: 12px;
+}
+.style-studio .studio-history .web-studio-history {
+  gap: 12px;
+  padding-bottom: 8px;
+}
+.style-studio .studio-history > .web-studio-history > button {
+  flex-basis: 150px;
+}
+.style-studio .studio-history img {
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
+  background: var(--sidebar, #eeeee7);
+}
+.style-studio .studio-history strong {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 8px;
+}
+.studio-editor {
+  position: sticky;
+  top: 24px;
+  display: flex;
+  flex-direction: column;
+  height: min(760px, calc(100dvh - 300px));
+  min-height: 430px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.studio-editor-tabs {
+  display: flex;
+  padding: 0 16px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--line);
+}
+.studio-editor-tabs > button {
+  flex: 1;
+  min-width: 0;
+  padding: 17px 0 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.studio-editor-tabs > button[aria-selected="true"] {
+  border-bottom-color: var(--accent);
+  color: var(--ink);
+  font-weight: 600;
+}
+.studio-editor-tabs > button:hover {
+  color: var(--accent);
+}
+.studio-editor-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px;
+  scrollbar-color: #b2b8aa var(--paper);
+  scrollbar-width: thin;
+}
+.studio-editor-body [role="tabpanel"] {
+  min-width: 0;
+}
+.studio-editor .studio-section-heading {
+  align-items: center;
+  margin-bottom: 16px;
+  gap: 8px;
+}
+.studio-editor .studio-section-heading h2 {
+  font-size: 14px;
+}
+.studio-editor .studio-section-heading .btn {
+  font-size: 12px;
+  padding: 4px 0;
+}
+.studio-editor textarea {
+  min-height: 160px;
+  line-height: 1.8;
+  caret-color: var(--accent);
+}
+.studio-editor textarea::placeholder {
+  color: var(--muted);
+}
+.studio-editor .rules-editor {
+  min-height: 300px;
+}
+.studio-editor .field {
+  margin-top: 16px;
+}
+.studio-editor .detail-help {
+  font-size: 12px;
+  line-height: 1.8;
+}
+.studio-editor details {
+  margin-top: 20px;
+}
+.studio-editor details > summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+}
+.studio-editor .studio-options {
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.studio-editor .palette-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.studio-editor .design-options-editor {
+  padding: 0;
+  border: 0;
+}
+.studio-editor .studio-sources {
+  max-height: 220px;
+  overflow: auto;
+}
+.studio-editor-footer {
+  flex-shrink: 0;
+  padding: 14px 20px 20px;
+  border-top: 1px solid var(--line);
+  background: var(--paper);
+}
+.studio-editor-footer p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.7;
+  margin: 0 0 10px;
+}
+.studio-editor-footer .btn {
+  width: 100%;
+  justify-content: center;
+}
+.style-studio ::selection {
+  color: var(--ink);
+  background: #f4d9ce;
+}
+.style-studio :focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.style-studio [role="tabpanel"]:focus-visible {
+  outline-offset: -2px;
+}
+@media (max-width: 1120px) {
+  .studio-workspace {
+    gap: 20px;
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 340px);
+  }
+  .studio-result-save {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+}
+@media (max-width: 960px) {
+  .studio-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .studio-editor {
+    position: static;
+    height: auto;
+    min-height: 0;
+    grid-row: 1;
+    overflow: visible;
+  }
+  .studio-editor-body {
+    overflow: visible;
+  }
+  .studio-editor-footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    border-radius: 0 0 12px 12px;
+  }
+  .style-studio .studio-heading {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .style-studio .studio-heading h1 {
+    font-size: 24px;
+  }
+  .studio-result-save {
+    flex-direction: row;
+    align-items: center;
+  }
+}
+@media (max-width: 480px) {
+  .style-studio .studio-empty {
+    min-height: 0;
+  }
+  .studio-editor-body {
+    padding: 16px;
+  }
+  .studio-result-save {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .studio-editor textarea {
+    min-height: 130px;
+  }
+}
+@media (max-width: 600px) {
+  .studio-editor-footer {
+    bottom: 62px;
+  }
+}

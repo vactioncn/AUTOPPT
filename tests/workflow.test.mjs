@@ -2384,7 +2384,10 @@ test(
       await expect(
         page.getByRole("button", { name: "保存讲稿", exact: true }),
       ).toBeDisabled();
+      // Wait for the note save to finish before closing its detail dialog.
+      await expect(page.getByRole("button", { name: "保存讲稿", exact: true }).locator(".spin")).toHaveCount(0);
       await page.getByRole("button", { name: "关闭", exact: true }).click();
+      await expect(page.getByRole("dialog")).toHaveCount(0);
       mkdirSync(".impeccable/review", { recursive: true });
       await req(`/projects/${id}/export`, undefined, "GET", 409);
       await req(`/projects/${id}/export?allowStale=1`, undefined, "GET", 409);
@@ -2610,7 +2613,7 @@ test(
         name: "本次提炼的上屏内容",
         exact: true,
       });
-      await expect(preview).toContainText("生成试做后");
+      await expect(preview).toHaveCount(0);
       await expect(
         page.getByLabel("风格中的视觉方向", { exact: true }),
       ).toHaveCount(0);
@@ -2624,6 +2627,7 @@ test(
         (t) => t.notes === "这是浏览器图片试做。" && t.status === "completed",
       );
       assert(browserTrial.plan.compositionPlan);
+      await page.getByText("查看上屏文案与生成依据", { exact: true }).click();
       await preview
         .getByText("本页构图与五维构思自检", { exact: true })
         .click();
@@ -2657,12 +2661,12 @@ test(
         "复制完整出图提示词",
         browserTrial.plan.imageRequest.prompt,
       );
-      await page.getByText("查看上屏文案与生成依据", { exact: true }).click();
+      await page.getByText("查看生成依据", { exact: true }).click();
       await page.getByText("实际发送的出图提示词", { exact: true }).click();
       await expect(page.getByText(/请求模型：test-image/)).toBeVisible();
       await expect(page.getByText(/实际图片：1600×900/)).toBeVisible();
       await expect(page.getByText(/服务未返回模型标识/)).toBeVisible();
-      await page.getByText("查看上屏文案与生成依据", { exact: true }).click();
+      await page.getByText("查看生成依据", { exact: true }).click();
       // Editing the draft must not change the input copied for the selected image.
       await page
         .getByLabel("试做讲稿", { exact: true })
@@ -2673,7 +2677,7 @@ test(
         "复制内容部分（含辅助信息）",
         browserTrial.plan.contentPrompt,
       );
-      await page.getByText("设计提示词原文", { exact: true }).click();
+      await page.getByRole("tab", { name: "风格提示词", exact: true }).click();
       await page
         .getByLabel("试做设计规范", { exact: true })
         .fill("新的风格尚未生成");
@@ -2683,13 +2687,15 @@ test(
         "复制完整出图提示词",
         browserTrial.plan.imageRequest.prompt,
       );
+      await page.getByRole("tab", { name: "试做内容", exact: true }).click();
       await page
         .getByLabel("试做讲稿", { exact: true })
         .fill(browserTrial.notes);
+      await page.getByRole("tab", { name: "风格提示词", exact: true }).click();
       await page
         .getByLabel("试做设计规范", { exact: true })
         .fill(browserTrial.styleSnapshot.rules);
-      await page.getByText("设计提示词原文", { exact: true }).click();
+      await page.getByRole("tab", { name: "风格提示词", exact: true }).click();
       await page.evaluate(() => {
         const write = navigator.clipboard.writeText.bind(navigator.clipboard);
         navigator.clipboard.writeText = async () => {
@@ -2734,6 +2740,7 @@ test(
       await expect(page.getByRole("button", { name: /复刻参考/ })).toHaveCount(
         0,
       );
+      await page.getByRole("tab", { name: "调整效果", exact: true }).click();
       await expect(
         page.getByLabel("画面调整（可选）", { exact: true }),
       ).toBeVisible();
@@ -2743,7 +2750,7 @@ test(
       await expect(
         page.getByRole("button", { name: "调整规范并再试", exact: true }),
       ).toHaveCount(0);
-      await page.getByText("设计提示词原文", { exact: true }).click();
+      await page.getByRole("tab", { name: "风格提示词", exact: true }).click();
       await page.evaluate(() => window.scrollTo(0, 0));
       await page.screenshot({
         path: ".impeccable/review/image-desktop.png",
@@ -2761,6 +2768,7 @@ test(
         path: ".impeccable/review/image-mobile.png",
         fullPage: true,
       });
+      await page.getByRole("tab", { name: "调整效果", exact: true }).click();
       await page
         .getByLabel("画面调整（可选）", { exact: true })
         .scrollIntoViewIfNeeded();
@@ -2781,9 +2789,7 @@ test(
         })
         .getByRole("button", { name: "查看风格" })
         .click();
-      await page
-        .getByRole("button", { name: "试做一页", exact: true })
-        .click();
+      await page.getByRole("button", { name: "试做一页", exact: true }).click();
       await expect(page.getByLabel("试做讲稿", { exact: true })).toHaveValue(
         "这是浏览器图片试做。",
       );

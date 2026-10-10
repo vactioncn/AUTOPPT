@@ -119,7 +119,7 @@ components:
 
 **Creative North Star: "Quiet Personal Speech Studio"**
 
-The interface is a warm, restrained working environment for a person developing an ongoing speech. Pale paper surfaces, olive supporting tones and a terracotta action color keep attention on the manuscript and the actual generated image. The style workbench leads with the complete image, followed by content and feedback; native disclosures reveal the detailed rules and design plan when needed.
+The interface is a warm, restrained working environment for a person developing an ongoing speech. Pale paper surfaces, olive supporting tones and a terracotta action color keep attention on the manuscript and the actual generated image. The style workbench pairs the complete image with a focused tabbed editor; native disclosures reveal optional settings and generation evidence when needed.
 
 This records the implemented system in `src/styles.css`, `src/studio.css`, `src/scene.css`, the shared components and main views, refreshed on 2026-10-01. The selected style is a whole visual grammar: typography, palette, linework, details and whitespace. Content determines the original composition and expression; style determines how it is drawn. The application palette does not become the output style. Content attachments and the production report extend the existing quiet working surfaces, shared buttons and modal conventions. Product behavior remains documented in `PRODUCT.md`.
 
@@ -159,7 +159,7 @@ The desktop shell uses a sticky full-height sidebar (222px) and a flexible main 
 
 Project and style libraries use three columns; page previews use two larger columns. The current-batch gallery, all-pages view and manuscript view share a segmented switch. The composer follows the gallery, while submitted source text is available in a disclosure. Page detail places the complete image and redesign controls beside tabbed notes, design and versions (1.65:1 columns with a 280px minimum information panel).
 
-The style workbench leads with a centered image (1040px maximum width, 24px vertical margin), shown at full width with its natural proportions. Manuscript and feedback occupy equal columns beneath it (30px gap). Native disclosures follow for full design rules, the whole style language and the selected design plan. The history strip scrolls horizontally with result cards (230px wide).
+The style workbench places the complete 16:9 preview, a compact save action, and a horizontal trial-history strip (150px thumbnails) in a flexible left column. A 320–380px right editor uses three tabs for manuscript, result adjustments, and full style rules. Its body scrolls independently while the generation action stays visible in its footer. Optional audience/palette settings, reference-independent cover generation, and saved generation evidence use disclosures. Tabs keep draft fields mounted; changing tabs never starts generation. At 960px and below, the editor comes before the preview in a single column; its action footer sticks above the mobile navigation.
 
 Content attachments form a two-column grid beneath the page-redesign feedback, with complete thumbnails (110px high) and a visible filename and remove control. The production report uses the existing wide modal: four metrics across the top, followed by a comparison summary, any first difference and an expandable page list. At the mobile breakpoint (600px), metrics become two columns and page rows omit the secondary image-status label; attachment thumbnails remain in two columns.
 
@@ -170,7 +170,7 @@ The digital-presenter settings pair a saved-avatar library (240px) with a flexib
 | At least 1600px | Wider page padding (44px 60px), larger home display (42px), larger gallery gaps. |
 | At most 1150px | Sidebar narrows to 192px; project/style libraries become two columns; workflow becomes two columns; toolbars wrap; page detail narrows to 1.4:1 columns with a 260px minimum information panel. |
 | At most 850px | Sidebar becomes a 76px icon rail; recent projects are hidden; page detail stacks vertically; versions use two columns. |
-| At most 780px | The style-workbench heading and manuscript/feedback columns stack; the promotion button becomes full-width; history remains horizontally scrollable. |
+| At most 960px | The style workbench stacks with the editor first; the footer action remains accessible and history scrolls horizontally. |
 | At most 600px | Navigation becomes a fixed bottom bar (62px); page padding is 24px 18px 28px; libraries and slide galleries become one column; settings, split preview and style detail stack. |
 
 On mobile, bulk actions and toasts sit above the bottom navigation. The home illustration is hidden, page selection controls stay visible, and the style chooser retains two columns. Dialogs remain scrollable within the viewport.

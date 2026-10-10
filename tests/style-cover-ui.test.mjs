@@ -85,14 +85,14 @@ test(
         .filter({ hasText: style.name })
         .getByRole("button", { name: "查看风格" })
         .click();
-      await page
-        .getByRole("button", { name: "试做一页" })
-        .click();
+      await page.getByRole("button", { name: "试做一页" }).click();
       const draft = page.getByLabel("试做讲稿", { exact: true });
       await draft.fill("保留这段尚未生成的试做草稿。");
+      await page.getByRole("tab", { name: "调整效果", exact: true }).click();
       await page
         .getByLabel("画面调整（可选）")
         .fill("不能混进封面请求的临时要求");
+      await page.getByRole("tab", { name: "试做内容", exact: true }).click();
       assert.equal(
         await page
           .getByRole("button", { name: "将这张图设为风格封面" })
@@ -105,6 +105,7 @@ test(
         delete data.features.unifiedStyleCover;
         await route.fulfill({ response, json: data });
       });
+      await page.getByText("风格封面", { exact: true }).click();
       await page
         .getByRole("button", { name: "生成统一封面", exact: true })
         .click();

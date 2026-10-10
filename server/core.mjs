@@ -20,6 +20,7 @@ export function styleStamp(style, plan = null) {
           style.rules,
           style.colors,
           styleRecipes(style),
+          // Preserve archived fingerprints; generation ignores this retired setting.
           ...(style.compositionMode === "content-led"
             ? ["content-led-v1"]
             : []),

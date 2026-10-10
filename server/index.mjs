@@ -948,7 +948,7 @@ app.post("/api/styles", upload.array("images", 12), async (req, res) => {
 app.get("/api/styles/:id/layouts", (req, res) =>
   res
     .status(410)
-    .json({ error: "不再使用模板库，每页按内容构思并应用选定风格。" }),
+    .json({ error: "不再使用模板库，每页按所选风格原文与上屏文案出图。" }),
 );
 app.patch("/api/styles/:id", async (req, res) => {
   const s = get("style", req.params.id);
@@ -997,9 +997,9 @@ app.patch("/api/styles/:id", async (req, res) => {
     if (typeof req.body[k] === "string") s[k] = req.body[k];
   if (typeof req.body.name === "string") s.autoName = false;
   if (req.body.compositionMode !== undefined) {
-    if (!["direct", "content-led"].includes(req.body.compositionMode))
-      throw new Error("构图方式无效。");
-    s.compositionMode = req.body.compositionMode;
+    if (req.body.compositionMode !== "direct")
+      throw new Error("按内容构思已取消，统一按风格原文直接出图。");
+    s.compositionMode = "direct";
   }
   if (!s.name.trim() || !s.rules.trim())
     throw new Error("风格名称和规则不能为空。");

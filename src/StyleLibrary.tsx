@@ -938,34 +938,7 @@ function StyleDetail({
               <p className="detail-help">
                 供需要精细调整的人使用，日常选风格与试做无需修改。
               </p>
-              <details className="style-generation-options">
-                <summary>生成选项</summary>
-                <label className="detail-help">
-                  <input
-                    type="checkbox"
-                    checked={style.compositionMode === "content-led"}
-                    disabled={busy || analyzing || editing}
-                    onChange={(event) => {
-                      const compositionMode = event.target.checked
-                        ? "content-led"
-                        : "direct";
-                      void act(
-                        () =>
-                          patch("/styles/" + style.id, {
-                            compositionMode,
-                            expectedVersion: style.versionToken,
-                          }),
-                        "当前风格的构图方式已保存，下次制作时使用。",
-                      );
-                    }}
-                  />
-                  按内容构思（仅当前风格）
-                </label>
-                <p className="detail-help">
-                  更改后自动保存到当前风格。开启后，每页先调用内容模型构思，再搭配这份提示词出图，会增加等待和服务费用。关闭时直接使用提示词与上屏文案出图。
-                </p>
-                <PageNumberHelp rules={editing ? rules : style.rules || ""} />
-              </details>
+              <PageNumberHelp rules={editing ? rules : style.rules || ""} />
               <div className="style-prompt-toolbar">
                 <div
                   className="style-detail-tabs"

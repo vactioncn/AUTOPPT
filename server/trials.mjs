@@ -123,8 +123,6 @@ export function registerTrials(app, { enqueue }) {
       parent?.engine === "image" ? parent.styleSnapshot : style,
     );
     candidate.rules = rules;
-    // Cover copy is already final; the image model designs it directly.
-    if (isCover) candidate.compositionMode = "direct";
     if (
       parent?.engine === "image" &&
       parent.baseFingerprint !== styleStamp(style).fingerprint &&
@@ -251,7 +249,6 @@ export function registerTrials(app, { enqueue }) {
       "colors",
       "referenceProfiles",
       "imageRecipes",
-      "compositionMode",
     ])
       style[key] = t.styleSnapshot[key];
     Object.assign(style, {
@@ -296,6 +293,7 @@ export async function runTrial(job, signal, progress) {
       t.plan.engine !== "image" ||
       t.plan.planningVersion !== PLANNING_VERSION ||
       t.plan.promptMode !== DIRECT_PROMPT_MODE ||
+      t.plan.compositionPlan ||
       designOptionsKey(t.plan.designOptions) !==
         designOptionsKey(t.designOptions)
     ) {

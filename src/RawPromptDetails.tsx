@@ -26,7 +26,7 @@ export function RawPromptDetails({
             ? "本次复用已提炼的上屏文案。"
             : "上屏文案已单独提炼并复核。"}
         {plan.compositionPlan
-          ? "风格提示词按原文使用，本页先按内容构思，再生成图片。"
+          ? "这是旧版按内容构思生成的记录；再次生成将直接使用风格原文。"
           : "风格提示词按原文使用，构图由图片模型完成。"}
       </p>
       {numbered && plan.pageNumber && (

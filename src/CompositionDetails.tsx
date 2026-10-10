@@ -12,9 +12,9 @@ export function CompositionDetails({ plan }: { plan: Plan }) {
   };
   return (
     <details className="copy-review">
-      <summary>本页构图与五维构思自检</summary>
+      <summary>历史构图记录（功能已停用）</summary>
       <p className="detail-help">
-        出图前的构思，已包含在完整出图提示词中；不是对实际成图的验收。
+        这是旧版制作时保存的构图与自检记录。再次生成不再追加这份构图要求。
       </p>
       <p>{composition.reason}</p>
       <div className="rules-text">{composition.direction}</div>

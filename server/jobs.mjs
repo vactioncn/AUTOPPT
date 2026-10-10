@@ -24,7 +24,6 @@ import {
 import { PLANNING_VERSION } from "./content-planning.mjs";
 import { DIRECT_PROMPT_MODE } from "./direct-image.mjs";
 import { snapshot, styleStamp } from "./core.mjs";
-import { nearbyDirections } from "./composition.mjs";
 import { MANUSCRIPT_VERSION, spokenManuscript } from "./manuscript.mjs";
 import { runTrial } from "./trials.mjs";
 import { reusableScreenCopy } from "./screen-copy.mjs";
@@ -365,6 +364,7 @@ async function renderSlides(j, ids, signal, redesign = false) {
       const choices = j.payload.designOptions ?? designOptions(p.designOptions);
       let stamp = styleStamp(style);
       const reusablePending =
+        !s.pendingPlan?.compositionPlan &&
         s.pendingPlan?.planningVersion === PLANNING_VERSION &&
         s.pendingPlan?.promptMode === DIRECT_PROMPT_MODE &&
         s.pendingPlanStyle?.fingerprint === stamp.fingerprint &&
@@ -378,6 +378,7 @@ async function renderSlides(j, ids, signal, redesign = false) {
           plan.engine !== "image" ||
           plan.planningVersion !== PLANNING_VERSION ||
           plan.promptMode !== DIRECT_PROMPT_MODE ||
+          plan.compositionPlan ||
           redesign ||
           s.stale ||
           s.planStyle?.fingerprint !== stamp.fingerprint ||
@@ -408,7 +409,6 @@ async function renderSlides(j, ids, signal, redesign = false) {
                 pending.length,
               ),
             attachments,
-            recentCompositions: nearbyDirections(p.slides, s.id, style.id),
           },
         );
       }
@@ -600,13 +600,6 @@ async function run(j, signal) {
             designOptions: j.payload.designOptions ?? p.designOptions,
             contentBrief: briefs[String(i)],
             copyFeedback: j.payload.copyFeedback || "",
-            recentCompositions: plans
-              .slice(-4)
-              .map((plan, index) => ({
-                pageId: `proposal-${index}`,
-                signature: plan.compositionPlan?.signature || "",
-              }))
-              .filter((item) => item.signature),
           },
         ),
       );

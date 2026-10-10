@@ -2596,13 +2596,9 @@ test(
         path: path.join(dir, "style-versions-desktop.png"),
         fullPage: true,
       });
-      await page.getByText("生成选项", { exact: true }).click();
-      await page
-        .getByRole("checkbox", { name: "按内容构思（仅当前风格）" })
-        .click();
       await expect(
         page.getByRole("checkbox", { name: "按内容构思（仅当前风格）" }),
-      ).toBeChecked();
+      ).toHaveCount(0);
       await page
         .getByRole("button", { name: "试做一页", exact: true })
         .click();
@@ -2636,13 +2632,9 @@ test(
       const browserTrial = (await trials()).trials.find(
         (t) => t.notes === "这是浏览器图片试做。" && t.status === "completed",
       );
-      assert(browserTrial.plan.compositionPlan);
+      assert.equal(browserTrial.plan.compositionPlan, undefined);
       await page.getByText("查看上屏文案与生成依据", { exact: true }).click();
-      await preview
-        .getByText("本页构图与五维构思自检", { exact: true })
-        .click();
-      await expect(preview).toContainText("COMPOSITION_MARKER");
-      await expect(preview).toContainText("不是对实际成图的验收");
+      assert(!browserTrial.plan.imageRequest.prompt.includes("COMPOSITION_MARKER"));
       const expectedCopy = browserTrial.plan.displayText.join("\n\n");
       await expect(
         preview.getByLabel("本次上屏文案", { exact: true }),
@@ -3026,7 +3018,7 @@ test(
       (await read()).slides[0].plan.imageRequest.referenceMode,
       "rules-only",
     );
-    // Opt-in scope, persisted directions, failure retry, and nearby-page context.
+    // Old enabled styles and persisted directions must not reactivate the retired feature.
     const originalOtherStyles = (await req("/bootstrap")).styles.filter(
       (s) => s.id !== style.id,
     );
@@ -3040,7 +3032,22 @@ test(
       `/styles/${style.id}`,
       { compositionMode: "content-led" },
       "PATCH",
+      400,
     );
+    const legacyDb = new DatabaseSync(path.join(dir, "autoppt.sqlite"));
+    const legacyStyle = (await req("/bootstrap")).styles.find((s) => s.id === style.id);
+    legacyStyle.compositionMode = "content-led";
+    legacyDb.prepare("UPDATE records SET data=? WHERE kind='style' AND id=?")
+      .run(JSON.stringify(legacyStyle), style.id);
+    const legacyProject = await read();
+    legacyProject.slides[0].pendingPlan = {
+      ...legacyProject.slides[0].plan,
+      compositionPlan: compositionFixture(),
+    };
+    legacyProject.slides[0].pendingPlanStyle = legacyProject.slides[0].planStyle;
+    legacyDb.prepare("UPDATE records SET data=? WHERE kind='project' AND id=?")
+      .run(JSON.stringify(legacyProject), id);
+    legacyDb.close();
     const directionIds = (await read()).slides.slice(0, 2).map((s) => s.id);
     const callCount = () =>
       calls.filter((c) => c.type === "composition").length;
@@ -3052,12 +3059,8 @@ test(
       202,
     );
     assert.equal((await poll(directionJob)).status, "completed");
-    assert.equal(callCount(), countBefore + directionIds.length);
-    if (directionIds.length > 1)
-      assert(
-        calls.filter((c) => c.type === "composition").at(-1).data.recent
-          .length > 0,
-      );
+    assert.equal(callCount(), countBefore);
+    assert.equal((await read()).slides[0].plan.compositionPlan, undefined);
     failImage = true;
     const retryDirectionJob = await req(
       `/projects/${id}/render`,
@@ -3072,7 +3075,7 @@ test(
     assert.equal(
       callCount(),
       countBeforeRetry,
-      "Retry reuses persisted art direction",
+      "Retry never invokes the retired composition model",
     );
     assert.deepEqual(
       (await req("/bootstrap")).styles.filter((s) => s.id !== style.id),
@@ -3082,7 +3085,7 @@ test(
       (await read()).slides
         .filter((s) => directionIds.includes(s.id))
         .every((s) =>
-          s.plan.imageRequest.prompt.includes("COMPOSITION_MARKER"),
+          !s.plan.imageRequest.prompt.includes("COMPOSITION_MARKER"),
         ),
     );
     await req(`/styles/${style.id}`, { compositionMode: "direct" }, "PATCH");

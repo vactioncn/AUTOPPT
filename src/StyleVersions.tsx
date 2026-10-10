@@ -24,7 +24,7 @@ const sources: Record<string, string> = {
 };
 const modeName = (mode: Version["compositionMode"]) =>
   mode === "content-led"
-    ? "按内容构思"
+    ? "历史构图方式（已停用）"
     : mode === "direct"
       ? "直接出图"
       : "旧记录未保存构思方式";
@@ -116,7 +116,7 @@ export function StyleVersions({
         提示词版本{data ? ` · ${data.versions.length} 个版本` : ""}
       </summary>
       <p className="detail-help">
-        每次保存提示词或构思方式都会留存版本。恢复会存为新版本，已有图片保留。旧版记录按实际保存内容显示。
+        提示词有变化时会留存版本。恢复会存为新版本，已有图片保留。旧版构图方式仅保留为历史记录。
       </p>
       {loading && <p role="status">正在读取版本…</p>}
       {data && !data.versions.length && <p>还没有已保存的提示词。</p>}
@@ -153,7 +153,7 @@ export function StyleVersions({
                 </p>
                 {selected.compositionMode !== current?.compositionMode && (
                   <p>
-                    构思方式：{modeName(selected.compositionMode)} →{" "}
+                    历史记录：{modeName(selected.compositionMode)} →{" "}
                     {modeName(current?.compositionMode || null)}
                   </p>
                 )}

@@ -202,6 +202,7 @@ try {
     await page
       .getByRole("heading", { name: project.title, exact: true })
       .waitFor();
+    await page.getByRole("button", { name: "制作台", exact: true }).click();
   };
   await workspace();
   await page.getByRole("button", { name: /^打开第 1 页：/ }).waitFor();
@@ -222,6 +223,7 @@ try {
     .getByRole("button", { name: "关闭", exact: true })
     .click();
   await page.getByRole("button", { name: /^全部页面/ }).click();
+  await page.getByRole("button", { name: "页面", exact: true }).click();
   await page.getByRole("button", { name: /^打开第 1 页：/ }).click();
   await page
     .getByLabel("重新设计要求", { exact: true })
@@ -235,13 +237,9 @@ try {
     .getByRole("dialog")
     .getByRole("button", { name: "关闭", exact: true })
     .click();
-  await page.getByRole("button", { name: "导出 PPT", exact: true }).click();
-  await page.getByRole("button", { name: /下载 PPT 与逐字稿/ }).waitFor();
+  await page.getByRole("button", { name: "交付中心", exact: true }).click();
+  await page.getByRole("button", { name: /下载 ZIP 交付包/ }).waitFor();
   await capture("export");
-  await page
-    .getByRole("dialog")
-    .getByRole("button", { name: "关闭", exact: true })
-    .click();
   await page.goto(base + "/#styles");
   await page
     .getByRole("heading", { name: "把喜欢的，变成你的风格。" })
@@ -251,6 +249,7 @@ try {
   await page
     .getByPlaceholder("例如：儿童摄影行业的下一步")
     .fill("把童年，留在好照片里");
+  await page.getByText("个性化设置，可稍后修改", { exact: true }).click();
   await page
     .getByRole("button", { name: "默认 · 沿用风格", exact: true })
     .waitFor();
@@ -263,7 +262,7 @@ try {
     .getByRole("button", { name: "关闭", exact: true })
     .click();
   await page.goto(base + "/#settings");
-  await page.getByRole("heading", { name: "连接你的创作能力。" }).waitFor();
+  await page.getByRole("heading", { name: "设置", exact: true }).waitFor();
   await capture("settings");
   if (errors.length) throw Error(errors.join("\n"));
   writeFileSync(

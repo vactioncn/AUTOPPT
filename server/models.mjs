@@ -344,6 +344,7 @@ export async function analyzeStyle(
     callModel: jsonModel,
     signal,
     progress,
+    context: comparison.context ?? style.analysisContext,
   });
 }
 export const imagePrompt = directImagePrompt;

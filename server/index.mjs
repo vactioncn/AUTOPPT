@@ -67,6 +67,7 @@ import {
   newSlide,
 } from "./jobs.mjs";
 import { jsonModel } from "./models.mjs";
+import { checkedStyleContext } from "./style-creation.mjs";
 import {
   exportPresentation,
   exportFilename,
@@ -888,7 +889,8 @@ const upload = multer({
 });
 app.post("/api/styles", upload.array("images", 12), async (req, res) => {
   const name = String(req.body.name || "").trim();
-  if (!name || name.length > 60) throw new Error("请输入 1–60 字的风格名称。");
+  if (name.length > 60 || (!name && req.body.rules !== undefined))
+    throw new Error("请输入 1–60 字的风格名称。");
   if (req.body.rules !== undefined) {
     const rules = req.body.rules;
     if (typeof rules !== "string" || !rules.trim() || rules.length > 30000)
@@ -914,6 +916,7 @@ app.post("/api/styles", upload.array("images", 12), async (req, res) => {
   }
   if (!req.files?.length)
     throw new Error("请填写风格提示词，或上传 PNG、JPG、WebP 参考图。");
+  const analysisContext = checkedStyleContext(req.body.analysisContext);
   const refs = [];
   for (const file of req.files) {
     const stored = await screenImage(file.buffer, {
@@ -927,7 +930,9 @@ app.post("/api/styles", upload.array("images", 12), async (req, res) => {
   }
   const style = put("style", {
     id: id(),
-    name,
+    name: name || "参考图风格（待分析）",
+    autoName: !name,
+    analysisContext,
     refs,
     colors: [],
     rules: "",
@@ -960,8 +965,37 @@ app.patch("/api/styles/:id", async (req, res) => {
   const previousUpdatedAt = s.updatedAt;
   assertStyleVersion(s, req.body.expectedVersion);
   const before = structuredClone(s);
+  if (req.body.analysisStyleId !== undefined) {
+    if (
+      ["name", "rules", "description"].some(
+        (key) => req.body[key] !== undefined,
+      )
+    )
+      throw new Error("选择分析结果时不能同时手动改写提示词。");
+    if (
+      !req.body.expectedVersion ||
+      !req.body.analysisId ||
+      req.body.analysisId !== s.styleAnalysis?.id
+    )
+      throw Object.assign(
+        new Error("风格分析结果已有更新，请刷新后重新选择。"),
+        { status: 409 },
+      );
+    const candidate = s.styleAnalysis.styles?.find(
+      (entry) => entry.id === req.body.analysisStyleId,
+    );
+    if (!candidate) throw new Error("这组风格不存在，请重新选择。");
+    Object.assign(s, {
+      rules: candidate.rules,
+      colors: candidate.colors,
+      description: candidate.description,
+      styleAnalysis: { ...s.styleAnalysis, direction: candidate.direction },
+    });
+    if (s.autoName) s.name = candidate.nameCn;
+  }
   for (const k of ["name", "rules", "description"])
     if (typeof req.body[k] === "string") s[k] = req.body[k];
+  if (typeof req.body.name === "string") s.autoName = false;
   if (req.body.compositionMode !== undefined) {
     if (!["direct", "content-led"].includes(req.body.compositionMode))
       throw new Error("构图方式无效。");
@@ -1016,6 +1050,9 @@ app.post("/api/styles/:id/analyze", (req, res) => {
     enqueue("style", null, {
       styleId: s.id,
       feedback: String(req.body.feedback || ""),
+      analysisContext: checkedStyleContext(
+        req.body.analysisContext ?? s.analysisContext,
+      ),
     }),
   );
 });

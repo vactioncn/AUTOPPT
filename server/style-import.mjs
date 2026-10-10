@@ -1,6 +1,7 @@
 import { load } from "cheerio";
 import sharp from "sharp";
 import { screenImage } from "./image-storage.mjs";
+import { checkedStyleContext } from "./style-creation.mjs";
 import path from "node:path";
 import { mkdir, rm, readFile, writeFile } from "node:fs/promises";
 import { randomUUID, createHash } from "node:crypto";
@@ -379,8 +380,8 @@ export function registerStyleImports(
   });
   app.post("/api/styles/from-url", async (req, res) => {
     const name = String(req.body.name || "").trim();
-    if (!name || name.length > 60)
-      throw new Error("请输入 1–60 字的风格名称。");
+    if (name.length > 60) throw new Error("请输入 1–60 字的风格名称。");
+    const analysisContext = checkedStyleContext(req.body.analysisContext);
     const value = draft(req.body.importId);
     const keys = req.body.imageIds;
     if (
@@ -408,7 +409,9 @@ export function registerStyleImports(
       }
       const style = put("style", {
         id: id(),
-        name,
+        name: name || "参考图风格（待分析）",
+        autoName: !name,
+        analysisContext,
         refs,
         source: {
           url: value.url,

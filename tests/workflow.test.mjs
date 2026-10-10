@@ -196,6 +196,7 @@ test(
         output = { ends: [1, n].filter((x, i, a) => !i || x !== a[i - 1]) };
       } else if (
         system.includes("视觉设计总监") ||
+        system.includes("## AutoPPT 结构化输出约定") ||
         system.includes("演讲设计系统设计师")
       ) {
         calls.push({ type: "system", refs, user });
@@ -418,8 +419,8 @@ test(
       (s) => s.id === upload.style.id,
     );
     assert.equal(style.referenceProfiles.length, 1);
-    assert.equal(style.styleAnalysis.version, 1);
-    assert.match(style.rules, /十二、设计自检与效果标准/);
+    assert.equal(style.styleAnalysis.version, 2);
+    assert.match(style.rules, /十九、最终效果标准/);
     const creationCalls = calls.filter((c) => c.type === "system");
     assert.deepEqual(
       creationCalls.map((c) => c.refs),
@@ -2464,7 +2465,7 @@ test(
         .fill(manualRules);
       await page.getByRole("button", { name: "上传图片", exact: true }).click();
       await expect(
-        page.getByRole("button", { name: "保存并提炼风格", exact: true }),
+        page.getByRole("button", { name: "分析视觉风格", exact: true }),
       ).toBeDisabled();
       await page.getByRole("button", { name: "手动填写", exact: true }).click();
       await expect(

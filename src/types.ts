@@ -218,7 +218,38 @@ export type Slide = {
   versions: Version[];
   createdAt: string;
 };
+export type StyleContext = {
+  useCase?: string;
+  industry?: string;
+  audience?: string;
+  topic?: string;
+  strengthen?: string;
+  avoid?: string;
+};
+export type GeneratedStyle = {
+  id: string;
+  references: number[];
+  rationale: string;
+  nameCn: string;
+  nameEn: string;
+  description: string;
+  boundary: string;
+  direction: string;
+  visualDna: string[];
+  styleModel: {
+    mustKeep: string[];
+    flexible: string[];
+    rare: string[];
+    forbidden: string[];
+  };
+  lockSentences: string[];
+  risks: string[];
+  colors: string[];
+  rules: string;
+};
 export type Style = {
+  autoName?: boolean;
+  analysisContext?: StyleContext;
   cover?: string;
   coverTrialId?: string;
   versionToken?: string;
@@ -252,6 +283,11 @@ export type Style = {
   referenceProfiles?: ReferenceProfile[];
   styleAnalysis?: {
     version: number;
+    id?: string;
+    relation?: string;
+    relationReason?: string;
+    excludedReferences?: number[];
+    styles?: GeneratedStyle[];
     summary: string;
     sharedTraits: { trait: string; references: number[] }[];
     differences: string[];
@@ -261,6 +297,13 @@ export type Style = {
   appliedTrialId?: string;
 };
 export type ReferenceProfile = {
+  lineage?: string;
+  mood?: string;
+  rhythm?: string;
+  useCases?: string;
+  designLogic?: string;
+  observed?: string[];
+  inferred?: string[];
   name?: string;
   ref: string;
   role: string;

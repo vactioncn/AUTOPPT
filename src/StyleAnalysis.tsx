@@ -3,6 +3,9 @@ import "./StyleAnalysis.css";
 
 const dimensions: [keyof ReferenceProfile, string][] = [
   ["role", "原图表达"],
+  ["lineage", "风格谱系"],
+  ["mood", "整体情绪"],
+  ["designLogic", "底层设计逻辑"],
   ["layout", "构图与阅读路径"],
   ["typography", "字体与层级"],
   ["color", "色彩与比例"],
@@ -12,6 +15,8 @@ const dimensions: [keyof ReferenceProfile, string][] = [
   ["density", "疏密与留白"],
   ["details", "微观细节"],
   ["avoid", "偏离方向"],
+  ["rhythm", "页面节奏"],
+  ["useCases", "适用场景"],
 ];
 
 export function StyleAnalysis({ style }: { style: Style }) {
@@ -53,6 +58,22 @@ export function StyleAnalysis({ style }: { style: Style }) {
                   <p>{String(profile[key])}</p>
                 </div>
               ),
+          )}
+          {!!profile.observed?.length && (
+            <>
+              <h4>直接观察</h4>
+              {profile.observed.map((item, n) => (
+                <p key={n}>{item}</p>
+              ))}
+            </>
+          )}
+          {!!profile.inferred?.length && (
+            <>
+              <h4>合理推断</h4>
+              {profile.inferred.map((item, n) => (
+                <p key={n}>{item}</p>
+              ))}
+            </>
           )}
         </details>
       ))}

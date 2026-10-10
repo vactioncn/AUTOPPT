@@ -179,6 +179,8 @@ test(
       assert((await response.text()).includes("逐字稿"));
       const markup = await page.content();
       assert(!markup.includes("/api/"));
+      // The loop ends on help.html; verify the workspace link on the intro itself.
+      await page.goto(base + "/intro/");
       assert.equal(
         await page.locator("#open-workspace").getAttribute("href"),
         "../#projects",

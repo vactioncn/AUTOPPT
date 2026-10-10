@@ -17,12 +17,14 @@ import {
   TextT,
   ArrowSquareOut,
 } from "@phosphor-icons/react";
-import type { Style, Job } from "./types";
+import type { Style, Job, StyleContext } from "./types";
 import { api, post, patch, asset, active } from "./api";
 import { Button, Modal, Field, StylePreview, Status } from "./components";
 import { StyleStudio } from "./StyleStudio";
 import { StyleVersions } from "./StyleVersions";
 import { StyleAnalysis } from "./StyleAnalysis";
+import { StyleContextFields } from "./StyleContextFields";
+import { StylePromptResults } from "./StylePromptResults";
 import { DEFAULT_STYLE_ID } from "../shared/styles.mjs";
 export function StyleLibrary({
   promptRepair = false,
@@ -102,7 +104,7 @@ export function StyleLibrary({
         <div>
           <h2>用提示词、图片或网址，建立自己的风格库</h2>
           <p>
-            先仔细分析每张参考图，再设计字体、色彩、图像与细节完整的新风格。
+            分析参考图背后的设计系统，生成同源但不同形的完整提示词；不同风格分别提炼。
             <br />
             用现成示例或自己的内容试做；使用统一文案单独生成风格封面。
           </p>
@@ -124,8 +126,12 @@ export function StyleLibrary({
       {!visibleStyles.length && (
         <section className="onboarding-card" aria-label="风格库空状态">
           <h2>从第一个风格开始</h2>
-          <p>打开创建表单，填写风格提示词并保存即可使用；无需先调用模型。也可以按需上传参考图。</p>
-          <Button variant="primary" onClick={() => setCreate(true)}>创建第一个风格</Button>
+          <p>
+            打开创建表单，填写风格提示词并保存即可使用；无需先调用模型。也可以按需上传参考图。
+          </p>
+          <Button variant="primary" onClick={() => setCreate(true)}>
+            创建第一个风格
+          </Button>
         </section>
       )}
       <div className="style-library-grid">
@@ -185,7 +191,11 @@ export function StyleLibrary({
       </div>
       {create && (
         <CreateStyle
-          initialSource={promptRepair || !styles.some((s) => !s.deletedAt && s.rules?.trim()) ? "prompt" : "upload"}
+          initialSource={
+            promptRepair || !styles.some((s) => !s.deletedAt && s.rules?.trim())
+              ? "prompt"
+              : "upload"
+          }
           urlImportAvailable={urlImportAvailable}
           onClose={() => setCreate(false)}
           onDone={async (s) => {
@@ -269,6 +279,7 @@ function CreateStyle({
     [error, setError] = useState(""),
     [dragging, setDragging] = useState(false);
   const input = useRef<HTMLInputElement>(null);
+  const [context, setContext] = useState<StyleContext>({});
   const request = useRef<AbortController | null>(null);
   useEffect(() => () => request.current?.abort(), []);
   const fetchImages = async () => {
@@ -332,10 +343,12 @@ function CreateStyle({
           name,
           importId: imported?.id,
           imageIds: selected,
+          analysisContext: context,
         });
       } else {
         const form = new FormData();
         form.append("name", name);
+        form.append("analysisContext", JSON.stringify(context));
         files.forEach((f) => form.append("images", f));
         data = await api("/styles", { method: "POST", body: form });
       }
@@ -348,15 +361,20 @@ function CreateStyle({
   return (
     <Modal
       title="创建你的视觉风格"
-      subtitle="直接填写提示词，或上传喜欢的图片，分析特点并创作新风格。"
+      subtitle="上传参考图，提炼设计系统，再用完整提示词创作新的页面。也可手动填写。"
       onClose={() => {
         if (!busy) onClose();
       }}
     >
-      <Field label="风格名称">
+      <Field
+        label={
+          source === "prompt" ? "风格名称" : "风格名称（可选，留空自动命名）"
+        }
+      >
         <input
           autoFocus
           value={name}
+          disabled={busy}
           onChange={(e) => setName(e.target.value)}
           maxLength={60}
           placeholder="例如：克制的杂志感 / 大字与留白"
@@ -399,7 +417,8 @@ function CreateStyle({
       )}
       {source !== "prompt" && (
         <p className="detail-help">
-          先逐图分析，再生成完整的风格规范，包含字体、配色、图像、材质、构图、细节和跨页变化。完成后可查看分析依据并试做。
+          先逐图分析，再判断共同视觉
+          DNA、页面类型与风格分组，为每组生成完整提示词。可继续追加图片，或上传含多页缩略图的展示图。
         </p>
       )}
       {source === "prompt" ? (
@@ -545,9 +564,11 @@ function CreateStyle({
             accept="image/png,image/jpeg,image/webp"
             multiple
             onChange={(e) => add(Array.from(e.target.files || []))}
+            disabled={busy}
           />
           <button
             className={`upload-zone ${dragging ? "dragging" : ""}`}
+            disabled={busy}
             onClick={() => input.current?.click()}
             onDragOver={(e) => {
               e.preventDefault();
@@ -570,6 +591,7 @@ function CreateStyle({
                 <div key={f.name + i}>
                   <img src={previews[i]} alt={f.name} />
                   <button
+                    disabled={busy}
                     aria-label={`移除 ${f.name}`}
                     onClick={() => setFiles(files.filter((_, n) => n !== i))}
                   >
@@ -579,6 +601,18 @@ function CreateStyle({
               ))}
             </div>
           )}
+        </>
+      )}
+      {source !== "prompt" && (
+        <>
+          <StyleContextFields
+            value={context}
+            onChange={setContext}
+            disabled={busy}
+          />
+          <p className="detail-help">
+            分析将调用一次视觉模型，再为每组调用一次内容模型生成提示词，费用由所配置服务商计算。不会自动生成图片；完成后可主动试做。
+          </p>
         </>
       )}
       {error && (
@@ -595,7 +629,7 @@ function CreateStyle({
           onClick={submit}
           loading={busy}
           disabled={
-            !name.trim() ||
+            (source === "prompt" && !name.trim()) ||
             fetching ||
             (source === "prompt"
               ? !rules.trim()
@@ -604,7 +638,7 @@ function CreateStyle({
                 : !files.length)
           }
         >
-          {source === "prompt" ? "保存风格" : "保存并提炼风格"}
+          {source === "prompt" ? "保存风格" : "分析视觉风格"}
           <ArrowRight size={17} />
         </Button>
       </div>
@@ -638,6 +672,9 @@ function StyleDetail({
     [editBase, setEditBase] = useState(style.versionToken),
     [confirmDelete, setConfirmDelete] = useState(false);
   const input = useRef<HTMLInputElement>(null);
+  const [context, setContext] = useState<StyleContext>(
+    style.analysisContext || {},
+  );
   useEffect(() => {
     if (!editing) setRules(style.rules);
   }, [style.rules, editing]);
@@ -721,6 +758,11 @@ function StyleDetail({
           </Button>
           <div className="style-feedback">
             <h3>把风格再调近一点</h3>
+            <StyleContextFields
+              value={context}
+              onChange={setContext}
+              disabled={busy || analyzing}
+            />
             <textarea
               aria-label="风格调整要求"
               value={feedback}
@@ -731,7 +773,11 @@ function StyleDetail({
             <Button
               onClick={() =>
                 act(
-                  () => post("/styles/" + style.id + "/analyze", { feedback }),
+                  () =>
+                    post("/styles/" + style.id + "/analyze", {
+                      feedback,
+                      analysisContext: context,
+                    }),
                   "正在结合参考图和反馈重新提炼。",
                 )
               }
@@ -744,6 +790,11 @@ function StyleDetail({
             {!style.refs.length && (
               <p className="detail-help">
                 可直接手动调整提示词。需要根据图片重新提炼时，再补充参考图片。
+              </p>
+            )}
+            {!!style.refs.length && (
+              <p className="detail-help">
+                重新分析会调用视觉与内容模型，不会自动生成图片。原提示词保留版本，失败时保留当前规则。
               </p>
             )}
           </div>
@@ -792,7 +843,7 @@ function StyleDetail({
             <div className="analyzing-style">
               <SpinnerGap size={24} className="spin" />
               <p>{analysisStage || "正在逐图分析视觉特点…"}</p>
-              <span>完成图片分析后，将继续设计完整的新风格规范。</span>
+              <span>判断图片关系后，将为每个独立风格生成完整提示词。</span>
             </div>
           )}
           {style.error && <p className="error-text">{style.error}</p>}
@@ -842,7 +893,40 @@ function StyleDetail({
               </Button>
             </>
           ) : style.rules ? (
-            <div className="rules-text">{style.rules}</div>
+            style.styleAnalysis?.styles?.length ? (
+              <StylePromptResults
+                style={style}
+                disabled={busy || analyzing}
+                notify={notify}
+                onApply={(candidate) =>
+                  void act(
+                    () =>
+                      patch(`/styles/${style.id}`, {
+                        analysisStyleId: candidate.id,
+                        analysisId: style.styleAnalysis?.id,
+                        expectedVersion: style.versionToken,
+                      }),
+                    "这组完整提示词已保存为当前风格，上一版可恢复。",
+                  )
+                }
+              />
+            ) : (
+              <>
+                <Button
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(style.rules);
+                      notify("提示词已复制。");
+                    } catch {
+                      notify("无法访问剪贴板，请选中文字复制。");
+                    }
+                  }}
+                >
+                  复制完整提示词
+                </Button>
+                <div className="rules-text">{style.rules}</div>
+              </>
+            )
           ) : (
             !analyzing && (
               <p className="muted">

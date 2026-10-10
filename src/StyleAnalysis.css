@@ -13,3 +13,78 @@
   padding-top: 14px;
   border-top: 1px solid var(--line, #dedfd7);
 }
+
+.style-context-fields {
+  margin: 18px 0;
+}
+.style-context-fields summary,
+.style-full-prompt summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 12px 0;
+}
+.style-context-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 16px;
+}
+.style-prompt-results {
+  min-width: 0;
+}
+.style-prompt-results h4 {
+  margin: 24px 0 8px;
+}
+.style-prompt-results p,
+.style-prompt-results li {
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+.style-prompt-results ul {
+  padding-left: 22px;
+}
+.style-prompt-results li + li {
+  margin-top: 6px;
+}
+.style-result-english {
+  color: var(--muted);
+}
+.style-result-switch {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 16px 0 24px;
+}
+.style-result-switch button {
+  border: 1px solid var(--line);
+  background: transparent;
+  border-radius: 8px;
+  min-height: 44px;
+  padding: 10px 14px;
+  text-align: left;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+}
+.style-result-switch button[aria-pressed="true"] {
+  border-color: currentColor;
+  background: var(--paper);
+}
+.style-result-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 20px 0;
+}
+.style-full-prompt {
+  border-top: 1px solid var(--line);
+  margin-top: 20px;
+}
+.candidate-prompt {
+  white-space: pre-wrap;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 600px) {
+  .style-context-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

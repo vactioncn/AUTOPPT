@@ -507,7 +507,7 @@ async function run(j, signal) {
         style,
         j.payload.feedback || "",
         signal,
-        {},
+        { context: j.payload.analysisContext ?? style.analysisContext },
         (stage) => progress(j, stage),
       );
       signal.throwIfAborted();

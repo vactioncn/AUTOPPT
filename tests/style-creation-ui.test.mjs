@@ -119,6 +119,23 @@ test(
       });
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
+    const actionsStayVisible = async (width, height) => {
+      await page.setViewportSize({ width, height });
+      const dialog = page.locator(".style-detail-modal");
+      const before = await dialog.locator(".style-detail-footer").boundingBox();
+      assert(before && before.y >= 0 && before.y + before.height <= height + 1, "footer stays inside the visible window");
+      for (const button of await dialog.locator(".style-detail-footer button").all()) {
+        const box = await button.boundingBox();
+        assert(box && box.x >= 0 && box.y >= 0 && box.x + box.width <= width + 1 && box.y + box.height <= height + 1, "every action is visible without scrolling");
+      }
+      const body = await dialog.locator(".style-detail-content").boundingBox();
+      assert(body.height >= 128, "content remains usable with persistent actions");
+      await dialog.getByRole("region", { name: "风格提示词与分析", exact: true }).press("End");
+      const after = await dialog.locator(".style-detail-footer").boundingBox();
+      assert.equal(after.y, before.y, "browsing long results never moves the actions");
+      assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), "no horizontal window overflow");
+      assert.equal(await dialog.locator(".style-preview img").evaluate(img => getComputedStyle(img).objectFit), "contain", "the complete reference image remains visible");
+    };
     await page.goto(base + "/#styles");
     await page.getByRole("button", { name: "创建风格", exact: true }).click();
     await page
@@ -149,6 +166,8 @@ test(
         exact: true,
       }),
     ).toBeVisible({ timeout: 15000 });
+    for (const [width, height] of [[1360, 900], [960, 680], [390, 844], [640, 480]])
+      await actionsStayVisible(width, height);
     holdCreation = false;
     releaseCreation();
     await expect(page.locator(".rules-text")).toContainText(
@@ -156,6 +175,9 @@ test(
       { timeout: 15000 },
     );
     await expect(page.getByText("核心视觉 DNA", { exact: true })).toBeVisible();
+    for (const [width, height] of [[1360, 900], [960, 680], [390, 844], [640, 480]])
+      await actionsStayVisible(width, height);
+    await page.setViewportSize({ width: 1360, height: 900 });
     await page
       .getByRole("button", { name: "复制完整提示词", exact: true })
       .click();

@@ -44,12 +44,14 @@ export function Modal({
   onClose,
   children,
   wide = false,
+  className = "",
 }: {
   title: string;
   subtitle?: string;
   onClose: () => void;
   children: ReactNode;
   wide?: boolean;
+  className?: string;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const close = useRef(onClose);
@@ -68,7 +70,7 @@ export function Modal({
     };
   }, []);
   return (
-    <dialog ref={ref} className={`modal ${wide ? "wide" : ""}`}>
+    <dialog ref={ref} className={`modal ${wide ? "wide" : ""} ${className}`}>
       <div className="modal-heading">
         <div>
           <h2>{title}</h2>

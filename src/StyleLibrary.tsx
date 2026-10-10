@@ -26,6 +26,7 @@ import { StyleAnalysis } from "./StyleAnalysis";
 import { StyleContextFields } from "./StyleContextFields";
 import { StylePromptResults } from "./StylePromptResults";
 import { DEFAULT_STYLE_ID } from "../shared/styles.mjs";
+import "./style-detail.css";
 export function StyleLibrary({
   promptRepair = false,
   onReturn,
@@ -694,6 +695,7 @@ function StyleDetail({
   return (
     <Modal
       wide
+      className="style-detail-modal"
       title={style.name}
       subtitle={
         style.builtin
@@ -704,174 +706,271 @@ function StyleDetail({
       }
       onClose={onClose}
     >
-      <div className="style-detail-layout">
-        <div>
-          <StylePreview style={style} />
-          {style.refs.length > 0 && (
-            <div className="reference-grid">
-              {style.refs.map((r, i) => (
-                <a key={r} href={asset(r)} target="_blank" rel="noreferrer">
-                  <img src={asset(r)} alt={`参考图 ${i + 1}`} />
-                </a>
-              ))}
-            </div>
-          )}
-          {style.source && (
-            <a
-              className="url-import-source"
-              href={style.source.url}
-              target="_blank"
-              rel="noreferrer"
-            >
-              参考来源：{style.source.title}
-              <ArrowSquareOut size={16} />
-            </a>
-          )}
-          <input
-            ref={input}
-            className="visually-hidden"
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            multiple
-            onChange={(e) => {
-              const files = Array.from(e.target.files || []);
-              if (!files.length) return;
-              const form = new FormData();
-              files.forEach((f) => form.append("images", f));
-              act(
-                () =>
-                  api("/styles/" + style.id + "/references", {
-                    method: "POST",
-                    body: form,
-                  }),
-                "新参考图已保存，点击重新提炼以更新规则。",
-              );
-            }}
-          />
-          <Button
-            className="add-reference"
-            onClick={() => input.current?.click()}
-            disabled={busy || analyzing || style.refs.length >= 12}
+      <div className="style-detail-content">
+        <div className="style-detail-layout">
+          <div
+            className="style-reference-panel"
+            role="region"
+            aria-label="参考图与风格调整"
+            tabIndex={0}
           >
-            <Plus size={17} />
-            补充参考图片
-          </Button>
-          <div className="style-feedback">
-            <h3>把风格再调近一点</h3>
-            <StyleContextFields
-              value={context}
-              onChange={setContext}
-              disabled={busy || analyzing}
-            />
-            <textarea
-              aria-label="风格调整要求"
-              value={feedback}
-              onChange={(e) => setFeedback(e.target.value)}
-              placeholder="例如：留白再多一些，减少装饰图形，数字页的对比更强。"
-              disabled={analyzing}
-            />
-            <Button
-              onClick={() =>
+            {style.refs.length === 1 && !style.cover && !style.builtin ? (
+              <a
+                className="style-reference-open"
+                href={asset(style.refs[0])}
+                target="_blank"
+                rel="noreferrer"
+                aria-label="查看参考图 1 大图"
+              >
+                <StylePreview style={style} />
+                <span>
+                  查看大图 <ArrowSquareOut size={14} />
+                </span>
+              </a>
+            ) : (
+              <StylePreview style={style} />
+            )}
+            {(style.refs.length > 1 ||
+              (style.builtin && style.refs.length > 0) ||
+              (style.cover && style.cover !== style.refs[0])) && (
+              <div className="reference-grid">
+                {style.refs.map((r, i) => (
+                  <a key={r} href={asset(r)} target="_blank" rel="noreferrer">
+                    <img src={asset(r)} alt={`参考图 ${i + 1}`} />
+                  </a>
+                ))}
+              </div>
+            )}
+            {style.source && (
+              <a
+                className="url-import-source"
+                href={style.source.url}
+                target="_blank"
+                rel="noreferrer"
+              >
+                参考来源：{style.source.title}
+                <ArrowSquareOut size={16} />
+              </a>
+            )}
+            <input
+              ref={input}
+              className="visually-hidden"
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              multiple
+              onChange={(e) => {
+                const files = Array.from(e.target.files || []);
+                if (!files.length) return;
+                const form = new FormData();
+                files.forEach((f) => form.append("images", f));
                 act(
                   () =>
-                    post("/styles/" + style.id + "/analyze", {
-                      feedback,
-                      analysisContext: context,
+                    api("/styles/" + style.id + "/references", {
+                      method: "POST",
+                      body: form,
                     }),
-                  "正在结合参考图和反馈重新提炼。",
-                )
-              }
-              loading={busy || analyzing}
-              disabled={!style.refs.length}
-            >
-              <ArrowClockwise size={17} />
-              {analyzing ? "正在提炼风格…" : "重新提炼风格"}
-            </Button>
-            {!style.refs.length && (
-              <p className="detail-help">
-                可直接手动调整提示词。需要根据图片重新提炼时，再补充参考图片。
-              </p>
-            )}
-            {!!style.refs.length && (
-              <p className="detail-help">
-                重新分析会调用视觉与内容模型，不会自动生成图片。原提示词保留版本，失败时保留当前规则。
-              </p>
-            )}
-          </div>
-        </div>
-        <div className="style-rules">
-          <label className="detail-help">
-            <input
-              type="checkbox"
-              checked={style.compositionMode === "content-led"}
-              disabled={busy || analyzing || editing}
-              onChange={(event) => {
-                const compositionMode = event.target.checked
-                  ? "content-led"
-                  : "direct";
-                void act(
-                  () =>
-                    patch("/styles/" + style.id, {
-                      compositionMode,
-                      expectedVersion: style.versionToken,
-                    }),
-                  "当前风格的构图方式已保存，下次制作时使用。",
+                  "新参考图已保存，点击重新提炼以更新规则。",
                 );
               }}
             />
-            按内容构思（仅当前风格）
-          </label>
-          <p className="detail-help">
-            开启后，每页增加一次内容模型调用，比较不同表达并做五维构思自检；批量制作参考附近页面的构图描述。方案可查看，并包含在完整提示词中。关闭则直接使用风格原文与内容出图。
-          </p>
-          <div className="style-rules-heading">
-            <h3>{style.refs.length ? "提炼出的设计语言" : "风格提示词"}</h3>
-            {!!style.rules && (
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  if (!editing) setEditBase(style.versionToken);
-                  setEditing(!editing);
-                }}
-                disabled={analyzing || busy}
-              >
-                {editing ? "取消编辑" : "手动调整"}
-              </Button>
-            )}
-          </div>
-          {analyzing && (
-            <div className="analyzing-style">
-              <SpinnerGap size={24} className="spin" />
-              <p>{analysisStage || "正在逐图分析视觉特点…"}</p>
-              <span>判断图片关系后，将为每个独立风格生成完整提示词。</span>
-            </div>
-          )}
-          {style.error && <p className="error-text">{style.error}</p>}
-          {editing ? (
-            <>
+            <Button
+              className="add-reference"
+              onClick={() => input.current?.click()}
+              disabled={busy || analyzing || style.refs.length >= 12}
+            >
+              <Plus size={17} />
+              补充参考图片
+            </Button>
+            <div className="style-feedback">
+              <h3>把风格再调近一点</h3>
               <textarea
-                className="rules-editor"
-                aria-label="风格设计规则"
-                value={rules}
-                onChange={(e) => setRules(e.target.value)}
+                aria-label="风格调整要求"
+                value={feedback}
+                onChange={(e) => setFeedback(e.target.value)}
+                placeholder="例如：留白再多一些，减少装饰图形，数字页的对比更强。"
+                disabled={analyzing}
               />
-              {editBase !== style.versionToken && (
-                <div>
-                  <p className="error-text">
-                    正式提示词已有更新，你的输入仍保留。请在下方版本记录中比较，再确认继续编辑。
-                  </p>
+              <StyleContextFields
+                value={context}
+                onChange={setContext}
+                disabled={busy || analyzing}
+              />
+              {!style.refs.length && (
+                <p className="detail-help">
+                  可直接手动调整提示词。需要根据图片重新提炼时，再补充参考图片。
+                </p>
+              )}
+              {!!style.refs.length && (
+                <p className="detail-help">
+                  重新分析会调用视觉与内容模型，不会自动生成图片。原提示词保留版本，失败时保留当前规则。
+                </p>
+              )}
+            </div>
+          </div>
+          <div
+            className="style-rules"
+            role="region"
+            aria-label="风格提示词与分析"
+            tabIndex={0}
+          >
+            <label className="detail-help">
+              <input
+                type="checkbox"
+                checked={style.compositionMode === "content-led"}
+                disabled={busy || analyzing || editing}
+                onChange={(event) => {
+                  const compositionMode = event.target.checked
+                    ? "content-led"
+                    : "direct";
+                  void act(
+                    () =>
+                      patch("/styles/" + style.id, {
+                        compositionMode,
+                        expectedVersion: style.versionToken,
+                      }),
+                    "当前风格的构图方式已保存，下次制作时使用。",
+                  );
+                }}
+              />
+              按内容构思（仅当前风格）
+            </label>
+            <p className="detail-help">
+              开启后，每页增加一次内容模型调用，比较不同表达并做五维构思自检；批量制作参考附近页面的构图描述。方案可查看，并包含在完整提示词中。关闭则直接使用风格原文与内容出图。
+            </p>
+            <div className="style-rules-heading">
+              <h3>{style.refs.length ? "提炼出的设计语言" : "风格提示词"}</h3>
+              {!!style.rules && (
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    if (!editing) setEditBase(style.versionToken);
+                    setEditing(!editing);
+                  }}
+                  disabled={analyzing || busy}
+                >
+                  {editing ? "取消编辑" : "手动调整"}
+                </Button>
+              )}
+            </div>
+            {analyzing && (
+              <div className="analyzing-style">
+                <SpinnerGap size={24} className="spin" />
+                <p>{analysisStage || "正在逐图分析视觉特点…"}</p>
+                <span>判断图片关系后，将为每个独立风格生成完整提示词。</span>
+              </div>
+            )}
+            {style.error && <p className="error-text">{style.error}</p>}
+            {editing ? (
+              <>
+                <textarea
+                  className="rules-editor"
+                  aria-label="风格设计规则"
+                  value={rules}
+                  onChange={(e) => setRules(e.target.value)}
+                />
+                {editBase !== style.versionToken && (
+                  <div>
+                    <p className="error-text">
+                      正式提示词已有更新，你的输入仍保留。请在下方版本记录中比较，再确认继续编辑。
+                    </p>
+                    <Button
+                      disabled={busy}
+                      onClick={() => {
+                        setEditBase(style.versionToken);
+                        setError("");
+                      }}
+                    >
+                      已比较，继续编辑
+                    </Button>
+                  </div>
+                )}
+              </>
+            ) : style.rules ? (
+              style.styleAnalysis?.styles?.length ? (
+                <StylePromptResults
+                  style={style}
+                  disabled={busy || analyzing}
+                  notify={notify}
+                  onApply={(candidate) =>
+                    void act(
+                      () =>
+                        patch(`/styles/${style.id}`, {
+                          analysisStyleId: candidate.id,
+                          analysisId: style.styleAnalysis?.id,
+                          expectedVersion: style.versionToken,
+                        }),
+                      "这组完整提示词已保存为当前风格，上一版可恢复。",
+                    )
+                  }
+                />
+              ) : (
+                <>
                   <Button
-                    disabled={busy}
-                    onClick={() => {
-                      setEditBase(style.versionToken);
-                      setError("");
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(style.rules);
+                        notify("提示词已复制。");
+                      } catch {
+                        notify("无法访问剪贴板，请选中文字复制。");
+                      }
                     }}
                   >
-                    已比较，继续编辑
+                    复制完整提示词
                   </Button>
-                </div>
-              )}
+                  <div className="rules-text">{style.rules}</div>
+                </>
+              )
+            ) : (
+              !analyzing && (
+                <p className="muted">
+                  参考图已保存。点击“重新提炼风格”获取设计规则。
+                </p>
+              )
+            )}
+            <StyleAnalysis style={style} />
+            <PageNumberHelp rules={editing ? rules : style.rules || ""} />
+            <StyleVersions
+              style={style}
+              disabled={editing || busy || analyzing}
+              blockedReason={
+                editing ? "先保存或取消当前编辑，再恢复历史版本。" : undefined
+              }
+              onRestored={async (_saved, changed) => {
+                await refresh();
+                notify(
+                  changed
+                    ? "已恢复并保存为新版本。"
+                    : "当前内容已一致，无需恢复。",
+                );
+              }}
+            />
+          </div>
+        </div>
+      </div>
+      <div className="style-detail-footer">
+        {error && (
+          <p className="error-text" role="alert">
+            {error}
+          </p>
+        )}
+        {!!style.rules && (
+          <p className="detail-help">
+            保存后的设计语言将原文用于出图；只有主动重新提炼才会改写。
+          </p>
+        )}
+        <div className="modal-actions">
+          <div className="style-detail-secondary-actions">
+            <Button
+              variant="ghost"
+              disabled={busy || analyzing}
+              onClick={() => setConfirmDelete(!confirmDelete)}
+            >
+              <Trash size={17} />
+              删除风格
+            </Button>
+            {editing ? (
               <Button
+                variant="primary"
                 onClick={() =>
                   act(async () => {
                     try {
@@ -887,127 +986,79 @@ function StyleDetail({
                   }, "风格规则已保存，上一版可在提示词版本中恢复。")
                 }
                 loading={busy}
+                disabled={
+                  analyzing || !rules.trim() || editBase !== style.versionToken
+                }
               >
                 <FloppyDisk size={16} />
                 保存规则
               </Button>
-            </>
-          ) : style.rules ? (
-            style.styleAnalysis?.styles?.length ? (
-              <StylePromptResults
-                style={style}
-                disabled={busy || analyzing}
-                notify={notify}
-                onApply={(candidate) =>
-                  void act(
+            ) : (
+              <Button
+                onClick={() =>
+                  act(
                     () =>
-                      patch(`/styles/${style.id}`, {
-                        analysisStyleId: candidate.id,
-                        analysisId: style.styleAnalysis?.id,
-                        expectedVersion: style.versionToken,
+                      post("/styles/" + style.id + "/analyze", {
+                        feedback,
+                        analysisContext: context,
                       }),
-                    "这组完整提示词已保存为当前风格，上一版可恢复。",
+                    "正在结合参考图和反馈重新提炼。",
                   )
                 }
-              />
-            ) : (
-              <>
-                <Button
-                  onClick={async () => {
-                    try {
-                      await navigator.clipboard.writeText(style.rules);
-                      notify("提示词已复制。");
-                    } catch {
-                      notify("无法访问剪贴板，请选中文字复制。");
-                    }
-                  }}
-                >
-                  复制完整提示词
-                </Button>
-                <div className="rules-text">{style.rules}</div>
-              </>
-            )
-          ) : (
-            !analyzing && (
-              <p className="muted">
-                参考图已保存。点击“重新提炼风格”获取设计规则。
-              </p>
-            )
-          )}
-          <StyleAnalysis style={style} />
-          <PageNumberHelp rules={editing ? rules : style.rules || ""} />
-          <StyleVersions
-            style={style}
-            disabled={editing || busy || analyzing}
-            blockedReason={
-              editing ? "先保存或取消当前编辑，再恢复历史版本。" : undefined
-            }
-            onRestored={async (_saved, changed) => {
-              await refresh();
-              notify(
-                changed
-                  ? "已恢复并保存为新版本。"
-                  : "当前内容已一致，无需恢复。",
-              );
-            }}
-          />
+                loading={busy || analyzing}
+                disabled={!style.refs.length}
+              >
+                <ArrowClockwise size={17} />
+                {analyzing ? "正在提炼风格…" : "重新提炼风格"}
+              </Button>
+            )}
+          </div>
+          <div className="style-detail-primary-actions">
+            <Button
+              disabled={!style.rules || analyzing || busy || editing}
+              onClick={onUse}
+            >
+              用此风格新建项目
+            </Button>
+            <Button
+              variant={editing ? "secondary" : "primary"}
+              disabled={!style.rules || analyzing || busy || editing}
+              onClick={onTest}
+            >
+              生成一页 demo / 调试风格
+              <ArrowRight size={17} />
+            </Button>
+          </div>
         </div>
       </div>
-      {error && (
-        <p className="error-text" role="alert">
-          {error}
-        </p>
-      )}
-      {!!style.rules && (
-        <p className="detail-help">
-          保存后的设计语言将原文用于出图；只有主动重新提炼才会改写。
-        </p>
-      )}
-      <div className="modal-actions">
-        <Button
-          variant="ghost"
-          disabled={busy || analyzing}
-          onClick={() => setConfirmDelete(!confirmDelete)}
-        >
-          <Trash size={17} />
-          删除风格
-        </Button>
-        <Button disabled={!style.rules || analyzing || busy} onClick={onUse}>
-          用此风格新建项目
-        </Button>
-        <Button
-          variant="primary"
-          disabled={!style.rules || analyzing || busy}
-          onClick={onTest}
-        >
-          生成一页 demo / 调试风格
-          <ArrowRight size={17} />
-        </Button>
-      </div>
       {confirmDelete && (
-        <div className="inline-notice warm delete-style-confirm">
+        <Modal
+          title={`删除「${style.name}」？`}
+          onClose={() => setConfirmDelete(false)}
+        >
           <div>
-            <strong>删除「{style.name}」？</strong>
             <p>
               会从风格库移除。已有页面、讲稿和历史版本保留；使用它的项目需另选风格才能继续制作。
             </p>
           </div>
-          <Button disabled={busy} onClick={() => setConfirmDelete(false)}>
-            取消
-          </Button>
-          <Button
-            variant="danger"
-            loading={busy}
-            onClick={() =>
-              act(async () => {
-                await api("/styles/" + style.id, { method: "DELETE" });
-                onClose();
-              }, "风格已删除，已有页面和历史版本已保留。")
-            }
-          >
-            确认删除风格
-          </Button>
-        </div>
+          <div className="modal-actions">
+            <Button disabled={busy} onClick={() => setConfirmDelete(false)}>
+              取消
+            </Button>
+            <Button
+              variant="danger"
+              loading={busy}
+              onClick={() =>
+                act(async () => {
+                  await api("/styles/" + style.id, { method: "DELETE" });
+                  onClose();
+                }, "风格已删除，已有页面和历史版本已保留。")
+              }
+            >
+              确认删除风格
+            </Button>
+          </div>
+        </Modal>
       )}
     </Modal>
   );

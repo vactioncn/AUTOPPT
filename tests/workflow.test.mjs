@@ -721,7 +721,7 @@ test(
       .prepare("UPDATE records SET data=? WHERE kind='project' AND id=?")
       .run(JSON.stringify(oldPendingProject), id);
     pendingDb.close();
-    await poll(await req(`/jobs/${job.id}/retry`, {}));
+    await poll(await req(`/jobs/${job.id}/retry`, { acknowledgeUncertain: true }));
     assert.equal(calls.filter((c) => c.type === "copy").length, designCount);
     assert.equal(
       calls.filter((c) => c.type === "copyReview").length,
@@ -755,7 +755,7 @@ test(
     const beforeOpaqueRetry = calls.filter((c) => c.type === "copy").length;
     await req(`/projects/${id}`, { designOptions: options }, "PATCH");
     assert.equal(
-      (await poll(await req(`/jobs/${transparentJob.id}/retry`, {}))).status,
+      (await poll(await req(`/jobs/${transparentJob.id}/retry`, { acknowledgeUncertain: true }))).status,
       "completed",
     );
     assert.equal(
@@ -899,7 +899,7 @@ test(
     );
     await req(`/projects/${id}`, { styleId: "night" }, "PATCH");
     assert.equal(
-      (await poll(await req(`/jobs/${job.id}/retry`, {}))).status,
+      (await poll(await req(`/jobs/${job.id}/retry`, { acknowledgeUncertain: true }))).status,
       "completed",
     );
     assert.equal((await read()).slides.at(-1).imageStyle.id, "night");
@@ -924,7 +924,7 @@ test(
     await req(`/projects/${id}`, { styleId: style.id }, "PATCH");
     await until(async () => {
       try {
-        return await req(`/jobs/${job.id}/retry`, {});
+        return await req(`/jobs/${job.id}/retry`, { acknowledgeUncertain: true });
       } catch {
         return false;
       }
@@ -1297,7 +1297,7 @@ test(
       201,
     );
     failSegment = false;
-    await req(`/jobs/${appendBeforeInsert.id}/retry`, {});
+    await req(`/jobs/${appendBeforeInsert.id}/retry`, { acknowledgeUncertain: true });
     assert.equal((await poll(appendBeforeInsert)).status, "completed");
     const ordered = await req(op);
     assert.deepEqual(
@@ -1374,7 +1374,7 @@ test(
       4,
       "cancel queued job without calling image model",
     );
-    await req(`/jobs/${concurrentJobs[5].id}/retry`, {});
+    await req(`/jobs/${concurrentJobs[5].id}/retry`, { acknowledgeUncertain: true });
     await req(
       cp + "/render",
       { slideIds: [concurrentSlides[0].id] },
@@ -1421,7 +1421,7 @@ test(
     assert.equal(finishedConcurrent.slides[1].image, concurrentSlides[1].image);
     assert.equal(finishedConcurrent.slides[6].notes, "其他页面可以继续修改。");
     assert.equal(
-      (await poll(await req(`/jobs/${concurrentJobs[3].id}/retry`, {}))).status,
+      (await poll(await req(`/jobs/${concurrentJobs[3].id}/retry`, { acknowledgeUncertain: true }))).status,
       "completed",
     );
     // A split preview must not lock unrelated pages or newly submitted manuscript batches.
@@ -2994,7 +2994,7 @@ test(
     const plansBeforeRetry = calls.filter((c) => c.type === "copy").length;
     const textOnlyBeforeRetry = imageRequests.length;
     assert.equal(
-      (await poll(await req(`/jobs/${failedJob.id}/retry`, {}))).status,
+      (await poll(await req(`/jobs/${failedJob.id}/retry`, { acknowledgeUncertain: true }))).status,
       "completed",
     );
     assert.equal(
@@ -3070,7 +3070,7 @@ test(
     );
     assert.equal((await poll(retryDirectionJob)).status, "failed");
     const countBeforeRetry = callCount();
-    await req(`/jobs/${retryDirectionJob.id}/retry`, {});
+    await req(`/jobs/${retryDirectionJob.id}/retry`, { acknowledgeUncertain: true });
     assert.equal((await poll(retryDirectionJob)).status, "completed");
     assert.equal(
       callCount(),

@@ -115,10 +115,19 @@ test(
         name: "调整效果",
         exact: true,
       });
-      const rulesTab = page.getByRole("tab", {
-        name: "风格提示词",
-        exact: true,
-      });
+      const openRules = async () => {
+        await contentTab.click();
+        if (
+          (await page.locator(".studio-advanced").getAttribute("open")) === null
+        )
+          await page.locator(".studio-advanced > summary").click();
+      };
+      await expect(
+        page.getByRole("tab", { name: "风格提示词", exact: true }),
+      ).toHaveCount(0);
+      await expect(
+        page.getByLabel("试做设计规范", { exact: true }),
+      ).toBeHidden();
       const generate = page.getByRole("button", {
         name: "生成图片试做",
         exact: true,
@@ -139,7 +148,8 @@ test(
         page.getByRole("button", { name: "只调整这一页", exact: true }),
       ).toBeDisabled();
       await refineTab.press("ArrowRight");
-      await expect(rulesTab).toBeFocused();
+      await expect(contentTab).toBeFocused();
+      await openRules();
       await expect(
         page.getByLabel("试做设计规范", { exact: true }),
       ).toHaveValue(rules);
@@ -150,7 +160,7 @@ test(
       await page
         .getByLabel("内容倾向（可选）", { exact: true })
         .fill("面向老师");
-      await rulesTab.click();
+      await openRules();
       await contentTab.click();
       await expect(draft).toHaveValue("还没生成的讲稿草稿");
       await expect(
@@ -162,6 +172,7 @@ test(
         0,
         "Opening controls or switching tabs cannot generate",
       );
+      await page.locator(".studio-advanced > summary").click();
       mkdirSync("test-results/style-studio-layout", { recursive: true });
       for (const [label, width, height] of [
         ["desktop-empty", 1440, 900],
@@ -235,7 +246,7 @@ test(
         .click();
       await page.getByRole("button", { name: "试做一页", exact: true }).click();
       await expect(draft).toHaveValue("还没生成的讲稿草稿");
-      await rulesTab.click();
+      await openRules();
       await expect(
         page.getByLabel("试做设计规范", { exact: true }),
       ).toHaveValue(modified);

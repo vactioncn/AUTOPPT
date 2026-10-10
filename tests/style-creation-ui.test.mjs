@@ -146,7 +146,7 @@ test(
         "content remains usable with persistent actions",
       );
       await dialog
-        .getByRole("region", { name: "风格提示词与分析", exact: true })
+        .getByRole("region", { name: "风格概览与高级设置", exact: true })
         .press("End");
       const after = await dialog.locator(".style-detail-footer").boundingBox();
       assert.equal(
@@ -187,8 +187,11 @@ test(
       mimeType: "image/png",
       buffer: image,
     });
-    await page.getByText("使用场景与补充要求（可选）", { exact: true }).click();
-    await page.getByLabel("行业", { exact: true }).fill("文学教学");
+    await page.getByText("视觉补充要求（可选）", { exact: true }).click();
+    await page.getByLabel("希望强化", { exact: true }).fill("纸张质感");
+    await expect(page.getByLabel("行业", { exact: true })).toHaveCount(0);
+    await expect(page.getByLabel("受众", { exact: true })).toHaveCount(0);
+    await expect(page.getByLabel("内容主题", { exact: true })).toHaveCount(0);
     await page.getByLabel("希望避免", { exact: true }).fill("科技 HUD");
     await page
       .getByRole("button", { name: "分析视觉风格", exact: true })
@@ -207,6 +210,11 @@ test(
       await actionsStayVisible(width, height);
     holdCreation = false;
     releaseCreation();
+    await expect(
+      page.getByRole("heading", { name: "已保存到风格库", exact: true }),
+    ).toBeVisible({ timeout: 15000 });
+    await expect(page.locator(".rules-text")).toBeHidden();
+    await page.getByText("高级设置", { exact: true }).click();
     await expect(page.locator(".rules-text")).toContainText(
       "十九、最终效果标准",
       { timeout: 15000 },
@@ -266,13 +274,36 @@ test(
     }
     const bootstrap = await (await fetch(base + "/api/bootstrap")).json();
     const style = bootstrap.styles.find((s) => s.name === "暖纸风格创作验收");
-    assert.equal(style.analysisContext.industry, "文学教学");
+    assert.equal(style.analysisContext.industry, "");
+    assert.equal(style.analysisContext.strengthen, "纸张质感");
     assert.equal(style.analysisContext.avoid, "科技 HUD");
     const versions = await (
       await fetch(base + `/api/styles/${style.id}/versions`)
     ).json();
     rejectCreation = true;
+    await page.getByText("调整视觉风格（可选）", { exact: true }).click();
     await page.getByLabel("风格调整要求").fill("保留纸张的真实感");
+    const countBeforeDraft = requests.length;
+    await expect(
+      page.getByRole("status").filter({ hasText: "调整草稿已自动保存在本机" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "关闭", exact: true }).click();
+    await page
+      .locator(".style-card")
+      .filter({ hasText: style.name })
+      .getByRole("button", { name: "查看风格", exact: true })
+      .click();
+    await expect(page.locator(".rules-text")).toBeHidden();
+    await page.getByText("调整视觉风格（可选）", { exact: true }).click();
+    await expect(page.getByLabel("风格调整要求")).toHaveValue(
+      "保留纸张的真实感",
+    );
+    assert.equal(
+      requests.length,
+      countBeforeDraft,
+      "Saving a visual draft must not call a model",
+    );
+    await page.getByText("高级设置", { exact: true }).click();
     await page
       .getByRole("button", { name: "重新提炼风格", exact: true })
       .click();

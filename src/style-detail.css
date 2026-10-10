@@ -79,6 +79,46 @@
   min-height: 72px;
   margin: 12px 0 0;
 }
+.style-feedback > summary,
+.style-advanced > summary {
+  padding: 12px 0;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+}
+.style-detail-modal .style-feedback .field {
+  margin-top: 12px;
+}
+.style-overview h3 {
+  margin: 0 0 12px;
+  font-size: 20px;
+}
+.style-overview p {
+  line-height: 1.8;
+  margin: 0 0 16px;
+  font-size: 14px;
+}
+.style-content-boundary {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+.style-content-boundary h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+.style-content-boundary p {
+  color: var(--muted);
+  font-size: 13px;
+}
+.style-advanced {
+  margin-top: 24px;
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+}
+.style-advanced > .style-prompt-toolbar {
+  margin-top: 20px;
+}
 .style-detail-modal .style-context-fields {
   margin: 8px 0;
 }

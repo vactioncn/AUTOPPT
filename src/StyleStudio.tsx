@@ -174,14 +174,11 @@ export function StyleStudio({
       setSelectedId(t.id);
       setPending(t.id);
     });
-  const [editorView, setEditorView] = useState<"content" | "refine" | "rules">(
-    "content",
-  );
+  const [editorView, setEditorView] = useState<"content" | "refine">("content");
   const editorId = useId();
   const editorTabs = [
     { id: "content", label: "试做内容" },
     { id: "refine", label: "调整效果" },
-    { id: "rules", label: "风格提示词" },
   ] as const;
   const canRefine =
     selected?.engine === "image" &&
@@ -199,7 +196,7 @@ export function StyleStudio({
       <div className="page-heading studio-heading">
         <div>
           <h1>{style.name} · 试做一页</h1>
-          <p>先用一段内容看效果，满意后再保存为正式风格。</p>
+          <p>试做不会修改已保存的风格；满意后可将调整保存为新版本。</p>
         </div>
         <Button
           disabled={disabled}
@@ -377,7 +374,7 @@ export function StyleStudio({
               <strong>
                 {selected?.appliedAt
                   ? "这版已保存为正式风格"
-                  : "满意后，保存风格"}
+                  : "将调整保存为风格新版本"}
               </strong>
               <p>
                 {edited
@@ -386,7 +383,7 @@ export function StyleStudio({
                     ? "这是封面，使用已保存的正式风格。"
                     : selected?.appliedAt
                       ? "后续制作将沿用这版规则。"
-                      : "确认效果后，再用于后续制作。"}
+                      : "当前风格已保存，确认后可更新为这版规则。"}
               </p>
             </div>
             <Button
@@ -630,7 +627,7 @@ export function StyleStudio({
                 </div>
               </details>
               <p className="detail-help">
-                已预填示例，也可粘贴自己的讲稿。每次只生成一页，原稿保留。
+                试做草稿自动保存在本机，仅用于试做。讲稿、受众与配色不会保存为正式风格。
               </p>
               <details className="studio-options">
                 <summary>内容倾向与配色（可选）</summary>
@@ -641,6 +638,47 @@ export function StyleStudio({
                   rules={rules}
                   disabled={disabled}
                   onBusyChange={setOptionsBusy}
+                />
+              </details>
+              <details className="studio-advanced">
+                <summary>高级设置</summary>
+                <h3>设计提示词原文</h3>
+                <p className="detail-help">
+                  {rules === style.rules
+                    ? "正在使用已保存的正式提示词。"
+                    : "这是试做中的提示词，尚未保存为正式风格。"}
+                  修改后先试做，再确认保存。
+                </p>
+                <Field label="试做设计规范">
+                  <textarea
+                    className="rules-editor"
+                    value={rules}
+                    onChange={(e) => setRules(e.target.value)}
+                    disabled={disabled}
+                  />
+                </Field>
+                <p className="detail-help">
+                  只在明确的页码位置填入动态编号，其他文字原样用于出图。
+                </p>
+                <PageNumberHelp rules={rules} />
+                <StyleVersions
+                  style={style}
+                  disabled={disabled || rules !== style.rules}
+                  blockedReason={
+                    rules !== style.rules
+                      ? "试做区有不同的提示词。先保存为正式风格，或从正式风格重新开始，再恢复历史版本。"
+                      : undefined
+                  }
+                  onRestored={async (saved, changed) => {
+                    setRules(saved.rules);
+                    setSelectedId("");
+                    await refreshStyles();
+                    notify(
+                      changed
+                        ? "已恢复并保存为新版本。"
+                        : "当前内容已一致，无需恢复。",
+                    );
+                  }}
                 />
               </details>
             </div>
@@ -674,52 +712,6 @@ export function StyleStudio({
                   : "先在“试做内容”生成一页，再针对成图调整。"}
               </p>
             </div>
-            <div
-              role="tabpanel"
-              id={`${editorId}-rules-panel`}
-              aria-labelledby={`${editorId}-rules-tab`}
-              hidden={editorView !== "rules"}
-              tabIndex={0}
-            >
-              <h2>设计提示词原文</h2>
-              <p className="detail-help">
-                {rules === style.rules
-                  ? "正在使用已保存的正式提示词。"
-                  : "这是试做中的提示词，尚未保存为正式风格。"}
-                修改后先试做，再确认保存。
-              </p>
-              <Field label="试做设计规范">
-                <textarea
-                  className="rules-editor"
-                  value={rules}
-                  onChange={(e) => setRules(e.target.value)}
-                  disabled={disabled}
-                />
-              </Field>
-              <p className="detail-help">
-                只在明确的页码位置填入动态编号，其他文字原样用于出图。
-              </p>
-              <PageNumberHelp rules={rules} />
-              <StyleVersions
-                style={style}
-                disabled={disabled || rules !== style.rules}
-                blockedReason={
-                  rules !== style.rules
-                    ? "试做区有不同的提示词。先保存为正式风格，或从正式风格重新开始，再恢复历史版本。"
-                    : undefined
-                }
-                onRestored={async (saved, changed) => {
-                  setRules(saved.rules);
-                  setSelectedId("");
-                  await refreshStyles();
-                  notify(
-                    changed
-                      ? "已恢复并保存为新版本。"
-                      : "当前内容已一致，无需恢复。",
-                  );
-                }}
-              />
-            </div>
           </div>
           <div className="studio-editor-footer">
             <p>
@@ -727,7 +719,7 @@ export function StyleStudio({
                 ? "正在生成，完成后自动显示。"
                 : editorView === "refine"
                   ? "生成一版新结果，原图保留。"
-                  : "仅试做一页，已有项目与图片保留。"}
+                  : "试做草稿自动保存，点击下方才会生成。"}
             </p>
             {editorView === "refine" ? (
               <Button

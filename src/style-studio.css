@@ -197,6 +197,14 @@
 .studio-editor .rules-editor {
   min-height: 300px;
 }
+.studio-editor .studio-advanced {
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.studio-advanced h3 {
+  margin: 20px 0 12px;
+  font-size: 20px;
+}
 .studio-editor .field {
   margin-top: 16px;
 }

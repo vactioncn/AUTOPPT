@@ -145,7 +145,7 @@ export function DesignOptionsEditor({
         />
       </Field>
       <small>
-        写一句受众或场景即可，留空沿用原内容。不补充原稿没有的观点。
+        写一句受众、行业或使用场景即可，留空沿用原内容。不补充原稿没有的观点。
       </small>
       {value.audience && (
         <details className="audience-details">

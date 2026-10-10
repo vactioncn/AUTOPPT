@@ -2494,7 +2494,9 @@ test(
       ).toBeVisible();
       await expect(
         page.getByRole("button", { name: "重新提炼风格", exact: true }),
-      ).toBeDisabled();
+      ).toHaveCount(0);
+      await expect(page.locator(".rules-text")).not.toBeVisible();
+      await page.locator(".style-advanced > summary").click();
       await expect(page.locator(".rules-text")).toHaveText(manualRules);
       const savedManual = (await req("/bootstrap")).styles.find(
         (s) => s.name === "浏览器手写风格",
@@ -2522,6 +2524,7 @@ test(
       ).rules;
       const beforeVersions = (await req(`/styles/${style.id}/versions`))
         .versions;
+      await page.getByText("高级设置", { exact: true }).click();
       await page.getByRole("button", { name: "手动调整", exact: true }).click();
       await page
         .getByRole("textbox", { name: "风格设计规则" })
@@ -2609,6 +2612,13 @@ test(
       await page
         .getByLabel("试做讲稿", { exact: true })
         .fill("这是浏览器图片试做。");
+      const openTrialRules = async () => {
+        await page.getByRole("tab", { name: "试做内容", exact: true }).click();
+        if (
+          (await page.locator(".studio-advanced").getAttribute("open")) === null
+        )
+          await page.locator(".studio-advanced > summary").click();
+      };
       const preview = page.getByRole("region", {
         name: "本次提炼的上屏内容",
         exact: true,
@@ -2677,7 +2687,7 @@ test(
         "复制内容部分（含辅助信息）",
         browserTrial.plan.contentPrompt,
       );
-      await page.getByRole("tab", { name: "风格提示词", exact: true }).click();
+      await openTrialRules();
       await page
         .getByLabel("试做设计规范", { exact: true })
         .fill("新的风格尚未生成");
@@ -2691,11 +2701,11 @@ test(
       await page
         .getByLabel("试做讲稿", { exact: true })
         .fill(browserTrial.notes);
-      await page.getByRole("tab", { name: "风格提示词", exact: true }).click();
+      await openTrialRules();
       await page
         .getByLabel("试做设计规范", { exact: true })
         .fill(browserTrial.styleSnapshot.rules);
-      await page.getByRole("tab", { name: "风格提示词", exact: true }).click();
+      await openTrialRules();
       await page.evaluate(() => {
         const write = navigator.clipboard.writeText.bind(navigator.clipboard);
         navigator.clipboard.writeText = async () => {
@@ -2750,7 +2760,7 @@ test(
       await expect(
         page.getByRole("button", { name: "调整规范并再试", exact: true }),
       ).toHaveCount(0);
-      await page.getByRole("tab", { name: "风格提示词", exact: true }).click();
+      await openTrialRules();
       await page.evaluate(() => window.scrollTo(0, 0));
       await page.screenshot({
         path: ".impeccable/review/image-desktop.png",

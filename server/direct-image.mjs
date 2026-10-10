@@ -4,7 +4,7 @@ import { assertDesignedCopy } from "./screen-copy.mjs";
 import { imageContentPrompt } from "./image-content.mjs";
 import { IMAGE_CANVAS_PROMPT } from "../shared/image-output.mjs";
 
-export const DIRECT_PROMPT_MODE = "verbatim-style-v5";
+export const DIRECT_PROMPT_MODE = "verbatim-style-v6";
 
 // The style is user-authored input. Never trim, summarize, merge observations,
 // select a layout, or inject a house aesthetic into this block.

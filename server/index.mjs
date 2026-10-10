@@ -369,7 +369,9 @@ app.patch("/api/projects/:id", (req, res) => {
 });
 app.post("/api/projects/:id/batches", (req, res) => {
   const p = projectOrThrow(req.params.id);
-  const { text, requestId } = req.body;
+  const { text, requestId, generationMode = "full" } = req.body;
+  if (!["preview", "full"].includes(generationMode))
+    throw new Error("请选择先试一页或制作全部页面。");
   // Legacy clients may omit the ID. New clients retain it until acceptance.
   if (
     requestId !== undefined &&
@@ -379,9 +381,12 @@ app.post("/api/projects/:id/batches", (req, res) => {
   const existing =
     requestId && p.batches.find((b) => b.requestId === requestId);
   if (existing) {
-    if (existing.text !== text)
+    if (
+      existing.text !== text ||
+      (existing.generationMode || "full") !== generationMode
+    )
       throw Object.assign(
-        new Error("这次请求已提交，请使用新的请求提交修改后的讲稿。"),
+        new Error("这次请求已提交，请使用新的请求提交修改后的讲稿或制作方式。"),
         { status: 409 },
       );
     const job = get("job", existing.jobId);
@@ -422,6 +427,7 @@ app.post("/api/projects/:id/batches", (req, res) => {
   const batch = {
     id: id(),
     text,
+    generationMode,
     ...(requestId ? { requestId } : {}),
     label: `第 ${p.batches.length + 1} 段`,
     createdAt: now(),
@@ -433,7 +439,7 @@ app.post("/api/projects/:id/batches", (req, res) => {
     p.draft = "";
     p.undo = null;
     saveProject(p);
-    j = enqueue("append", p.id, { batchId: batch.id });
+    j = enqueue("append", p.id, { batchId: batch.id, generationMode });
     batch.jobId = j.id;
     put("project", p);
   });

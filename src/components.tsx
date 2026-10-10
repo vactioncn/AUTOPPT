@@ -166,7 +166,7 @@ export function SlideImage({
           ) : (
             <ImageIcon size={32} weight="light" />
           )}
-          <strong>{slide.plan?.title || "正在理解这一页的内容"}</strong>
+          <strong>{slide.plan?.title || (slide.status === "generating" ? "正在理解这一页的内容" : "这一页尚未生成画面")}</strong>
           <span>
             {slide.status === "error"
               ? "生成未完成，可继续制作"

@@ -148,6 +148,11 @@ export function Workspace({
     "confirm" | "models" | null
   >(null);
   const [directGeneration, setDirectGeneration] = useState(false);
+  const [generationMode, setGenerationMode] = useState<"preview" | "full">(
+    hosted ? "preview" : "full",
+  );
+  const [completePreviewOpen, setCompletePreviewOpen] = useState(false);
+  const [completingPreview, setCompletingPreview] = useState(false);
   const submitLock = useRef(false);
   const latestModelsReady = useRef(modelsReady);
   latestModelsReady.current = modelsReady;
@@ -324,7 +329,10 @@ export function Workspace({
     setError("");
     let acceptedSubmission = false;
     try {
-      const requestId = await generationRequest.current!.forText(draft);
+      const requestId = await generationRequest.current!.forText(
+        draft,
+        generationMode,
+      );
       setGenerationPersistent(generationRequest.current!.isPersistent());
       await saveDraft(draft);
       // Account polling may invalidate readiness while the draft is saving.
@@ -336,7 +344,11 @@ export function Workspace({
         id: string;
         batchId: string;
         accepted: boolean;
-      }>("/projects/" + id + "/batches", { text: draft, requestId });
+      }>("/projects/" + id + "/batches", {
+        text: draft,
+        requestId,
+        generationMode,
+      });
       if (!accepted.accepted || !accepted.id || !accepted.batchId)
         throw new Error("尚未确认服务端接受，请重试；相同讲稿不会重复提交。");
       acceptedSubmission = true;
@@ -348,6 +360,7 @@ export function Workspace({
       cacheDraft(null);
       latestDraft.current = "";
       setDraft("");
+      setComposerOpen(false);
       setSaving(false);
       setFilter("latest");
       await refresh();
@@ -383,6 +396,36 @@ export function Workspace({
     );
   const activeJobs = jobs.filter((j) => active(j.status));
   const busy = activeJobs[0];
+  const previewJob = jobs.find(
+    (j) => j.status === "completed" && j.preview && j.type === "append",
+  );
+  const previewPage = project.slides.find(
+    (s) => s.id === previewJob?.preview?.slideId && (s.image || s.scene),
+  );
+  const previewBatch = project.batches.find(
+    (b) => b.id === previewJob?.batchId,
+  );
+  const previewRemaining = project.slides.filter(
+    (s) => previewBatch?.slideIds.includes(s.id) && !s.image && !s.scene,
+  );
+  const completePreview = async () => {
+    if (completingPreview || busy || !previewRemaining.length) return;
+    setCompletingPreview(true);
+    setError("");
+    try {
+      await post(`/projects/${id}/render`, {
+        slideIds: previewRemaining.map((s) => s.id),
+        redesign: false,
+      });
+      setCompletePreviewOpen(false);
+      await refresh();
+      await onRefresh();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setCompletingPreview(false);
+    }
+  };
   const pageBusy = (sid: string) =>
     activeJobs.some((j) => !j.slideIds || j.slideIds.includes(sid));
   const proposalBusy = project.proposal?.sourceIds.some(pageBusy) ?? false;
@@ -583,6 +626,37 @@ export function Workspace({
           无法保存生成请求标识；本次会话可继续使用，但重启后无法识别未确认的提交。若提交结果不明，请先查看项目状态再重试。
         </p>
       )}
+      {hosted && (
+        <fieldset className="generation-choice" disabled={submitting}>
+          <legend>这次怎么制作</legend>
+          <label data-selected={generationMode === "preview"}>
+            <input
+              type="radio"
+              name="generation-mode"
+              value="preview"
+              checked={generationMode === "preview"}
+              onChange={() => setGenerationMode("preview")}
+            />
+            <span>
+              <strong>先试一页</strong>
+              <small>完整保存并拆页，只生成第一页画面</small>
+            </span>
+          </label>
+          <label data-selected={generationMode === "full"}>
+            <input
+              type="radio"
+              name="generation-mode"
+              value="full"
+              checked={generationMode === "full"}
+              onChange={() => setGenerationMode("full")}
+            />
+            <span>
+              <strong>制作全部页面</strong>
+              <small>按讲稿拆页后，逐页生成全部画面</small>
+            </span>
+          </label>
+        </fieldset>
+      )}
       <div className="composer-footer">
         <span>
           {draft.length.toLocaleString()} 字
@@ -594,7 +668,11 @@ export function Workspace({
           disabled={!draft.trim()}
           loading={submitting}
         >
-          提交讲稿并制作
+          {hosted
+            ? generationMode === "preview"
+              ? "生成一页试效果"
+              : "提交并制作全部页面"
+            : "提交讲稿并制作"}
           <ArrowUp size={17} />
         </Button>
       </div>
@@ -802,6 +880,30 @@ export function Workspace({
           tabIndex={-1}
           aria-label="制作任务"
         >
+          {!busy && previewPage && previewRemaining.length > 0 && (
+            <section className="preview-ready" aria-label="一页试做已完成">
+              <div>
+                <span>先试一页 · 已完成</span>
+                <h3>先看效果，再决定是否继续</h3>
+                <p>
+                  完整讲稿已保存并拆为 {previewBatch?.slideIds.length} 页；其余{" "}
+                  {previewRemaining.length} 页尚未生成画面。
+                </p>
+              </div>
+              <div className="preview-ready-actions">
+                <Button onClick={() => setDetail(previewPage.id)}>
+                  查看试做页
+                </Button>
+                <Button
+                  variant="primary"
+                  onClick={() => setCompletePreviewOpen(true)}
+                >
+                  满意，生成其余 {previewRemaining.length} 页
+                  <ArrowRight size={16} />
+                </Button>
+              </div>
+            </section>
+          )}
           {activeJobs.length > 0 && (
             <p>
               后台制作：
@@ -1538,11 +1640,15 @@ export function Workspace({
           ) : (
             <>
               <p>
-                先调用内容模型拆页，再按实际拆分页调用图片模型。具体页数由拆页结果决定。
+                {generationMode === "preview"
+                  ? "完整讲稿会保存并拆页，本次只生成第一页画面；其他页面等你确认效果后再生成。"
+                  : "先调用内容模型拆页，再按实际拆分页调用图片模型。具体页数由拆页结果决定。"}
               </p>
               <p>
                 {hosted
-                  ? "使用管理员提供的图片额度，实际用量以生成结果为准。"
+                  ? generationMode === "preview"
+                    ? "成功生成试做页使用 1 张图片额度；内容分析也会调用模型。"
+                    : "每张成功图片使用 1 张额度；内容分析也会调用模型。"
                   : "费用由已配置服务商按实际调用收取。"}
               </p>
               <p>返回修改或关闭不会丢失草稿。</p>
@@ -1574,11 +1680,50 @@ export function Workspace({
                     void submitDraft(directGeneration);
                   }}
                 >
-                  开始生成
+                  {hosted && generationMode === "preview"
+                    ? "确认，试做一页"
+                    : "开始生成"}
                 </Button>
               </div>
             </>
           )}
+        </Modal>
+      )}
+      {completePreviewOpen && (
+        <Modal
+          title="继续生成其余页面"
+          subtitle="沿用当前项目风格与讲稿。"
+          onClose={() => !completingPreview && setCompletePreviewOpen(false)}
+        >
+          <p>
+            本次生成尚无画面的 {previewRemaining.length}{" "}
+            页；已完成的试做页保持原样。
+          </p>
+          <p>
+            每张成功图片使用 1
+            张额度，内容分析也会调用模型。失败后可继续未完成页面。
+          </p>
+          {error && (
+            <p role="alert" className="error-text">
+              {error}
+            </p>
+          )}
+          <div className="modal-actions">
+            <Button
+              onClick={() => setCompletePreviewOpen(false)}
+              disabled={completingPreview}
+            >
+              再看看试做页
+            </Button>
+            <Button
+              variant="primary"
+              loading={completingPreview}
+              disabled={!previewRemaining.length || !!busy}
+              onClick={() => void completePreview()}
+            >
+              生成其余 {previewRemaining.length} 页
+            </Button>
+          </div>
         </Modal>
       )}
       {detailSlide && (

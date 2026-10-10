@@ -230,6 +230,17 @@ test("unacknowledged generation identity survives retries and reloads; acceptanc
   assert.equal(denied.isPersistent(), false);
 });
 
+test("preview and full generation never share a pending submission identity", async () => {
+  const s = storage();
+  const request = createGenerationRequest("preview-mode", () => s);
+  const previewId = await request.forText("完整稿件", "preview");
+  assert.equal(await createGenerationRequest("preview-mode", () => s).forText("完整稿件", "preview"), previewId);
+  const fullId = await request.forText("完整稿件", "full");
+  assert.notEqual(fullId, previewId);
+  assert.equal(await createGenerationRequest("preview-mode", () => s).forText("完整稿件"), fullId);
+  assert(!JSON.stringify([...s.entries]).includes("完整稿件"));
+});
+
 test("pending request survives a fresh client and is isolated by runtime, real account and project", async () => {
   const persistent = preferenceStorage();
   const scope = JSON.stringify(["hosted:real-user-one", "same-project"]);

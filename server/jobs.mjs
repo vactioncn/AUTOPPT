@@ -564,7 +564,11 @@ async function run(j, signal) {
       ids = slides.map((s) => s.id);
       saveProject(p);
     }
-    await renderSlides(j, ids, signal);
+    const mode = batch.generationMode || j.payload.generationMode || "full";
+    if (mode === "preview") {
+      j.preview = { slideId: ids[0], totalPages: ids.length };
+      await renderSlides(j, ids.slice(0, 1), signal);
+    } else await renderSlides(j, ids, signal);
     return;
   }
   if (j.type === "render") {

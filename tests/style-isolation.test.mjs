@@ -77,7 +77,7 @@ test("raw style prompts stay exact and independent from reusable, source-bound s
       "\n\n" +
       IMAGE_CANVAS_PROMPT,
   );
-  assert.equal(approved.promptMode, "verbatim-style-v5");
+  assert.equal(approved.promptMode, "verbatim-style-v6");
   assert.equal(
     imagePrompt(approved),
     minimal.rules +
@@ -233,7 +233,7 @@ test("raw style prompts stay exact and independent from reusable, source-bound s
   );
   const resumed = get("trial", "old-trial");
   assert.equal(resumed.status, "completed");
-  assert.equal(resumed.plan.promptMode, "verbatim-style-v5");
+  assert.equal(resumed.plan.promptMode, "verbatim-style-v6");
   assert.deepEqual(resumed.plan.screenCopy, approved.screenCopy);
   assert.equal(resumed.plan.styleRules, minimal.rules);
   assert.equal(calls.length, beforeTrialCalls);

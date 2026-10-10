@@ -399,6 +399,7 @@ export type Batch = {
   id: string;
   jobId?: string;
   text: string;
+  generationMode?: "preview" | "full";
   label: string;
   slideIds: string[];
   createdAt: string;
@@ -436,6 +437,7 @@ export type ProjectSummary = {
   coverScene?: Scene;
 };
 export type Job = {
+  preview?: { slideId: string; totalPages: number };
   failures?: { id: string; page: number; error: string }[];
   pageProgress?: {
     phase?: "analysis" | "images";

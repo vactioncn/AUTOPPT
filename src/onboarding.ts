@@ -121,10 +121,17 @@ export function createGenerationRequest(
   }
   return {
     isPersistent: () => persistent,
-    async forText(text: string) {
+    async forText(text: string, mode: "preview" | "full" = "full") {
       const digest = Array.from(
         new Uint8Array(
-          await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)),
+          await crypto.subtle.digest(
+            "SHA-256",
+            new TextEncoder().encode(
+              mode === "full"
+                ? text
+                : JSON.stringify({ text, generationMode: mode }),
+            ),
+          ),
         ),
         (byte) => byte.toString(16).padStart(2, "0"),
       ).join("");

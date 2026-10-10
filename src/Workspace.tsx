@@ -15,11 +15,16 @@ import {
 import type { DesignOptions } from "./types";
 import { RawPromptDetails } from "./RawPromptDetails";
 import { currentProduction } from "../shared/production.mjs";
+import { browsePages } from "../shared/page-browser.mjs";
+import { planImageBatch } from "../shared/image-batch.mjs";
+import { PageBrowser, PagePagination } from "./PageBrowser";
+import { useAccount } from "./Account";
 import {
   useState,
   useEffect,
   useRef,
   useCallback,
+  useMemo,
   lazy,
   Suspense,
 } from "react";
@@ -151,9 +156,23 @@ export function Workspace({
   const [generationMode, setGenerationMode] = useState<"preview" | "full">(
     hosted ? "preview" : "full",
   );
-  const [completePreviewOpen, setCompletePreviewOpen] = useState(false);
+  const [imageBatch, setImageBatch] = useState<{
+    ids: string[];
+    preview: boolean;
+  } | null>(null);
+  const account = useAccount();
+  const [checkedQuota, setCheckedQuota] = useState<{
+    available: number;
+    held: number;
+  } | null>(null);
+  const [checkingQuota, setCheckingQuota] = useState(false);
+  const [imageBatchError, setImageBatchError] = useState("");
+  const credits = checkedQuota || account.user;
+  const [pageQuery, setPageQuery] = useState("");
+  const [pageGroup, setPageGroup] = useState(0);
   const [completingPreview, setCompletingPreview] = useState(false);
   const [retryReview, setRetryReview] = useState<Job | null>(null);
+  const [retryError, setRetryError] = useState("");
   const [reviewedRetry, setReviewedRetry] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const submitLock = useRef(false);
@@ -249,6 +268,42 @@ export function Workspace({
       initialized.current = true;
     }
   }, [id]);
+  useEffect(() => setCheckedQuota(null), [account.user]);
+  const pageScope = useMemo(() => {
+    if (!project) return [];
+    if (filter === "all") return project.slides;
+    if (filter === "latest") return currentProduction(project, jobs).slides;
+    return project.slides.filter((slide) => slide.batchIds.includes(filter));
+  }, [project, jobs, filter]);
+  const pageResult = useMemo(
+    () => browsePages(pageScope, project?.slides || [], pageQuery, pageGroup),
+    [pageScope, project?.slides, pageQuery, pageGroup],
+  );
+  useEffect(() => setPageGroup(0), [filter, pageQuery]);
+  useEffect(() => setPageGroup(pageResult.current), [pageResult.current]);
+  const checkQuota = async () => {
+    const next = await api<{
+      user: { available: number; held: number } | null;
+    }>("/account");
+    if (!next.user)
+      throw new Error("登录状态已失效，请重新登录后继续。草稿和页面会保留。");
+    setCheckedQuota(next.user);
+    return next.user;
+  };
+  const openImageBatch = async (ids: string[], preview = false) => {
+    setError("");
+    setImageBatchError("");
+    setImageBatch({ ids, preview });
+    if (!hosted) return;
+    setCheckingQuota(true);
+    try {
+      await checkQuota();
+    } catch (error) {
+      setImageBatchError((error as Error).message);
+    } finally {
+      setCheckingQuota(false);
+    }
+  };
   useEffect(() => {
     refresh().catch((e) => setError(e.message));
     const t = setInterval(
@@ -343,6 +398,10 @@ export function Workspace({
         setGenerationDialog("models");
         return;
       }
+      if (hosted && (await checkQuota()).available < 1)
+        throw new Error(
+          "可用图片额度为 0，请联系管理员补充。完整草稿已保存，补充后即可继续。",
+        );
       const accepted = await post<{
         id: string;
         batchId: string;
@@ -366,6 +425,8 @@ export function Workspace({
       setComposerOpen(false);
       setSaving(false);
       setFilter("latest");
+      setPageQuery("");
+      setPageGroup(0);
       await refresh();
       await onRefresh();
     } catch (e) {
@@ -411,20 +472,42 @@ export function Workspace({
   const previewRemaining = project.slides.filter(
     (s) => previewBatch?.slideIds.includes(s.id) && !s.image && !s.scene,
   );
-  const completePreview = async () => {
-    if (completingPreview || busy || !previewRemaining.length) return;
+  const imagePlan = planImageBatch(imageBatch?.ids || [], credits?.available);
+  const completeImageBatch = async (count: number) => {
+    if (completingPreview || busy || !imageBatch || count < 1) return;
     setCompletingPreview(true);
-    setError("");
+    setImageBatchError("");
+    let accepted = false;
     try {
+      if (hosted && (await checkQuota()).available < count)
+        throw new Error(
+          "可用额度刚刚发生变化，请按更新后的张数重新确认。此次尚未提交生成。",
+        );
+      const ids = imageBatch.ids.filter((sid) =>
+        project.slides.some(
+          (slide) => slide.id === sid && !slide.image && !slide.scene,
+        ),
+      );
+      if (ids.length !== imageBatch.ids.length) {
+        setImageBatch({ ...imageBatch, ids });
+        throw new Error(
+          "部分页面已完成或已调整，已更新待生成范围，请重新确认。",
+        );
+      }
       await post(`/projects/${id}/render`, {
-        slideIds: previewRemaining.map((s) => s.id),
+        slideIds: imagePlan.ids.slice(0, count),
         redesign: false,
       });
-      setCompletePreviewOpen(false);
+      accepted = true;
+      setImageBatch(null);
       await refresh();
       await onRefresh();
     } catch (e) {
-      setError((e as Error).message);
+      if (accepted)
+        setError(
+          "任务已提交，但页面状态暂未刷新。请稍后查看进度，不要重复提交。",
+        );
+      else setImageBatchError((e as Error).message);
     } finally {
       setCompletingPreview(false);
     }
@@ -432,6 +515,8 @@ export function Workspace({
   const pageBusy = (sid: string) =>
     activeJobs.some((j) => !j.slideIds || j.slideIds.includes(sid));
   const retryTask = (job: Job) => {
+    setError("");
+    setRetryError("");
     if (
       job.uncertain ||
       job.pageProgress?.failed.some((page) => page.uncertain)
@@ -443,7 +528,7 @@ export function Workspace({
   const confirmRetry = async () => {
     if (!retryReview || !reviewedRetry || retrying) return;
     setRetrying(true);
-    setError("");
+    setRetryError("");
     try {
       await post(`/jobs/${retryReview.id}/retry`, {
         acknowledgeUncertain: true,
@@ -452,7 +537,7 @@ export function Workspace({
       await refresh();
       await onRefresh();
     } catch (e) {
-      setError((e as Error).message);
+      setRetryError((e as Error).message);
     } finally {
       setRetrying(false);
     }
@@ -496,12 +581,17 @@ export function Workspace({
         : project.batches.find((b) => b.id === filter);
   const incomplete = project.batches.filter((b) => !b.slideIds.length);
   const style = styles.find((s) => s.id === project.styleId);
-  const shown =
-    filter === "all"
-      ? project.slides
-      : filter === "latest"
-        ? production.slides
-        : project.slides.filter((s) => s.batchIds.includes(filter));
+  const shown = hosted ? pageResult.slides : pageScope;
+  const selectedHidden = selected.filter(
+    (sid) => !shown.some((slide) => slide.id === sid),
+  ).length;
+  const changePageGroup = (group: number) => {
+    setPageGroup(group);
+    requestAnimationFrame(() => {
+      gallery.current?.scrollIntoView({ block: "start", behavior: "instant" });
+      gallery.current?.focus({ preventScroll: true });
+    });
+  };
   const detailSlide = project.slides.find((s) => s.id === detail);
   const splitSlide = project.slides.find((s) => s.id === split);
   const selectedPages = project.slides.filter((s) => selected.includes(s.id));
@@ -686,6 +776,17 @@ export function Workspace({
           </label>
         </fieldset>
       )}
+      {hosted && (
+        <p className="composer-quota">
+          可用 {credits?.available ?? "待确认"} 张图片额度
+          {credits?.held ? ` · ${credits.held} 张正在预留或待核对` : ""}。
+          {credits?.available === 0
+            ? "请联系管理员补充，草稿仍可正常保存。"
+            : generationMode === "preview"
+              ? "试做成功使用 1 张，满意后再做剩余页。"
+              : "拆页后才确定总张数；建议先试一页。"}
+        </p>
+      )}
       <div className="composer-footer">
         <span>
           {draft.length.toLocaleString()} 字
@@ -694,7 +795,7 @@ export function Workspace({
         <Button
           variant="primary"
           onClick={add}
-          disabled={!draft.trim()}
+          disabled={!draft.trim() || (hosted && credits?.available === 0)}
           loading={submitting}
         >
           {hosted
@@ -926,7 +1027,12 @@ export function Workspace({
                 </Button>
                 <Button
                   variant="primary"
-                  onClick={() => setCompletePreviewOpen(true)}
+                  onClick={() =>
+                    void openImageBatch(
+                      previewRemaining.map((slide) => slide.id),
+                      true,
+                    )
+                  }
                 >
                   满意，生成其余 {previewRemaining.length} 页
                   <ArrowRight size={16} />
@@ -1139,14 +1245,22 @@ export function Workspace({
                       <Button
                         className="fill-missing-pages"
                         onClick={() =>
-                          run(() =>
-                            post("/projects/" + id + "/render", {
-                              slideIds: pending
-                                .filter((s) => !(s.image || s.scene))
-                                .map((s) => s.id),
-                              redesign: false,
-                            }),
-                          )
+                          hosted
+                            ? void openImageBatch(
+                                pending
+                                  .filter(
+                                    (slide) => !slide.image && !slide.scene,
+                                  )
+                                  .map((slide) => slide.id),
+                              )
+                            : run(() =>
+                                post("/projects/" + id + "/render", {
+                                  slideIds: pending
+                                    .filter((s) => !(s.image || s.scene))
+                                    .map((s) => s.id),
+                                  redesign: false,
+                                }),
+                              )
                         }
                       >
                         <ArrowsClockwise size={15} />
@@ -1171,11 +1285,37 @@ export function Workspace({
                   )}
                 </div>
               </div>
+              {hosted && (
+                <PageBrowser
+                  query={pageQuery}
+                  onQuery={setPageQuery}
+                  result={pageResult}
+                  onPage={changePageGroup}
+                  selectedHidden={selectedHidden}
+                />
+              )}
+              {hosted && !shown.length && (
+                <div className="page-browser-empty">
+                  <p>当前范围没有符合条件的页面。</p>
+                  <Button
+                    onClick={() => {
+                      setPageQuery("");
+                      setFilter("all");
+                    }}
+                  >
+                    查看全部页面
+                  </Button>
+                </div>
+              )}
               {showScript ? (
                 <div className="manuscript-list">
                   <div className="manuscript-intro">
                     <h2>
-                      {filter === "all" ? "你的完整演说稿" : "所选范围的演说稿"}
+                      {hosted && pageResult.pages > 1
+                        ? "演说稿 · 分组浏览"
+                        : filter === "all"
+                          ? "你的完整演说稿"
+                          : "所选范围的演说稿"}
                     </h2>
                     <p>
                       按照页面顺序排列。点击任意一段，修改对应页面的讲稿；完整逐字稿可在交付中心下载。
@@ -1315,6 +1455,9 @@ export function Workspace({
                     </article>
                   ))}
                 </div>
+              )}
+              {hosted && (
+                <PagePagination result={pageResult} onPage={changePageGroup} />
               )}
             </>
           )}
@@ -1742,9 +1885,9 @@ export function Workspace({
             />
             我已核对记录，并决定重新提交未完成部分
           </label>
-          {error && (
+          {retryError && (
             <p role="alert" className="error-text">
-              {error}
+              {retryError}
             </p>
           )}
           <div className="modal-actions">
@@ -1762,39 +1905,68 @@ export function Workspace({
           </div>
         </Modal>
       )}
-      {completePreviewOpen && (
+      {imageBatch && (
         <Modal
-          title="继续生成其余页面"
+          title={imageBatch.preview ? "继续生成其余页面" : "补齐未生成页面"}
           subtitle="沿用当前项目风格与讲稿。"
-          onClose={() => !completingPreview && setCompletePreviewOpen(false)}
+          onClose={() => !completingPreview && setImageBatch(null)}
         >
-          <p>
-            本次生成尚无画面的 {previewRemaining.length}{" "}
-            页；已完成的试做页保持原样。
-          </p>
+          <p>本次生成尚无画面的 {imagePlan.total} 页；已有图片保持原样。</p>
           <p>
             每张成功图片使用 1
             张额度，内容分析也会调用模型。失败后可继续未完成页面。
           </p>
-          {error && (
+          {hosted && (
+            <div className="image-batch-quota" role="status">
+              <strong>
+                {checkingQuota
+                  ? "正在确认可用额度…"
+                  : `可用 ${credits?.available ?? "待确认"} 张 · 本次需要 ${imagePlan.total} 张`}
+              </strong>
+              {!checkingQuota && imagePlan.limited && (
+                <p>
+                  {imagePlan.affordable > 0
+                    ? `可以先按页序生成前 ${imagePlan.affordable} 页，剩余 ${imagePlan.remaining} 页以后继续。`
+                    : "请联系管理员补充额度，讲稿与已有图片都已保存。"}
+                </p>
+              )}
+              <p>
+                每张成功图片使用 1 张。其他任务可能占用额度，提交时会再次检查。
+              </p>
+            </div>
+          )}
+          {imageBatchError && (
             <p role="alert" className="error-text">
-              {error}
+              {imageBatchError}
             </p>
           )}
           <div className="modal-actions">
             <Button
-              onClick={() => setCompletePreviewOpen(false)}
+              onClick={() => setImageBatch(null)}
               disabled={completingPreview}
             >
-              再看看试做页
+              {imageBatch.preview ? "再看看试做页" : "暂不生成"}
             </Button>
             <Button
               variant="primary"
               loading={completingPreview}
-              disabled={!previewRemaining.length || !!busy}
-              onClick={() => void completePreview()}
+              disabled={
+                !imagePlan.total ||
+                !!busy ||
+                checkingQuota ||
+                (hosted && (!imagePlan.known || !imagePlan.affordable))
+              }
+              onClick={() =>
+                void completeImageBatch(
+                  hosted ? imagePlan.affordable : imagePlan.total,
+                )
+              }
             >
-              生成其余 {previewRemaining.length} 页
+              {hosted && imagePlan.limited
+                ? imagePlan.affordable
+                  ? `先生成前 ${imagePlan.affordable} 页`
+                  : "额度不足，暂不可生成"
+                : `生成${imageBatch.preview ? "其余" : "待制作"} ${imagePlan.total} 页`}
             </Button>
           </div>
         </Modal>

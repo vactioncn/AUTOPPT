@@ -1,0 +1,95 @@
+.page-browser {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  margin: 0 0 20px;
+}
+.page-search {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 240px;
+  flex: 1 1 280px;
+  max-width: 440px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 12px;
+  background: var(--paper);
+  color: var(--muted);
+}
+.page-search:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.page-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 11px 0;
+  outline: none;
+  font: inherit;
+  color: var(--ink);
+}
+.page-search input::-webkit-search-cancel-button {
+  display: none;
+}
+.page-result-count {
+  font-size: 13px;
+  color: var(--muted);
+}
+.page-pagination {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+.page-pagination span {
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.page-pagination .btn {
+  padding: 8px 12px;
+}
+.page-browser-empty {
+  padding: 44px 20px;
+  text-align: center;
+  color: var(--muted);
+}
+.page-browser-empty p {
+  margin: 0 0 12px;
+}
+.studio-pages > .page-pagination {
+  justify-content: center;
+  margin-top: 24px;
+}
+.composer-quota {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.image-batch-quota {
+  padding: 16px 20px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.image-batch-quota p {
+  margin: 8px 0 0;
+  color: var(--muted);
+}
+@media (max-width: 640px) {
+  .page-search {
+    max-width: none;
+    flex-basis: 100%;
+    min-width: 0;
+  }
+  .page-browser {
+    gap: 12px;
+  }
+  .page-pagination {
+    gap: 8px;
+  }
+}

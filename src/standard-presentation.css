@@ -1,0 +1,152 @@
+.standard-presentation {
+  position: fixed;
+  inset: 0;
+  margin: 0;
+  width: 100%;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  border: 0;
+  padding: 0;
+  background: #242824;
+  color: #f6f5f1;
+}
+.standard-presentation[open] {
+  display: flex;
+  flex-direction: column;
+}
+.standard-header,
+.standard-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 24px;
+  flex-shrink: 0;
+}
+.standard-header h1 {
+  font-size: 18px;
+  font-weight: 500;
+  margin: 0;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.standard-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.standard-presentation button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid #696f65;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  padding: 9px 12px;
+  min-height: 44px;
+}
+.standard-presentation button:hover:not(:disabled) {
+  background: #334731;
+}
+.standard-stage {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  padding: 0 24px;
+  gap: 24px;
+}
+.standard-image {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.standard-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.standard-image .scene-view {
+  width: 100%;
+  max-height: 100%;
+}
+.standard-notes {
+  width: min(30%, 400px);
+  overflow-y: auto;
+  padding: 20px;
+  background: #eeeee7;
+  color: #242824;
+  border-radius: 12px;
+}
+.standard-notes h2 {
+  margin: 0 0 20px;
+  font-size: 20px;
+  line-height: 1.4;
+}
+.standard-notes p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 0;
+  line-height: 1.8;
+}
+.standard-controls {
+  justify-content: center;
+  font-variant-numeric: tabular-nums;
+}
+.standard-controls label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.standard-controls select {
+  background: #334731;
+  color: #f6f5f1;
+  border: 1px solid #696f65;
+  border-radius: 8px;
+  padding: 9px;
+  min-height: 44px;
+}
+.standard-keyboard {
+  color: #c4c9bc;
+  font-size: 12px;
+}
+.standard-error {
+  margin: 8px 24px 0;
+  color: #f4c1ae;
+}
+@media (max-width: 700px) {
+  .standard-header {
+    flex-wrap: wrap;
+    padding: 12px;
+    gap: 8px;
+  }
+  .standard-header h1 {
+    flex-basis: 100%;
+  }
+  .standard-stage {
+    padding: 0 12px;
+    gap: 12px;
+  }
+  .standard-stage.with-notes {
+    flex-direction: column;
+  }
+  .standard-notes {
+    width: 100%;
+    max-height: 36%;
+    padding: 16px;
+  }
+  .standard-controls {
+    padding: 12px;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .standard-keyboard {
+    display: none;
+  }
+}

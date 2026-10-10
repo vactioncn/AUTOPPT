@@ -16,13 +16,54 @@ import { fork } from "node:child_process";
 import { once } from "node:events";
 import http from "node:http";
 import sharp from "sharp";
+import JSZip from "jszip";
 import { Accounts } from "../server/hosted/accounts.mjs";
 import { copyFixture, reviewFixture } from "./fixtures/screen-copy.mjs";
 
 const pass = "Test-password-12345";
+test("signup policy defaults to 20 and changes only new accounts, including zero grant", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "autoppt-signup-"));
+  let accounts;
+  try {
+    for (const signupImageCredits of [-1, 1.5, NaN, 10001])
+      assert.throws(
+        () => new Accounts(path.join(dir, "invalid"), { signupImageCredits }),
+        /额度/,
+      );
+    assert.equal(existsSync(path.join(dir, "invalid")), false);
+    accounts = new Accounts(dir);
+    await accounts.bootstrap("admin", pass);
+    const admin = await accounts.login("admin", pass);
+    const original = await accounts.register(
+      "original",
+      pass,
+      accounts.invite(admin.id).code,
+    );
+    assert.equal(original.available, 20);
+    accounts.topup(admin.id, original.id, 7, randomUUID());
+    accounts.db.close();
+    accounts = new Accounts(dir, { signupImageCredits: 0 });
+    await accounts.bootstrap("admin", "Ignored-new-password-123");
+    assert.equal((await accounts.login("admin", pass)).balance, 20);
+    assert.equal(accounts.user(original.id).balance, 27);
+    assert.equal(
+      (
+        await accounts.register(
+          "new-member",
+          pass,
+          accounts.invite(admin.id).code,
+        )
+      ).available,
+      0,
+    );
+  } finally {
+    accounts?.db.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
 test("hosted accounts: one-use invitations, private sessions, atomic credits and reconciliation", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "autoppt-accounts-"));
-  const a = new Accounts(dir);
+  const a = new Accounts(dir, { signupImageCredits: 100 });
   try {
     await a.bootstrap("admin", pass);
     const admin = await a.login("admin", pass);
@@ -95,9 +136,10 @@ test(
   { timeout: 120000 },
   async (t) => {
     const dir = mkdtempSync(path.join(tmpdir(), "autoppt-hosted-"));
-    const png = await sharp({
-      create: { width: 160, height: 90, channels: 3, background: "#f3f3ed" },
-    })
+    // Existing public cover is a mock response for interface evidence, not a generated model result.
+    const png = await sharp(
+      "public/style-covers/restrained-childhood-editorial.png",
+    )
       .png()
       .toBuffer();
     let failStatus = 0,
@@ -132,7 +174,9 @@ test(
       textCount++;
       if (failText) {
         res.statusCode = 503;
-        res.end(JSON.stringify({ error: { message: "isolated text failure" } }));
+        res.end(
+          JSON.stringify({ error: { message: "isolated text failure" } }),
+        );
         return;
       }
       const system = body.messages[0].content;
@@ -178,6 +222,7 @@ test(
           PORT: String(port),
           HOST: "127.0.0.1",
           AUTOPPT_MODEL_CONCURRENCY: "1",
+          AUTOPPT_SIGNUP_IMAGE_CREDITS: "100",
           AUTOPPT_PUBLIC_URL: origin,
           AUTOPPT_HOSTED_DATA_DIR: dir,
           AUTOPPT_ADMIN_PASSWORD_FILE: path.join(dir, "admin-password"),
@@ -212,7 +257,14 @@ test(
         await exited;
       }
     };
-    const request = async (url, body, cookie = "", expected = 200, method, headers = {}) => {
+    const request = async (
+      url,
+      body,
+      cookie = "",
+      expected = 200,
+      method,
+      headers = {},
+    ) => {
       const r = await fetch(origin + url, {
         method: method || (body === undefined ? "GET" : "POST"),
         headers: {
@@ -285,10 +337,7 @@ test(
       assert.equal(boot.buildInfo.runtimeMode, "hosted");
       assert.equal(boot.dataRootLabel, "hosted 账号工作区");
       assert.equal(boot.capabilities.localModelSettings.enabled, false);
-      assert.match(
-        boot.capabilities.aiNarration.reason,
-        /托管服务未开放.*管理员/,
-      );
+      assert.match(boot.capabilities.aiNarration.reason, /暂不提供 AI 口播/);
       assert(!JSON.stringify(boot).includes(dir));
       const style = boot.styles.find((s) => s.name === "克制儿童摄影杂志风");
       assert(style);
@@ -302,35 +351,70 @@ test(
           201,
         )
       ).data;
+      assert.equal(boot.capabilities.standardPresentation.enabled, true);
+      assert.equal(boot.capabilities.motionPresentation.enabled, false);
+      for (const url of [
+        `/api/projects/${p.id}/motion`,
+        `/API/PROJECTS/${p.id}/MOTION/`,
+        "/api/motion/missing/html",
+        "/API/MOTION/missing/retry",
+      ]) {
+        const response = await request(
+          url,
+          url.endsWith("retry") ? {} : undefined,
+          first,
+          403,
+        );
+        assert.match(response.data.error, /暂不提供动态演示/);
+      }
       await request("/api/projects/" + p.id, undefined, second, 404);
-      assert.equal((await request("/api/account", undefined, first)).data.modelReady, false);
-      await t.test("unconfigured hosted batches reject case, slash, query and forged readiness variants without creating work", async () => {
-        for (const url of [
-          `/api/projects/${p.id}/batches`,
-          `/API/PROJECTS/${p.id}/BATCHES`,
-          `/aPi/PrOjEcTs/${p.id}/bAtChEs/`,
-          `/api/projects/${p.id}/batches?source=retry`,
-          `/API/projects/${p.id}/Batches/?source=retry`,
-        ]) {
-          for (const requestId of [randomUUID(), undefined]) {
-            const blocked = await request(
-              url,
-              { text: "配置未就绪时不可创建付费任务。", requestId },
-              first,
-              503,
-              "POST",
-              { "X-AutoPPT-Model-Ready": "1", "x-autoppt-worker": "untrusted" },
-            );
-            assert.match(blocked.data.error, /模型尚未就绪/);
-            assert.equal((await request(`/api/projects/${p.id}`, undefined, first)).data.batches.length, 0);
-            assert.equal((await request("/api/jobs", undefined, first)).data.length, 0);
-            assert.equal(textCount + imageCount, 0);
+      assert.equal(
+        (await request("/api/account", undefined, first)).data.modelReady,
+        false,
+      );
+      await t.test(
+        "unconfigured hosted batches reject case, slash, query and forged readiness variants without creating work",
+        async () => {
+          for (const url of [
+            `/api/projects/${p.id}/batches`,
+            `/API/PROJECTS/${p.id}/BATCHES`,
+            `/aPi/PrOjEcTs/${p.id}/bAtChEs/`,
+            `/api/projects/${p.id}/batches?source=retry`,
+            `/API/projects/${p.id}/Batches/?source=retry`,
+          ]) {
+            for (const requestId of [randomUUID(), undefined]) {
+              const blocked = await request(
+                url,
+                { text: "配置未就绪时不可创建付费任务。", requestId },
+                first,
+                503,
+                "POST",
+                {
+                  "X-AutoPPT-Model-Ready": "1",
+                  "x-autoppt-worker": "untrusted",
+                },
+              );
+              assert.match(blocked.data.error, /模型尚未就绪/);
+              assert.equal(
+                (await request(`/api/projects/${p.id}`, undefined, first)).data
+                  .batches.length,
+                0,
+              );
+              assert.equal(
+                (await request("/api/jobs", undefined, first)).data.length,
+                0,
+              );
+              assert.equal(textCount + imageCount, 0);
+            }
           }
-        }
-      });
+        },
+      );
       await stop();
       await start();
-      assert.equal((await request("/api/account", undefined, first)).data.modelReady, true);
+      assert.equal(
+        (await request("/api/account", undefined, first)).data.modelReady,
+        true,
+      );
       assert.equal(
         (await request("/api/bootstrap", undefined, second)).data.projects
           .length,
@@ -472,6 +556,110 @@ test(
         (await request("/api/account", undefined, second)).data.user.balance,
         99,
       );
+      const inserted = (
+        await request(
+          `/api/projects/${p.id}/slides`,
+          {
+            afterSlideId: null,
+            requestId: randomUUID(),
+            notes: "我们专注做好这一件事。",
+            generate: false,
+          },
+          first,
+          201,
+        )
+      ).data;
+      const manuscript = await request(
+        `/api/projects/${p.id}/manuscript?download=1&revision=${inserted.project.revision}`,
+        undefined,
+        first,
+      );
+      assert.match(manuscript.data, /我们专注做好这一件事/);
+      const renderJob = (
+        await request(
+          `/api/projects/${p.id}/render`,
+          { slideIds: [inserted.slideId] },
+          first,
+          202,
+        )
+      ).data;
+      const rendered = await poll(renderJob.id);
+      assert.equal(rendered.status, "completed", rendered.error);
+      const presentation = await fetch(
+        `${origin}/api/projects/${p.id}/export`,
+        { headers: { Cookie: first } },
+      );
+      assert.equal(presentation.status, 200);
+      assert.match(
+        presentation.headers.get("content-disposition"),
+        /attachment/,
+      );
+      assert.equal(
+        Buffer.from(await presentation.arrayBuffer())
+          .subarray(0, 2)
+          .toString(),
+        "PK",
+      );
+      await t.test(
+        "project migration is an independent copy with private downloads and no new model charges",
+        async () => {
+          const original = (
+            await request(`/api/projects/${p.id}`, undefined, first)
+          ).data;
+          const beforeCalls = textCount + imageCount;
+          const response = await fetch(
+            `${origin}/api/projects/${p.id}/package?revision=${original.revision}`,
+            { headers: { Cookie: first } },
+          );
+          assert.equal(response.status, 200);
+          const bytes = Buffer.from(await response.arrayBuffer());
+          const manifest = JSON.parse(
+            await (
+              await JSZip.loadAsync(bytes)
+            )
+              .file("manifest.json")
+              .async("string"),
+          );
+          assert(!JSON.stringify(manifest).includes("test-provider-secret"));
+          const form = new FormData();
+          form.append("project", new Blob([bytes]), "migration.autoppt.zip");
+          const imported = await fetch(`${origin}/api/projects/import`, {
+            method: "POST",
+            headers: { Cookie: second, Origin: origin },
+            body: form,
+          });
+          assert.equal(imported.status, 201);
+          const importedResult = await imported.json();
+          const copy = (
+            await request(
+              `/api/projects/${importedResult.project.id}`,
+              undefined,
+              second,
+            )
+          ).data;
+          assert.notEqual(copy.id, original.id);
+          assert.equal(copy.slides[0].notes, original.slides[0].notes);
+          assert.notEqual(copy.slides[0].image, original.slides[0].image);
+          assert.equal(
+            (await request(`/api/projects/${original.id}`, undefined, first))
+              .data.slides[0].image,
+            original.slides[0].image,
+          );
+          await request(`/api/projects/${copy.id}`, undefined, first, 404);
+          await request(
+            `/assets/${copy.slides[0].image}`,
+            undefined,
+            first,
+            404,
+          );
+          const owned = await fetch(
+            `${origin}/assets/${copy.slides[0].image}`,
+            { headers: { Cookie: second } },
+          );
+          assert.equal(owned.status, 200);
+          assert.equal(textCount + imageCount, beforeCalls);
+        },
+      );
       if (process.env.HOSTED_BROWSER_TEST === "1") {
         const { chromium } = await import("playwright-core");
         const browser = await chromium.launch({
@@ -480,7 +668,7 @@ test(
             "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
           headless: true,
         });
-        const out = path.resolve(".local/verification/hosted");
+        const out = path.resolve(".impeccable/review/hosted-v1");
         mkdirSync(out, { recursive: true });
         try {
           const page = await browser.newPage({
@@ -529,10 +717,10 @@ test(
             0,
           );
           await page
-            .getByRole("button", { name: "模型与服务", exact: true })
+            .getByRole("button", { name: "账号设置", exact: true })
             .click();
           await page
-            .getByText("托管版的模型由管理员统一配置。", { exact: true })
+            .getByRole("heading", { name: "账号与额度", exact: true })
             .waitFor();
           assert.equal(
             await page.getByLabel("API Key", { exact: true }).count(),
@@ -560,55 +748,96 @@ test(
             path: path.join(out, "login-mobile.png"),
             fullPage: true,
           });
+          // Use the existing isolated account/project; plain playback must never
+          // fetch speech, presenter or motion APIs, or dispatch any model calls.
+          await page.context().clearCookies();
+          await page.context().addCookies([
+            {
+              name: "autoppt_session",
+              value: first.split("=")[1],
+              url: origin,
+            },
+          ]);
+          const cookieName = first.split("=")[0];
+          if (cookieName !== "autoppt_session") {
+            await page.context().clearCookies();
+            await page
+              .context()
+              .addCookies([
+                { name: cookieName, value: first.split("=")[1], url: origin },
+              ]);
+          }
+          const forbidden = [];
+          page.on("request", (r) => {
+            if (
+              /\/api\/(?:speech|presenter|motion|settings\/speech)|\/api\/projects\/[^/]+\/(?:narration|motion)/i.test(
+                r.url(),
+              )
+            )
+              forbidden.push(r.url());
+          });
+          await request(
+            `/api/projects/${p.id}/slides`,
+            {
+              afterSlideId: inserted.slideId,
+              requestId: randomUUID(),
+              notes: "第二页讲稿，尚未生成图片。",
+              generate: false,
+            },
+            first,
+            201,
+          );
+          const modelBefore = textCount + imageCount;
+          await page.goto(`${origin}/#project/${p.id}/rehearsal`);
+          await page
+            .getByRole("heading", { name: "看一遍画面，准备放映" })
+            .waitFor();
+          await page
+            .getByRole("button", { name: "普通放映", exact: true })
+            .click();
+          const player = page.getByRole("dialog", {
+            name: "普通放映",
+            exact: true,
+          });
+          await player.waitFor();
+          await player.locator("img").evaluate((img) => img.decode());
+          await page
+            .getByRole("button", { name: "查看讲稿", exact: true })
+            .click();
+          await page.screenshot({ path: path.join(out, "player-desktop.png") });
+          await page.keyboard.press("ArrowRight");
+          assert.match(await player.innerText(), /第二页讲稿，尚未生成图片/);
+          await page.keyboard.press("Home");
+          await page.setViewportSize({ width: 390, height: 844 });
+          assert(
+            await player.evaluate((el) => el.scrollWidth <= el.clientWidth),
+          );
+          await page.screenshot({ path: path.join(out, "player-mobile.png") });
+          await page.keyboard.press("Escape");
+          await player.waitFor({ state: "hidden" });
+          await page.goto(`${origin}/#project/${p.id}/delivery`);
+          await page
+            .getByRole("region", { name: "交付中心", exact: true })
+            .waitFor();
+          assert.equal(
+            await page
+              .getByRole("heading", { name: "动态 HTML", exact: true })
+              .count(),
+            0,
+          );
+          assert.equal(
+            await page
+              .getByRole("heading", { name: "静态 HTML", exact: true })
+              .count(),
+            0,
+          );
+          assert.equal(textCount + imageCount, modelBefore);
+          assert.deepEqual(forbidden, []);
           assert.deepEqual(errors, []);
         } finally {
           await browser.close();
         }
       }
-      const inserted = (
-        await request(
-          `/api/projects/${p.id}/slides`,
-          {
-            afterSlideId: null,
-            requestId: randomUUID(),
-            notes: "我们专注做好这一件事。",
-            generate: false,
-          },
-          first,
-          201,
-        )
-      ).data;
-      const manuscript = await request(
-        `/api/projects/${p.id}/manuscript?download=1&revision=${inserted.project.revision}`,
-        undefined,
-        first,
-      );
-      assert.match(manuscript.data, /我们专注做好这一件事/);
-      const renderJob = (
-        await request(
-          `/api/projects/${p.id}/render`,
-          { slideIds: [inserted.slideId] },
-          first,
-          202,
-        )
-      ).data;
-      const rendered = await poll(renderJob.id);
-      assert.equal(rendered.status, "completed", rendered.error);
-      const presentation = await fetch(
-        `${origin}/api/projects/${p.id}/export`,
-        { headers: { Cookie: first } },
-      );
-      assert.equal(presentation.status, 200);
-      assert.match(
-        presentation.headers.get("content-disposition"),
-        /attachment/,
-      );
-      assert.equal(
-        Buffer.from(await presentation.arrayBuffer())
-          .subarray(0, 2)
-          .toString(),
-        "PK",
-      );
       assert.equal(
         (await request("/api/account", undefined, first)).data.user.balance,
         147,
@@ -664,54 +893,103 @@ test(
         (await request("/api/projects/" + p.id, undefined, first)).data.title,
         p.title,
       );
-      await t.test("lost accepted response replays the persisted batch after an unconfigured hosted restart without model calls", async () => {
-        const project = (await request("/api/projects", { title: "幂等恢复隔离项目" }, first, 201)).data;
-        const body = { text: "已经接受的讲稿可以找回。", requestId: randomUUID() };
-        const jobsBefore = (await request("/api/jobs", undefined, first)).data.length;
-        const callsBefore = { text: textCount, image: imageCount };
-        // Accept real work with configured models, then drop the response body
-        // before the caller learns either identity. A mock failure ends the job.
-        failText = true;
-        const lost = await fetch(`${origin}/API/PROJECTS/${project.id}/BATCHES/?source=first`, {
-          method: "POST",
-          headers: {
-            Origin: origin,
-            Cookie: first,
-            "Content-Type": "application/json",
-            "x-autoppt-model-ready": "0",
-          },
-          body: JSON.stringify(body),
-        });
-        assert.equal(lost.status, 202, "the Express case/slash/query variant really reaches the batch route; external readiness cannot override the gateway");
-        await lost.body.cancel();
-        const accepted = (await request(`/api/projects/${project.id}`, undefined, first)).data.batches[0];
-        assert.equal(accepted.requestId, body.requestId);
-        assert.equal((await poll(accepted.jobId)).status, "failed");
-        assert.equal(textCount, callsBefore.text + 1);
-        assert.equal(imageCount, callsBefore.image);
-        failText = false;
-        await stop();
-        await start(false);
-        assert.equal((await request("/api/account", undefined, first)).data.modelReady, false);
-        for (const url of [
-          `/api/projects/${project.id}/batches`,
-          `/API/PROJECTS/${project.id}/BATCHES/?source=retry`,
-        ]) {
-          const replay = (await request(url, body, first, 202)).data;
-          assert.equal(replay.accepted, true);
-          assert.equal(replay.id, accepted.jobId);
-          assert.equal(replay.batchId, accepted.id);
-          assert.equal(replay.status, "failed");
-          await request(url, { ...body, text: "不能偷换已经接受的讲稿。" }, first, 409);
-          await request(url, { ...body, requestId: randomUUID() }, first, 503);
-          await request(url, { text: body.text }, first, 503);
-        }
-        const restored = (await request(`/api/projects/${project.id}`, undefined, first)).data;
-        assert.deepEqual(restored.batches, [accepted]);
-        assert.equal((await request("/api/jobs", undefined, first)).data.length, jobsBefore + 1);
-        assert.equal(textCount, callsBefore.text + 1, "replays make zero duplicate text calls");
-        assert.equal(imageCount, callsBefore.image, "replays make zero image calls");
-      });
+      await t.test(
+        "lost accepted response replays the persisted batch after an unconfigured hosted restart without model calls",
+        async () => {
+          const project = (
+            await request(
+              "/api/projects",
+              { title: "幂等恢复隔离项目" },
+              first,
+              201,
+            )
+          ).data;
+          const body = {
+            text: "已经接受的讲稿可以找回。",
+            requestId: randomUUID(),
+          };
+          const jobsBefore = (await request("/api/jobs", undefined, first)).data
+            .length;
+          const callsBefore = { text: textCount, image: imageCount };
+          // Accept real work with configured models, then drop the response body
+          // before the caller learns either identity. A mock failure ends the job.
+          failText = true;
+          const lost = await fetch(
+            `${origin}/API/PROJECTS/${project.id}/BATCHES/?source=first`,
+            {
+              method: "POST",
+              headers: {
+                Origin: origin,
+                Cookie: first,
+                "Content-Type": "application/json",
+                "x-autoppt-model-ready": "0",
+              },
+              body: JSON.stringify(body),
+            },
+          );
+          assert.equal(
+            lost.status,
+            202,
+            "the Express case/slash/query variant really reaches the batch route; external readiness cannot override the gateway",
+          );
+          await lost.body.cancel();
+          const accepted = (
+            await request(`/api/projects/${project.id}`, undefined, first)
+          ).data.batches[0];
+          assert.equal(accepted.requestId, body.requestId);
+          assert.equal((await poll(accepted.jobId)).status, "failed");
+          assert.equal(textCount, callsBefore.text + 1);
+          assert.equal(imageCount, callsBefore.image);
+          failText = false;
+          await stop();
+          await start(false);
+          assert.equal(
+            (await request("/api/account", undefined, first)).data.modelReady,
+            false,
+          );
+          for (const url of [
+            `/api/projects/${project.id}/batches`,
+            `/API/PROJECTS/${project.id}/BATCHES/?source=retry`,
+          ]) {
+            const replay = (await request(url, body, first, 202)).data;
+            assert.equal(replay.accepted, true);
+            assert.equal(replay.id, accepted.jobId);
+            assert.equal(replay.batchId, accepted.id);
+            assert.equal(replay.status, "failed");
+            await request(
+              url,
+              { ...body, text: "不能偷换已经接受的讲稿。" },
+              first,
+              409,
+            );
+            await request(
+              url,
+              { ...body, requestId: randomUUID() },
+              first,
+              503,
+            );
+            await request(url, { text: body.text }, first, 503);
+          }
+          const restored = (
+            await request(`/api/projects/${project.id}`, undefined, first)
+          ).data;
+          assert.deepEqual(restored.batches, [accepted]);
+          assert.equal(
+            (await request("/api/jobs", undefined, first)).data.length,
+            jobsBefore + 1,
+          );
+          assert.equal(
+            textCount,
+            callsBefore.text + 1,
+            "replays make zero duplicate text calls",
+          );
+          assert.equal(
+            imageCount,
+            callsBefore.image,
+            "replays make zero image calls",
+          );
+        },
+      );
       await request(`/api/admin/users/${id}/status`, { disabled: true }, admin);
       await request("/api/bootstrap", undefined, first, 401);
       await request("/api/account/logout", {}, second);
@@ -750,24 +1028,50 @@ test("hosted worker requires authentication and explicit readiness before accept
     }
     rmSync(dir, { recursive: true, force: true });
   });
-  const [ready] = await once(child, "message", { signal: AbortSignal.timeout(15000) });
-  const request = (url, body, headers = {}) => fetch(`http://127.0.0.1:${ready.port}${url}`, {
-    method: body ? "POST" : "GET",
-    headers: { "Content-Type": "application/json", "x-autoppt-worker": token, ...headers },
-    ...(body ? { body: JSON.stringify(body) } : {}),
+  const [ready] = await once(child, "message", {
+    signal: AbortSignal.timeout(15000),
   });
-  const created = await request("/api/projects", { title: "可信 readiness 边界" });
+  const request = (url, body, headers = {}) =>
+    fetch(`http://127.0.0.1:${ready.port}${url}`, {
+      method: body ? "POST" : "GET",
+      headers: {
+        "Content-Type": "application/json",
+        "x-autoppt-worker": token,
+        ...headers,
+      },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+  const created = await request("/api/projects", {
+    title: "可信 readiness 边界",
+  });
   assert.equal(created.status, 201);
   const project = await created.json();
   const url = `/API/PROJECTS/${project.id}/BATCHES/?test=internal`;
   const body = { text: "不可绕过内部边界。", requestId: randomUUID() };
-  assert.equal((await request(url, body, { "x-autoppt-worker": "forged", "x-autoppt-model-ready": "1" })).status, 403);
-  for (const headers of [{}, ...["0", "true", "1, 0"].map((value) => ({ "x-autoppt-model-ready": value }))]) {
+  assert.equal(
+    (
+      await request(url, body, {
+        "x-autoppt-worker": "forged",
+        "x-autoppt-model-ready": "1",
+      })
+    ).status,
+    403,
+  );
+  for (const headers of [
+    {},
+    ...["0", "true", "1, 0"].map((value) => ({
+      "x-autoppt-model-ready": value,
+    })),
+  ]) {
     const response = await request(url, body, headers);
     assert.equal(response.status, 503);
     assert.match((await response.json()).error, /模型尚未就绪/);
   }
-  assert.equal((await (await request(`/api/projects/${project.id}`)).json()).batches.length, 0);
+  assert.equal(
+    (await (await request(`/api/projects/${project.id}`)).json()).batches
+      .length,
+    0,
+  );
   assert.deepEqual(await (await request("/api/jobs")).json(), []);
 });
 

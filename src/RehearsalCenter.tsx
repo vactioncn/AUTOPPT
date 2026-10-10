@@ -358,21 +358,19 @@ export function RehearsalCenter({
     );
   if (!capabilities.localModelSettings.enabled)
     return (
-      <section className="journey-panel">
-        <h2>演练中心</h2>
-        <p id="rehearsal-unavailable">
-          {capabilities.standardPresentation.reason ||
-            capabilities.localModelSettings.reason}
+      <section className="journey-panel" aria-label="演练中心">
+        <h2>看一遍画面，准备放映</h2>
+        <p>
+          共 {project.slides.length} 页。打开后可手动翻页，按需查看逐页讲稿。
         </p>
         <Button
           variant="primary"
-          disabled={!capabilities.standardPresentation.enabled}
-          aria-describedby="rehearsal-unavailable"
+          disabled={
+            !project.slides.length || !capabilities.standardPresentation.enabled
+          }
           onClick={() => onSpeech(false)}
         >
-          {capabilities.standardPresentation.enabled
-            ? "普通放映"
-            : "标准放映不可用"}
+          普通放映
         </Button>
       </section>
     );

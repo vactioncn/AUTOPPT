@@ -24,7 +24,7 @@ export function downloadMotionHtml(
   );
 }
 
-export function useHtmlExportOptions(projectId: string) {
+export function useHtmlExportOptions(projectId: string, enabled = true) {
   const [narrations, setNarrations] = useState<Narration[]>([]);
   const [narration, setNarration] = useState("");
   const [notes, setNotes] = useState(false);
@@ -34,6 +34,7 @@ export function useHtmlExportOptions(projectId: string) {
     setNarrations([]);
     setNarration("");
     setError("");
+    if (!enabled) return;
     api<Narration[]>(`/projects/${projectId}/narration`)
       .then((list) => {
         if (alive) setNarrations(list.filter((n) => n.status === "ready"));
@@ -45,7 +46,7 @@ export function useHtmlExportOptions(projectId: string) {
     return () => {
       alive = false;
     };
-  }, [projectId]);
+  }, [projectId, enabled]);
   return { narrations, narration, setNarration, notes, setNotes, error };
 }
 

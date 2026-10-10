@@ -61,6 +61,7 @@ import {
   downloadFile,
 } from "./api";
 import { SceneView } from "./SceneView";
+import { StandardPresentation } from "./StandardPresentation";
 import type {
   Project,
   Style,
@@ -166,7 +167,11 @@ export function Workspace({
     "play",
   );
   const [visualReviewOpen, setVisualReviewOpen] = useState(false);
-  const records = usePresentationRecords(id, speechAvailable, motionAvailable);
+  const records = usePresentationRecords(
+    id,
+    !hosted && speechAvailable,
+    motionAvailable,
+  );
   const [insertion, setInsertion] = useState<{
     afterSlideId: string | null;
   } | null>(null);
@@ -737,6 +742,7 @@ export function Workspace({
       )}
       {area === "delivery" && (
         <DeliveryCenter
+          hosted={hosted}
           project={project}
           journey={journey}
           records={records}
@@ -1339,18 +1345,28 @@ export function Workspace({
             </div>
           }
         >
-          <SpeechPresentation
-            initialPanel={speechInitialPanel}
-            projectId={id}
-            onClose={() => {
-              setSpeechOpen(false);
-              onAreaChange("rehearsal");
-            }}
-            onSettings={() => {
-              setSpeechOpen(false);
-              onSettings();
-            }}
-          />
+          {hosted ? (
+            <StandardPresentation
+              project={project}
+              onClose={() => {
+                setSpeechOpen(false);
+                onAreaChange("rehearsal");
+              }}
+            />
+          ) : (
+            <SpeechPresentation
+              initialPanel={speechInitialPanel}
+              projectId={id}
+              onClose={() => {
+                setSpeechOpen(false);
+                onAreaChange("rehearsal");
+              }}
+              onSettings={() => {
+                setSpeechOpen(false);
+                onSettings();
+              }}
+            />
+          )}
         </Suspense>
       )}
       {insertion && (
@@ -1401,6 +1417,7 @@ export function Workspace({
       )}
       {exportOpen && (
         <ExportDialog
+          hosted={hosted}
           initialFormat={exportOpen}
           bundleAvailable={insertExportAvailable}
           project={project}
@@ -1782,6 +1799,7 @@ function InsertPageDialog({
 }
 
 function ExportDialog({
+  hosted,
   initialFormat,
   packageBusy,
   bundleAvailable,
@@ -1792,6 +1810,7 @@ function ExportDialog({
   onStudio,
   notify,
 }: {
+  hosted: boolean;
   project: Project;
   initialFormat: ExportFormat;
   packageBusy: boolean;
@@ -1806,7 +1825,7 @@ function ExportDialog({
   const [error, setError] = useState("");
   const [format, setFormat] = useState<ExportFormat>(initialFormat);
   const [confirmedFailed, setConfirmedFailed] = useState("");
-  const html = useHtmlExportOptions(project.id);
+  const html = useHtmlExportOptions(project.id, !hosted);
   const missing = project.slides.flatMap((s, i) =>
     !s.image && !s.scene ? [i + 1] : [],
   );
@@ -1884,7 +1903,7 @@ function ExportDialog({
           <option value="ppt">
             {bundleAvailable ? "ZIP 交付包 · PPTX 与逐字稿" : "PPTX"}
           </option>
-          <option value="html">静态 HTML · 可含口播</option>
+          {!hosted && <option value="html">静态 HTML · 可含口播</option>}
           <option value="project">项目迁移包 · 换电脑继续编辑</option>
         </select>
       </Field>

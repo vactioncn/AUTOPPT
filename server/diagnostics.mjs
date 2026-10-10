@@ -12,8 +12,7 @@ export function diagnostics(
   { mode = runtimeMode(), speechReady = false } = {},
 ) {
   const hosted = mode === "hosted";
-  const speechReason =
-    "当前托管服务未开放演讲播放器与语音功能；模型与服务由管理员管理。";
+  const speechReason = "邀请制网页版第一版提供普通放映，暂不提供 AI 口播生成。";
   const capability = (enabled, reason) =>
     enabled ? { enabled: true } : { enabled: false, reason };
   return {
@@ -22,14 +21,17 @@ export function diagnostics(
     capabilities: {
       projectPackages: capability(true),
       bundleExport: capability(true),
-      standardPresentation: capability(!hosted, speechReason),
+      standardPresentation: capability(true),
       aiNarration: capability(
         !hosted && speechReady,
         hosted
           ? speechReason
           : "尚未配置语音服务，AI 口播生成不可用；仍可打开播放器手动翻页。",
       ),
-      motionPresentation: capability(true),
+      motionPresentation: capability(
+        !hosted,
+        "邀请制网页版第一版暂不提供动态演示；已有项目素材保留。",
+      ),
       localModelSettings: capability(
         !hosted,
         "托管版的模型由管理员统一配置；当前账号不能修改本机模型设置。",
@@ -46,7 +48,7 @@ export function diagnostics(
       directStylePrompt: true,
       designOptions: true,
       insertAndManuscriptExport: true,
-      motionPresentation: true,
+      motionPresentation: !hosted,
       speechPresentation: !hosted,
       projectPackages: true,
       spokenHtml: true,

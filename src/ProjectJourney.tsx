@@ -205,6 +205,7 @@ function RecordStatus({
 }
 
 export function DeliveryCenter({
+  hosted,
   project,
   journey,
   records,
@@ -217,6 +218,7 @@ export function DeliveryCenter({
   onAction,
   notify,
 }: {
+  hosted: boolean;
   project: Project;
   journey: Journey;
   records: Presentations;
@@ -234,7 +236,7 @@ export function DeliveryCenter({
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState("");
   const [chosen, setChosen] = useState("");
-  const html = useHtmlExportOptions(project.id);
+  const html = useHtmlExportOptions(project.id, !hosted);
   const deck =
     records.dynamic.records.find((d) => d.id === chosen) ||
     records.dynamic.records[0];
@@ -372,134 +374,138 @@ export function DeliveryCenter({
               导出演说稿（Markdown）
             </Button>
           </article>
-          <article className="journey-card">
-            <h3>静态 HTML</h3>
-            <p>
-              直接打包当前画面，可选择已完成的口播与演讲备注，离线放映，无需转换动画。
-            </p>
-            {!journey.total && !project.batches.length && (
-              <p className="journey-warning">
-                还没有可打包页面，请先添加讲稿并制作画面。
+          {!hosted && (
+            <article className="journey-card">
+              <h3>静态 HTML</h3>
+              <p>
+                直接打包当前画面，可选择已完成的口播与演讲备注，离线放映，无需转换动画。
               </p>
-            )}
-            <Button
-              onClick={() =>
-                !journey.total && !project.batches.length
-                  ? onAction({
-                      area: "studio",
-                      target: "composer",
-                      label: "开始写讲稿",
-                    })
-                  : onExport("html")
-              }
-            >
-              {!journey.total && !project.batches.length
-                ? "添加讲稿后制作 HTML"
-                : "导出静态 HTML"}
-            </Button>
-          </article>
-          <article className="journey-card">
-            <h3>动态 HTML</h3>
-            <p>下载演练中心已转换的动态演示，保留该演示的版本与页面范围。</p>
-            {!motionAvailable ? (
-              <p className="journey-warning">
-                {capabilities.motionPresentation.reason}
-              </p>
-            ) : (
-              <>
-                <RecordStatus
-                  state={records.dynamic}
-                  revision={project.revision}
-                  kind="动态演示"
-                />
-                {!!records.dynamic.records.length && (
-                  <label className="journey-field">
-                    交付版本
-                    <select
-                      aria-label="动态 HTML 交付版本"
-                      value={deck?.id || ""}
-                      disabled={downloading}
-                      onChange={(e) => {
-                        setChosen(e.target.value);
-                        setError("");
-                      }}
-                    >
-                      {records.dynamic.records.map((d, i) => (
-                        <option key={d.id} value={d.id}>
-                          {i === 0 ? "最近演示" : `历史演示 ${i}`} · 母版 r
-                          {d.sourceRevision} · {d.pages.length} 页 ·{" "}
-                          {statusLabels[d.status] || "状态待核对"}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                )}
-                {deck && (
-                  <p>
-                    所选演示：基于母版 r{deck.sourceRevision} ·{" "}
-                    {deck.pages.length} 页。
-                    {deck.sourceRevision !== project.revision
-                      ? "与当前母版不同，请确认是否交付历史版本。"
-                      : "来源版本与当前母版一致。"}
-                    {deck.pages.length !== project.slides.length ||
-                    project.slides.some((s, i) => deck.pages[i]?.id !== s.id)
-                      ? "页面范围或顺序与当前项目不同，请核对。"
-                      : ""}
-                  </p>
-                )}
-                {deck && !ready && (
-                  <p className="journey-warning">
-                    所选动态演示尚未全部完成，请到演练中心完成或重试后下载。
-                  </p>
-                )}
-                {ready && deck.pages.some((p) => !p.reviewed) && (
-                  <p>仍有页面未标记校对，请在演练中心对照原图检查。</p>
-                )}
-                {deck && (
-                  <HtmlExportOptions options={html} disabled={downloading} />
-                )}
-                <p>
-                  可选与所选演示画面、讲稿一致的口播，内嵌音频后离线自动讲述；不一致时会提示并停止下载。
+              {!journey.total && !project.batches.length && (
+                <p className="journey-warning">
+                  还没有可打包页面，请先添加讲稿并制作画面。
                 </p>
-              </>
-            )}
-            {motionAvailable && !deck && (
-              <p>先到演练中心创建动态演示，完成后即可下载。</p>
-            )}
-            {error && (
-              <p role="alert" className="error-text">
-                {error}
-              </p>
-            )}
-            <div className="journey-card-actions">
+              )}
               <Button
-                disabled={!motionAvailable || !ready}
-                loading={downloading}
-                onClick={async () => {
-                  if (!deck) return;
-                  setDownloading(true);
-                  setError("");
-                  try {
-                    await downloadMotionHtml(
-                      deck.id,
-                      html.notes,
-                      html.narration,
-                    );
-                    notify("动态 HTML 已开始下载。");
-                  } catch (e) {
-                    setError((e as Error).message);
-                  } finally {
-                    setDownloading(false);
-                  }
-                }}
+                onClick={() =>
+                  !journey.total && !project.batches.length
+                    ? onAction({
+                        area: "studio",
+                        target: "composer",
+                        label: "开始写讲稿",
+                      })
+                    : onExport("html")
+                }
               >
-                下载动态 HTML
+                {!journey.total && !project.batches.length
+                  ? "添加讲稿后制作 HTML"
+                  : "导出静态 HTML"}
               </Button>
-              <Button variant="ghost" onClick={onRehearsal}>
-                前往演练中心
-              </Button>
-            </div>
-          </article>
+            </article>
+          )}
+          {!hosted && (
+            <article className="journey-card">
+              <h3>动态 HTML</h3>
+              <p>下载演练中心已转换的动态演示，保留该演示的版本与页面范围。</p>
+              {!motionAvailable ? (
+                <p className="journey-warning">
+                  {capabilities.motionPresentation.reason}
+                </p>
+              ) : (
+                <>
+                  <RecordStatus
+                    state={records.dynamic}
+                    revision={project.revision}
+                    kind="动态演示"
+                  />
+                  {!!records.dynamic.records.length && (
+                    <label className="journey-field">
+                      交付版本
+                      <select
+                        aria-label="动态 HTML 交付版本"
+                        value={deck?.id || ""}
+                        disabled={downloading}
+                        onChange={(e) => {
+                          setChosen(e.target.value);
+                          setError("");
+                        }}
+                      >
+                        {records.dynamic.records.map((d, i) => (
+                          <option key={d.id} value={d.id}>
+                            {i === 0 ? "最近演示" : `历史演示 ${i}`} · 母版 r
+                            {d.sourceRevision} · {d.pages.length} 页 ·{" "}
+                            {statusLabels[d.status] || "状态待核对"}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                  {deck && (
+                    <p>
+                      所选演示：基于母版 r{deck.sourceRevision} ·{" "}
+                      {deck.pages.length} 页。
+                      {deck.sourceRevision !== project.revision
+                        ? "与当前母版不同，请确认是否交付历史版本。"
+                        : "来源版本与当前母版一致。"}
+                      {deck.pages.length !== project.slides.length ||
+                      project.slides.some((s, i) => deck.pages[i]?.id !== s.id)
+                        ? "页面范围或顺序与当前项目不同，请核对。"
+                        : ""}
+                    </p>
+                  )}
+                  {deck && !ready && (
+                    <p className="journey-warning">
+                      所选动态演示尚未全部完成，请到演练中心完成或重试后下载。
+                    </p>
+                  )}
+                  {ready && deck.pages.some((p) => !p.reviewed) && (
+                    <p>仍有页面未标记校对，请在演练中心对照原图检查。</p>
+                  )}
+                  {deck && (
+                    <HtmlExportOptions options={html} disabled={downloading} />
+                  )}
+                  <p>
+                    可选与所选演示画面、讲稿一致的口播，内嵌音频后离线自动讲述；不一致时会提示并停止下载。
+                  </p>
+                </>
+              )}
+              {motionAvailable && !deck && (
+                <p>先到演练中心创建动态演示，完成后即可下载。</p>
+              )}
+              {error && (
+                <p role="alert" className="error-text">
+                  {error}
+                </p>
+              )}
+              <div className="journey-card-actions">
+                <Button
+                  disabled={!motionAvailable || !ready}
+                  loading={downloading}
+                  onClick={async () => {
+                    if (!deck) return;
+                    setDownloading(true);
+                    setError("");
+                    try {
+                      await downloadMotionHtml(
+                        deck.id,
+                        html.notes,
+                        html.narration,
+                      );
+                      notify("动态 HTML 已开始下载。");
+                    } catch (e) {
+                      setError((e as Error).message);
+                    } finally {
+                      setDownloading(false);
+                    }
+                  }}
+                >
+                  下载动态 HTML
+                </Button>
+                <Button variant="ghost" onClick={onRehearsal}>
+                  前往演练中心
+                </Button>
+              </div>
+            </article>
+          )}
         </div>
       </section>
       <section data-delivery-section="backup" aria-label="备份与继续编辑">
@@ -525,7 +531,9 @@ export function DeliveryCenter({
         </article>
       </section>
       <p className="journey-note">
-        PPTX、Markdown 与 HTML 用于放映或交付；项目源文件用于在 AutoPPT
+        {hosted
+          ? "PPTX、Markdown 用于放映或交付；项目源文件用于在 AutoPPT"
+          : "PPTX、Markdown 与 HTML 用于放映或交付；项目源文件用于在 AutoPPT"}
         中恢复编辑，不能用交付文件替代。
       </p>
     </section>

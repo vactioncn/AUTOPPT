@@ -46,13 +46,15 @@ const positive = (name, fallback) => {
   return n;
 };
 const maxWorkers = positive("AUTOPPT_MAX_WORKSPACES", 10);
-const maxCalls = positive("AUTOPPT_MODEL_CONCURRENCY", 4);
+const maxCalls = positive("AUTOPPT_MODEL_CONCURRENCY", 2);
 const dailyCalls = positive("AUTOPPT_DAILY_MODEL_CALLS", 2000);
 const perUserCalls = positive("AUTOPPT_USER_DAILY_MODEL_CALLS", 300);
 mkdirSync(dir, { recursive: true, mode: 0o700 });
 const lockPath = path.join(dir, "hosted.lock");
 acquireLock(lockPath);
-const accounts = new Accounts(dir);
+const accounts = new Accounts(dir, {
+  signupImageCredits: Number(process.env.AUTOPPT_SIGNUP_IMAGE_CREDITS ?? 20),
+});
 const secret = (name) =>
   process.env[`${name}_FILE`]
     ? readFileSync(process.env[`${name}_FILE`], "utf8").trim()
@@ -313,6 +315,7 @@ app.get("/api/account", (req, res) => {
     hosted: true,
     user,
     modelReady: modelsReady(),
+    signupImageCredits: accounts.signupImageCredits,
   });
 });
 const authLimit = (req, res, next) => {
@@ -362,7 +365,13 @@ app.get("/api/admin", (req, res) =>
   res.json({
     ...accounts.overview(),
     modelReady: modelsReady(),
-    limits: { concurrency: maxCalls, dailyCalls, perUserCalls, maxWorkers },
+    limits: {
+      concurrency: maxCalls,
+      dailyCalls,
+      perUserCalls,
+      maxWorkers,
+      signupImageCredits: accounts.signupImageCredits,
+    },
     activity: {
       modelCalls: calls,
       waiting: queue.length,
@@ -501,7 +510,10 @@ app.use(["/api", "/assets"], authenticated, async (req, res) => {
   // Express routes are case-insensitive by default. Normalize policy checks too,
   // otherwise a mixed-case URL could reach the worker with hosted restrictions bypassed.
   if (
-    req.originalUrl.split("?", 1)[0].toLowerCase().startsWith("/api/settings") &&
+    req.originalUrl
+      .split("?", 1)[0]
+      .toLowerCase()
+      .startsWith("/api/settings") &&
     req.method !== "GET"
   )
     fail("模型由管理员统一配置。", 403);

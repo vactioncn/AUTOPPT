@@ -57,10 +57,10 @@ test(
       const panel = page.getByRole("region", { name: "版本与工作区" });
       const openPanel = async () => {
         await page
-          .getByRole("button", { name: "帮助与介绍", exact: true })
+          .getByRole("button", { name: "使用帮助", exact: true })
           .click();
         await page
-          .getByRole("button", { name: "版本与工作区", exact: true })
+          .getByText("版本与工作区 · 连接问题排查", { exact: true })
           .click();
         await expect(panel).toBeVisible();
       };
@@ -109,7 +109,7 @@ test(
       await expect(
         panel.getByText("hosted 账号工作区", { exact: true }),
       ).toBeVisible();
-      await expect(panel.getByText(/当前托管服务未开放/).first()).toBeVisible();
+      await expect(panel.getByText(/暂不提供 AI 口播/).first()).toBeVisible();
       const hostedText = await panel.innerText();
       assert.doesNotMatch(
         hostedText,
@@ -134,13 +134,11 @@ test(
         fullPage: true,
       });
       await page.setViewportSize({ width: 1440, height: 1000 });
-      await page
-        .getByRole("button", { name: "模型与服务", exact: true })
-        .click();
+      await page.getByRole("button", { name: "账号设置", exact: true }).click();
       await expect(
-        page.getByText(/托管版的模型由管理员统一配置/),
+        page.getByRole("heading", { name: "账号与额度", exact: true }),
       ).toBeVisible();
-      await expect(page.getByText(/当前托管服务未开放/)).toBeVisible();
+      await expect(page.getByLabel("API Key", { exact: true })).toHaveCount(0);
 
       await page.unroute("**/api/bootstrap");
       let fault = "schema";
@@ -192,7 +190,7 @@ test(
         .getByRole("button", { name: "刷新页面", exact: true })
         .click();
       await page
-        .getByRole("button", { name: "版本与工作区", exact: true })
+        .getByText("版本与工作区 · 连接问题排查", { exact: true })
         .click();
       await expect(panel.getByText(/前后端提交一致/)).toBeVisible();
       assert.deepEqual(errors, []);

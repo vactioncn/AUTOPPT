@@ -221,7 +221,7 @@ export default function App() {
             onClick={() => go("settings")}
           >
             <SlidersHorizontal size={20} />
-            设置
+            {account.hosted ? "账号设置" : "设置"}
           </button>
         </nav>
         <div className="side-projects">
@@ -271,7 +271,9 @@ export default function App() {
                         : route === "account"
                           ? "账号与额度"
                           : route.split("/")[0] === "settings"
-                            ? "设置"
+                            ? account.hosted
+                              ? "账号设置"
+                              : "设置"
                             : "项目")}
             </strong>
           </div>
@@ -387,23 +389,7 @@ export default function App() {
             <AccountPage />
           ) : contentRoute.split("/")[0] === "settings" ? (
             !capabilities.localModelSettings.enabled ? (
-              <section className="page" aria-label="模型与服务">
-                <div className="page-heading">
-                  <div>
-                    <h1>模型与服务</h1>
-                    <p>{capabilities.localModelSettings.reason}</p>
-                  </div>
-                </div>
-                <p>
-                  {account.modelStatusUnknown
-                    ? unknownModelStatus
-                    : account.modelReady
-                      ? "内容与图片服务已配置，可返回项目继续制作。"
-                      : "内容与图片服务尚未就绪，请联系管理员配置。"}
-                </p>
-                <p className="detail-help">{capabilities.aiNarration.reason}</p>
-                <Button onClick={() => go("account")}>账号与额度</Button>
-              </section>
+              <AccountPage />
             ) : (
               <SettingsPage
                 initial={data.settings}

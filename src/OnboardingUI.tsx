@@ -47,7 +47,7 @@ export function WorkspaceReadiness({
     <section className="onboarding-card" aria-label="首次工作区准备">
       <div className="onboarding-heading">
         <div>
-          <span className="eyebrow">第一次使用</span>
+          {!account.hosted && <span className="eyebrow">第一次使用</span>}
           <h2>准备工作区</h2>
         </div>
         <Button variant="ghost" onClick={onSkip}>
@@ -55,24 +55,31 @@ export function WorkspaceReadiness({
         </Button>
       </div>
       <p>
-        {runtimeLabels[data.buildInfo?.runtimeMode || "local-browser"]} ·{" "}
-        {safeWorkspaceLabel(data.dataRootLabel)}
+        {account.hosted ? (
+          "个人工作区 · 内容保存在服务器"
+        ) : (
+          <>
+            {runtimeLabels[data.buildInfo?.runtimeMode || "local-browser"]} ·{" "}
+            {safeWorkspaceLabel(data.dataRootLabel)}
+          </>
+        )}
       </p>
       <ul className="onboarding-readiness">
         <li>内容模型：{state.textReady ? "已就绪" : "未就绪"}</li>
         <li>图片模型：{state.imageReady ? "已就绪" : "未就绪"}</li>
         <li>
           视觉风格：
-          {state.styleReady
-            ? "已就绪，可先用默认风格"
-            : "暂无可用风格"}
+          {state.styleReady ? "已就绪，可先用默认风格" : "暂无可用风格"}
         </li>
       </ul>
       {state.managed && (
         <p>
-          {account.modelStatusUnknown ? unknownModelStatus : (
+          {account.modelStatusUnknown ? (
+            unknownModelStatus
+          ) : (
             <>
-              {capabilities.localModelSettings.reason || "模型由管理员统一管理。"}
+              {capabilities.localModelSettings.reason ||
+                "模型由管理员统一管理。"}
               {!state.modelsReady && " 请联系管理员准备模型。"}
             </>
           )}

@@ -51,7 +51,14 @@ const username = (value) => {
   return name;
 };
 export class Accounts {
-  constructor(dir) {
+  constructor(dir, { signupImageCredits = 20 } = {}) {
+    if (
+      !Number.isSafeInteger(signupImageCredits) ||
+      signupImageCredits < 0 ||
+      signupImageCredits > 10000
+    )
+      throw new Error("新账号图片额度必须为 0–10000 的整数。");
+    this.signupImageCredits = signupImageCredits;
     mkdirSync(dir, { recursive: true, mode: 0o700 });
     chmodSync(dir, 0o700);
     this.db = new DatabaseSync(path.join(dir, "accounts.sqlite"));
@@ -125,7 +132,15 @@ export class Accounts {
       if (this.db.prepare("SELECT id FROM users LIMIT 1").get()) return;
       this.db
         .prepare("INSERT INTO users VALUES(?,?,?,?,?,?,?)")
-        .run(randomUUID(), username(name), hash, "admin", 0, 100, Date.now());
+        .run(
+          randomUUID(),
+          username(name),
+          hash,
+          "admin",
+          0,
+          this.signupImageCredits,
+          Date.now(),
+        );
     });
   }
   invite(actor) {
@@ -152,7 +167,7 @@ export class Accounts {
       const id = randomUUID();
       this.db
         .prepare("INSERT INTO users VALUES(?,?,?,?,?,?,?)")
-        .run(id, name, hash, "member", 0, 100, Date.now());
+        .run(id, name, hash, "member", 0, this.signupImageCredits, Date.now());
       this.db.prepare("UPDATE invites SET usedBy=? WHERE hash=?").run(id, code);
       this.audit(id, "register", i.id);
       return this.user(id);

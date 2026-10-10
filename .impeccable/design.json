@@ -386,7 +386,109 @@
         "name": "mobile-max",
         "value": "600px"
       }
-    ]
+    ],
+    "hostedWebV1": {
+      "recordedAt": "2026-10-10T10:12:54Z",
+      "scope": "Operate-mode hosted working-surface extension within the incumbent Quiet Personal Speech Studio. Global frontmatter primitives, North Star, existing component records and unrelated history are preserved.",
+      "directionContract": ".impeccable/hosted-web-v1.md",
+      "designSections": [
+        "Components / Hosted Web V1"
+      ],
+      "mode": "Operate",
+      "contract": {
+        "type": "Reuse bundled DM Sans and Chinese system fallbacks. The ordinary player has scoped 18px/500 project and 20px page headings; these are not additions to the global scale.",
+        "material": "Warm paper/white working surfaces, terracotta actions, olive navigation and fine borders continue. Incumbent ink is the local player stage; its manuscript panel uses the pale sidebar surface.",
+        "ground": "Independent server workspace for variable content, account settings for password/quota/usage, administrator deployment configuration for model endpoints and keys.",
+        "manualPlayer": "Complete saved images, manual page navigation, optional saved notes and browser fullscreen, native modal focus/Escape, visible exit and controls, and no provider dispatch.",
+        "hostedScope": "Invitation, independent workspaces, styles, image production/editing, ordinary playback, image/PPTX/Markdown delivery and project package migration. No new hosted AI narration, dynamic presentation or digital-person production; complete App paths remain."
+      },
+      "sources": [
+        {
+          "file": "src/Account.tsx",
+          "observed": "Invitation registration and login use labeled inputs. Account settings expose available/reserved image quota, usage, logout and a password disclosure. Admin-only management handles invitations, users, quota, password reset and uncertain records; the page has no model-key editor."
+        },
+        {
+          "file": "src/account.css",
+          "observed": "Warm login canvas, white form, local 800px single-column breakpoint, horizontally scrollable account tables and wrapping narrow account rows."
+        },
+        {
+          "file": "src/App.tsx",
+          "observed": "Hosted shell says 账号设置 and 内容保存在你的独立工作区. Settings routes resolve to AccountPage when local model settings are unavailable."
+        },
+        {
+          "file": "src/Workspace.tsx",
+          "observed": "Hosted playback selects StandardPresentation; generation confirmation names administrator image quota. Hosted export suppresses the static HTML choice and avoids the local HTML-options request path."
+        },
+        {
+          "file": "src/RehearsalCenter.tsx",
+          "observed": "When local model settings are unavailable, rehearsal leads with 看一遍画面，准备放映 and the 普通放映 action instead of voice/presenter generation setup."
+        },
+        {
+          "file": "src/ProjectJourney.tsx",
+          "observed": "Hosted delivery retains PPTX/Markdown and project migration, hides static/dynamic HTML cards, and avoids local HTML-options requests."
+        },
+        {
+          "file": "src/OnboardingUI.tsx",
+          "observed": "Hosted preparation reports a personal server workspace and administrator model-readiness guidance rather than ordinary-account key setup."
+        },
+        {
+          "file": "src/Help.tsx",
+          "observed": "Hosted runtime selects the hosted invitation/quota/migration help source and uses matching introduction/search copy."
+        },
+        {
+          "file": "shared/hosted-help.mjs",
+          "observed": "Help states manual presentation, quota/request-limit boundaries, administrator configuration, explicit independent-copy project imports, preserved packaged narration/dynamic materials, and no new web V1 voice/dynamic/digital-person production."
+        },
+        {
+          "file": "src/StandardPresentation.tsx",
+          "observed": "Reads the loaded project and saved assets; native showModal captures/restores focus. Escape and visible exit close playback. Buttons, selector, Arrow/Page/Home/End keys navigate manually; notes preserve saved text and fullscreen errors remain recoverable. No generation/provider request path."
+        },
+        {
+          "file": "src/standard-presentation.css",
+          "observed": "Ink full-viewport stage, complete image contain, pale manuscript panel, scoped heading values and 44px controls. At 700px header/actions wrap and notes stack. Error tone #f4c1ae remains local."
+        },
+        {
+          "file": "src/styles.css",
+          "observed": "Player buttons inherit the existing visible 3px terracotta focus outline; selects inherit the field focus outline; disabled controls use opacity 0.5."
+        },
+        {
+          "file": "tests/hosted.test.mjs",
+          "observed": "Isolated browser fixture captures six required surfaces and asserts mobile login/player overflow bounds, missing-picture manuscript navigation, ArrowRight/Home/Escape, hidden hosted HTML cards, no speech/presenter/motion requests, unchanged model-call count during playback and no page errors."
+        }
+      ],
+      "normalizationBoundary": "Login material, account table density, player headings, stage/error colors and local breakpoints stay scoped to their existing components. Do not refresh unrelated stale artifacts, replace the studio identity, promote fixture values to defaults or infer output-style quality from interface review.",
+      "evidence": {
+        "date": "2026-10-10",
+        "screenshots": [
+          ".impeccable/review/hosted-v1/login-desktop.png",
+          ".impeccable/review/hosted-v1/login-mobile.png",
+          ".impeccable/review/hosted-v1/workspace-desktop.png",
+          ".impeccable/review/hosted-v1/admin-desktop.png",
+          ".impeccable/review/hosted-v1/player-desktop.png",
+          ".impeccable/review/hosted-v1/player-mobile.png"
+        ],
+        "viewports": {
+          "desktop": "1440x960",
+          "mobile": "390x844",
+          "accountCapture": "Full-page captures may be taller than their viewport."
+        },
+        "review": "Independent finish review: ship, no material fixes. All six captures match TYPE, MATERIAL, GROUND, manual-player and hosted-scope contract. This is interface evidence, not production deployment or generated-image-quality acceptance.",
+        "detectorAdvisories": [
+          "Scoped 18px player project title",
+          "Scoped fullscreen-error text #f4c1ae"
+        ],
+        "fixtureBoundary": "Screenshot signup image credits 100 and model concurrency 1 are illustrative fixture configuration, not product defaults or public quota promises.",
+        "observedDefaults": {
+          "signupImageCredits": 20,
+          "modelConcurrency": 2,
+          "configurable": true,
+          "sources": [
+            "server/hosted/accounts.mjs",
+            "server/hosted/index.mjs"
+          ]
+        }
+      }
+    }
   },
   "components": [
     {
@@ -467,6 +569,13 @@
       "description": "Four unboxed metrics lead the shared report modal; these illustrative counts are not a saved project report. Existing ready/attention notices and modal buttons carry comparison results and actions.",
       "html": "<div class=\"ds-report-metrics\"><div><span>原文</span><strong>1,240<small>字</small></strong><p>已提交的逐字稿，含标题</p></div><div><span>页面</span><strong>8<small>页</small></strong><p>8 页已有画面 · 0 页待生成</p></div><div><span>页面备注</span><strong>1,200<small>字</small></strong><p>与导出 PPT 的备注使用同一正文</p></div><div><span>演说稿</span><strong>1,200<small>字</small></strong><p>按页序拼合的完整演说稿</p></div></div>",
       "css": ".ds-report-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:20px;margin:12px 0 24px;font:400 14px/1.6 \"DM Sans\",-apple-system,\"PingFang SC\",sans-serif;color:var(--ink,#242824)}.ds-report-metrics>div>span{font-size:13px;color:var(--muted,#696f65)}.ds-report-metrics strong{display:block;font-size:30px;line-height:1.5;font-variant-numeric:tabular-nums}.ds-report-metrics strong small{font-size:12px;font-weight:400;margin-left:5px}.ds-report-metrics p{font-size:12px;line-height:1.8;color:var(--muted,#696f65);margin:0}@media(max-width:600px){.ds-report-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}}"
+    },
+    {
+      "name": "Plain Presentation Controls",
+      "kind": "nav",
+      "description": "Ordinary manual player footer, scoped to the ink media stage. Example page count is illustrative. Complete images and optional manuscript panel are documented in the hosted surface contract; no generation action belongs in this rail.",
+      "html": "<nav class=\"ds-standard-controls\" aria-label=\"普通放映页面\"><button disabled><svg aria-hidden=\"true\" width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"><path d=\"M20 12H4m7-7-7 7 7 7\"/></svg>上一页</button><label>页面 <select aria-label=\"跳转到页面\"><option>1 / 2</option><option>2 / 2</option></select></label><button>下一页<svg aria-hidden=\"true\" width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"><path d=\"M4 12h16m-7-7 7 7-7 7\"/></svg></button><span class=\"ds-standard-keyboard\">方向键翻页 · Esc 返回</span></nav>",
+      "css": ".ds-standard-controls{display:flex;align-items:center;justify-content:center;gap:16px;padding:16px 24px;background:var(--ink,#242824);color:var(--bg,#f6f5f1);font:400 14px/1.6 \"DM Sans\",-apple-system,BlinkMacSystemFont,\"PingFang SC\",\"Hiragino Sans GB\",\"Microsoft YaHei\",sans-serif;font-variant-numeric:tabular-nums}.ds-standard-controls button{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--muted,#696f65);border-radius:8px;background:transparent;color:inherit;padding:9px 12px;min-height:44px;font:inherit;cursor:pointer}.ds-standard-controls button:hover:not(:disabled){background:#334731}.ds-standard-controls button:disabled{opacity:.5;cursor:not-allowed}.ds-standard-controls button:focus-visible{outline:3px solid #ce775d;outline-offset:3px}.ds-standard-controls label{display:flex;align-items:center;gap:8px}.ds-standard-controls select{background:#334731;color:var(--bg,#f6f5f1);border:1px solid var(--muted,#696f65);border-radius:8px;padding:9px;min-height:44px;font:inherit}.ds-standard-controls select:focus{outline:2px solid #d68c76;outline-offset:1px}.ds-standard-keyboard{color:#c4c9bc;font-size:12px}@media(max-width:700px){.ds-standard-controls{padding:12px;gap:8px;flex-wrap:wrap}.ds-standard-keyboard{display:none}}"
     }
   ],
   "narrative": {
@@ -527,6 +636,11 @@
       {
         "name": "The Presenter Voice Provenance Rule",
         "body": "“MiniMax 声音” uses the same configured voice list as AI narration, including collected personal voices and MiniMax announcers. A portrait does not identify a voice. Text preview and page-note generation first synthesize audio with the selected saved MiniMax voice, then send that audio and portrait to HeyGen to synchronize the mouth. The selector, readiness text, preview hint and confirmation name this source. New generation never substitutes a HeyGen platform voice.",
+        "section": "components"
+      },
+      {
+        "name": "The Hosted Surface Boundary Rule",
+        "body": "In hosted V1, variable manuscripts, styles, pages and history belong to the workspace; password, quota and usage belong to account settings; model endpoints and keys belong to administrator deployment configuration. The hosted creation surface provides image production and ordinary manual presentation. New AI narration, dynamic presentation and digital-person production remain outside this surface, while the complete App keeps its existing paths.",
         "section": "components"
       }
     ],

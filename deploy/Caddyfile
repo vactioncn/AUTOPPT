@@ -1,7 +1,7 @@
 {$AUTOPPT_DOMAIN} {
   encode zstd gzip
   request_body {
-    max_size 80MB
+    max_size 1100MB
   }
   @internal path /internal /internal/*
   respond @internal 404

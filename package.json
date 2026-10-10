@@ -16,6 +16,7 @@
     "intro:screenshots": "node scripts/capture-intro.mjs",
     "deploy:intro": "node scripts/deploy-intro.mjs",
     "start:hosted": "node server/hosted/index.mjs",
+    "package:web": "node scripts/package-web.mjs",
     "desktop": "electron .",
     "build:mac": "node scripts/build-mac.mjs"
   },

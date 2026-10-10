@@ -23,6 +23,7 @@ type Account = {
   hosted: boolean;
   user: User | null;
   modelReady?: boolean;
+  signupImageCredits?: number;
   modelStatusUnknown?: boolean;
 };
 const Context = createContext<Account>({ hosted: false, user: null });
@@ -40,7 +41,8 @@ export function AccountGate({ children }: { children: ReactNode }) {
   const [error, setError] = useState("");
   const refresh = async () => {
     const sequence = ++refreshSequence.current;
-    const isLatest = () => mounted.current && sequence === refreshSequence.current;
+    const isLatest = () =>
+      mounted.current && sequence === refreshSequence.current;
     try {
       const res = await fetch("/api/account");
       if (!isLatest()) return;
@@ -93,14 +95,23 @@ export function AccountGate({ children }: { children: ReactNode }) {
         {error && <Button onClick={refresh}>重新连接</Button>}
       </div>
     );
-  if (account.hosted && !account.user) return <Login onDone={refresh} />;
+  if (account.hosted && !account.user)
+    return (
+      <Login onDone={refresh} signupImageCredits={account.signupImageCredits} />
+    );
   return (
     <Context.Provider value={account}>
       <div key={account.user?.id || "local"}>{children}</div>
     </Context.Provider>
   );
 }
-function Login({ onDone }: { onDone: () => Promise<void> }) {
+function Login({
+  onDone,
+  signupImageCredits,
+}: {
+  onDone: () => Promise<void>;
+  signupImageCredits?: number;
+}) {
   const [register, setRegister] = useState(false),
     [name, setName] = useState(""),
     [password, setPassword] = useState(""),
@@ -110,10 +121,9 @@ function Login({ onDone }: { onDone: () => Promise<void> }) {
   return (
     <main className="account-login">
       <section className="account-story">
-        <a className="brand" href="/intro/">
-          AutoPPT ↗
+        <a className="brand" href="/">
+          AutoPPT
         </a>
-        <p className="eyebrow">你的演讲制作室</p>
         <h1>
           把想说的话，
           <br />
@@ -124,7 +134,12 @@ function Login({ onDone }: { onDone: () => Promise<void> }) {
           <br />
           从提炼文案到逐页打磨，在自己的工作区完成。
         </p>
-        <span>邀请制内测 · 新账号赠送 100 张图片额度</span>
+        <span>
+          邀请制内测 ·{" "}
+          {signupImageCredits
+            ? `新账号赠送 ${signupImageCredits} 张图片额度`
+            : "图片额度由管理员分配"}
+        </span>
       </section>
       <form
         className="account-card"
@@ -262,7 +277,7 @@ export function AccountPage() {
         <span>张可用 · {user?.held} 张预留</span>
       </div>
       <p>
-        新账号一次性赠送 100 张。每次成功生成图片（含重新生成和风格试做）使用 1
+        每次成功生成图片（含重新生成和风格试做）使用 1
         张；编辑文字、导出和恢复版本不扣图片额度。需要更多额度请联系管理员。
       </p>
       <p>

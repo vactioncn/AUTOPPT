@@ -4,6 +4,7 @@ import { Button } from "./components";
 import { VersionWorkspace } from "./VersionWorkspace";
 import type { Bootstrap } from "./types";
 import { helpTopics } from "../shared/help-content.mjs";
+import { hostedHelpTopics } from "../shared/hosted-help.mjs";
 import "./review-help.css";
 export function Help({
   data,
@@ -17,7 +18,9 @@ export function Help({
   onGuide: () => void;
 }) {
   const [query, setQuery] = useState("");
-  const topics = helpTopics
+  const hosted = data.buildInfo?.runtimeMode === "hosted";
+  const sourceTopics = hosted ? hostedHelpTopics : helpTopics;
+  const topics = sourceTopics
     .map((t) => ({
       ...t,
       items: t.items.filter((item) =>
@@ -33,22 +36,30 @@ export function Help({
       </Button>
       <div className="page-heading">
         <div>
-          <span className="speech-eyebrow">AUTOPPT · 使用帮助</span>
+          {!hosted && (
+            <span className="speech-eyebrow">AUTOPPT · 使用帮助</span>
+          )}
           <h1>有问题，从这里找答案。</h1>
-          <p>从第一次打开 Mac App，到口播、放映和把项目带走。</p>
+          <p>
+            {hosted
+              ? "从邀请码注册，到试做、普通放映和把项目带走。"
+              : "从第一次打开 Mac App，到口播、放映和把项目带走。"}
+          </p>
         </div>
       </div>
       <label className="help-search">
         <span>搜索常见问题</span>
         <input
           type="search"
-          placeholder="例如：核对、语速、换电脑"
+          placeholder={
+            hosted ? "例如：邀请码、额度、项目迁移" : "例如：核对、语速、换电脑"
+          }
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
       </label>
       <nav className="help-topic-links" aria-label="帮助分类">
-        {helpTopics.map((t) => (
+        {sourceTopics.map((t) => (
           <a
             key={t.id}
             href={`#help-${t.id}`}

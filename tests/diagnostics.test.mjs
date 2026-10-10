@@ -239,7 +239,7 @@ for (const mode of ["local-browser", "desktop", "hosted"]) {
           directStylePrompt: true,
           designOptions: true,
           insertAndManuscriptExport: true,
-          motionPresentation: true,
+          motionPresentation: mode !== "hosted",
           speechPresentation: mode !== "hosted",
           projectPackages: true,
           spokenHtml: true,
@@ -248,10 +248,7 @@ for (const mode of ["local-browser", "desktop", "hosted"]) {
           assert.equal(typeof capability.enabled, "boolean");
           if (!capability.enabled) assert.ok(capability.reason?.length > 5);
         }
-        assert.equal(
-          body.capabilities.standardPresentation.enabled,
-          mode !== "hosted",
-        );
+        assert.equal(body.capabilities.standardPresentation.enabled, true);
         assert.equal(body.capabilities.aiNarration.enabled, false);
         assert.equal(
           body.capabilities.localModelSettings.enabled,
@@ -263,11 +260,14 @@ for (const mode of ["local-browser", "desktop", "hosted"]) {
         );
         assert.equal(body.capabilities.projectPackages.enabled, true);
         assert.equal(body.capabilities.bundleExport.enabled, true);
-        assert.equal(body.capabilities.motionPresentation.enabled, true);
+        assert.equal(
+          body.capabilities.motionPresentation.enabled,
+          mode !== "hosted",
+        );
         if (mode === "hosted")
           assert.match(
             body.capabilities.aiNarration.reason,
-            /托管服务未开放.*管理员/,
+            /暂不提供 AI 口播/,
           );
         assert.ok(!JSON.stringify(body).includes(dir));
         assert.ok(!JSON.stringify(body).includes(token));

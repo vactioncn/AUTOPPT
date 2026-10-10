@@ -304,6 +304,7 @@ test(
     });
     await goArea("演练中心");
     await expect(page.getByRole("heading", { name: "把这场演讲试好，再生成整场" })).toBeVisible();
+    await page.getByRole("button", { name: "AI 口播", exact: true }).click();
     await expect(page.getByRole("button", { name:"管理声音 / 服务" })).toBeVisible();
     await expect(page.getByText(/先在设置连接 MiniMax/)).toBeVisible();
     await expect(page.getByRole("button", {name:"普通放映",exact:true})).toBeEnabled();
@@ -919,7 +920,7 @@ test(
             if (state === "empty") {
               await expect(page.locator(".journey-empty > .btn:enabled")).toHaveCount(1);
               await page.locator(".journey-empty summary").click();
-              await expect(page.getByRole("button", { name: "前往数字人工作室", exact: true })).toBeEnabled();
+              await expect(page.getByRole("button", { name: "管理声音 / 服务", exact: true })).toBeEnabled();
               await expect(page.getByText(/打开上方播放器/)).toHaveCount(0);
             }
           }
@@ -1010,12 +1011,11 @@ test(
       body.features.speechPresentation = false;
       body.features.motionPresentation = false;
       body.buildInfo.runtimeMode = "hosted";
-      body.capabilities.standardPresentation = {
+      body.capabilities.standardPresentation = { enabled: true };
+      body.capabilities.aiNarration = {
         enabled: false,
-        reason:
-          "当前托管服务未开放演讲播放器与语音功能；模型与服务由管理员管理。",
+        reason: "邀请制网页版第一版提供普通放映，暂不提供 AI 口播生成。",
       };
-      body.capabilities.aiNarration = body.capabilities.standardPresentation;
       body.capabilities.motionPresentation = {
         enabled: false,
         reason: "当前服务未开放动态演示，请检查服务版本。",
@@ -1028,18 +1028,12 @@ test(
     });
     await page.goto(`${base}/#project/ready/rehearsal`);
     await page.reload();
-    await expect(
-      page.getByText(/当前托管服务未开放演讲播放器与语音功能/),
-    ).toBeVisible();
-    const unavailable = page.getByRole("button", { name: "标准放映不可用", exact: true });
-    await expect(unavailable).toBeDisabled();
-    await expect(unavailable).toHaveAccessibleDescription(/当前托管服务未开放演讲播放器与语音功能/);
-    await expect(page.getByRole("button", { name: "返回制作台", exact: true })).toHaveCount(0);
-    await expect(page.getByText("画面已齐备，可从头演练。", { exact: true })).toHaveCount(0);
-    // A physical click on the disabled primary action cannot route back to the studio.
-    await unavailable.scrollIntoViewIfNeeded();
-    const unavailableBox = await unavailable.boundingBox();
-    await page.mouse.click(unavailableBox.x + unavailableBox.width / 2, unavailableBox.y + unavailableBox.height / 2);
+    await expect(page.getByRole("heading", { name: "看一遍画面，准备放映" })).toBeVisible();
+    const ordinary = page.getByRole("button", { name: "普通放映", exact: true });
+    await expect(ordinary).toBeEnabled();
+    await ordinary.click();
+    await expect(page.getByRole("dialog", { name: "普通放映" })).toBeVisible();
+    await page.getByRole("button", { name: "退出放映", exact: true }).click();
     await expect(nav().getByRole("button", { name: "演练中心", exact: true })).toHaveAttribute("aria-current", "page");
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await page.goto(`${base}/#project/empty/rehearsal`);
@@ -1058,15 +1052,15 @@ test(
           .getByRole("button")
           .allTextContents()
       ).map((s) => s.replace(/\d+/g, "")),
-      ["项目", "风格库", "产品介绍", "使用帮助", "设置"],
+      ["项目", "风格库", "产品介绍", "使用帮助", "账号设置"],
     );
     await expect(
       page.getByRole("button", { name: /隔离验收.*账号与额度/ }),
     ).toBeVisible();
     await overflow();
-    await page.getByRole("button", { name: "设置", exact: true }).click();
+    await page.getByRole("button", { name: "账号设置", exact: true }).click();
     await expect(
-      page.getByRole("heading", { name: "模型与服务" }),
+      page.getByRole("heading", { name: "账号与额度" }),
     ).toBeVisible();
     await overflow();
     assert.deepEqual(errors, []);

@@ -3209,6 +3209,12 @@ test(
           viewport: { width: 1440, height: 1000 },
         });
         await page.goto(base.replace("/api", ""));
+        await page.locator(".project-card-wrap").filter({
+          has: page.getByRole("button", {
+            name: "删除项目：删除项目浏览器验收",
+            exact: true,
+          }),
+        }).hover();
         await page
           .getByRole("button", {
             name: "删除项目：删除项目浏览器验收",
@@ -3224,6 +3230,12 @@ test(
             (p) => p.id === disposableProject.id,
           ),
         );
+        await page.locator(".project-card-wrap").filter({
+          has: page.getByRole("button", {
+            name: "删除项目：删除项目浏览器验收",
+            exact: true,
+          }),
+        }).hover();
         await page
           .getByRole("button", {
             name: "删除项目：删除项目浏览器验收",

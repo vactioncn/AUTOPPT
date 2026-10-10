@@ -3761,6 +3761,33 @@ textarea::placeholder {
   color: #ad3429;
   border-color: #ad3429;
 }
+.project-card-wrap > .card-delete {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  transition: opacity 0.15s;
+}
+@media (hover: hover) and (pointer: fine) {
+  .project-card-wrap > .card-delete {
+    opacity: 0;
+    pointer-events: none;
+  }
+  .project-card-wrap:hover > .card-delete,
+  .project-card-wrap:focus-within > .card-delete {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+@media (any-pointer: coarse) {
+  .project-card-wrap > .card-delete {
+    width: 44px;
+    height: 44px;
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
 .simple-options {
   gap: 10px;
 }

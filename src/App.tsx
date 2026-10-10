@@ -624,10 +624,10 @@ function ProjectHome({
                 <button
                   className="card-delete"
                   aria-label={`删除项目：${p.title}`}
+                  title="删除项目"
                   onClick={() => setDeleting(p)}
                 >
-                  <Trash size={16} />
-                  删除
+                  <Trash size={16} aria-hidden="true" />
                 </button>
               </article>
             ))}

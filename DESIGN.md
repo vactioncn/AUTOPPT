@@ -217,6 +217,8 @@ Small rounded badges communicate neutral, good and warm states. They are informa
 
 Project cards combine a 16:9 cover, name and compact metadata. Style cards add reference or starting-style labels, description and color swatches. Their previews may show a reference image or a typography/color sample; built-in choices are labeled “内置起始风格”. White composer and connection panels use the same border and radius language.
 
+Project-card deletion uses a 36px icon-only control at the top right, revealed on card hover or focus within for mouse users. Coarse-pointer devices retain a visible 44px target. The accessible name and hover label identify the action; deletion still opens the existing confirmation dialog. These rules are scoped to project cards.
+
 ### Digital Presenter
 
 Saved-avatar choices use compact square portraits beside the name, style, default marker and MiniMax voice-readiness text. A selected choice gains a terracotta border and pale warm fill, with a pressed state. The surrounding fields, status badges and actions reuse the existing paper, ink and control language. Presenter actions allow wrapped labels and a comfortable minimum height (44px), scoped to this workflow.

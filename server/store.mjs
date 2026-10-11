@@ -10,7 +10,10 @@ import {
 } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { DEFAULT_STYLE_ID } from "../shared/styles.mjs";
+import {
+  DEFAULT_STYLE_ID,
+  HOSTED_BUILTIN_STYLE_IDS,
+} from "../shared/styles.mjs";
 
 export const dataDir = path.resolve(process.env.AUTOPPT_DATA_DIR || ".local");
 export const assetsDir = path.join(dataDir, "assets");
@@ -239,7 +242,11 @@ const defaults = [
 ];
 export function seedBuiltinStyles() {
   for (const s of defaults)
-    if (!get("style", s.id))
+    if (
+      (!process.env.AUTOPPT_WORKER_TOKEN ||
+        HOSTED_BUILTIN_STYLE_IDS.includes(s.id)) &&
+      !get("style", s.id)
+    )
       put("style", {
         ...s,
         refs: [],

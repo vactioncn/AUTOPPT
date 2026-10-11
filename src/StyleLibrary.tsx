@@ -25,9 +25,13 @@ import { StyleVersions } from "./StyleVersions";
 import { StyleAnalysis } from "./StyleAnalysis";
 import { StyleContextFields } from "./StyleContextFields";
 import { StylePromptResults } from "./StylePromptResults";
-import { DEFAULT_STYLE_ID } from "../shared/styles.mjs";
+import {
+  DEFAULT_STYLE_ID,
+  HOSTED_BUILTIN_STYLE_IDS,
+} from "../shared/styles.mjs";
 import "./style-detail.css";
 export function StyleLibrary({
+  curated = false,
   promptRepair = false,
   onReturn,
   urlImportAvailable,
@@ -37,6 +41,7 @@ export function StyleLibrary({
   notify,
   onUse,
 }: {
+  curated?: boolean;
   promptRepair?: boolean;
   onReturn?: (styleId?: string) => void;
   urlImportAvailable: boolean;
@@ -47,6 +52,9 @@ export function StyleLibrary({
   onUse: (id: string) => void;
 }) {
   const [deleting, setDeleting] = useState<Style | null>(null);
+  const [collection, setCollection] = useState<"featured" | "personal">(
+    "featured",
+  );
   const [repairedStyle, setRepairedStyle] = useState<string>();
   const [create, setCreate] = useState(promptRepair),
     [studio, setStudio] = useState<string | null>(null),
@@ -56,6 +64,17 @@ export function StyleLibrary({
     if (!promptRepair) setRepairedStyle(undefined);
   }, [promptRepair]);
   const visibleStyles = styles.filter((s) => !s.deletedAt);
+  const featured = visibleStyles.filter((s) =>
+    HOSTED_BUILTIN_STYLE_IDS.includes(s.id),
+  );
+  const personal = visibleStyles.filter(
+    (s) => !HOSTED_BUILTIN_STYLE_IDS.includes(s.id),
+  );
+  const shownStyles = curated
+    ? collection === "featured"
+      ? featured
+      : personal
+    : visibleStyles;
   const selected = visibleStyles.find((s) => s.id === detail);
   const studioStyle = visibleStyles.find((s) => s.id === studio);
   if (studioStyle)
@@ -84,47 +103,76 @@ export function StyleLibrary({
       )}
       <div className="page-heading">
         <div>
-          <h1>把喜欢的，变成你的风格。</h1>
-          <p>从参考图建立视觉风格，再用于你的不同演讲项目。</p>
+          <h1>{curated ? "选一种喜欢的风格。" : "把喜欢的，变成你的风格。"}</h1>
+          <p>
+            {curated
+              ? "四款精品风格，直接用于你的演讲。也可以创建自己的风格。"
+              : "从参考图建立视觉风格，再用于你的不同演讲项目。"}
+          </p>
         </div>
         <Button variant="primary" onClick={() => setCreate(true)}>
           <Plus size={18} />
           创建风格
         </Button>
       </div>
-      <div className="styles-explainer">
-        <div className="reference-mini">
-          <div />
-          <div />
-          <div>
-            <Palette size={28} weight="light" />
+      {!curated && (
+        <div className="styles-explainer">
+          <div className="reference-mini">
+            <div />
+            <div />
+            <div>
+              <Palette size={28} weight="light" />
+            </div>
           </div>
+          <div>
+            <h2>用提示词、图片或网址，建立自己的风格库</h2>
+            <p>
+              分析参考图背后的设计系统，生成同源但不同形的完整提示词；不同风格分别提炼。
+              <br />
+              用现成示例或自己的内容试做；使用统一文案单独生成风格封面。
+            </p>
+          </div>
+          <Button onClick={() => setCreate(true)}>
+            <UploadSimple size={17} />
+            添加风格
+          </Button>
         </div>
-        <div>
-          <h2>用提示词、图片或网址，建立自己的风格库</h2>
-          <p>
-            分析参考图背后的设计系统，生成同源但不同形的完整提示词；不同风格分别提炼。
-            <br />
-            用现成示例或自己的内容试做；使用统一文案单独生成风格封面。
-          </p>
-        </div>
-        <Button onClick={() => setCreate(true)}>
-          <UploadSimple size={17} />
-          添加风格
-        </Button>
-      </div>
+      )}
       <div className="section-heading">
-        <div>
-          <h2>
-            全部风格{" "}
-            <span>{String(visibleStyles.length).padStart(2, "0")}</span>
-          </h2>
-        </div>
+        {curated ? (
+          <div className="segmented" role="group" aria-label="风格分类">
+            <button
+              className={collection === "featured" ? "active" : ""}
+              aria-pressed={collection === "featured"}
+              onClick={() => setCollection("featured")}
+            >
+              精品风格 <span>{featured.length}</span>
+            </button>
+            <button
+              className={collection === "personal" ? "active" : ""}
+              aria-pressed={collection === "personal"}
+              onClick={() => setCollection("personal")}
+            >
+              我的风格 <span>{personal.length}</span>
+            </button>
+          </div>
+        ) : (
+          <div>
+            <h2>
+              全部风格{" "}
+              <span>{String(visibleStyles.length).padStart(2, "0")}</span>
+            </h2>
+          </div>
+        )}
         <span className="muted">跨项目使用，持续积累</span>
       </div>
-      {!visibleStyles.length && (
+      {!shownStyles.length && (
         <section className="onboarding-card" aria-label="风格库空状态">
-          <h2>从第一个风格开始</h2>
+          <h2>
+            {curated && collection === "personal"
+              ? "你的专属风格，从这里开始"
+              : "从第一个风格开始"}
+          </h2>
           <p>
             打开创建表单，填写风格提示词并保存即可使用；无需先调用模型。也可以按需上传参考图。
           </p>
@@ -133,8 +181,10 @@ export function StyleLibrary({
           </Button>
         </section>
       )}
-      <div className="style-library-grid">
-        {visibleStyles.map((s) => (
+      <div
+        className={`style-library-grid${curated && collection === "featured" ? " curated-style-grid" : ""}`}
+      >
+        {shownStyles.map((s) => (
           <article className="style-card" key={s.id}>
             <button
               className="card-delete"
@@ -200,6 +250,7 @@ export function StyleLibrary({
           onDone={async (s) => {
             setCreate(false);
             await refresh();
+            if (curated) setCollection("personal");
             if (promptRepair && onReturn) setRepairedStyle(s.id);
             else if (promptRepair) onUse(s.id);
             else setDetail(s.id);

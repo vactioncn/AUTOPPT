@@ -54,9 +54,22 @@ export function WebLink({
   );
 }
 const examples = [
-  ["neo-swiss-strategy", "瑞士编辑", "鲜明的文字层级，让观点成为画面的主角。"],
-  ["acid-editorial", "先锋色彩", "大胆的色彩与编辑语言，让主题更醒目。"],
-  ["tactile-journal", "质感手账", "纸张、拼贴与手写感，让叙述多一份温度。"],
+  [
+    "restrained-childhood-editorial",
+    "克制儿童摄影杂志风",
+    "黑白摄影与荧光点睛，让故事有清晰的阅读层次。",
+  ],
+  [
+    "acid-editorial",
+    "先锋酸性色彩编辑风",
+    "大胆的色彩与编辑语言，让主题更醒目。",
+  ],
+  [
+    "japanese-architecture",
+    "日系现代建筑提案风",
+    "克制留白与建筑般的秩序，让表达清晰从容。",
+  ],
+  ["neo-swiss", "当代 Neo-Swiss", "强势黑体与黑白对比，突出每一页的核心观点。"],
 ];
 export function WebSite({
   page,

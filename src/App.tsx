@@ -50,7 +50,11 @@ import {
   resolveCapabilities,
 } from "./diagnostics";
 import { compareBuildInfo } from "../shared/diagnostics.mjs";
-import { DEFAULT_STYLE_ID, defaultStyleId } from "../shared/styles.mjs";
+import {
+  DEFAULT_STYLE_ID,
+  defaultStyleId,
+  offeredStyles,
+} from "../shared/styles.mjs";
 
 export default function App() {
   const account = useAccount();
@@ -75,6 +79,7 @@ export default function App() {
   );
   const informationRoute = ["intro", "help"].includes(route);
   const contentRoute = informationRoute ? previousRoute.current : route;
+  const offered = offeredStyles(data?.styles || [], account.hosted);
   const refresh = useCallback(async () => {
     try {
       setData(await api("/bootstrap"));
@@ -123,7 +128,7 @@ export default function App() {
   const create = (styleId = DEFAULT_STYLE_ID, restoreDraft = false) => {
     if (!restoreDraft) setCreationDraft(null);
     setStyleRepair(false);
-    const available = data?.styles.filter((s) => !s.deletedAt && s.rules) || [];
+    const available = offered.filter((s) => s.rules);
     setInitialStyle(
       available.some((s) => s.id === styleId)
         ? styleId
@@ -163,7 +168,11 @@ export default function App() {
       </main>
     );
   const capabilities = resolveCapabilities(data);
-  const readiness = onboardingReadiness(data, capabilities, account);
+  const readiness = onboardingReadiness(
+    { ...data, styles: offered },
+    capabilities,
+    account,
+  );
   const current = data.projects.find((p) => p.id === currentId);
   return (
     <div className={account.hosted ? "app-shell hosted-shell" : "app-shell"}>
@@ -172,7 +181,7 @@ export default function App() {
           route={route}
           currentId={currentId}
           projects={data.projects}
-          styleCount={data.styles.filter((s) => !s.deletedAt).length}
+          styleCount={offered.length}
           go={go}
           onCreate={() => create()}
         />
@@ -328,7 +337,7 @@ export default function App() {
           <>
             {onboarding.value.workspace === "pending" && (
               <WorkspaceReadiness
-                data={data}
+                data={{ ...data, styles: offered }}
                 account={account}
                 capabilities={capabilities}
                 onStart={() => create()}
@@ -360,7 +369,7 @@ export default function App() {
             !informationRoute &&
             onboarding.value.workspace === "pending" && (
               <WorkspaceReadiness
-                data={data}
+                data={{ ...data, styles: offered }}
                 account={account}
                 capabilities={capabilities}
                 onStart={() => create()}
@@ -396,12 +405,13 @@ export default function App() {
             />
           ) : contentRoute === "styles" ? (
             <StyleLibrary
+              curated={account.hosted}
               promptRepair={styleRepair}
               onReturn={
                 creationDraft ? (styleId) => create(styleId, true) : undefined
               }
               urlImportAvailable={!!data.features?.styleUrlImport}
-              styles={data.styles}
+              styles={offered}
               jobs={data.jobs}
               refresh={refresh}
               notify={notify}
@@ -446,7 +456,7 @@ export default function App() {
       </main>
       {creating && (
         <NewProject
-          styles={data.styles}
+          styles={offered}
           initialStyle={initialStyle}
           initialDraft={creationDraft}
           onStyles={(draft) => {

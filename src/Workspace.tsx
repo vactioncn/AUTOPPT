@@ -15,6 +15,7 @@ import {
 import type { DesignOptions } from "./types";
 import { RawPromptDetails } from "./RawPromptDetails";
 import { currentProduction } from "../shared/production.mjs";
+import { offeredStyles } from "../shared/styles.mjs";
 import { browsePages } from "../shared/page-browser.mjs";
 import { planImageBatch } from "../shared/image-batch.mjs";
 import { PageBrowser, PagePagination } from "./PageBrowser";
@@ -1483,7 +1484,7 @@ export function Workspace({
                     {style?.name || "原风格"}（已删除，请另选）
                   </option>
                 )}
-                {styles
+                {offeredStyles(styles, hosted, project.styleId)
                   .filter((s) => !!s.rules && !s.deletedAt)
                   .map((s) => (
                     <option key={s.id} value={s.id}>

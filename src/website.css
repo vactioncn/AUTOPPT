@@ -125,6 +125,7 @@
 }
 .web-style-switch {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   margin-top: 16px;
 }

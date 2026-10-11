@@ -5,6 +5,7 @@
 ## 下载与使用说明
 
 - **[在线阅读安装与使用说明](https://github.com/vactioncn/AUTOPPT/blob/main/docs/同事安装与使用说明.md)**：查看安装、模型配置、首次测试和常见问题。
+- **[下载 Word 使用说明](https://github.com/vactioncn/AUTOPPT/raw/refs/heads/main/docs/AutoPPT-安装与使用说明.docx)**：离线阅读与本次更新同步的安装和使用说明。
 - **[下载最新完整代码 ZIP](https://github.com/vactioncn/AUTOPPT/archive/refs/heads/main.zip)**：解压后按说明安装运行。
 
 以上入口始终指向 `main` 分支的最新版本。

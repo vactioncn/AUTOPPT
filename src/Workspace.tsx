@@ -937,10 +937,10 @@ export function Workspace({
           Object.entries(
             hosted
               ? {
+                  overview: "概览",
                   studio: "画面与讲稿",
                   rehearsal: "放映与配音",
                   delivery: "下载与导出",
-                  overview: "进度概览",
                 }
               : projectAreas,
           ) as [ProjectArea, string][]

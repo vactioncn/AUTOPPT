@@ -14,6 +14,12 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { Accounts } from "./accounts.mjs";
 import { acquireLock } from "./process-lock.mjs";
+import {
+  supportConfig,
+  websitePaths,
+  renderWebsiteShell,
+  websiteSitemap,
+} from "./site.mjs";
 
 const root = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -34,6 +40,7 @@ if (
 )
   throw new Error("AUTOPPT_PUBLIC_URL 应为站点根地址。");
 const local = ["localhost", "127.0.0.1"].includes(publicUrl.hostname);
+const websiteSupport = supportConfig();
 if (
   publicUrl.protocol !== "https:" &&
   !(local && publicUrl.protocol === "http:")
@@ -316,6 +323,7 @@ app.get("/api/account", (req, res) => {
     user,
     modelReady: modelsReady(),
     signupImageCredits: accounts.signupImageCredits,
+    ...websiteSupport,
   });
 });
 const authLimit = (req, res, next) => {
@@ -505,6 +513,30 @@ app.use("/internal", (req, res) =>
   res.status(404).json({ error: "接口不存在。" }),
 );
 // Only checked-in/build assets are public. Uploaded/generated assets are below auth.
+app.get("/robots.txt", (req, res) =>
+  res
+    .type("text/plain")
+    .send(
+      `User-agent: *\nAllow: /website\nAllow: /support\nDisallow: /api/\nDisallow: /assets/\nDisallow: /internal/\nDisallow: /login\nDisallow: /register\nSitemap: ${publicUrl.origin}/sitemap.xml\n`,
+    ),
+);
+app.get("/sitemap.xml", (req, res) =>
+  res.type("application/xml").send(websiteSitemap(publicUrl.origin)),
+);
+app.get(websitePaths, (req, res) => {
+  const sitePath = req.path.replace(/\/+$/, "") || "/";
+  if (["/login", "/register"].includes(sitePath))
+    res.set("X-Robots-Tag", "noindex, nofollow");
+  res
+    .type("html")
+    .send(
+      renderWebsiteShell(
+        readFileSync(path.join(root, "dist/index.html"), "utf8"),
+        sitePath,
+        publicUrl.origin,
+      ),
+    );
+});
 app.use(express.static(path.join(root, "dist"), { dotfiles: "deny" }));
 app.use(["/api", "/assets"], authenticated, async (req, res) => {
   // Express routes are case-insensitive by default. Normalize policy checks too,
@@ -557,7 +589,16 @@ app.use(["/api", "/assets"], authenticated, async (req, res) => {
   else res.end();
 });
 app.get("/{*path}", (req, res) =>
-  res.sendFile(path.join(root, "dist/index.html")),
+  res
+    .status(404)
+    .type("html")
+    .send(
+      renderWebsiteShell(
+        readFileSync(path.join(root, "dist/index.html"), "utf8"),
+        req.path,
+        publicUrl.origin,
+      ),
+    ),
 );
 app.use((err, req, res, next) => {
   if (res.headersSent) return res.end();

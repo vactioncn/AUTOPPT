@@ -11,6 +11,8 @@ services:
     environment:
       AUTOPPT_PUBLIC_URL: https://${AUTOPPT_DOMAIN:?Set AUTOPPT_DOMAIN}
       AUTOPPT_TRUST_PROXY: '1'
+      AUTOPPT_SUPPORT_EMAIL: ${AUTOPPT_SUPPORT_EMAIL:-}
+      AUTOPPT_SUPPORT_URL: ${AUTOPPT_SUPPORT_URL:-}
       AUTOPPT_ADMIN_USER: ${AUTOPPT_ADMIN_USER:-admin}
       AUTOPPT_ADMIN_PASSWORD_FILE: /run/secrets/admin_password
       AUTOPPT_TEXT_API_KEY_FILE: /run/secrets/text_key

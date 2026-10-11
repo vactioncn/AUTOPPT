@@ -488,6 +488,292 @@
           ]
         }
       }
+    },
+    "websiteJourney": {
+      "recordedAt": "2026-10-11",
+      "contract": ".impeccable/web-site-journey.md",
+      "scope": "Invitation-hosted public website, account entry, reading pages and workspace navigation within the incumbent Quiet Personal Speech Studio identity.",
+      "sources": [
+        {
+          "file": "src/WebSite.tsx",
+          "observed": "Public product/help/account/data/use views; named public menu and skip link; three pressed-state built-in cover choices; invitation/login forms, associated Field hint, password visibility and service recovery."
+        },
+        {
+          "file": "src/website.css",
+          "observed": "Scoped public layout, heading hierarchy, 44px actions, white account form, complete 16:9 example, and 900px/640px responsive rules."
+        },
+        {
+          "file": "src/WorkspaceNavigation.tsx",
+          "observed": "Creation and projects/styles, up to six collapsible recent projects, support/website, admin-only management, unified account footer; icon names; mobile modal focus containment and recovery."
+        },
+        {
+          "file": "src/workspace-navigation.css",
+          "observed": "232px full sidebar, 76px rail at 641–950px, 56px mobile bar and min(300px, 88vw) drawer at 640px and below; local navigation stroke/text values."
+        },
+        {
+          "file": "src/Account.tsx",
+          "observed": "Hosted public pages render separately; the current authenticated workspace remains mounted and hidden on public visits. Workspace identity changes clear preferences, and the last allowed work route is retained."
+        },
+        {
+          "file": "shared/web-routes.mjs",
+          "observed": "Public path/hash classification, same-origin history navigation and allowed workspace-return targets; unrecognized return targets fall back to projects."
+        },
+        {
+          "file": "src/components.tsx",
+          "observed": "Field assigns a matching label and hint description to its input. Registration now supplies the complete account-format hint through that existing property."
+        },
+        {
+          "file": "src/styles.css",
+          "observed": "Inherited DM Sans/system-fallback typography, 13px named-field text, 12px labels, 10px supporting-text helpers, fine input borders, warm focus treatments and reduced motion."
+        },
+        {
+          "file": "server/hosted/index.mjs",
+          "observed": "Checked-in/build website assets are public; uploaded/generated workspace assets are served below authentication. Admin endpoints separately require administrator authorization."
+        },
+        {
+          "file": "server/hosted/site.mjs",
+          "observed": "Public metadata and sitemap use website/support/privacy/terms; login/register are noindex. Optional deployment support contact is validated."
+        }
+      ],
+      "routeBoundaries": {
+        "publicPaths": [
+          "/",
+          "/index.html",
+          "/website",
+          "/login",
+          "/register",
+          "/support",
+          "/privacy",
+          "/terms"
+        ],
+        "workspaceNavigation": [
+          "projects",
+          "styles",
+          "project/<uuid>",
+          "help",
+          "account",
+          "admin"
+        ],
+        "workspaceReturnTarget": "workspaceTarget validates projects/styles/account/admin/help/settings categories and project UUID routes before returning to /#<target>; invalid targets use projects.",
+        "sameSessionPreservation": "A visited signed-in workspace stays mounted under hidden while public pages are shown; returning resumes its last validated route and draft.",
+        "identityBoundary": "Workspace children are keyed by account identity. Logout/expiry removes the authenticated workspace; successful authentication clears workspace preferences.",
+        "assetBoundary": "Public example images are checked-in demonstration assets. Private uploads/generated media require authentication.",
+        "adminBoundary": "Website management appears only for admin users; server authorization remains authoritative.",
+        "localBoundary": "The local App and standalone /intro/ surface keep their existing paths, identity decisions and data."
+      },
+      "scopedLayout": {
+        "website": {
+          "frame": {
+            "maxWidth": "1440px",
+            "sidePadding": "5%",
+            "headerMinHeight": "88px"
+          },
+          "hero": {
+            "columns": "0.85fr 1.15fr",
+            "gap": "5%",
+            "padding": "82px 5% 88px",
+            "imageAspectRatio": "16/9",
+            "imageFit": "contain"
+          },
+          "workflow": {
+            "maxWidth": "1296px",
+            "columns": "1fr 1.15fr",
+            "gap": "10%",
+            "padding": "72px 5%"
+          },
+          "accountEntry": {
+            "maxWidth": "1190px",
+            "columns": "1.1fr 1fr",
+            "gap": "10%",
+            "padding": "60px 5% 80px"
+          },
+          "reading": {
+            "maxWidth": "850px",
+            "padding": "55px 28px 100px",
+            "bodyMeasure": "72ch"
+          },
+          "breakpoints": [
+            {
+              "query": "(max-width: 900px)",
+              "observed": "Hero/proof stack. Hero has 48px top padding and 38px gap; workflow remains two columns with 7% gap; account remains two columns with 5% gap and 4% inline padding."
+            },
+            {
+              "query": "(max-width: 640px)",
+              "observed": "Public header uses a vertical disclosure nav and 72px minimum height; workflow/account/footer stack; choices wrap; account padding is 28px 20px 45px and form padding is 22px."
+            }
+          ]
+        },
+        "workspace": {
+          "desktopSidebarWidth": "232px",
+          "desktopSidebarPadding": "26px 16px 18px",
+          "railQuery": "(min-width: 641px) and (max-width: 950px)",
+          "railWidth": "76px",
+          "mobileQuery": "(max-width: 640px)",
+          "mobileBarHeight": "56px",
+          "drawerWidth": "min(300px, 88vw)",
+          "drawerHeight": "100dvh",
+          "drawerPadding": "24px 16px max(18px, env(safe-area-inset-bottom))",
+          "internalTopbarHeight": "49px",
+          "primaryRowMinHeight": "42px",
+          "primaryRowPadding": "11px 13px",
+          "creationMinHeight": "44px",
+          "mobileInteraction": "Open drawer makes main inert and locks body scroll; Tab is contained. Escape, close control, backdrop and destination selection close it; cleanup restores previous focus and scrolling."
+        }
+      },
+      "scopedComponentValues": {
+        "colors": {
+          "selectedStyleStroke": "#b3bca8",
+          "styleHover": "#e9ece1",
+          "navigationText": "#586250",
+          "recentProjectText": "#59624f",
+          "navigationHover": "#e4e6dc",
+          "accountSeparator": "#d6dacf",
+          "drawerBackdrop": "#24282466",
+          "sharedPalette": "References existing canvas/paper/ink/muted/line/accent/sidebar/navigation-active/navigation-ink; no global primitive replacement."
+        },
+        "typography": {
+          "hero": "clamp(34px, 4.3vw, 62px); 600; line-height 1.22; letter-spacing -0.035em",
+          "heroAt900": "clamp(36px, 6.5vw, 54px)",
+          "accountStory": "clamp(30px, 3.4vw, 46px); 600; line-height 1.22; letter-spacing -0.035em",
+          "accountStoryAt640": "31px",
+          "section": "clamp(25px, 2.8vw, 40px); line-height 1.35; letter-spacing -0.03em",
+          "formTitle": "25px",
+          "readingTitle": "clamp(30px, 4vw, 45px)",
+          "readingSection": "23px",
+          "websiteAction": "14px",
+          "brand": "23px/700",
+          "brandMark": "25px",
+          "workflowTitle": "19px",
+          "faqSummary": "17px",
+          "mobileWorkspaceBrand": "18px"
+        },
+        "accountForm": {
+          "background": "paper",
+          "border": "1px solid line",
+          "radius": "16px",
+          "padding": "30px",
+          "paddingAt640": "22px",
+          "blockGap": "18px",
+          "fieldsetGap": "16px",
+          "input": "Shared white bordered input, 8px radius, padding 11px 12px; width 100%; min-width 0.",
+          "namedFieldText": "13px",
+          "labelText": "12px",
+          "hintText": "10px; supporting-text",
+          "directPasswordText": "Inherited 14px",
+          "passwordInputRightPadding": "46px",
+          "passwordToggleWidth": "44px",
+          "passwordToggleMinHeight": "44px",
+          "websiteActionMinHeight": "44px",
+          "websiteActionPadding": "11px 20px"
+        },
+        "shape": "Public example/proof 12px, style controls and primary nav 8px, recent nav 7px, account form 16px; account footer has square corners.",
+        "depthAndMotion": "Flat public sections separated with spacing/tones/rules. Shared focus and reduced-motion rules apply; no new website shadow or motion scale."
+      },
+      "accountControls": {
+        "invitation": {
+          "registerOnly": true,
+          "required": true,
+          "maxLength": 160,
+          "autoComplete": "off"
+        },
+        "account": {
+          "required": true,
+          "autoComplete": "username",
+          "maxLength": 80,
+          "registerMinLength": 3,
+          "registerPattern": "[a-zA-Z0-9][a-zA-Z0-9_.@\\-]{2,79}",
+          "hint": "3–80 位英文字母、数字、点、下划线、连字符或 @，首位须为字母或数字。邮箱只作账号名，无需验证。",
+          "association": "Existing Field hint supplies input aria-describedby and matching small id."
+        },
+        "password": {
+          "required": true,
+          "registerMinLength": 12,
+          "loginMinLength": 1,
+          "maxLength": 128,
+          "registerAutoComplete": "new-password",
+          "loginAutoComplete": "current-password",
+          "visibility": "Named show/hide button with aria-pressed; confirmation shares visibility state."
+        },
+        "confirmation": {
+          "registerOnly": true,
+          "required": true,
+          "minLength": 12,
+          "maxLength": 128,
+          "autoComplete": "new-password"
+        },
+        "recovery": "Busy or missing/error account service disables the fieldset. Errors are role=alert; service failure presents reconnect. Forgotten password links to /support#access and administrator reset guidance.",
+        "quotaCopy": "Signup credits come from live account service configuration and are shown only when provided; fixture values are not promises."
+      },
+      "normalizationBoundary": "Keep website/nav/account dimensions and local supporting colors scoped. Preserve existing frontmatter, global palette/type/world, components and historical evidence. The earlier Hosted Web V1 entry-form/shell geometry is superseded only for this new hosted journey; unrelated drift is not repaired.",
+      "evidence": {
+        "date": "2026-10-11",
+        "review": ".impeccable/review/web-site-finish-review.md",
+        "disposition": "ship",
+        "reviewBoundary": "Sole binding correction was the registration account-format helper. Reviewer confirmed the refreshed desktop/mobile registration captures and matching description ID; prior fidelity/ceiling findings stand. This is not a fresh whole-surface or model-quality verdict.",
+        "detector": {
+          "file": ".impeccable/review/web-site-detector.json",
+          "findingCount": 24,
+          "severity": "advisory",
+          "scope": "Component-local type values and supporting strokes; recorded as source observations without changing global primitives."
+        },
+        "browserEvidence": "The surface brief reports an isolated localhost mock workspace with UI registration, bad/valid password, deep-link return and manuscript draft return succeeding. No real user data or paid models.",
+        "reportedCssViewportWidths": {
+          "desktop": 1422,
+          "mobile": 433,
+          "tablet": 822,
+          "source": ".impeccable/web-site-journey.md"
+        },
+        "capturePixelDimensions": [
+          {
+            "file": ".impeccable/review/desktop.png",
+            "width": 1571,
+            "height": 2984
+          },
+          {
+            "file": ".impeccable/review/mobile.png",
+            "width": 472,
+            "height": 3319
+          },
+          {
+            "file": ".impeccable/review/register-desktop.png",
+            "width": 1571,
+            "height": 1178
+          },
+          {
+            "file": ".impeccable/review/register-mobile.png",
+            "width": 472,
+            "height": 1428
+          },
+          {
+            "file": ".impeccable/review/login-desktop.png",
+            "width": 1571,
+            "height": 983
+          },
+          {
+            "file": ".impeccable/review/workspace-desktop.png",
+            "width": 1571,
+            "height": 1540
+          },
+          {
+            "file": ".impeccable/review/workspace-mobile.png",
+            "width": 481,
+            "height": 2082
+          },
+          {
+            "file": ".impeccable/review/tablet.png",
+            "width": 904,
+            "height": 1313
+          },
+          {
+            "file": ".impeccable/review/admin-desktop.png",
+            "width": 1571,
+            "height": 1329
+          }
+        ],
+        "dimensionBoundary": "Pixel dimensions were read from existing image files; they differ from CSS viewport widths because current browser zoom scales the requested widths and captures can be full-page. Requested 390px is not asserted as actual rendered mobile width.",
+        "approvalBoundary": "Code-led extension of the incumbent visual world; no generated comp approval required.",
+        "verificationBoundary": "Interface/integration evidence in disposable mock workspaces, not production deployment or real-provider output quality."
+      }
     }
   },
   "components": [
@@ -580,7 +866,7 @@
   ],
   "narrative": {
     "northStar": "Quiet Personal Speech Studio",
-    "overview": "The interface is a warm, restrained working environment for a person developing an ongoing speech. Pale paper surfaces, olive supporting tones and a terracotta action color keep attention on the manuscript and the actual generated image. The style workbench leads with the complete image, followed by content and feedback; native disclosures reveal the detailed rules and design plan when needed.\n\nThis records the implemented system in `src/styles.css`, `src/studio.css`, `src/scene.css`, the shared components and main views, refreshed on 2026-10-01. The selected style is a whole visual grammar: typography, palette, linework, details and whitespace. Content determines the original composition and expression; style determines how it is drawn. The application palette does not become the output style. Content attachments and the production report extend the existing quiet working surfaces, shared buttons and modal conventions. Product behavior remains documented in `PRODUCT.md`.",
+    "overview": "The interface is a warm, restrained working environment for a person developing an ongoing speech. Pale paper surfaces, olive supporting tones and a terracotta action color keep attention on the manuscript and the actual generated image. The style workbench leads with the complete image, followed by content and feedback; native disclosures reveal the detailed rules and design plan when needed.\n\nThis records the implemented system in `src/styles.css`, `src/studio.css`, `src/scene.css`, the shared components and main views, refreshed on 2026-10-01. The selected style is a whole visual grammar: typography, palette, linework, details and whitespace. Content determines the original composition and expression; style determines how it is drawn. The application palette does not become the output style. Content attachments and the production report extend the existing quiet working surfaces, shared buttons and modal conventions. Product behavior remains documented in `PRODUCT.md`.\n\nThe invitation-hosted website and its workspace navigation extend this same identity. The public introduction, account entry and reading pages use the incumbent locally bundled type, warm canvas, white forms, terracotta actions and olive selection states. Their larger headings and navigation geometry are scoped to those surfaces; the standalone `/intro/` record and the local App remain separate. The implemented source and review boundary are recorded in `.impeccable/web-site-journey.md`.",
     "keyCharacteristics": [
       "Warm light canvas with white working surfaces and fine olive-gray borders.",
       "Large, complete generated images paired with quiet saved-state captions and PNG download.",
@@ -642,6 +928,11 @@
         "name": "The Hosted Surface Boundary Rule",
         "body": "In hosted V1, variable manuscripts, styles, pages and history belong to the workspace; password, quota and usage belong to account settings; model endpoints and keys belong to administrator deployment configuration. The hosted creation surface provides image production and ordinary manual presentation. New AI narration, dynamic presentation and digital-person production remain outside this surface, while the complete App keeps its existing paths.",
         "section": "components"
+      },
+      {
+        "name": "The Website Workspace Boundary Rule",
+        "body": "Public product, invitation/login, support and data/use pages are separate from the authenticated creative workspace. Visiting the public website from the same signed-in workspace keeps that workspace mounted and hidden; returning resumes the last validated work route and its draft. Signing out removes that identity's workspace; successful authentication clears workspace preferences. Public examples use checked-in demonstration assets; uploaded or generated workspace media remains behind authentication. This behavior is specific to the hosted journey.",
+        "section": "components"
       }
     ],
     "dos": [
@@ -651,7 +942,8 @@
       "Do keep the actual image ahead of detailed rules, with content and feedback directly beneath it.",
       "Do let content determine the expression and original composition, with the whole style grammar determining how it is drawn.",
       "Do keep page-only changes, candidate rule revisions and formal-style promotion visibly separate.",
-      "Do keep the full manuscript accessible alongside condensed page text, with manual split/merge previews and version history available on demand."
+      "Do keep the full manuscript accessible alongside condensed page text, with manual split/merge previews and version history available on demand.",
+      "Do keep hosted website and workspace layout values scoped, preserve named navigation in the icon rail, and associate account-format help with its field."
     ],
     "donts": [
       "Don't present missing results, failed pages or stale previews as newly completed output.",
@@ -659,7 +951,8 @@
       "Don't reintroduce template or visual-direction pickers, generic layout galleries or element editing into the current image workflow. PPTX export must remain complete images with speaker notes.",
       "Don't reintroduce style-reference image selection, reference comparison or automatic deviation review into the finalized trial and production flows; content attachments have their own explicit material input.",
       "Don't treat choosing a history result as saving its candidate rules to the formal style.",
-      "Don't treat reviewed image samples or a successful interface review as a general guarantee of output quality or reference-style fidelity."
+      "Don't treat reviewed image samples or a successful interface review as a general guarantee of output quality or reference-style fidelity.",
+      "Don't expose private workspace media as public demonstration assets or turn the hosted website's type and breakpoints into global App defaults."
     ]
   }
 }

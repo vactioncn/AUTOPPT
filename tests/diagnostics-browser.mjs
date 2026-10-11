@@ -134,7 +134,7 @@ test(
         fullPage: true,
       });
       await page.setViewportSize({ width: 1440, height: 1000 });
-      await page.getByRole("button", { name: "账号设置", exact: true }).click();
+      await page.locator(".account-footer").click();
       await expect(
         page.getByRole("heading", { name: "账号与额度", exact: true }),
       ).toBeVisible();

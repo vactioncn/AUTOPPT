@@ -41,6 +41,8 @@ import { projectArea } from "./project-journey";
 import { StyleLibrary } from "./StyleLibrary";
 import { SettingsPage, type SettingsSection } from "./Settings";
 import { Introduction } from "./Introduction";
+import { WorkspaceNavigation } from "./WorkspaceNavigation";
+import { publicPage, navigateWeb } from "../shared/web-routes.mjs";
 import { VersionWorkspace } from "./VersionWorkspace";
 import {
   frontendBuildInfo,
@@ -53,7 +55,11 @@ import { DEFAULT_STYLE_ID, defaultStyleId } from "../shared/styles.mjs";
 export default function App() {
   const account = useAccount();
   const [data, setData] = useState<Bootstrap | null>(null),
-    [route, setRoute] = useState(location.hash.slice(1) || "projects"),
+    [route, setRoute] = useState(
+      account.hosted && publicPage(location.pathname, location.hash)
+        ? "projects"
+        : location.hash.slice(1) || "projects",
+    ),
     [error, setError] = useState(""),
     [toast, setToast] = useState(""),
     [creating, setCreating] = useState(false),
@@ -81,6 +87,8 @@ export default function App() {
     refresh();
     const timer = setInterval(refresh, 2500);
     const hash = () => {
+      if (account.hosted && publicPage(location.pathname, location.hash))
+        return;
       const next = location.hash.slice(1) || "projects";
       if (next !== "styles") {
         setCreationDraft(null);
@@ -90,9 +98,11 @@ export default function App() {
       setRoute(next);
     };
     window.addEventListener("hashchange", hash);
+    window.addEventListener("popstate", hash);
     return () => {
       clearInterval(timer);
       window.removeEventListener("hashchange", hash);
+      window.removeEventListener("popstate", hash);
     };
   }, [refresh]);
   useEffect(() => {
@@ -106,7 +116,8 @@ export default function App() {
       setStyleRepair(false);
     }
     if (!["intro", "help"].includes(to)) previousRoute.current = to;
-    location.hash = to;
+    if (account.hosted) navigateWeb("/#" + to);
+    else location.hash = to;
     setRoute(to);
   };
   const create = (styleId = DEFAULT_STYLE_ID, restoreDraft = false) => {
@@ -155,104 +166,115 @@ export default function App() {
   const readiness = onboardingReadiness(data, capabilities, account);
   const current = data.projects.find((p) => p.id === currentId);
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <button className="brand" onClick={() => go("projects")}>
-          <span className="brand-icon">A</span>
-          <span>
-            AutoPPT<small>你的演讲制作室</small>
-          </span>
-        </button>
-        <Button
-          variant="primary"
-          className="new-project-side"
-          onClick={() => create()}
-        >
-          <Plus size={18} />
-          新建演讲项目
-        </Button>
-        <nav className="main-nav" aria-label="主导航">
-          <button
-            className={
-              !informationRoute && (route === "projects" || currentId)
-                ? "active"
-                : ""
-            }
-            onClick={() => go("projects")}
-          >
-            <SquaresFour size={20} />
-            项目
-          </button>
-          <button
-            className={route === "styles" ? "active" : ""}
-            onClick={() => go("styles")}
-          >
-            <Palette size={20} />
-            风格库
-            <span className="nav-count">
-              {data.styles.filter((s) => !s.deletedAt).length}
+    <div className={account.hosted ? "app-shell hosted-shell" : "app-shell"}>
+      {account.hosted ? (
+        <WorkspaceNavigation
+          route={route}
+          currentId={currentId}
+          projects={data.projects}
+          styleCount={data.styles.filter((s) => !s.deletedAt).length}
+          go={go}
+          onCreate={() => create()}
+        />
+      ) : (
+        <aside className="sidebar">
+          <button className="brand" onClick={() => go("projects")}>
+            <span className="brand-icon">A</span>
+            <span>
+              AutoPPT<small>你的演讲制作室</small>
             </span>
           </button>
-          <button
-            className={route === "intro" ? "active" : ""}
-            onClick={() => go("intro")}
+          <Button
+            variant="primary"
+            className="new-project-side"
+            onClick={() => create()}
           >
-            <Info size={20} />
-            产品介绍
-          </button>
-          <button
-            className={route === "help" ? "active" : ""}
-            onClick={() => go("help")}
-          >
-            <Info size={20} />
-            使用帮助
-          </button>
-          {!account.hosted && (
+            <Plus size={18} />
+            新建演讲项目
+          </Button>
+          <nav className="main-nav" aria-label="主导航">
             <button
-              className={route === "usage" ? "active" : ""}
-              onClick={() => go("usage")}
+              className={
+                !informationRoute && (route === "projects" || currentId)
+                  ? "active"
+                  : ""
+              }
+              onClick={() => go("projects")}
             >
-              <Coins size={20} />
-              用量与账单
+              <SquaresFour size={20} />
+              项目
             </button>
-          )}
-          <button
-            className={route.split("/")[0] === "settings" ? "active" : ""}
-            onClick={() => go("settings")}
-          >
-            <SlidersHorizontal size={20} />
-            {account.hosted ? "账号设置" : "设置"}
-          </button>
-        </nav>
-        <div className="side-projects">
-          <span className="side-label">最近项目</span>
-          {data.projects.slice(0, 7).map((p) => (
             <button
-              key={p.id}
-              className={p.id === currentId ? "current" : ""}
-              onClick={() => go("project/" + p.id)}
+              className={route === "styles" ? "active" : ""}
+              onClick={() => go("styles")}
             >
-              <span className="project-dot" />
-              <span>{p.title}</span>
+              <Palette size={20} />
+              风格库
+              <span className="nav-count">
+                {data.styles.filter((s) => !s.deletedAt).length}
+              </span>
             </button>
-          ))}
-          {!data.projects.length && (
-            <p className="side-empty">从第一场演讲开始</p>
-          )}
-        </div>
-        <div className="sidebar-footer">
-          {account.hosted ? (
-            <AccountFooter onOpen={() => go("account")} />
-          ) : (
-            <>
-              <div className="local-label">
-                <span className="connection-dot" />
-                本机工作空间<span>LOCAL</span>
-              </div>
-            </>
-          )}
-        </div>
-      </aside>
+            <button
+              className={route === "intro" ? "active" : ""}
+              onClick={() => go("intro")}
+            >
+              <Info size={20} />
+              产品介绍
+            </button>
+            <button
+              className={route === "help" ? "active" : ""}
+              onClick={() => go("help")}
+            >
+              <Info size={20} />
+              使用帮助
+            </button>
+            {!account.hosted && (
+              <button
+                className={route === "usage" ? "active" : ""}
+                onClick={() => go("usage")}
+              >
+                <Coins size={20} />
+                用量与账单
+              </button>
+            )}
+            <button
+              className={route.split("/")[0] === "settings" ? "active" : ""}
+              onClick={() => go("settings")}
+            >
+              <SlidersHorizontal size={20} />
+              {account.hosted ? "账号设置" : "设置"}
+            </button>
+          </nav>
+          <div className="side-projects">
+            <span className="side-label">最近项目</span>
+            {data.projects.slice(0, 7).map((p) => (
+              <button
+                key={p.id}
+                className={p.id === currentId ? "current" : ""}
+                onClick={() => go("project/" + p.id)}
+              >
+                <span className="project-dot" />
+                <span>{p.title}</span>
+              </button>
+            ))}
+            {!data.projects.length && (
+              <p className="side-empty">从第一场演讲开始</p>
+            )}
+          </div>
+          <div className="sidebar-footer">
+            {account.hosted ? (
+              <AccountFooter onOpen={() => go("account")} />
+            ) : (
+              <>
+                <div className="local-label">
+                  <span className="connection-dot" />
+                  本机工作空间<span>LOCAL</span>
+                </div>
+              </>
+            )}
+          </div>
+        </aside>
+      )}
       <main className="main">
         <header className="topbar">
           <div className="breadcrumb">
@@ -268,13 +290,15 @@ export default function App() {
                       ? "用量与账单"
                       : route === "styles"
                         ? "风格库"
-                        : route === "account"
-                          ? "账号与额度"
-                          : route.split("/")[0] === "settings"
-                            ? account.hosted
-                              ? "账号设置"
-                              : "设置"
-                            : "项目")}
+                        : route === "admin"
+                          ? "网站管理"
+                          : route === "account"
+                            ? "账号与额度"
+                            : route.split("/")[0] === "settings"
+                              ? account.hosted
+                                ? "账号设置"
+                                : "设置"
+                              : "项目")}
             </strong>
           </div>
           <span className="top-hint">
@@ -385,6 +409,8 @@ export default function App() {
             />
           ) : contentRoute === "usage" && !account.hosted ? (
             <UsagePage />
+          ) : contentRoute === "admin" && account.hosted ? (
+            <AccountPage adminOnly />
           ) : contentRoute === "account" ? (
             <AccountPage />
           ) : contentRoute.split("/")[0] === "settings" ? (

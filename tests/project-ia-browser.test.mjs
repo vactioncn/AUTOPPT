@@ -1045,20 +1045,21 @@ test(
       "演练中心",
       "交付中心",
     ]);
+    await page.getByRole("button", { name: "打开工作区导航", exact: true }).click();
     assert.deepEqual(
       (
         await page
-          .getByRole("navigation", { name: "主导航" })
+          .getByRole("navigation", { name: "创作" })
           .getByRole("button")
           .allTextContents()
       ).map((s) => s.replace(/\d+/g, "")),
-      ["项目", "风格库", "产品介绍", "使用帮助", "账号设置"],
+      ["我的项目", "风格库"],
     );
     await expect(
       page.getByRole("button", { name: /隔离验收.*账号与额度/ }),
     ).toBeVisible();
     await overflow();
-    await page.getByRole("button", { name: "账号设置", exact: true }).click();
+    await page.locator(".account-footer").click();
     await expect(
       page.getByRole("heading", { name: "账号与额度" }),
     ).toBeVisible();

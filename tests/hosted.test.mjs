@@ -289,6 +289,38 @@ test(
     try {
       await start(false);
       assert.equal((await request("/api/account")).data.hosted, true);
+      for (const page of [
+        "/",
+        "/website",
+        "/login",
+        "/register?invite=private-test-code",
+        "/support",
+        "/privacy",
+        "/terms",
+      ]) {
+        const html = (await request(page)).data;
+        assert(html.includes('<div id="root"></div>'));
+        assert(!html.includes("private-test-code"));
+        assert(!html.includes("test-provider-secret"));
+      }
+      assert.equal(
+        (await request("/login")).response.headers.get("x-robots-tag"),
+        "noindex, nofollow",
+      );
+      assert(
+        (await request("/register/")).data.includes(
+          'content="noindex,nofollow"',
+        ),
+      );
+      assert(
+        (await request("/missing", undefined, "", 404)).data.includes(
+          "页面未找到",
+        ),
+      );
+      const sitemap = (await request("/sitemap.xml")).data;
+      assert(sitemap.includes(origin + "/website"));
+      assert(!sitemap.includes("register"));
+      assert((await request("/robots.txt")).data.includes("Disallow: /api/"));
       await request("/api/bootstrap", undefined, "", 401);
       await request("/assets/private.png", undefined, "", 401);
       const admin = (
@@ -676,17 +708,17 @@ test(
           });
           const errors = [];
           page.on("pageerror", (e) => errors.push(e.message));
-          await page.goto(origin);
-          await page.getByRole("heading", { name: "欢迎回来" }).waitFor();
+          await page.goto(origin + "/login");
+          await page.getByRole("heading", { name: "登录 AutoPPT" }).waitFor();
           await page.screenshot({
             path: path.join(out, "login-desktop.png"),
             fullPage: true,
           });
           await page.getByLabel("账号", { exact: true }).fill("admin");
           await page.getByLabel("密码", { exact: true }).fill(pass);
-          await page.getByRole("button", { name: "登录", exact: true }).click();
+          await page.getByRole("button", { name: "登录工作区", exact: true }).click();
           await page.locator(".account-footer").waitFor();
-          await page.locator(".account-footer").click();
+          await page.getByRole("button", { name: "网站管理", exact: true }).click();
           await page.getByRole("heading", { name: "内部使用管理" }).waitFor();
           await page.getByRole("button", { name: "创建一次性邀请码" }).click();
           const invitation = await page.getByLabel("新邀请码").inputValue();
@@ -694,17 +726,19 @@ test(
             path: path.join(out, "admin-desktop.png"),
             fullPage: true,
           });
+          await page.locator(".account-footer").click();
           await page
             .getByRole("button", { name: "退出登录", exact: true })
             .click();
-          await page.getByRole("heading", { name: "欢迎回来" }).waitFor();
+          await page.getByRole("heading", { name: "登录 AutoPPT" }).waitFor();
           await page
-            .getByRole("button", { name: "有邀请码？创建账号" })
+            .getByRole("link", { name: "使用邀请码注册", exact: true })
             .click();
           await page.getByLabel("账号", { exact: true }).fill("browser-member");
           await page.getByLabel("密码", { exact: true }).fill(pass);
+          await page.getByLabel("确认密码", { exact: true }).fill(pass);
           await page.getByLabel("邀请码", { exact: true }).fill(invitation);
-          await page.getByRole("button", { name: "注册并开始制作" }).click();
+          await page.getByRole("button", { name: "创建账号，开始制作" }).click();
           await page.locator(".account-footer").waitFor();
           assert.match(
             await page.locator(".account-footer").innerText(),
@@ -716,9 +750,7 @@ test(
               .count(),
             0,
           );
-          await page
-            .getByRole("button", { name: "账号设置", exact: true })
-            .click();
+          await page.locator(".account-footer").click();
           await page
             .getByRole("heading", { name: "账号与额度", exact: true })
             .waitFor();
@@ -727,8 +759,8 @@ test(
             0,
           );
           await page
-            .getByRole("navigation", { name: "主导航" })
-            .getByRole("button", { name: "项目", exact: true })
+            .getByRole("navigation", { name: "创作" })
+            .getByRole("button", { name: "我的项目", exact: true })
             .click();
           await page.screenshot({
             path: path.join(out, "workspace-desktop.png"),
@@ -737,8 +769,8 @@ test(
           const phone = await browser.newPage({
             viewport: { width: 390, height: 844 },
           });
-          await phone.goto(origin);
-          await phone.getByRole("heading", { name: "欢迎回来" }).waitFor();
+          await phone.goto(origin + "/login");
+          await phone.getByRole("heading", { name: "登录 AutoPPT" }).waitFor();
           assert(
             await phone.evaluate(
               () => document.documentElement.scrollWidth <= innerWidth,

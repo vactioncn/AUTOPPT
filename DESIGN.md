@@ -129,6 +129,8 @@ This records the implemented system in `src/styles.css`, `src/studio.css`, `src/
 - Compact persistent navigation; content and feedback beneath the image, with design rules and history available on demand.
 - Explicit progress, saved state, incomplete work and recovery actions.
 
+The invitation-hosted website and its workspace navigation extend this same identity. The public introduction, account entry and reading pages use the incumbent locally bundled type, warm canvas, white forms, terracotta actions and olive selection states. Their larger headings and navigation geometry are scoped to those surfaces; the standalone `/intro/` record and the local App remain separate. The implemented source and review boundary are recorded in `.impeccable/web-site-journey.md`.
+
 ## Colors
 
 ### Primary
@@ -145,6 +147,8 @@ Warm canvas, white paper and the slightly darker sidebar create the main surface
 
 **The Content Palette Rule.** Keep saved slide-style colors and source-image colors inside their preview surfaces; the surrounding controls retain the application palette.
 
+The hosted website reuses the canvas, paper, ink, muted, line and accent colors above. Its public style selector uses the existing olive navigation fill and ink, with a local selected stroke (`#b3bca8`) and pale olive hover surface (`#e9ece1`). The hosted workspace sidebar retains the sidebar tone, with local quiet navigation text (`#586250`), recent-project text (`#59624f`), hover fill (`#e4e6dc`) and account separator (`#d6dacf`). These supporting component values do not replace the shared palette. Public demo covers retain their own saved visual grammars inside the complete image frame.
+
 ## Typography
 
 DM Sans is bundled locally at weights 400, 500, 600 and 700 through `src/main.tsx`. Chinese text uses the declared system fallbacks, beginning with PingFang SC on macOS. All interface roles inherit this stack; no separate display or monospaced face is used.
@@ -152,6 +156,12 @@ DM Sans is bundled locally at weights 400, 500, 600 and 700 through `src/main.ts
 The frontmatter records the base hierarchy. Home display type varies with viewport; general page headings use local sizes around the headline role. Section and card titles step down to compact supporting labels. Page numbers and batch counts use tabular numerals where alignment matters.
 
 Generated image typography follows the saved style and design plan; it does not inherit the interface heading scale. Long manuscript passages preserve whitespace. Manuscript rows have a comfortable reading measure (75ch maximum) and open line spacing (2.1); the note editor uses similar spacing (2.05). Small interface hints are compact, including some mobile labels (9–11px); this describes the current implementation, not a general minimum-size recommendation.
+
+### Hosted Website and Navigation Type
+
+The public website inherits DM Sans and the Chinese system fallbacks. Its hero uses fluid display type (`clamp(34px, 4.3vw, 62px)`, weight 600, line-height 1.22, tracking -0.035em); at 900px and below it uses `clamp(36px, 6.5vw, 54px)`. Account-entry headings use `clamp(30px, 3.4vw, 46px)` with the same weight, line-height and tracking, then a fixed 31px at 640px and below. Website section headings use `clamp(25px, 2.8vw, 40px)`, line-height 1.35 and tracking -0.03em. The account form title is 25px; reading-page titles use `clamp(30px, 4vw, 45px)` and reading-section headings use 23px. These values are scoped exceptions, rather than replacements for the base interface roles.
+
+Website lead copy is 18px with line-height 1.9 and a 34ch measure; it becomes 16px on narrow screens and gains a 50ch measure at the 900px breakpoint. Workflow and account-story copy use 16px; workflow titles use 19px; FAQ summaries use 17px. The wordmark is 23px/700, with a 25px letter inside its mark. Website action buttons are 14px. Named fields retain the shared 13px input text, 12px label and 10px helper; the direct password row inherits 14px text. The form does not establish a new global field scale. Hosted navigation uses 12px recent/support labels and 11px counts; its mobile brand is 18px.
 
 ## Layout
 
@@ -179,6 +189,22 @@ On mobile, bulk actions and toasts sit above the bottom navigation. The home ill
 
 **The Preview First Rule.** Preserve the complete generated image and reveal secondary controls through detail views and disclosures as space contracts.
 
+### Hosted Website and Workspace Layout
+
+The public website uses an open, ruled layout. Header, hero and footer share a centered maximum width (1440px) and desktop side padding (5%). The header is at least 88px high. The hero uses 0.85:1.15 columns with a 5% gap and vertical padding (82px 88px); its complete example image keeps a 16:9 frame. Workflow content uses a narrower maximum width (1296px), 1:1.15 columns and a 10% gap. The proof section reverses the visual balance to 1.15:1 columns on the sidebar-colored ground. FAQ content is limited to 900px; reading pages to 850px, with body text no wider than 72ch.
+
+Account entry is centered within 1190px, with 1.1:1 columns, a 10% gap and padding (60px 5% 80px). Its white form uses 30px internal padding, an 18px gap between main blocks and a 16px fieldset gap. At the narrow breakpoint the story remains above the form, its supporting list is hidden and the form remains full width with 22px internal padding.
+
+| Hosted surface breakpoint | Implemented behavior |
+| --- | --- |
+| Website at most 900px | Hero and proof sections stack; hero top padding becomes 48px with a 38px gap. Workflow retains two columns with a 7% gap. Account entry retains two columns with a 5% gap and 4% side padding. |
+| Website at most 640px | Header becomes at least 72px high with 16px 20px padding and a disclosure menu. Hero uses 42px 20px 50px padding; workflow stacks with 45px 24px padding. Account entry stacks with 28px 20px 45px padding and a 26px gap. Footer stacks and style choices wrap. |
+| Hosted workspace above 950px | Sticky full-height sidebar is 232px, with a flexible main column; creation, primary destinations, recent projects and bottom support/account groups remain visible. |
+| Hosted workspace 641–950px | Sidebar becomes a 76px icon rail with named/title-bearing controls, a separate compact account icon and hidden recent projects. |
+| Hosted workspace at most 640px | A sticky 56px top bar opens a closable, fixed drawer (`min(300px, 88vw)`, 100dvh). The hosted shell has no bottom navigation padding; its internal top bar is 49px high. Drawer bottom padding respects the safe area. |
+
+These hosted values supersede the earlier Hosted Web V1 entry-form and shell geometry only for the new website journey. The local App keeps its own 600px/850px/1150px shell breakpoints. CSS breakpoints are independent of screenshot pixel dimensions and browser zoom.
+
 ## Elevation & Depth
 
 Most surfaces are flat, separated by pale tones and one-pixel borders. Project cards lift slightly on hover (3px); they do not acquire a shadow. Soft shadows are reserved for the illustrative paper stack, the selected segmented option, floating bulk actions, toasts and modal dialogs. Their exact values live in the sidecar.
@@ -187,6 +213,8 @@ Dialogs use a dim translucent backdrop with a small blur (3px). The modal is the
 
 Motion is brief and functional: button and project-card transitions (0.18s), page border and reveal transitions (0.15s), task progress (0.3s), and a continuous loading spinner (1.2s). Reduced-motion preferences collapse animations and transitions to near-zero duration.
 
+The hosted website stays flat: borders, spacing and the proof section's pale olive ground separate content, without added card or hero shadows. The workspace drawer uses a translucent ink backdrop (`#24282466`) below the drawer. Website buttons and both navigation surfaces inherit the shared focus and reduced-motion rules; there is no separate website animation vocabulary.
+
 ## Shapes
 
 Controls have gently rounded corners; cards and composers use the larger card radius; dialogs use the broadest radius. The frontmatter carries the recurring sizes. Fine borders supply definition, dashed borders identify add/upload areas, and circular shapes are limited to small indicators, color swatches and numbered workflow markers.
@@ -194,6 +222,8 @@ Controls have gently rounded corners; cards and composers use the larger card ra
 Project page previews use a landscape frame (16:9), with images kept complete through `object-fit: contain`. The large trial image preserves its natural proportions. Historical web scenes remain viewable as scalable SVG. Project covers remain uncropped; source images may use `object-fit: cover` in the style library’s contact-sheet thumbnails.
 
 Trial history uses a solid terracotta outline for the selected result. No scene-selection marker or element-editing controls appear in the current image workflow.
+
+On the hosted website, complete example and proof images use the existing card corner (12px); style-switch controls retain control corners (8px), and the account form uses the broad dialog corner (16px) with a fine line border. Workspace primary/support controls use 8px corners; recent-project rows use a local 7px corner. The account footer is a flat, square-edged separator row. These are surface-local applications of the incumbent form language.
 
 ## Components
 
@@ -273,6 +303,18 @@ Hosted V1 offers image download, PPTX/Markdown delivery and project source-packa
 
 The surface contract and source trace are `.impeccable/hosted-web-v1.md`. Six login/workspace/admin/player desktop/mobile captures in `.impeccable/review/hosted-v1/` match its type, material, ground and manual-player contract; the independent finish review returned ship with no material fixes. This is interface evidence, not production deployment or generated-image-quality acceptance. The fixture shows 100 signup credits and concurrency 1; current configurable code defaults are 20 and 2. Global tokens, the North Star and unrelated historical records are preserved.
 
+### Hosted Website and Workspace Journey — 2026-10-11
+
+The hosted public header pairs a named wordmark with product, help, login/workspace and invitation actions. Current links use terracotta text; hover underlines retain link meaning. At 640px and below the named menu button reports its expanded state and exposes a vertical navigation below the header. A keyboard-visible skip link leads to the main content. The public style switch has three named buttons with pressed states; changing the choice changes only the complete public built-in cover and its caption. Native FAQ disclosures use fine bottom rules instead of enclosing cards. Website buttons have a comfortable minimum height (44px), 14px type and padding (11px 20px).
+
+Invitation registration and login share the white bordered form. Registration asks for the invitation, account, password and password confirmation; login asks for account and password. The account-format explanation is passed through the existing Field hint, so its visible helper and `aria-describedby` match. The complete hint states 3–80 allowed characters, the first-character rule and that an email is only an account name. Registration passwords require 12–128 characters; login accepts 1–128. The named visibility toggle has a 44px width and minimum height and a pressed state, while its input reserves 46px of right padding. Busy or unavailable account service disables the fieldset, errors appear as an alert, and service failure offers an explicit reconnect action. Switching registration/login preserves a validated return target; password recovery leads to the administrator-help section.
+
+Hosted workspace navigation groups creation and the project/style destinations above a separately collapsible list of up to six recent projects. Support, public website and the administrator-only website-management destination sit above the unified account/quota footer. Primary rows are at least 42px high with padding (11px 13px); the creation action is at least 44px high. Active rows use the existing olive fill and ink with weight 600. Recent titles truncate with the full title retained on hover. The icon rail preserves accessible names and titles. On mobile, the drawer marks itself as modal, contains Tab navigation, closes by Escape/backdrop/close control or destination selection, makes workspace content inert while open and restores previous focus and body scrolling when closed.
+
+**The Website Workspace Boundary Rule.** Public product, invitation/login, support and data/use pages are separate from the authenticated creative workspace. Visiting the public website from the same signed-in workspace keeps that workspace mounted and hidden; returning resumes the last validated work route and its draft. Signing out removes that identity's workspace; successful authentication clears workspace preferences. Public examples use checked-in demonstration assets; uploaded or generated workspace media remains behind authentication. This behavior is specific to the hosted journey.
+
+Source authority is `src/WebSite.tsx`, `src/website.css`, `src/WorkspaceNavigation.tsx`, `src/workspace-navigation.css`, `src/Account.tsx` and `shared/web-routes.mjs`, with shared controls in `src/components.tsx` / `src/styles.css` and public/private serving boundaries in `server/hosted/index.mjs`. The nine supplied captures cover public desktop/mobile, registration desktop/mobile, login desktop, workspace desktop/mobile, tablet navigation and administrator desktop. The independent finish review in `.impeccable/review/web-site-finish-review.md` records ship after the sole account-hint correction; it confirms that correction against the two refreshed registration captures while retaining the earlier fidelity/ceiling findings. The detector's 24 findings are advisory. Evidence comes from an isolated local mock workspace and does not establish production deployment or real-model output quality; exact capture dimensions and source observations live in the websiteJourney sidecar extension.
+
 ### Style Workbench
 
 The style-detail action opens a full workspace within the existing shell. A single large generated image is the visual anchor, with its saved state and “保存图片” link immediately below. The manuscript input offers an expandable existing-page picker; the adjacent feedback field has separate actions for “只调整这一页” and “调整规范并再试”. Changing manuscript or rules leaves the previous result visible with an explicit caption until another trial completes. Running and incomplete trials retain written status and recovery controls.
@@ -309,6 +351,7 @@ Actual samples in test project `76279902-8efb-4e61-ade7-3595a836670e` are black 
 - **Do** let content determine the expression and original composition, with the whole style grammar determining how it is drawn.
 - **Do** keep page-only changes, candidate rule revisions and formal-style promotion visibly separate.
 - **Do** keep the full manuscript accessible alongside condensed page text, with manual split/merge previews and version history available on demand.
+- **Do** keep hosted website and workspace layout values scoped, preserve named navigation in the icon rail, and associate account-format help with its field.
 
 ### Don't:
 - **Don't** present missing results, failed pages or stale previews as newly completed output.
@@ -317,6 +360,7 @@ Actual samples in test project `76279902-8efb-4e61-ade7-3595a836670e` are black 
 - **Don't** reintroduce style-reference image selection, reference comparison or automatic deviation review into the finalized trial and production flows; content attachments have their own explicit material input.
 - **Don't** treat choosing a history result as saving its candidate rules to the formal style.
 - **Don't** treat reviewed image samples or a successful interface review as a general guarantee of output quality or reference-style fidelity.
+- **Don't** expose private workspace media as public demonstration assets or turn the hosted website's type and breakpoints into global App defaults.
 
 
 ## Product introduction website

@@ -10,6 +10,13 @@ import { api, post, asset } from "./api";
 import { Button, Field } from "./components";
 import { clearWorkspacePreferences } from "./onboarding";
 import "./account.css";
+import { WebSite } from "./WebSite";
+import {
+  publicPage,
+  navigateWeb,
+  workspaceTarget,
+} from "../shared/web-routes.mjs";
+import { frontendBuildInfo } from "./diagnostics";
 type User = {
   id: string;
   name: string;
@@ -25,12 +32,14 @@ type Account = {
   modelReady?: boolean;
   signupImageCredits?: number;
   modelStatusUnknown?: boolean;
+  supportEmail?: string;
+  supportUrl?: string;
 };
 const Context = createContext<Account>({ hosted: false, user: null });
 export const useAccount = () => useContext(Context);
 function forgetWorkspace() {
   clearWorkspacePreferences();
-  location.hash = "projects";
+  navigateWeb("/login", true);
 }
 export function AccountGate({ children }: { children: ReactNode }) {
   const [account, setAccount] = useState<Account | null>(null);
@@ -39,6 +48,31 @@ export function AccountGate({ children }: { children: ReactNode }) {
   const mounted = useRef(false);
   const refreshSequence = useRef(0);
   const [error, setError] = useState("");
+  const [url, setUrl] = useState(() => ({
+    path: location.pathname,
+    hash: location.hash,
+  }));
+  const workspaceUser = useRef<string | null>(null);
+  const lastWorkspaceRoute = useRef("projects");
+  useEffect(() => {
+    const update = () =>
+      setUrl({ path: location.pathname, hash: location.hash });
+    window.addEventListener("popstate", update);
+    window.addEventListener("hashchange", update);
+    return () => {
+      window.removeEventListener("popstate", update);
+      window.removeEventListener("hashchange", update);
+    };
+  }, []);
+  const hosted =
+    account?.hosted || (!account && frontendBuildInfo.runtimeMode === "hosted");
+  const page = publicPage(url.path, url.hash);
+  if (!page) lastWorkspaceRoute.current = workspaceTarget(url.hash);
+  if (account?.user && !page) {
+    workspaceUser.current = account.user.id;
+    lastWorkspaceRoute.current = workspaceTarget(url.hash);
+  }
+  if (!account?.user) workspaceUser.current = null;
   const refresh = async () => {
     const sequence = ++refreshSequence.current;
     const isLatest = () =>
@@ -47,7 +81,10 @@ export function AccountGate({ children }: { children: ReactNode }) {
       const res = await fetch("/api/account");
       if (!isLatest()) return;
       if (res.status === 404) {
-        if (latestAccount.current?.hosted)
+        if (
+          latestAccount.current?.hosted ||
+          frontendBuildInfo.runtimeMode === "hosted"
+        )
           throw new Error("账号服务暂时不可用。");
         setAccount({ hosted: false, user: null });
         setError("");
@@ -87,6 +124,34 @@ export function AccountGate({ children }: { children: ReactNode }) {
     const timer = setInterval(refresh, 10000);
     return () => clearInterval(timer);
   }, [account?.hosted]);
+  if (hosted) {
+    const signedIn = !!account?.user;
+    const showPublic = !!page || !signedIn;
+    return (
+      <Context.Provider value={account || { hosted: true, user: null }}>
+        {showPublic && (
+          <WebSite
+            page={page || "login"}
+            account={account}
+            error={error}
+            onRetry={refresh}
+            returnTo={
+              page ? lastWorkspaceRoute.current : workspaceTarget(url.hash)
+            }
+            onAuthenticated={async () => {
+              clearWorkspacePreferences();
+              await refresh();
+            }}
+          />
+        )}
+        {signedIn && workspaceUser.current === account!.user!.id && (
+          <div key={account!.user!.id} hidden={showPublic}>
+            {children}
+          </div>
+        )}
+      </Context.Provider>
+    );
+  }
   if (!account)
     return (
       <div className="boot">
@@ -95,132 +160,10 @@ export function AccountGate({ children }: { children: ReactNode }) {
         {error && <Button onClick={refresh}>重新连接</Button>}
       </div>
     );
-  if (account.hosted && !account.user)
-    return (
-      <Login onDone={refresh} signupImageCredits={account.signupImageCredits} />
-    );
   return (
     <Context.Provider value={account}>
-      <div key={account.user?.id || "local"}>{children}</div>
+      <div key="local">{children}</div>
     </Context.Provider>
-  );
-}
-function Login({
-  onDone,
-  signupImageCredits,
-}: {
-  onDone: () => Promise<void>;
-  signupImageCredits?: number;
-}) {
-  const [register, setRegister] = useState(false),
-    [name, setName] = useState(""),
-    [password, setPassword] = useState(""),
-    [invite, setInvite] = useState(""),
-    [error, setError] = useState(""),
-    [busy, setBusy] = useState(false);
-  return (
-    <main className="account-login">
-      <section className="account-story">
-        <a className="brand" href="/">
-          AutoPPT
-        </a>
-        <h1>
-          把想说的话，
-          <br />
-          做成值得看的演讲。
-        </h1>
-        <p>
-          选好风格，放入逐字稿。
-          <br />
-          从提炼文案到逐页打磨，在自己的工作区完成。
-        </p>
-        <span>
-          邀请制内测 ·{" "}
-          {signupImageCredits
-            ? `新账号赠送 ${signupImageCredits} 张图片额度`
-            : "图片额度由管理员分配"}
-        </span>
-      </section>
-      <form
-        className="account-card"
-        onSubmit={async (e) => {
-          e.preventDefault();
-          setBusy(true);
-          setError("");
-          try {
-            await post(`/account/${register ? "register" : "login"}`, {
-              name,
-              password,
-              invite,
-            });
-            forgetWorkspace();
-            await onDone();
-          } catch (e) {
-            setError((e as Error).message);
-          } finally {
-            setBusy(false);
-          }
-        }}
-      >
-        <h2>{register ? "创建你的工作区" : "欢迎回来"}</h2>
-        <p>
-          {register
-            ? "使用邀请码注册，模型已由管理员统一配置。"
-            : "登录后继续制作你的演讲。"}
-        </p>
-        <Field label="账号">
-          <input
-            required
-            autoComplete="username"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="字母、数字或邮箱"
-            maxLength={80}
-          />
-        </Field>
-        <Field label="密码">
-          <input
-            required
-            type="password"
-            autoComplete={register ? "new-password" : "current-password"}
-            minLength={register ? 12 : 1}
-            maxLength={128}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder={register ? "至少 12 个字符" : "输入密码"}
-          />
-        </Field>
-        {register && (
-          <Field label="邀请码">
-            <input
-              required
-              value={invite}
-              onChange={(e) => setInvite(e.target.value)}
-              autoComplete="off"
-            />
-          </Field>
-        )}
-        {error && (
-          <p role="alert" className="account-error">
-            {error}
-          </p>
-        )}
-        <Button variant="primary" loading={busy} type="submit">
-          {register ? "注册并开始制作" : "登录"}
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={() => {
-            setRegister(!register);
-            setError("");
-          }}
-        >
-          {register ? "已有账号？去登录" : "有邀请码？创建账号"}
-        </Button>
-        <small>忘记密码请联系管理员重置。</small>
-      </form>
-    </main>
   );
 }
 export function AccountFooter({ onOpen }: { onOpen: () => void }) {
@@ -256,7 +199,7 @@ const statusName: Record<string, string> = {
   complete: "已完成",
   failed: "未扣额度",
 };
-export function AccountPage() {
+export function AccountPage({ adminOnly = false }: { adminOnly?: boolean }) {
   const { user } = useAccount();
   const [usage, setUsage] = useState<Entry[]>([]),
     [error, setError] = useState(""),
@@ -268,6 +211,20 @@ export function AccountPage() {
       .then(setUsage)
       .catch((e) => setError(e.message));
   }, []);
+  if (adminOnly)
+    return (
+      <div className="account-page">
+        <h1>网站管理</h1>
+        <p>
+          邀请、账号、图片额度与待核对用量在这里管理。模型连接由部署配置统一维护。
+        </p>
+        {user?.role === "admin" ? (
+          <AdminPanel />
+        ) : (
+          <p role="alert">此页面仅供管理员使用。</p>
+        )}
+      </div>
+    );
   return (
     <div className="account-page">
       <h1>账号与额度</h1>
@@ -338,7 +295,7 @@ export function AccountPage() {
           </Button>
         </form>
       </details>
-      {user?.role === "admin" && <AdminPanel />}
+
       <h2>最近使用记录</h2>
       <div className="account-table">
         <table>
@@ -458,8 +415,28 @@ function AdminPanel() {
         <div className="invite-code">
           <p>邀请码有效期 7 天，仅展示一次，请复制保存。</p>
           <input aria-label="新邀请码" readOnly value={code} />
-          <Button onClick={() => navigator.clipboard.writeText(code)}>
+          <Button
+            onClick={() =>
+              act(async () => {
+                await navigator.clipboard.writeText(code);
+                setMessage("邀请码已复制。");
+              })
+            }
+          >
             复制邀请码
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() =>
+              act(async () => {
+                await navigator.clipboard.writeText(
+                  `${location.origin}/register?invite=${encodeURIComponent(code)}`,
+                );
+                setMessage("邀请链接已复制，接收者打开即可填写账号。");
+              })
+            }
+          >
+            复制邀请链接
           </Button>
         </div>
       )}

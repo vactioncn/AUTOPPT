@@ -1,0 +1,224 @@
+.hosted-shell {
+  grid-template-columns: 232px minmax(0, 1fr);
+}
+.workspace-navigation {
+  background: #eeeee7;
+  border-right: 1px solid var(--line);
+  padding: 26px 16px 18px;
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  position: sticky;
+  top: 0;
+  min-width: 0;
+}
+.workspace-nav-brand {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.workspace-nav-brand .brand {
+  padding: 0 8px;
+}
+.workspace-nav-brand .brand small {
+  letter-spacing: 0;
+  font-size: 11px;
+}
+.workspace-nav-create {
+  width: 100%;
+  margin-top: 30px;
+  min-height: 44px;
+}
+.workspace-primary-nav {
+  display: grid;
+  gap: 5px;
+  margin-top: 24px;
+}
+.workspace-primary-nav button,
+.workspace-nav-bottom nav button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  border-radius: 8px;
+  width: 100%;
+  padding: 11px 13px;
+  color: #586250;
+  min-height: 42px;
+}
+.workspace-primary-nav small {
+  margin-left: auto;
+  font-size: 11px;
+}
+.workspace-primary-nav button:hover,
+.workspace-nav-bottom nav button:hover,
+.workspace-recents nav button:hover {
+  background: #e4e6dc;
+}
+.workspace-navigation button[aria-current="page"] {
+  background: #dfe4d6;
+  color: #334731;
+  font-weight: 600;
+}
+.workspace-recents {
+  margin-top: 28px;
+  min-height: 0;
+  overflow: auto;
+  flex: 1;
+}
+.workspace-recents-toggle {
+  font-size: 12px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px 10px;
+}
+.workspace-recents nav {
+  display: grid;
+  gap: 3px;
+}
+.workspace-recents nav button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 13px;
+  border-radius: 7px;
+  text-align: left;
+  font-size: 12px;
+  color: #59624f;
+}
+.workspace-recents nav button > span:last-child {
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.workspace-recents p {
+  padding: 10px 13px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.workspace-nav-bottom {
+  margin-top: auto;
+  padding-top: 18px;
+}
+.workspace-nav-bottom nav {
+  margin-bottom: 12px;
+}
+.workspace-nav-bottom nav button {
+  font-size: 12px;
+  padding-block: 9px;
+}
+.workspace-nav-bottom .account-footer {
+  width: 100%;
+  border-top: 1px solid #d6dacf;
+  padding: 14px 13px !important;
+  border-radius: 0;
+  font-size: 14px;
+}
+.workspace-nav-bottom .account-footer:hover {
+  background: #e4e6dc;
+}
+.workspace-nav-close,
+.workspace-mobile-bar,
+.workspace-compact-account {
+  display: none;
+}
+@media (min-width: 641px) and (max-width: 950px) {
+  .hosted-shell {
+    grid-template-columns: 76px minmax(0, 1fr);
+  }
+  .workspace-navigation {
+    padding: 22px 12px;
+  }
+  .workspace-nav-brand .brand {
+    padding: 0;
+  }
+  .workspace-nav-brand .brand > span:last-child,
+  .workspace-recents {
+    display: none;
+  }
+  .workspace-nav-create {
+    font-size: 0;
+    padding-inline: 12px;
+    gap: 0;
+  }
+  .workspace-primary-nav button,
+  .workspace-nav-bottom nav button {
+    justify-content: center;
+    padding: 12px;
+  }
+  .workspace-primary-nav span,
+  .workspace-primary-nav small,
+  .workspace-nav-bottom nav span,
+  .workspace-nav-bottom .account-footer {
+    display: none !important;
+  }
+  .workspace-compact-account {
+    display: flex;
+    justify-content: center;
+    padding: 12px;
+    width: 100%;
+    border-top: 1px solid var(--line);
+  }
+}
+@media (max-width: 640px) {
+  .hosted-shell {
+    display: block;
+    padding-bottom: 0;
+  }
+  .workspace-mobile-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 16px;
+    height: 56px;
+    background: #eeeee7;
+    border-bottom: 1px solid var(--line);
+    position: sticky;
+    top: 0;
+    z-index: 35;
+  }
+  .workspace-mobile-bar strong {
+    font-size: 18px;
+  }
+  .workspace-navigation {
+    display: none;
+    position: fixed;
+    z-index: 60;
+    left: 0;
+    top: 0;
+    height: 100dvh;
+    width: min(300px, 88vw);
+    padding: 24px 16px max(18px, env(safe-area-inset-bottom));
+  }
+  .workspace-navigation.open {
+    display: flex;
+  }
+  .workspace-nav-backdrop {
+    background: #24282466;
+    position: fixed;
+    inset: 0;
+    z-index: 59;
+  }
+  .workspace-nav-close {
+    display: inline-flex;
+  }
+  .workspace-nav-brand .brand {
+    display: flex;
+    justify-content: flex-start;
+  }
+  .workspace-nav-brand .brand > span:last-child {
+    display: block;
+  }
+  .workspace-navigation .account-footer {
+    display: flex !important;
+  }
+  .hosted-shell .topbar {
+    height: 49px;
+  }
+  .hosted-shell:has(.workspace) {
+    padding-bottom: 0;
+  }
+}

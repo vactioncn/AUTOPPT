@@ -3,7 +3,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
-import { launchGenerationClient, preferenceStorage } from "./helpers/generation-client.mjs";
+import {
+  launchGenerationClient,
+  preferenceStorage,
+} from "./helpers/generation-client.mjs";
 const { outputText } = ts.transpileModule(
   readFileSync(new URL("../src/onboarding.ts", import.meta.url), "utf8"),
   {
@@ -32,11 +35,19 @@ const storage = () => {
 test("AccountGate does not submit account or error state after unmount during fetch or JSON parsing", async () => {
   const { outputText } = ts.transpileModule(
     readFileSync(new URL("../src/Account.tsx", import.meta.url), "utf8"),
-    { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } },
+    {
+      compilerOptions: {
+        target: ts.ScriptTarget.ES2022,
+        module: ts.ModuleKind.CommonJS,
+        jsx: ts.JsxEmit.ReactJSX,
+      },
+    },
   );
   for (const stage of ["fetch", "json"]) {
     for (const rejects of [false, true]) {
-      const effects = [], writes = [], exports = {};
+      const effects = [],
+        writes = [],
+        exports = {};
       const pending = Promise.withResolvers();
       const parsing = Promise.withResolvers();
       const response = {
@@ -51,23 +62,47 @@ test("AccountGate does not submit account or error state after unmount during fe
       // unmounted components. Browser tests below exercise real rendering/races.
       runInNewContext(outputText, {
         exports,
-        require: (name) => name === "react" ? {
-          createContext: () => ({}),
-          useRef: (current) => ({ current }),
-          useState: (value) => [value, (next) => writes.push(next)],
-          useEffect: (effect) => effects.push(effect),
-        } : name === "react/jsx-runtime" ? { jsx: () => null, jsxs: () => null } : {},
-        fetch: () => stage === "fetch" ? pending.promise : Promise.resolve(response),
+        require: (name) =>
+          name === "react"
+            ? {
+                createContext: () => ({}),
+                useRef: (current) => ({ current }),
+                useState: (value) => [
+                  typeof value === "function" ? value() : value,
+                  (next) => writes.push(next),
+                ],
+                useEffect: (effect) => effects.push(effect),
+              }
+            : name === "react/jsx-runtime"
+              ? { jsx: () => null, jsxs: () => null }
+              : name === "./diagnostics"
+                ? { frontendBuildInfo: { runtimeMode: "local-browser" } }
+                : name.includes("web-routes")
+                  ? {
+                      publicPage: () => "website",
+                      workspaceTarget: () => "projects",
+                    }
+                  : {},
+        location: { pathname: "/", hash: "" },
+        fetch: () =>
+          stage === "fetch" ? pending.promise : Promise.resolve(response),
         window: { addEventListener() {}, removeEventListener() {} },
       });
       exports.AccountGate({ children: null });
-      const unmount = effects[0]();
+      const unmount = effects[1]();
       if (stage === "json") await parsing.promise;
       unmount();
       if (rejects) pending.reject(new Error("late account failure"));
-      else pending.resolve(stage === "fetch" ? response : { hosted: true, modelReady: true });
+      else
+        pending.resolve(
+          stage === "fetch" ? response : { hosted: true, modelReady: true },
+        );
       await new Promise(setImmediate);
-      assert.equal(writes.length, 0, `${stage} ${rejects ? "failure" : "success"} after unmount`);
+      assert.equal(
+        writes.length,
+        0,
+        `${stage} ${rejects ? "failure" : "success"} after unmount`,
+      );
     }
   }
 });
@@ -234,10 +269,19 @@ test("preview and full generation never share a pending submission identity", as
   const s = storage();
   const request = createGenerationRequest("preview-mode", () => s);
   const previewId = await request.forText("完整稿件", "preview");
-  assert.equal(await createGenerationRequest("preview-mode", () => s).forText("完整稿件", "preview"), previewId);
+  assert.equal(
+    await createGenerationRequest("preview-mode", () => s).forText(
+      "完整稿件",
+      "preview",
+    ),
+    previewId,
+  );
   const fullId = await request.forText("完整稿件", "full");
   assert.notEqual(fullId, previewId);
-  assert.equal(await createGenerationRequest("preview-mode", () => s).forText("完整稿件"), fullId);
+  assert.equal(
+    await createGenerationRequest("preview-mode", () => s).forText("完整稿件"),
+    fullId,
+  );
   assert(!JSON.stringify([...s.entries]).includes("完整稿件"));
 });
 
@@ -249,7 +293,10 @@ test("pending request survives a fresh client and is isolated by runtime, real a
   first.sessionStorage.setItem("old-session", "discarded");
   const restarted = launchGenerationClient(scope, persistent);
   assert.equal(restarted.sessionStorage.length, 0);
-  assert.equal(await restarted.request.forText("只持久化摘要，不持久化原稿"), id);
+  assert.equal(
+    await restarted.request.forText("只持久化摘要，不持久化原稿"),
+    id,
+  );
   assert.equal(restarted.request.isPersistent(), true);
   const stored = JSON.parse([...persistent.entries.values()][0]);
   assert.deepEqual(Object.keys(stored), ["digest", "requestId"]);
@@ -259,20 +306,47 @@ test("pending request survives a fresh client and is isolated by runtime, real a
     ["desktop:local", "same-project"],
     ["local-browser:local", "same-project"],
     ["hosted:real-user-one", "different-project"],
-  ]) assert.notEqual(await launchGenerationClient(JSON.stringify(other), persistent).request.forText("只持久化摘要，不持久化原稿"), id);
+  ])
+    assert.notEqual(
+      await launchGenerationClient(
+        JSON.stringify(other),
+        persistent,
+      ).request.forText("只持久化摘要，不持久化原稿"),
+      id,
+    );
   restarted.request.accepted();
-  assert.notEqual(await launchGenerationClient(scope, persistent).request.forText("只持久化摘要，不持久化原稿"), id);
+  assert.notEqual(
+    await launchGenerationClient(scope, persistent).request.forText(
+      "只持久化摘要，不持久化原稿",
+    ),
+    id,
+  );
 });
 
 test("workspace cleanup removes pending generations and drafts but preserves account-scoped onboarding", async () => {
   const s = preferenceStorage();
-  createOnboardingPreferences("hosted:one", () => s).update({ workspace: "complete" });
+  createOnboardingPreferences("hosted:one", () => s).update({
+    workspace: "complete",
+  });
   s.setItem("autoppt-draft:project", "legacy draft");
   s.setItem("unrelated", "keep");
-  await createGenerationRequest(JSON.stringify(["hosted:one", "project"]), () => s).forText("草稿");
+  await createGenerationRequest(
+    JSON.stringify(["hosted:one", "project"]),
+    () => s,
+  ).forText("草稿");
   clearWorkspacePreferences(() => s);
-  assert.equal([...s.entries.keys()].some((key) => key.startsWith("autoppt-")), false);
-  assert.equal(createOnboardingPreferences("hosted:one", () => s).read().workspace, "complete");
+  assert.equal(
+    [...s.entries.keys()].some((key) => key.startsWith("autoppt-")),
+    false,
+  );
+  assert.equal(
+    createOnboardingPreferences("hosted:one", () => s).read().workspace,
+    "complete",
+  );
   assert.equal(s.getItem("unrelated"), "keep");
-  assert.doesNotThrow(() => clearWorkspacePreferences(() => { throw Error("denied"); }));
+  assert.doesNotThrow(() =>
+    clearWorkspacePreferences(() => {
+      throw Error("denied");
+    }),
+  );
 });

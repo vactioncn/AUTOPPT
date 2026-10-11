@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { presentationProgress } from "../shared/first-picture.mjs";
 import {
   registerUsage,
   recoverUsage,
@@ -241,7 +243,13 @@ if (process.env.AUTOPPT_DESKTOP_TOKEN)
         activeAvatarCount(),
     }),
   );
-app.get("/api/bootstrap", (req, res) =>
+app.get("/api/bootstrap", (req, res) => {
+  const jobs = all("job");
+  const workingProjects = new Set(
+    jobs
+      .filter((j) => ["queued", "running"].includes(j.status))
+      .map((j) => j.projectId),
+  );
   res.json({
     ...diagnostics(buildInfo, { speechReady: publicSpeechSettings().hasKey }),
     projects: all("project")
@@ -253,6 +261,7 @@ app.get("/api/bootstrap", (req, res) =>
         updatedAt: p.updatedAt,
         createdAt: p.createdAt,
         pageCount: p.slides.length,
+        continuation: presentationProgress(p, workingProjects.has(p.id)),
         batchCount: p.batches.length,
         cover: p.slides.find((s) => s.image)?.image,
         coverScene: p.slides.find((s) => s.scene)?.scene,
@@ -266,14 +275,14 @@ app.get("/api/bootstrap", (req, res) =>
           Number(b.id === DEFAULT_STYLE_ID) - Number(a.id === DEFAULT_STYLE_ID),
       ),
     settings: publicSettings(),
-    jobs: all("job")
+    jobs: jobs
       .sort((a, b) =>
         (b.updatedAt || b.createdAt).localeCompare(a.updatedAt || a.createdAt),
       )
       .slice(0, 50)
       .map(safeJob),
-  }),
-);
+  });
+});
 app.get("/api/projects/:id", (req, res) =>
   res.json(projectOrThrow(req.params.id)),
 );
@@ -305,18 +314,42 @@ app.post("/api/projects", (req, res) => {
     req.body.styleId === undefined
       ? defaultStyleId(all("style"))
       : req.body.styleId;
+  const draft = req.body.draft ?? "";
+  if (typeof draft !== "string" || draft.length > 200000)
+    throw new Error("草稿最多支持 20 万字。");
+  const options = designOptions(req.body.designOptions);
+  const requestId = req.body.requestId;
+  if (
+    requestId !== undefined &&
+    (typeof requestId !== "string" || !/^[\w-]{16,80}$/.test(requestId))
+  )
+    throw new Error("创建请求无效，请重新提交。");
+  const creationDigest = createHash("sha256")
+    .update(JSON.stringify({ title, styleId, draft, options }))
+    .digest("hex");
+  const existing =
+    requestId && all("project").find((p) => p.creationRequestId === requestId);
+  if (existing) {
+    if (existing.deletedAt || existing.creationDigest !== creationDigest)
+      throw Object.assign(
+        new Error("这次创建已提交，请返回我的演讲查看已保存内容。"),
+        { status: 409 },
+      );
+    return res.json(existing);
+  }
   styleReady(styleId);
   const p = put("project", {
     id: id(),
     title,
     styleId,
-    designOptions: designOptions(req.body.designOptions),
+    designOptions: options,
+    ...(requestId ? { creationRequestId: requestId, creationDigest } : {}),
     createdAt: now(),
     updatedAt: now(),
     revision: 0,
     batches: [],
     slides: [],
-    draft: "",
+    draft,
     proposal: null,
     undo: null,
   });

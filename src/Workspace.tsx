@@ -149,7 +149,9 @@ export function Workspace({
   );
   const [optionsBusy, setOptionsBusy] = useState(false);
   const [scriptExporting, setScriptExporting] = useState(false);
+  const [pptExporting, setPptExporting] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
+  const [previewPagesOpen, setPreviewPagesOpen] = useState(false);
   const [generationDialog, setGenerationDialog] = useState<
     "confirm" | "models" | null
   >(null);
@@ -205,7 +207,7 @@ export function Workspace({
     [saving, setSaving] = useState(false),
     [error, setError] = useState(""),
     [submitting, setSubmitting] = useState(false),
-    [filter, setFilter] = useState("latest"),
+    [filter, setFilter] = useState(hosted ? "all" : "latest"),
     [selected, setSelected] = useState<string[]>([]),
     [detail, setDetail] = useState<string | null>(null),
     [split, setSplit] = useState<string | null>(null),
@@ -218,6 +220,11 @@ export function Workspace({
     [exportOpen, setExportOpen] = useState<ExportFormat | null>(null),
     [reportOpen, setReportOpen] = useState(false),
     [renaming, setRenaming] = useState(false);
+  const [detailAdjustment, setDetailAdjustment] = useState<{
+    id: string;
+    visual: string;
+    copy: string;
+  } | null>(null);
   const studioTasks = useRef<HTMLDivElement>(null);
   const gallery = useRef<HTMLDivElement>(null);
   const initialized = useRef(false),
@@ -469,6 +476,12 @@ export function Workspace({
   const previewRemaining = project.slides.filter(
     (s) => previewBatch?.slideIds.includes(s.id) && !s.image && !s.scene,
   );
+  const showFirstResult =
+    hosted &&
+    !!previewPage &&
+    !busy &&
+    project.batches.length === 1 &&
+    (previewRemaining.length > 0 || project.slides.length === 1);
   const imagePlan = planImageBatch(imageBatch?.ids || [], credits?.available);
   const completeImageBatch = async (count: number) => {
     if (completingPreview || busy || !imageBatch || count < 1) return;
@@ -496,6 +509,7 @@ export function Workspace({
         redesign: false,
       });
       accepted = true;
+      if (imageBatch.preview) setFilter("all");
       setImageBatch(null);
       await refresh();
       await onRefresh();
@@ -612,7 +626,24 @@ export function Workspace({
     ...records.narration.records,
   ]);
   const primaryAction = projectPrimaryAction("studio", journey);
+  const downloadReadyPpt = async () => {
+    if (pptExporting) return;
+    if (!journey.pptxReady || journey.needsReview) {
+      setExportOpen("ppt");
+      return;
+    }
+    setPptExporting(true);
+    try {
+      await run(
+        () => downloadPresentation(project.id, project.revision, false, false),
+        "PPT 已开始下载，每页备注保留完整讲稿。",
+      );
+    } finally {
+      setPptExporting(false);
+    }
+  };
   const followAction = (action: JourneyAction) => {
+    setPreviewPagesOpen(true);
     onAreaChange(action.area);
     if (action.area !== "studio") return;
     if (action.target === "stale") {
@@ -875,7 +906,12 @@ export function Workspace({
             {project.slides
               .reduce((n, s) => n + s.notes.trim().length, 0)
               .toLocaleString()}{" "}
-            字<span>·</span>母版 r{project.revision}
+            字
+            {!hosted && (
+              <>
+                <span>·</span>母版 r{project.revision}
+              </>
+            )}
           </p>
           {(journey.missing.length > 0 ||
             journey.stale > 0 ||
@@ -897,17 +933,26 @@ export function Workspace({
         </div>
       </div>
       <nav className="project-area-nav" aria-label="项目区域">
-        {(Object.entries(projectAreas) as [ProjectArea, string][]).map(
-          ([key, label]) => (
-            <button
-              key={key}
-              aria-current={area === key ? "page" : undefined}
-              onClick={() => onAreaChange(key)}
-            >
-              {label}
-            </button>
-          ),
-        )}
+        {(
+          Object.entries(
+            hosted
+              ? {
+                  studio: "画面与讲稿",
+                  rehearsal: "放映与配音",
+                  delivery: "下载与导出",
+                  overview: "进度概览",
+                }
+              : projectAreas,
+          ) as [ProjectArea, string][]
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            aria-current={area === key ? "page" : undefined}
+            onClick={() => onAreaChange(key)}
+          >
+            {label}
+          </button>
+        ))}
       </nav>
       {error && (
         <div className="error-banner" role="alert">
@@ -970,7 +1015,17 @@ export function Workspace({
       >
         <div className="studio-topbar">
           <div>
-            <h2>制作台</h2>
+            <h2>
+              {hosted
+                ? !project.batches.length
+                  ? "从讲稿开始"
+                  : busy
+                    ? "正在制作画面"
+                    : showFirstResult
+                      ? "看看这一页是否满意"
+                      : "你的演讲画面"
+                : "制作台"}
+            </h2>
             <p>
               {journey.total} 页 ·{" "}
               {
@@ -987,12 +1042,20 @@ export function Workspace({
           <div className="studio-topbar-actions">
             {(!!project.slides.length || !!project.batches.length) &&
               !composerOpen &&
+              !showFirstResult &&
               !(previewPage && previewRemaining.length) && (
                 <Button
                   variant="primary"
-                  onClick={() => followAction(primaryAction)}
+                  loading={pptExporting}
+                  onClick={() =>
+                    hosted && journey.pptxReady && !journey.needsReview
+                      ? void downloadReadyPpt()
+                      : followAction(primaryAction)
+                  }
                 >
-                  {primaryAction.label}
+                  {hosted && journey.pptxReady && !journey.needsReview
+                    ? "下载 PPT"
+                    : primaryAction.label}
                 </Button>
               )}
             {(!!project.slides.length || !!project.batches.length) && (
@@ -1003,6 +1066,131 @@ export function Workspace({
             )}
           </div>
         </div>
+        {showFirstResult && previewPage && (
+          <section className="hosted-first-result" aria-label="第一张画面效果">
+            <button
+              className="hosted-first-result-image"
+              aria-label="放大查看第一张画面"
+              onClick={() => setDetail(previewPage.id)}
+            >
+              <SlideImage slide={previewPage} />
+            </button>
+            <div>
+              <h3>
+                {previewPage.stale
+                  ? "讲稿已更新，核对这张画面"
+                  : "第一张画面已保存"}
+              </h3>
+              <p>
+                {previewPage.stale
+                  ? "这是修改讲稿前的画面。请打开核对，选择保留或重新设计。"
+                  : `完整讲稿已保存${previewBatch ? `，共 ${previewBatch.slideIds.length} 页` : ""}。${previewRemaining.length ? "先看这一页的效果，再决定是否继续。" : "这一页就是完整内容，可以直接下载。"}`}
+              </p>
+              <div className="hosted-first-result-actions">
+                {previewRemaining.length ? (
+                  <Button
+                    variant="primary"
+                    disabled={
+                      !!previewPage.stale || previewPage.status === "error"
+                    }
+                    onClick={() =>
+                      void openImageBatch(
+                        previewRemaining.map((s) => s.id),
+                        true,
+                      )
+                    }
+                  >
+                    满意，生成其余 {previewRemaining.length} 页
+                    <ArrowRight size={17} />
+                  </Button>
+                ) : (
+                  <Button
+                    variant="primary"
+                    loading={pptExporting}
+                    onClick={() => void downloadReadyPpt()}
+                  >
+                    下载 PPT
+                    <DownloadSimple size={17} />
+                  </Button>
+                )}
+                <Button
+                  onClick={() =>
+                    previewPage.stale
+                      ? setVisualReviewOpen(true)
+                      : setDetail(previewPage.id)
+                  }
+                >
+                  {previewPage.stale ? "核对讲稿与画面" : "查看与调整"}
+                </Button>
+              </div>
+              <div
+                className="hosted-first-result-adjust"
+                aria-label="调整这一页"
+              >
+                {[
+                  {
+                    label: "画面文字少一点",
+                    visual: "",
+                    copy: "精简画面上的文字，保留核心观点、必要数据和限定条件；完整讲稿保持不变。",
+                  },
+                  {
+                    label: "重点更突出",
+                    visual:
+                      "让本页核心观点更突出，保持当前风格的完整设计语言。",
+                    copy: "",
+                  },
+                  {
+                    label: "换一种构图",
+                    visual:
+                      "用另一种构图表达本页内容，保留当前风格、画面文案和完整讲稿。",
+                    copy: "",
+                  },
+                ].map((a) => (
+                  <Button
+                    key={a.label}
+                    variant="ghost"
+                    onClick={() => {
+                      setDetailAdjustment({
+                        id: previewPage.id,
+                        visual: a.visual,
+                        copy: a.copy,
+                      });
+                      setDetail(previewPage.id);
+                    }}
+                  >
+                    {a.label}
+                  </Button>
+                ))}
+              </div>
+              <small>
+                调整前可以确认要求；重新生成会使用图片额度，旧版本保留。
+              </small>
+            </div>
+          </section>
+        )}
+        {hosted &&
+          journey.pptxReady &&
+          !journey.needsReview &&
+          !showFirstResult && (
+            <div className="hosted-complete-actions">
+              <p>
+                {journey.total} 页画面已保存。可以下载
+                PPT，也可以加上声音再放映。
+              </p>
+              <Button
+                onClick={() => {
+                  setSpeechInitialPanel("play");
+                  setSpeechOpen(true);
+                }}
+                disabled={!speechAvailable}
+              >
+                直接放映
+              </Button>
+              <Button variant="ghost" onClick={() => onAreaChange("rehearsal")}>
+                添加配音（可选）
+              </Button>
+            </div>
+          )}
         {!project.slides.length && !project.batches.length && composerPanel}
         <div
           ref={studioTasks}
@@ -1010,7 +1198,7 @@ export function Workspace({
           tabIndex={-1}
           aria-label="制作任务"
         >
-          {!busy && previewPage && previewRemaining.length > 0 && (
+          {!hosted && !busy && previewPage && previewRemaining.length > 0 && (
             <section className="preview-ready" aria-label="一页试做已完成">
               <div>
                 <span>先试一页 · 已完成</span>
@@ -1165,7 +1353,29 @@ export function Workspace({
             </div>
           )}
         </div>
+        {showFirstResult && (
+          <Button
+            className="hosted-preview-pages-toggle"
+            variant="ghost"
+            aria-expanded={previewPagesOpen}
+            aria-controls="first-picture-page-list"
+            onClick={() => {
+              if (!previewPagesOpen) {
+                setFilter("all");
+                setPageQuery("");
+                setPageGroup(0);
+              }
+              setPreviewPagesOpen(!previewPagesOpen);
+            }}
+          >
+            {previewPagesOpen
+              ? "收起全部页面"
+              : `查看全部 ${project.slides.length} 页与讲稿`}
+          </Button>
+        )}
         <div
+          id="first-picture-page-list"
+          hidden={showFirstResult && !previewPagesOpen}
           ref={gallery}
           className="studio-pages"
           tabIndex={-1}
@@ -1974,7 +2184,13 @@ export function Workspace({
       {detailSlide && (
         <SlideDetail
           hosted={hosted}
+          initialAdjustment={
+            detailAdjustment?.id === detailSlide.id
+              ? detailAdjustment
+              : undefined
+          }
           teaching={
+            !hosted &&
             onboarding.page === "pending" &&
             !!(
               detailSlide.notes.trim() ||
@@ -1992,7 +2208,10 @@ export function Workspace({
           currentStyle={style}
           busy={pageBusy(detailSlide.id)}
           projectBusy={pageBusy(detailSlide.id)}
-          onClose={() => setDetail(null)}
+          onClose={() => {
+            setDetail(null);
+            setDetailAdjustment(null);
+          }}
           onNavigate={(offset) =>
             setDetail(
               project.slides[project.slides.indexOf(detailSlide) + offset]
@@ -2485,6 +2704,7 @@ function Rename({
   );
 }
 function SlideDetail({
+  initialAdjustment,
   hosted,
   teaching,
   onTaught,
@@ -2503,6 +2723,7 @@ function SlideDetail({
   onChanged,
   notify,
 }: {
+  initialAdjustment?: { visual: string; copy: string };
   hosted: boolean;
   teaching: boolean;
   onTaught: () => void;
@@ -2523,8 +2744,8 @@ function SlideDetail({
 }) {
   const [tab, setTab] = useState("notes"),
     [notes, setNotes] = useState(slide.notes),
-    [feedback, setFeedback] = useState(""),
-    [copyFeedback, setCopyFeedback] = useState(""),
+    [feedback, setFeedback] = useState(initialAdjustment?.visual || ""),
+    [copyFeedback, setCopyFeedback] = useState(initialAdjustment?.copy || ""),
     [loading, setLoading] = useState(false),
     [error, setError] = useState(""),
     [history, setHistory] = useState<string | null>(null);
@@ -2581,10 +2802,12 @@ function SlideDetail({
   };
   useEffect(() => {
     setNotes(slide.notes);
-    setFeedback("");
-    setCopyFeedback("");
-    setHistory(null);
   }, [slide.id, slide.notes]);
+  useEffect(() => {
+    setFeedback(initialAdjustment?.visual || "");
+    setCopyFeedback(initialAdjustment?.copy || "");
+    setHistory(null);
+  }, [slide.id]);
   const finishClose = () => {
     if (teaching) onTaught();
     onClose();

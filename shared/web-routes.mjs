@@ -18,7 +18,7 @@ export function publicPage(pathname = "/", hash = "") {
 export function workspaceTarget(value) {
   if (typeof value !== "string") return "projects";
   const route = value.replace(/^#/, "");
-  return /^(projects|styles|account|admin|help|settings(?:\/(?:models|speech|labs))?|project\/[a-f0-9-]{36}(?:\/(?:overview|studio|rehearsal|delivery))?)$/.test(
+  return /^(projects|styles|new(?:\/(?:example|[a-f0-9-]{36}))?|account|admin|help|settings(?:\/(?:models|speech|labs))?|project\/[a-f0-9-]{36}(?:\/(?:overview|studio|rehearsal|delivery))?)$/.test(
     route,
   )
     ? route

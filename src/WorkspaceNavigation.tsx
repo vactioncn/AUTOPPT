@@ -45,7 +45,8 @@ export function WorkspaceNavigation({
   useEffect(() => {
     if (!open) return;
     const previous = document.activeElement as HTMLElement | null;
-    const content = nav.current?.parentElement?.querySelector<HTMLElement>(".main");
+    const content =
+      nav.current?.parentElement?.querySelector<HTMLElement>(".main");
     const wasInert = content?.inert;
     const previousOverflow = document.body.style.overflow;
     if (content) content.inert = true;
@@ -115,11 +116,11 @@ export function WorkspaceNavigation({
           <button
             className="brand"
             onClick={() => visit("projects")}
-            aria-label="AutoPPT 我的项目"
+            aria-label="AutoPPT 我的演讲"
           >
             <span className="brand-icon">A</span>
             <span>
-              AutoPPT<small>演讲制作工作区</small>
+              AutoPPT<small>从讲稿到画面</small>
             </span>
           </button>
           <button
@@ -144,13 +145,13 @@ export function WorkspaceNavigation({
         </Button>
         <nav className="workspace-primary-nav" aria-label="创作">
           <button
-            aria-label="我的项目"
-            title="我的项目"
+            aria-label="我的演讲"
+            title="我的演讲"
             aria-current={route === "projects" ? "page" : undefined}
             onClick={() => visit("projects")}
           >
             <FolderSimple size={21} />
-            <span>我的项目</span>
+            <span>我的演讲</span>
             <small>{projects.length}</small>
           </button>
           <button
@@ -172,16 +173,16 @@ export function WorkspaceNavigation({
             aria-controls="workspace-recent-list"
           >
             {recent ? <CaretDown size={13} /> : <CaretRight size={13} />}
-            最近项目
+            最近演讲
           </button>
           {recent && (
-            <nav id="workspace-recent-list" aria-label="最近项目">
+            <nav id="workspace-recent-list" aria-label="最近演讲">
               {projects.slice(0, 6).map((p) => (
                 <button
                   key={p.id}
                   title={p.title}
                   aria-current={currentId === p.id ? "page" : undefined}
-                  onClick={() => visit("project/" + p.id)}
+                  onClick={() => visit("project/" + p.id + "/studio")}
                 >
                   <span className="project-dot" />
                   <span>{p.title}</span>

@@ -426,6 +426,7 @@ export type Project = {
   undo: { label: string; replacementIds?: string[] } | null;
 };
 export type ProjectSummary = {
+  continuation?: { label: string; kind: string };
   id: string;
   title: string;
   styleId: string;

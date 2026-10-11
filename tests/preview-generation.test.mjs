@@ -178,14 +178,45 @@ test(
       { name: "保留原风格的试做", rules },
       201,
     );
-    const project = await request(
-      "/api/projects",
-      { title: "试一页再整场", styleId: style.id },
-      201,
-    );
     const notes =
       "第一段先确认关键观点。第二段检查实际画面。第三段满意后生成整场。";
     const requestId = randomUUID();
+    const creation = {
+      title: "试一页再整场",
+      styleId: style.id,
+      draft: notes,
+      requestId,
+    };
+    const project = await request("/api/projects", creation, 201);
+    assert.equal(
+      project.draft,
+      notes,
+      "Creation saves the exact manuscript atomically",
+    );
+    assert.equal(
+      prompts.length,
+      0,
+      "Saving a manuscript must not call a model",
+    );
+    assert.equal((await request("/api/account")).user.available, 20);
+    const duplicate = await request("/api/projects", creation);
+    assert.equal(
+      duplicate.id,
+      project.id,
+      "Lost creation responses cannot duplicate projects",
+    );
+    await request(
+      "/api/projects",
+      { ...creation, draft: "不得覆盖已有讲稿" },
+      409,
+    );
+    await request("/api/projects", { ...creation, requestId: "bad" }, 400);
+    await request(
+      "/api/projects",
+      { ...creation, requestId: randomUUID(), draft: 123 },
+      400,
+    );
+    assert.equal((await request("/api/bootstrap")).projects.length, 1);
     await request(
       `/api/projects/${project.id}/batches`,
       { text: notes, generationMode: "invalid", requestId },
@@ -204,6 +235,10 @@ test(
     assert.match(prompts[0], /本页文字核对清单/);
     assert.match(prompts[0], /第一段先确认关键观点/);
     const before = await request(`/api/projects/${project.id}`);
+    assert.equal(
+      (await request("/api/bootstrap")).projects[0].continuation.kind,
+      "preview",
+    );
     assert.equal(before.batches[0].text, notes);
     assert.equal(before.slides.map((s) => s.notes).join(""), notes);
     assert.equal(before.slides.filter((s) => s.image).length, 1);
@@ -225,6 +260,12 @@ test(
     );
     await stop();
     await start();
+    assert.equal((await request("/api/projects", creation)).id, project.id);
+    assert.equal(
+      (await request(`/api/projects/${project.id}`)).draft,
+      "",
+      "Creation retry must not restore submitted draft",
+    );
     assert.equal((await request("/api/account")).user.available, 19);
     assert.equal(
       (await request(`/api/projects/${project.id}`)).slides[0].image,
@@ -242,6 +283,10 @@ test(
     );
     await finished(finishJob.id);
     const after = await request(`/api/projects/${project.id}`);
+    assert.equal(
+      (await request("/api/bootstrap")).projects[0].continuation.kind,
+      "ready",
+    );
     assert.equal(prompts.length, 3);
     assert.equal(after.slides.filter((s) => s.image).length, 3);
     assert.equal(after.slides[0].image, before.slides[0].image);

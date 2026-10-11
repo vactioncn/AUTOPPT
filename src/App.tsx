@@ -1,3 +1,4 @@
+import { FirstPicture } from "./FirstPicture";
 import { UsagePage } from "./Usage";
 import { Help } from "./Help";
 import { useOnboarding, WorkspaceReadiness } from "./OnboardingUI";
@@ -126,6 +127,10 @@ export default function App() {
     setRoute(to);
   };
   const create = (styleId = DEFAULT_STYLE_ID, restoreDraft = false) => {
+    if (account.hosted) {
+      go("new" + (styleId !== DEFAULT_STYLE_ID ? "/" + styleId : ""));
+      return;
+    }
     if (!restoreDraft) setCreationDraft(null);
     setStyleRepair(false);
     const available = offered.filter((s) => s.rules);
@@ -139,7 +144,13 @@ export default function App() {
   const currentId = contentRoute.startsWith("project/")
     ? contentRoute.slice(8).split("/")[0]
     : null;
-  const currentArea = projectArea(contentRoute.split("/")[2]);
+  const currentArea = projectArea(
+    contentRoute.split("/")[2] || (account.hosted ? "studio" : "overview"),
+  );
+  useEffect(() => {
+    if (account.hosted)
+      document.title = `AutoPPT · ${route.startsWith("new") ? "开始制作" : route.startsWith("project/") ? data?.projects.find((p) => p.id === route.split("/")[1])?.title || "我的演讲" : route === "styles" ? "风格库" : "我的演讲"}`;
+  }, [account.hosted, route, data?.projects]);
   const notify = (text: string) => setToast(text);
   if (!data)
     return (
@@ -307,7 +318,11 @@ export default function App() {
                               ? account.hosted
                                 ? "账号设置"
                                 : "设置"
-                              : "项目")}
+                              : contentRoute.startsWith("new")
+                                ? "开始制作"
+                                : account.hosted
+                                  ? "我的演讲"
+                                  : "项目")}
             </strong>
           </div>
           <span className="top-hint">
@@ -367,6 +382,7 @@ export default function App() {
         <div hidden={informationRoute} className="workspace-content">
           {contentRoute === "projects" &&
             !informationRoute &&
+            !account.hosted &&
             onboarding.value.workspace === "pending" && (
               <WorkspaceReadiness
                 data={{ ...data, styles: offered }}
@@ -381,7 +397,21 @@ export default function App() {
                 onSkip={() => onboarding.update({ workspace: "skipped" })}
               />
             )}
-          {currentId ? (
+          {account.hosted && contentRoute.split("/")[0] === "new" ? (
+            <FirstPicture
+              scope={onboardingScope}
+              key={account.user?.id}
+              styles={offered}
+              initialStyle={contentRoute.split("/")[1]}
+              example={contentRoute.split("/")[1] === "example"}
+              onCreated={(p, message) => {
+                void refresh();
+                onboarding.update({ workspace: "complete" });
+                go("project/" + p.id + "/studio");
+                notify(message);
+              }}
+            />
+          ) : currentId ? (
             <Workspace
               capabilities={capabilities}
               dataRootLabel={safeWorkspaceLabel(data.dataRootLabel)}
@@ -443,6 +473,8 @@ export default function App() {
             )
           ) : (
             <ProjectHome
+              hosted={account.hosted}
+              onExample={() => go("new/example")}
               packageCapability={capabilities.projectPackages}
               refresh={refresh}
               projects={data.projects}
@@ -490,6 +522,8 @@ export default function App() {
   );
 }
 function ProjectHome({
+  hosted,
+  onExample,
   packageCapability,
   refresh,
   projects,
@@ -498,6 +532,8 @@ function ProjectHome({
   onOpen,
   onStyles,
 }: {
+  hosted: boolean;
+  onExample: () => void;
   packageCapability: import("../shared/diagnostics.mjs").Capability;
   refresh: () => Promise<void>;
   projects: ProjectSummary[];
@@ -526,12 +562,23 @@ function ProjectHome({
           <h1>
             让讲述，自然成页<span>。</span>
           </h1>
-          <p>从一段逐字稿开始，把你的想法一步步变成演讲。</p>
-          <Button variant="primary" onClick={onCreate}>
-            <Plus size={18} />
-            新建演讲项目
-            <ArrowUpRight size={17} />
-          </Button>
+          <p>
+            {hosted
+              ? "放入讲稿，先看一页效果。满意后再做整份 PPT。"
+              : "从一段逐字稿开始，把你的想法一步步变成演讲。"}
+          </p>
+          <div className={hosted ? "hosted-home-actions" : undefined}>
+            <Button variant="primary" onClick={onCreate}>
+              <Plus size={18} />
+              {hosted ? "用我的讲稿开始" : "新建演讲项目"}
+              <ArrowUpRight size={17} />
+            </Button>
+            {hosted && (
+              <Button variant="ghost" onClick={onExample}>
+                用示例体验
+              </Button>
+            )}
+          </div>
         </div>
         <div className="intro-composition" aria-hidden="true">
           <div className="intro-script">
@@ -649,6 +696,11 @@ function ProjectHome({
                       {p.batchCount} 段讲稿<span>·</span>
                       {formatDate(p.updatedAt)}
                     </p>
+                    {hosted && p.continuation && (
+                      <p className="project-continuation">
+                        {p.continuation.label}
+                      </p>
+                    )}
                   </div>
                 </button>
                 <button
@@ -676,56 +728,60 @@ function ProjectHome({
               <p>不用准备整篇文稿。先给一小段，看看它会变成什么。</p>
             </div>
             <Button onClick={onCreate}>
-              创建第一个项目
+              {hosted ? "放入第一段讲稿" : "创建第一个项目"}
               <ArrowRight size={17} />
             </Button>
           </div>
         )}
       </section>
-      <section className="workflow-strip" aria-label="制作流程">
-        {[
-          {
-            title: "添加一段逐字稿",
-            text: "按你的节奏，随时续写",
-            icon: FolderSimple,
-          },
-          {
-            title: "自动设计成页",
-            text: "理解观点，延续选定风格",
-            icon: Stack,
-          },
-          {
-            title: "调整，再继续",
-            text: "重新设计、合并、手动拆分",
-            icon: SlidersHorizontal,
-          },
-          {
-            title: "保存满意的图片",
-            text: "原稿与画面，逐页对应",
-            icon: Presentation,
-          },
-        ].map((s, i) => (
-          <div className="workflow-step" key={s.title}>
-            <div className="workflow-number">{i + 1}</div>
+      {!hosted && (
+        <>
+          <section className="workflow-strip" aria-label="制作流程">
+            {[
+              {
+                title: "添加一段逐字稿",
+                text: "按你的节奏，随时续写",
+                icon: FolderSimple,
+              },
+              {
+                title: "自动设计成页",
+                text: "理解观点，延续选定风格",
+                icon: Stack,
+              },
+              {
+                title: "调整，再继续",
+                text: "重新设计、合并、手动拆分",
+                icon: SlidersHorizontal,
+              },
+              {
+                title: "保存满意的图片",
+                text: "原稿与画面，逐页对应",
+                icon: Presentation,
+              },
+            ].map((s, i) => (
+              <div className="workflow-step" key={s.title}>
+                <div className="workflow-number">{i + 1}</div>
+                <div>
+                  <strong>{s.title}</strong>
+                  <span>{s.text}</span>
+                </div>
+                {i < 3 && <ArrowRight className="workflow-arrow" size={16} />}
+              </div>
+            ))}
+          </section>
+          <div className="style-callout">
+            <Palette size={23} />
             <div>
-              <strong>{s.title}</strong>
-              <span>{s.text}</span>
+              <strong>让每一页，都有你的风格。</strong>
+              <span>上传喜欢的参考图，建立可以反复使用的视觉语言。</span>
             </div>
-            {i < 3 && <ArrowRight className="workflow-arrow" size={16} />}
+            <Button variant="ghost" onClick={onStyles}>
+              探索风格库
+              <ArrowRight size={16} />
+            </Button>
           </div>
-        ))}
-      </section>
-      <div className="style-callout">
-        <Palette size={23} />
-        <div>
-          <strong>让每一页，都有你的风格。</strong>
-          <span>上传喜欢的参考图，建立可以反复使用的视觉语言。</span>
-        </div>
-        <Button variant="ghost" onClick={onStyles}>
-          探索风格库
-          <ArrowRight size={16} />
-        </Button>
-      </div>
+        </>
+      )}
     </div>
   );
 }

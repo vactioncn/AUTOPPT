@@ -11,3 +11,9 @@ The hosted view uses a compact two-column preview and voice form. Voice and spee
 Bounded inspection: desktop and mobile were inspected together; one batch corrected mobile action stretching, form order and focus scroll margins. One confirmation round established first-viewport actions and no horizontal overflow at a 390×844 CSS viewport. Long draft input does not grow the page beyond the textarea. Screenshots and mock flow evidence are stored privately under `.hosted/rehearsal-layout-20261011/`, excluded from source and deployment packages.
 
 Validation uses an isolated hosted workspace and a simulated MiniMax MP3. It covers short trial, whole-project generation and retained voice parameters, without paid provider calls or edits to user projects. Real voice similarity and provider authorization remain outside this layout check.
+
+## Playback continuity — 2026-10-11
+
+The current request extends the same Operate surface: submission progress, stop, interrupted-task continuation and playback live beside the initiating buttons. A compatible completed trial changes the main action to playback; whole generation changes to whole playback. Regeneration is secondary and still confirmed. Record history is collapsed. A recording is current only when its full text, voice, emotion, speed, model, trial length and page range match. Missing images or empty narration are explained before submission.
+
+Playback starts on an explicit play click, never on generation completion or polling. A bounded player keeps transport visible, discloses long narration text, synchronizes native media pause/play events, and skips unfinished clips. Original scripts, saved audio and provider configuration retain their existing persistence.

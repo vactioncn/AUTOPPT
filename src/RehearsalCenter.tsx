@@ -5,6 +5,7 @@ import { RehearsalResourceSettings } from "./RehearsalResourceSettings";
 import { RehearsalPlayer } from "./RehearsalPlayer";
 import { PresenterJobs, usePresenterJobs } from "./PresenterJobs";
 import { PresenterPlayer } from "./PresenterPlayer";
+import { matchesRehearsalRun } from "../shared/rehearsal-playback.mjs";
 import { HostedRehearsalControls } from "./HostedRehearsalControls";
 import { SPEECH_EMOTIONS } from "../shared/speech.mjs";
 import type { Project } from "./types";
@@ -67,6 +68,7 @@ export function RehearsalCenter({
     [saved, setSaved] = useState("");
   const [settings, setSettings] = useState<"speech" | "avatar" | null>(null),
     [trialLength, setTrialLength] = useState<"short" | "page">("short");
+  const [stopping, setStopping] = useState("");
   const [resumeConfirm, setResumeConfirm] = useState<RehearsalRun | null>(null);
   const [confirm, setConfirm] = useState<"trial" | "all" | "selected" | null>(
       null,
@@ -167,6 +169,9 @@ export function RehearsalCenter({
         const data = await api<RehearsalRun[]>(endpoint + "/runs");
         if (alive) {
           setRuns(data);
+          setStopping((id) =>
+            data.some((r) => r.id === id && r.status === "running") ? id : "",
+          );
           if (
             request.current &&
             data.some((r) => r.id === request.current?.requestId)
@@ -309,6 +314,7 @@ export function RehearsalCenter({
       );
       if (action === "resume")
         setRuns((a) => a.map((j) => (j.id === r.id ? r : j)));
+      else setStopping(run.id);
       setResumeConfirm(null);
     } catch (e) {
       setError((e as Error).message);
@@ -321,29 +327,38 @@ export function RehearsalCenter({
     setError("");
     setConfirm(scope);
   }
-  const trial = runs.find(
-    (r) =>
-      r.scope === "trial" &&
-      r.status === "ready" &&
-      r.compatible &&
-      plan &&
-      [
-        "actor",
-        "visual",
-        "avatarId",
-        "voiceId",
-        "emotion",
-        "speed",
-        "narrationId",
-        "pageId",
-      ].every(
-        (k) =>
-          r.plan[k as keyof RehearsalPlan] === plan[k as keyof RehearsalPlan],
-      ) &&
-      (!r.speechModel || r.speechModel === resources?.context.speech.model) &&
-      (!!plan.narrationId ||
-        (r.pages[0]?.fullText || r.pages[0]?.text) === texts[plan.pageId]),
+  const wholePages = project.slides.filter(
+    (s) => !plan?.slideIds.length || plan.slideIds.includes(s.id),
   );
+  const matches = (run: RehearsalRun) =>
+    matchesRehearsalRun(run, plan, {
+      texts,
+      model: resources?.context.speech.model,
+      pageIds: wholePages.map((s) => s.id),
+      trialLength: chosenNarration ? "page" : trialLength,
+    });
+  const trial = runs.find(
+    (r) => r.scope === "trial" && r.status === "ready" && matches(r),
+  );
+  const whole = runs.find(
+    (r) => r.scope !== "trial" && r.status === "ready" && matches(r),
+  );
+  const currentRun =
+    runs.find((r) => r.status === "running") || runs.find(matches);
+  const clips = currentRun?.pages.flatMap((p) => p.clips) || [];
+  const completedClips = clips.filter((c) => c.audioFile).length;
+  const missingPages = wholePages.filter((s) => !s.image && !s.scene);
+  const blankPages = wholePages.filter((s) => !texts[s.id]?.trim());
+  const wholeBlocked =
+    managed &&
+    (!wholePages.length ||
+      !!missingPages.length ||
+      (plan?.actor !== "self" && !chosenNarration && !!blankPages.length));
+  const trialBlank =
+    managed &&
+    plan?.actor !== "self" &&
+    !chosenNarration &&
+    !texts[plan?.pageId || ""]?.trim();
   const ready =
     plan &&
     resources &&
@@ -361,34 +376,63 @@ export function RehearsalCenter({
   const words = selected.reduce((n, s) => n + (texts[s.id]?.length || 0), 0);
   const trialAction = plan && (
     <Button
-      variant="primary"
+      variant={managed && whole ? "secondary" : "primary"}
       disabled={
-        busy || active || !ready || !page || (!page.image && !page.scene)
+        managed && trial
+          ? false
+          : busy ||
+            active ||
+            !ready ||
+            !page ||
+            (!page.image && !page.scene) ||
+            trialBlank
       }
       onClick={() =>
-        plan.actor === "self" && plan.visual === "original"
-          ? onSpeech(false)
-          : openConfirm("trial")
+        managed && trial
+          ? setPlaying(trial)
+          : plan.actor === "self" && plan.visual === "original"
+            ? onSpeech(false)
+            : openConfirm("trial")
       }
     >
-      {plan.actor === "self" && plan.visual === "original"
-        ? "试播当前画面"
-        : "先试当前页"}
+      {managed && trial
+        ? "播放试播"
+        : plan.actor === "self" && plan.visual === "original"
+          ? "试播当前画面"
+          : managed &&
+              currentRun?.scope === "trial" &&
+              currentRun.status === "running"
+            ? "正在准备试播…"
+            : "先试当前页"}
     </Button>
   );
   const wholeAction = plan && (
     <Button
-      variant={managed && !trial ? "secondary" : "primary"}
-      disabled={busy || active || !ready || !!request.current}
+      variant={managed && !whole ? "secondary" : "primary"}
+      disabled={
+        managed && whole
+          ? false
+          : busy || active || !ready || !!request.current || wholeBlocked
+      }
       onClick={() =>
-        plan.actor === "self" && plan.visual === "original"
-          ? onSpeech(false)
-          : openConfirm(plan.slideIds.length ? "selected" : "all")
+        managed && whole
+          ? setPlaying(whole)
+          : plan.actor === "self" && plan.visual === "original"
+            ? onSpeech(false)
+            : openConfirm(plan.slideIds.length ? "selected" : "all")
       }
     >
-      {plan.slideIds.length
-        ? `生成所选 ${plan.slideIds.length} 页`
-        : "生成整场"}
+      {managed && whole
+        ? plan.slideIds.length
+          ? "播放所选页面"
+          : "播放整场"
+        : managed &&
+            currentRun?.scope !== "trial" &&
+            currentRun?.status === "running"
+          ? "正在生成整场…"
+          : plan.slideIds.length
+            ? `生成所选 ${plan.slideIds.length} 页`
+            : "生成整场"}
     </Button>
   );
   const webDock = managed && plan && (
@@ -408,7 +452,7 @@ export function RehearsalCenter({
                 : "短片段试播"}
           </strong>
           <span>
-            {trial ? "试播已完成" : "先试听，再生成整场"} ·{" "}
+            {trial ? "试播已就绪，点击播放" : "先试听，再生成整场"} ·{" "}
             {plan.slideIds.length
               ? `整场范围 ${plan.slideIds.length} 页`
               : `整场 ${project.slides.length} 页`}{" "}
@@ -420,7 +464,110 @@ export function RehearsalCenter({
           {wholeAction}
         </div>
       </div>
-      {saved && <p role="status">{saved}</p>}
+      {currentRun && plan.actor === "voice" && (
+        <div className="rehearsal-web-feedback">
+          <div
+            className="rehearsal-web-feedback-copy"
+            role="status"
+            aria-live="polite"
+          >
+            <strong>
+              {currentRun.scope === "trial"
+                ? `第 ${currentRun.pages[0]?.number} 页试播`
+                : `${currentRun.pages.length} 页口播`}{" "}
+              ·{" "}
+              {currentRun.status === "running"
+                ? "正在生成"
+                : currentRun.status === "ready"
+                  ? "已就绪"
+                  : "尚未完成"}
+            </strong>
+            <span>
+              {currentRun.voiceName} · {completedClips} / {clips.length} 段完成
+              {currentRun.scope === "trial" &&
+              currentRun.trialLength === "short"
+                ? " · 开头短片段"
+                : ""}
+            </span>
+            {currentRun.status !== "ready" && (
+              <span>
+                {stopping === currentRun.id
+                  ? "正在停止后续生成，已完成声音会保留。"
+                  : currentRun.message}
+              </span>
+            )}
+          </div>
+          <div className="rehearsal-actions">
+            {currentRun.status !== "ready" && completedClips > 0 && (
+              <Button onClick={() => setPlaying(currentRun)}>
+                先听已完成部分
+              </Button>
+            )}
+            {currentRun.status === "running" ? (
+              <Button
+                disabled={busy || stopping === currentRun.id}
+                onClick={() => void act(currentRun, "stop")}
+              >
+                {stopping === currentRun.id ? "正在停止…" : "停止后续生成"}
+              </Button>
+            ) : currentRun.status !== "ready" ? (
+              <Button
+                disabled={busy || active || !currentRun.compatible}
+                onClick={() => {
+                  setError("");
+                  setResumeConfirm(currentRun);
+                }}
+              >
+                继续未完成部分
+              </Button>
+            ) : (
+              <Button
+                variant="ghost"
+                disabled={busy || active}
+                onClick={() =>
+                  openConfirm(
+                    currentRun.scope === "trial"
+                      ? "trial"
+                      : plan.slideIds.length
+                        ? "selected"
+                        : "all",
+                  )
+                }
+              >
+                {currentRun.scope === "trial" ? "重新试播" : "重新生成"}
+              </Button>
+            )}
+          </div>
+          {currentRun.status === "running" && (
+            <progress
+              aria-label="口播生成进度"
+              value={completedClips}
+              max={Math.max(1, clips.length)}
+            />
+          )}
+        </div>
+      )}
+      {wholeBlocked && plan.actor === "voice" && (
+        <p className="rehearsal-web-guidance">
+          {missingPages.length ? (
+            <>
+              整场还有 {missingPages.length} 页缺少画面，当前页仍可试播。
+              <Button variant="ghost" onClick={onStudio}>
+                去完成画面
+              </Button>
+            </>
+          ) : (
+            `所选范围有 ${blankPages.length} 页口播正文为空，请填写后再生成整场。`
+          )}
+        </p>
+      )}
+      {trialBlank && <p role="status">填写当前页口播正文后，即可试播。</p>}
+      {!currentRun && runs.length > 0 && plan.actor === "voice" && (
+        <p className="rehearsal-caption">
+          当前页面、声音或正文已与已有录音不同，请重新试播；旧录音保留在历史记录中。
+        </p>
+      )}
+      {saved && !currentRun && <p role="status">{saved}</p>}
       {error && (
         <p role="alert" className="error-text">
           {error}
@@ -505,7 +652,7 @@ export function RehearsalCenter({
               </div>
               <p className="rehearsal-caption">
                 {managed
-                  ? "选择页面查看画面和正文。试播后，在下面试听实际生成的声音。"
+                  ? "选择页面查看画面和正文；声音准备好后，直接点击上方“播放试播”。"
                   : "选择页面查看布局。试播后，在下面播放实际声音、嘴型和动态效果。"}
               </p>
               <div className="rehearsal-pages" aria-label="选择试播页">
@@ -558,7 +705,7 @@ export function RehearsalCenter({
               <HostedRehearsalControls
                 plan={plan}
                 resources={resources}
-                busy={busy || !!request.current}
+                busy={busy || active || !!request.current}
                 text={texts[plan.pageId] || ""}
                 onText={(text) => {
                   setTexts((t) => ({ ...t, [plan.pageId]: text }));
@@ -858,135 +1005,144 @@ export function RehearsalCenter({
               {wholeAction}
             </section>
           )}
-          <section
-            className="rehearsal-results"
-            aria-label="本场生成与试播记录"
+          <details
+            className="rehearsal-records"
+            open={managed ? undefined : true}
           >
-            <h3>效果与进度</h3>
-            {!runs.length && <p>先试一页，实际声音和效果会出现在这里。</p>}
-            {runs.map((run) => {
-              const audio = run.pages
-                  .flatMap((p) => p.clips)
-                  .filter((c) => c.audioFile),
-                video = run.pages.flatMap((p) => p.clips).filter((c) => c.file),
-                dynamic =
-                  run.motion?.pages.filter((p) => p.status === "ready") || [];
-              const failed = run.presenter?.recovery === "new-task";
-              return (
-                <article key={run.id} className="rehearsal-result">
-                  <div className="rehearsal-result-heading">
-                    <strong>
-                      {run.scope === "trial"
-                        ? run.trialLength === "short"
-                          ? "短片段试播"
-                          : "完整页试播"
-                        : run.scope === "all"
-                          ? "整场生成"
-                          : "所选页面生成"}{" "}
-                      · {labels[run.plan.actor]}
-                    </strong>
-                    <span>
-                      {new Date(run.createdAt).toLocaleString("zh-CN")}
-                    </span>
-                  </div>
-                  <p>
-                    {run.voiceName || "自己讲"} · {run.pages.length} 页
-                  </p>
-                  <div className="rehearsal-progress">
-                    <span>声音 {audio.length} 段完成</span>
-                    {run.plan.actor === "digital" && (
-                      <span>嘴型 {video.length} 段完成</span>
-                    )}
-                    {run.motion && (
+            <summary>
+              {managed ? `历史试播与生成记录 · ${runs.length}` : "效果与进度"}
+            </summary>
+            <section
+              className="rehearsal-results"
+              aria-label="本场生成与试播记录"
+            >
+              {!runs.length && <p>试播和整场生成后的声音会自动保存在这里。</p>}
+              {runs.map((run) => {
+                const audio = run.pages
+                    .flatMap((p) => p.clips)
+                    .filter((c) => c.audioFile),
+                  video = run.pages
+                    .flatMap((p) => p.clips)
+                    .filter((c) => c.file),
+                  dynamic =
+                    run.motion?.pages.filter((p) => p.status === "ready") || [];
+                const failed = run.presenter?.recovery === "new-task";
+                return (
+                  <article key={run.id} className="rehearsal-result">
+                    <div className="rehearsal-result-heading">
+                      <strong>
+                        {run.scope === "trial"
+                          ? run.trialLength === "short"
+                            ? "短片段试播"
+                            : "完整页试播"
+                          : run.scope === "all"
+                            ? "整场生成"
+                            : "所选页面生成"}{" "}
+                        · {labels[run.plan.actor]}
+                      </strong>
                       <span>
-                        动态 {dynamic.length}/{run.motion.pages.length} 页
+                        {new Date(run.createdAt).toLocaleString("zh-CN")}
                       </span>
-                    )}
-                  </div>
-                  <p role="status">
-                    {run.presenter?.message ||
-                      run.motion?.progress ||
-                      run.message}
-                  </p>
-                  {run.status === "running" && (
-                    <progress
-                      aria-label="本场生成进度"
-                      value={audio.length + video.length + dynamic.length}
-                      max={Math.max(
-                        1,
-                        run.pages.flatMap((p) => p.clips).length *
-                          (run.plan.actor === "digital"
-                            ? 2
-                            : run.plan.actor === "voice"
-                              ? 1
-                              : 0) +
-                          (run.motion?.pages.length || 0),
-                      )}
-                    />
-                  )}
-                  {run.scope === "trial" && run.trialLength === "short" && (
-                    <p>这是开头短片段；整场不会将它当作完整页复用。</p>
-                  )}
-                  {!run.compatible && (
+                    </div>
                     <p>
-                      母版已改变。这份结果保留供核对，生成新版本以使用当前画面。
+                      {run.voiceName || "自己讲"} · {run.pages.length} 页
                     </p>
-                  )}
-                  {failed && (
-                    <p className="journey-warning">
-                      嘴型服务已明确失败。已生成的 MiniMax
-                      音频保留可听；处理服务额度后，重新确认生成可复用音频。
+                    <div className="rehearsal-progress">
+                      <span>声音 {audio.length} 段完成</span>
+                      {run.plan.actor === "digital" && (
+                        <span>嘴型 {video.length} 段完成</span>
+                      )}
+                      {run.motion && (
+                        <span>
+                          动态 {dynamic.length}/{run.motion.pages.length} 页
+                        </span>
+                      )}
+                    </div>
+                    <p role="status">
+                      {run.presenter?.message ||
+                        run.motion?.progress ||
+                        run.message}
                     </p>
-                  )}
-                  <div className="rehearsal-actions">
-                    <Button
-                      disabled={
-                        !audio.length && !video.length && !dynamic.length
-                      }
-                      onClick={() => setPlaying(run)}
-                    >
-                      {video.length
-                        ? "播放数字人效果"
-                        : audio.length
-                          ? "试听已完成声音"
-                          : "预览已完成画面"}
-                    </Button>
-                    {run.status === "running" ? (
+                    {run.status === "running" && (
+                      <progress
+                        aria-label="本场生成进度"
+                        value={audio.length + video.length + dynamic.length}
+                        max={Math.max(
+                          1,
+                          run.pages.flatMap((p) => p.clips).length *
+                            (run.plan.actor === "digital"
+                              ? 2
+                              : run.plan.actor === "voice"
+                                ? 1
+                                : 0) +
+                            (run.motion?.pages.length || 0),
+                        )}
+                      />
+                    )}
+                    {run.scope === "trial" && run.trialLength === "short" && (
+                      <p>这是开头短片段；整场不会将它当作完整页复用。</p>
+                    )}
+                    {!run.compatible && (
+                      <p>
+                        母版已改变。这份结果保留供核对，生成新版本以使用当前画面。
+                      </p>
+                    )}
+                    {failed && (
+                      <p className="journey-warning">
+                        嘴型服务已明确失败。已生成的 MiniMax
+                        音频保留可听；处理服务额度后，重新确认生成可复用音频。
+                      </p>
+                    )}
+                    <div className="rehearsal-actions">
                       <Button
-                        disabled={busy}
-                        onClick={() => void act(run, "stop")}
+                        disabled={
+                          !audio.length && !video.length && !dynamic.length
+                        }
+                        onClick={() => setPlaying(run)}
                       >
-                        停止后续生成
+                        {video.length
+                          ? "播放数字人效果"
+                          : audio.length
+                            ? "试听已完成声音"
+                            : "预览已完成画面"}
                       </Button>
-                    ) : (
-                      run.status !== "ready" &&
-                      (failed ? (
+                      {run.status === "running" ? (
                         <Button
-                          disabled={busy || active}
-                          onClick={() => {
-                            choose("pageId", run.pages[0].id);
-                            openConfirm(run.scope);
-                          }}
+                          disabled={busy}
+                          onClick={() => void act(run, "stop")}
                         >
-                          处理后重新生成
+                          停止后续生成
                         </Button>
                       ) : (
-                        <Button
-                          disabled={busy || active || !run.compatible}
-                          onClick={() => {
-                            setError("");
-                            setResumeConfirm(run);
-                          }}
-                        >
-                          继续已有任务
-                        </Button>
-                      ))
-                    )}
-                  </div>
-                </article>
-              );
-            })}
-          </section>
+                        run.status !== "ready" &&
+                        (failed ? (
+                          <Button
+                            disabled={busy || active}
+                            onClick={() => {
+                              choose("pageId", run.pages[0].id);
+                              openConfirm(run.scope);
+                            }}
+                          >
+                            处理后重新生成
+                          </Button>
+                        ) : (
+                          <Button
+                            disabled={busy || active || !run.compatible}
+                            onClick={() => {
+                              setError("");
+                              setResumeConfirm(run);
+                            }}
+                          >
+                            继续已有任务
+                          </Button>
+                        ))
+                      )}
+                    </div>
+                  </article>
+                );
+              })}
+            </section>
+          </details>
           <details className="rehearsal-history">
             <summary>已有版本与高级调整</summary>
             <p>
@@ -1100,7 +1256,9 @@ export function RehearsalCenter({
           onClose={() => !busy && setResumeConfirm(null)}
         >
           <p>
-            已完成音频、视频和动态页保持不变。查询已提交的嘴型任务不会重新提交；未生成的声音和失败的动态页将继续生成，可能产生费用。
+            {managed
+              ? "已完成的声音保留，只继续合成未完成的部分。新的合成会使用 MiniMax 语音预算。"
+              : "已完成音频、视频和动态页保持不变。查询已提交的嘴型任务不会重新提交；未生成的声音和失败的动态页将继续生成，可能产生费用。"}
           </p>
           {error && <p role="alert">{error}</p>}
           <Button
@@ -1126,6 +1284,7 @@ export function RehearsalCenter({
           project={project}
           layout={plan || undefined}
           run={playing}
+          autoStart={managed}
           onClose={() => setPlaying(null)}
         />
       )}

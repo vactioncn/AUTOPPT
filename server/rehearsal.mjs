@@ -31,6 +31,7 @@ const fail = (message, status = 400) =>
   Object.assign(new Error(message), { status });
 const hash = (b) => createHash("sha256").update(b).digest("hex");
 const running = new Map();
+const controllers = new Map();
 const store = (run) => put("rehearsal-run", { ...run, updatedAt: now() });
 export async function publicRun(run) {
   const child = run.presenterId && get("presenter-generation", run.presenterId),
@@ -75,7 +76,7 @@ export async function publicRun(run) {
     ),
     status: complete ? "ready" : pending ? "running" : "interrupted",
     message: pending
-      ? "正在生成，完成的声音和页面可先预览。"
+      ? run.progress || "正在生成，完成的声音和页面可先预览。"
       : complete
         ? "已完成，可以播放。"
         : componentError ||
@@ -254,7 +255,15 @@ export function shortText(text) {
 }
 function start(run, dependencies = {}) {
   if (running.has(run.id)) return;
-  const task = prepare(run, dependencies).finally(() => running.delete(run.id));
+  const controller = new AbortController();
+  controllers.set(run.id, controller);
+  const task = prepare(run, {
+    ...dependencies,
+    signal: controller.signal,
+  }).finally(() => {
+    running.delete(run.id);
+    controllers.delete(run.id);
+  });
   running.set(run.id, task);
 }
 async function prepare(
@@ -263,6 +272,7 @@ async function prepare(
     audioFactory = cachedAudio,
     motionFactory = createMotion,
     presenterFactory = createGeneration,
+    signal,
   } = {},
 ) {
   try {
@@ -300,11 +310,13 @@ async function prepare(
       )
         throw fail("MiniMax 服务已改变，请恢复配置后继续。");
       run.audioStatus = "running";
+      run.progress = "";
       store(run);
       for (const p of run.pages)
         for (const c of p.clips) {
           if (get("rehearsal-run", run.id).stopRequested)
             throw fail("已停止后续生成，完成的音频已保留。");
+          signal?.throwIfAborted();
           if (c.audioFile) continue;
           const audio = await withUsage(
             {
@@ -313,7 +325,13 @@ async function prepare(
               taskId: run.id,
               feature: "演练口播",
             },
-            () => audioFactory(config, c.text, run.options),
+            () =>
+              audioFactory(config, c.text, run.options, signal, (waiting) => {
+                run.progress = waiting
+                  ? `正在等待语音服务，约 ${Math.ceil(waiting.ms / 1000)} 秒后继续。可停止等待，已完成声音保留。`
+                  : "正在合成声音，完成的片段可先试听。";
+                store(run);
+              }),
           );
           Object.assign(c, {
             audioFile: audio.file,
@@ -321,6 +339,7 @@ async function prepare(
             status: "ready",
           });
           store(run);
+          signal?.throwIfAborted();
         }
       run.audioStatus = "ready";
       publishRehearsalNarration(run);
@@ -330,7 +349,10 @@ async function prepare(
     run.error = "";
     store(run);
   } catch (e) {
-    run.error = e.message;
+    if (signal?.aborted) run.stopRequested = true;
+    run.error = signal?.aborted
+      ? "已停止后续生成，完成的音频已保留。"
+      : e.message;
     if (["queued", "running"].includes(run.audioStatus))
       run.audioStatus = "interrupted";
     store(run);
@@ -339,6 +361,14 @@ async function prepare(
 export async function waitForRun(id) {
   await running.get(id);
   return get("rehearsal-run", id);
+}
+export function stopRehearsalRun(projectId, runId) {
+  const run = get("rehearsal-run", runId);
+  if (!run || run.projectId !== projectId) throw fail("任务不存在。", 404);
+  store({ ...run, stopRequested: true });
+  if (run.plan.actor === "voice") controllers.get(run.id)?.abort();
+  if (run.motionId) stopMotion(run.motionId);
+  if (run.presenterId) stopGeneration(run.projectId, run.presenterId);
 }
 export function registerRehearsal(app) {
   const base = "/api/projects/:id/rehearsal";
@@ -393,12 +423,7 @@ export function registerRehearsal(app) {
     res.json(await publicRun(run));
   });
   app.post(base + "/runs/:runId/stop", (req, res) => {
-    const run = get("rehearsal-run", req.params.runId);
-    if (!run || run.projectId !== req.params.id)
-      throw fail("任务不存在。", 404);
-    store({ ...run, stopRequested: true });
-    if (run.motionId) stopMotion(run.motionId);
-    if (run.presenterId) stopGeneration(run.projectId, run.presenterId);
+    stopRehearsalRun(req.params.id, req.params.runId);
     res.json({ stopped: true });
   });
 }

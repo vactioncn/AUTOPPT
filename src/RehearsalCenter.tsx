@@ -5,6 +5,7 @@ import { RehearsalResourceSettings } from "./RehearsalResourceSettings";
 import { RehearsalPlayer } from "./RehearsalPlayer";
 import { PresenterJobs, usePresenterJobs } from "./PresenterJobs";
 import { PresenterPlayer } from "./PresenterPlayer";
+import { HostedRehearsalControls } from "./HostedRehearsalControls";
 import { SPEECH_EMOTIONS } from "../shared/speech.mjs";
 import type { Project } from "./types";
 import type { Capabilities } from "../shared/diagnostics.mjs";
@@ -358,6 +359,75 @@ export function RehearsalCenter({
         : true,
   );
   const words = selected.reduce((n, s) => n + (texts[s.id]?.length || 0), 0);
+  const trialAction = plan && (
+    <Button
+      variant="primary"
+      disabled={
+        busy || active || !ready || !page || (!page.image && !page.scene)
+      }
+      onClick={() =>
+        plan.actor === "self" && plan.visual === "original"
+          ? onSpeech(false)
+          : openConfirm("trial")
+      }
+    >
+      {plan.actor === "self" && plan.visual === "original"
+        ? "试播当前画面"
+        : "先试当前页"}
+    </Button>
+  );
+  const wholeAction = plan && (
+    <Button
+      variant={managed && !trial ? "secondary" : "primary"}
+      disabled={busy || active || !ready || !!request.current}
+      onClick={() =>
+        plan.actor === "self" && plan.visual === "original"
+          ? onSpeech(false)
+          : openConfirm(plan.slideIds.length ? "selected" : "all")
+      }
+    >
+      {plan.slideIds.length
+        ? `生成所选 ${plan.slideIds.length} 页`
+        : "生成整场"}
+    </Button>
+  );
+  const webDock = managed && plan && (
+    <div
+      className="rehearsal-web-dock"
+      role="region"
+      aria-label="试播与整场操作"
+    >
+      <div className="rehearsal-web-dock-row">
+        <div className="rehearsal-web-dock-context">
+          <strong>
+            第 {project.slides.findIndex((s) => s.id === plan.pageId) + 1} 页 ·{" "}
+            {plan.actor === "self"
+              ? "自己讲"
+              : chosenNarration || trialLength === "page"
+                ? "完整一页试播"
+                : "短片段试播"}
+          </strong>
+          <span>
+            {trial ? "试播已完成" : "先试听，再生成整场"} ·{" "}
+            {plan.slideIds.length
+              ? `整场范围 ${plan.slideIds.length} 页`
+              : `整场 ${project.slides.length} 页`}{" "}
+            · 已有素材保留
+          </span>
+        </div>
+        <div className="rehearsal-actions">
+          {trialAction}
+          {wholeAction}
+        </div>
+      </div>
+      {saved && <p role="status">{saved}</p>}
+      {error && (
+        <p role="alert" className="error-text">
+          {error}
+        </p>
+      )}
+    </div>
+  );
   if (!project.slides.length)
     return (
       <section className="journey-panel journey-empty">
@@ -385,7 +455,10 @@ export function RehearsalCenter({
       </section>
     );
   return (
-    <section className="journey-panel rehearsal-center" aria-label="演练中心">
+    <section
+      className={`journey-panel rehearsal-center${managed ? " rehearsal-managed" : ""}`}
+      aria-label="演练中心"
+    >
       <header className="rehearsal-heading">
         <div>
           <h2>把这场演讲试好，再生成整场</h2>
@@ -408,6 +481,7 @@ export function RehearsalCenter({
         </p>
       ) : (
         <>
+          {webDock}
           <div className="rehearsal-workbench">
             <div className="rehearsal-preview">
               <div className="rehearsal-preview-label">
@@ -480,313 +554,310 @@ export function RehearsalCenter({
                 </div>
               </details>
             </div>
-            <div className="rehearsal-controls">
-              <fieldset disabled={busy || !!request.current}>
-                <legend>这场演讲，谁来讲？</legend>
-                <div className="rehearsal-choice">
-                  {(["self", "voice"] as const).map((a) => (
-                    <button
-                      key={a}
-                      type="button"
-                      aria-pressed={plan.actor === a}
-                      onClick={() => choose("actor", a)}
-                    >
-                      {labels[a]}
-                    </button>
-                  ))}
-                </div>
-                {!managed && (
-                  <details
-                    className="rehearsal-lab"
-                    open={plan.actor === "digital"}
-                  >
-                    <summary>实验室 · 数字人讲解</summary>
-                    <p className="detail-help">
-                      实验功能，生成效果和等待时间仍在优化。先试一页，已有视频保留。
-                    </p>
-                    <Button
-                      aria-pressed={plan.actor === "digital"}
-                      onClick={() => choose("actor", "digital")}
-                    >
-                      {labels.digital}
-                    </Button>
-                  </details>
-                )}
-              </fieldset>
-              {!managed && (
+            {managed ? (
+              <HostedRehearsalControls
+                plan={plan}
+                resources={resources}
+                busy={busy || !!request.current}
+                text={texts[plan.pageId] || ""}
+                onText={(text) => {
+                  setTexts((t) => ({ ...t, [plan.pageId]: text }));
+                  setSaved("");
+                }}
+                choose={choose}
+                trialLength={trialLength}
+                onTrialLength={setTrialLength}
+                onSave={() => void save()}
+              />
+            ) : (
+              <div className="rehearsal-controls">
                 <fieldset disabled={busy || !!request.current}>
-                  <legend>画面怎么呈现？</legend>
+                  <legend>这场演讲，谁来讲？</legend>
                   <div className="rehearsal-choice">
-                    {(["original", "motion"] as const).map((v) => (
+                    {(["self", "voice"] as const).map((a) => (
                       <button
-                        key={v}
+                        key={a}
                         type="button"
-                        aria-pressed={plan.visual === v}
-                        onClick={() => choose("visual", v)}
+                        aria-pressed={plan.actor === a}
+                        onClick={() => choose("actor", a)}
                       >
-                        {v === "original" ? "原画面" : "动态演示"}
+                        {labels[a]}
                       </button>
                     ))}
                   </div>
-                </fieldset>
-              )}
-              {plan.visual === "motion" && (
-                <p className="rehearsal-note">
-                  先转换当前一页；生成整场时复用与当前画面一致的动态页。转换期间可先听声音。
-                </p>
-              )}
-              {plan.actor !== "self" && (
-                <>
-                  <Field label="口播来源">
-                    <select
-                      value={plan.narrationId}
-                      disabled={busy}
-                      onChange={(e) => choose("narrationId", e.target.value)}
+                  {!managed && (
+                    <details
+                      className="rehearsal-lab"
+                      open={plan.actor === "digital"}
                     >
-                      <option value="">按当前口播正文生成新版本</option>
-                      {resources.narrations.map((n) => (
-                        <option key={n.id} value={n.id} disabled={!n.available}>
-                          沿用已有口播 · {n.voiceName}
-                          {n.available ? "" : "（页面已变）"}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                  {chosenNarration ? (
-                    <p className="rehearsal-note">
-                      沿用“{chosenNarration.voiceName}
-                      ”的原音频和表达。试播使用本页完整音频。
-                    </p>
-                  ) : (
-                    <>
-                      <div className="rehearsal-field-heading">
-                        <strong>本场声音 · MiniMax</strong>
-                        {!managed && (
-                          <Button
-                            variant="ghost"
-                            onClick={() => setSettings("speech")}
-                          >
-                            管理声音 / 服务
-                          </Button>
-                        )}
-                      </div>
-                      <Field label="选择本场声音">
-                        <select
-                          value={plan.voiceId}
-                          disabled={busy}
-                          onChange={(e) => choose("voiceId", e.target.value)}
+                      <summary>实验室 · 数字人讲解</summary>
+                      <p className="detail-help">
+                        实验功能，生成效果和等待时间仍在优化。先试一页，已有视频保留。
+                      </p>
+                      <Button
+                        aria-pressed={plan.actor === "digital"}
+                        onClick={() => choose("actor", "digital")}
+                      >
+                        {labels.digital}
+                      </Button>
+                    </details>
+                  )}
+                </fieldset>
+                {!managed && (
+                  <fieldset disabled={busy || !!request.current}>
+                    <legend>画面怎么呈现？</legend>
+                    <div className="rehearsal-choice">
+                      {(["original", "motion"] as const).map((v) => (
+                        <button
+                          key={v}
+                          type="button"
+                          aria-pressed={plan.visual === v}
+                          onClick={() => choose("visual", v)}
                         >
-                          <option value="">请选择声音</option>
-                          {resources.context.voices.map((v) => (
-                            <option key={v.id} value={v.id}>
-                              {v.name}
-                              {v.custom ? " · 我的声音" : ""}
-                            </option>
-                          ))}
-                        </select>
-                      </Field>
-                      {!resources.context.speech.hasKey && (
-                        <p>
-                          {managed
-                            ? "管理员尚未连接 MiniMax 语音服务，请联系管理员。已保存的音频仍可播放。"
-                            : "先在设置连接 MiniMax。完成后返回这里，选择与正文都会保留。"}
-                        </p>
-                      )}
-                      <div className="rehearsal-inline-fields">
-                        <Field label="表达">
-                          <select
-                            value={plan.emotion}
-                            onChange={(e) => choose("emotion", e.target.value)}
+                          {v === "original" ? "原画面" : "动态演示"}
+                        </button>
+                      ))}
+                    </div>
+                  </fieldset>
+                )}
+                {plan.visual === "motion" && (
+                  <p className="rehearsal-note">
+                    先转换当前一页；生成整场时复用与当前画面一致的动态页。转换期间可先听声音。
+                  </p>
+                )}
+                {plan.actor !== "self" && (
+                  <>
+                    <Field label="口播来源">
+                      <select
+                        value={plan.narrationId}
+                        disabled={busy}
+                        onChange={(e) => choose("narrationId", e.target.value)}
+                      >
+                        <option value="">按当前口播正文生成新版本</option>
+                        {resources.narrations.map((n) => (
+                          <option
+                            key={n.id}
+                            value={n.id}
+                            disabled={!n.available}
                           >
-                            {SPEECH_EMOTIONS.map((e) => (
-                              <option value={e.id} key={e.id}>
-                                {e.name}
+                            沿用已有口播 · {n.voiceName}
+                            {n.available ? "" : "（页面已变）"}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                    {chosenNarration ? (
+                      <p className="rehearsal-note">
+                        沿用“{chosenNarration.voiceName}
+                        ”的原音频和表达。试播使用本页完整音频。
+                      </p>
+                    ) : (
+                      <>
+                        <div className="rehearsal-field-heading">
+                          <strong>本场声音 · MiniMax</strong>
+                          {!managed && (
+                            <Button
+                              variant="ghost"
+                              onClick={() => setSettings("speech")}
+                            >
+                              管理声音 / 服务
+                            </Button>
+                          )}
+                        </div>
+                        <Field label="选择本场声音">
+                          <select
+                            value={plan.voiceId}
+                            disabled={busy}
+                            onChange={(e) => choose("voiceId", e.target.value)}
+                          >
+                            <option value="">请选择声音</option>
+                            {resources.context.voices.map((v) => (
+                              <option key={v.id} value={v.id}>
+                                {v.name}
+                                {v.custom ? " · 我的声音" : ""}
                               </option>
                             ))}
                           </select>
                         </Field>
-                        <Field label="语速">
-                          <select
-                            value={plan.speed}
+                        {!resources.context.speech.hasKey && (
+                          <p>
+                            {managed
+                              ? "管理员尚未连接 MiniMax 语音服务，请联系管理员。已保存的音频仍可播放。"
+                              : "先在设置连接 MiniMax。完成后返回这里，选择与正文都会保留。"}
+                          </p>
+                        )}
+                        <div className="rehearsal-inline-fields">
+                          <Field label="表达">
+                            <select
+                              value={plan.emotion}
+                              onChange={(e) =>
+                                choose("emotion", e.target.value)
+                              }
+                            >
+                              {SPEECH_EMOTIONS.map((e) => (
+                                <option value={e.id} key={e.id}>
+                                  {e.name}
+                                </option>
+                              ))}
+                            </select>
+                          </Field>
+                          <Field label="语速">
+                            <select
+                              value={plan.speed}
+                              onChange={(e) =>
+                                choose("speed", Number(e.target.value))
+                              }
+                            >
+                              {[0.75, 1, 1.1, 1.25, 1.5].map((s) => (
+                                <option key={s} value={s}>
+                                  {s} 倍
+                                </option>
+                              ))}
+                            </select>
+                          </Field>
+                        </div>
+                        <Field
+                          label="当前页口播正文"
+                          hint="只保存口播版本，保留原逐字稿。"
+                        >
+                          <textarea
+                            rows={5}
+                            value={texts[plan.pageId] || ""}
                             onChange={(e) =>
-                              choose("speed", Number(e.target.value))
+                              setTexts((t) => ({
+                                ...t,
+                                [plan.pageId]: e.target.value,
+                              }))
+                            }
+                          />
+                        </Field>
+                      </>
+                    )}
+                  </>
+                )}
+                {plan.actor === "digital" && (
+                  <>
+                    <div className="rehearsal-field-heading">
+                      <strong>
+                        本场数字人{" "}
+                        <span className="experimental-label">实验</span>
+                      </strong>
+                      <Button
+                        variant="ghost"
+                        onClick={() => setSettings("avatar")}
+                      >
+                        管理 / 创建头像
+                      </Button>
+                    </div>
+                    <div className="rehearsal-avatars">
+                      {resources.studio.avatars.map((a) => (
+                        <button
+                          key={a.id}
+                          aria-pressed={a.id === plan.avatarId}
+                          onClick={() => choose("avatarId", a.id)}
+                        >
+                          <img src={asset(a.previewAsset)} alt="" />
+                          <span>{a.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                    {!avatar && (
+                      <p>
+                        先在实验室的数字人工作室保存头像，可上传本人照片或生成职业照、卡通等风格。头像可以先准备，无需先有口播。
+                      </p>
+                    )}
+                    {!resources.studio.hasKey && (
+                      <p>
+                        数字人服务待配置。声音继续沿用
+                        MiniMax，嘴型服务只接收选定音频。
+                      </p>
+                    )}
+                    <details>
+                      <summary>本场位置与大小</summary>
+                      <div className="rehearsal-inline-fields">
+                        <Field label="位置">
+                          <select
+                            value={plan.placement}
+                            onChange={(e) =>
+                              choose("placement", e.target.value)
                             }
                           >
-                            {[0.75, 1, 1.1, 1.25, 1.5].map((s) => (
-                              <option key={s} value={s}>
-                                {s} 倍
+                            {Object.entries({
+                              "top-left": "左上角",
+                              "top-right": "右上角",
+                              "bottom-left": "左下角",
+                              "bottom-right": "右下角",
+                            }).map(([v, l]) => (
+                              <option key={v} value={v}>
+                                {l}
+                              </option>
+                            ))}
+                          </select>
+                        </Field>
+                        <Field label="大小">
+                          <select
+                            value={plan.size}
+                            onChange={(e) => choose("size", e.target.value)}
+                          >
+                            {Object.entries({
+                              small: "小",
+                              medium: "中",
+                              large: "大",
+                            }).map(([v, l]) => (
+                              <option key={v} value={v}>
+                                {l}
                               </option>
                             ))}
                           </select>
                         </Field>
                       </div>
-                      <Field
-                        label="当前页口播正文"
-                        hint="只保存口播版本，保留原逐字稿。"
-                      >
-                        <textarea
-                          rows={5}
-                          value={texts[plan.pageId] || ""}
-                          onChange={(e) =>
-                            setTexts((t) => ({
-                              ...t,
-                              [plan.pageId]: e.target.value,
-                            }))
-                          }
-                        />
-                      </Field>
-                    </>
-                  )}
-                </>
-              )}
-              {plan.actor === "digital" && (
-                <>
-                  <div className="rehearsal-field-heading">
-                    <strong>
-                      本场数字人{" "}
-                      <span className="experimental-label">实验</span>
-                    </strong>
-                    <Button
-                      variant="ghost"
-                      onClick={() => setSettings("avatar")}
+                    </details>
+                  </>
+                )}
+                {plan.actor !== "self" && !chosenNarration && (
+                  <Field label="试播长度">
+                    <select
+                      value={trialLength}
+                      onChange={(e) =>
+                        setTrialLength(e.target.value as "short" | "page")
+                      }
                     >
-                      管理 / 创建头像
-                    </Button>
-                  </div>
-                  <div className="rehearsal-avatars">
-                    {resources.studio.avatars.map((a) => (
-                      <button
-                        key={a.id}
-                        aria-pressed={a.id === plan.avatarId}
-                        onClick={() => choose("avatarId", a.id)}
-                      >
-                        <img src={asset(a.previewAsset)} alt="" />
-                        <span>{a.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                  {!avatar && (
-                    <p>
-                      先在实验室的数字人工作室保存头像，可上传本人照片或生成职业照、卡通等风格。头像可以先准备，无需先有口播。
-                    </p>
-                  )}
-                  {!resources.studio.hasKey && (
-                    <p>
-                      数字人服务待配置。声音继续沿用
-                      MiniMax，嘴型服务只接收选定音频。
-                    </p>
-                  )}
-                  <details>
-                    <summary>本场位置与大小</summary>
-                    <div className="rehearsal-inline-fields">
-                      <Field label="位置">
-                        <select
-                          value={plan.placement}
-                          onChange={(e) => choose("placement", e.target.value)}
-                        >
-                          {Object.entries({
-                            "top-left": "左上角",
-                            "top-right": "右上角",
-                            "bottom-left": "左下角",
-                            "bottom-right": "右下角",
-                          }).map(([v, l]) => (
-                            <option key={v} value={v}>
-                              {l}
-                            </option>
-                          ))}
-                        </select>
-                      </Field>
-                      <Field label="大小">
-                        <select
-                          value={plan.size}
-                          onChange={(e) => choose("size", e.target.value)}
-                        >
-                          {Object.entries({
-                            small: "小",
-                            medium: "中",
-                            large: "大",
-                          }).map(([v, l]) => (
-                            <option key={v} value={v}>
-                              {l}
-                            </option>
-                          ))}
-                        </select>
-                      </Field>
-                    </div>
-                  </details>
-                </>
-              )}
-              {plan.actor !== "self" && !chosenNarration && (
-                <Field label="试播长度">
-                  <select
-                    value={trialLength}
-                    onChange={(e) =>
-                      setTrialLength(e.target.value as "short" | "page")
-                    }
-                  >
-                    <option value="short">开头短片段 · 最多 100 字</option>
-                    <option value="page">当前完整一页 · 整场可复用</option>
-                  </select>
-                </Field>
-              )}
-              <div className="rehearsal-actions">
-                <Button
-                  variant="primary"
-                  disabled={
-                    busy ||
-                    active ||
-                    !ready ||
-                    !page ||
-                    (!page.image && !page.scene)
-                  }
-                  onClick={() =>
-                    plan.actor === "self" && plan.visual === "original"
-                      ? onSpeech(false)
-                      : openConfirm("trial")
-                  }
-                >
-                  {plan.actor === "self" && plan.visual === "original"
-                    ? "试播当前画面"
-                    : "先试当前页"}
-                </Button>
-                <Button disabled={busy} onClick={() => void save()}>
-                  保存本场选择
-                </Button>
+                      <option value="short">开头短片段 · 最多 100 字</option>
+                      <option value="page">当前完整一页 · 整场可复用</option>
+                    </select>
+                  </Field>
+                )}
+                <div className="rehearsal-actions">
+                  {trialAction}
+                  <Button disabled={busy} onClick={() => void save()}>
+                    保存本场选择
+                  </Button>
+                </div>
+                <p className="rehearsal-caption">
+                  {managed
+                    ? "试播与生成使用 MiniMax 语音预算，不扣图片张数。播放和复用已有音频不重新合成。"
+                    : "服务已配置不代表额度充足。试播与生成会使用相应服务额度，金额以账号账单为准。"}
+                </p>
+                {saved && <p role="status">{saved}</p>}
               </div>
-              <p className="rehearsal-caption">
-                {managed
-                  ? "试播与生成使用 MiniMax 语音预算，不扣图片张数。播放和复用已有音频不重新合成。"
-                  : "服务已配置不代表额度充足。试播与生成会使用相应服务额度，金额以账号账单为准。"}
-              </p>
-              {saved && <p role="status">{saved}</p>}
-            </div>
+            )}
           </div>
-          <section className="rehearsal-whole">
-            <div>
-              <h3>试满意后，生成整场</h3>
-              <p>
-                {trial
-                  ? "已有完成试播，可继续整场。"
-                  : managed
-                    ? "建议先试当前页，核对声音和节奏。"
-                    : "建议先试当前页，核对自己的声音、形象和节奏。"}
-                修改正文或声音会生成新版本，旧素材继续保留。
-              </p>
-            </div>
-            <Button
-              variant="primary"
-              disabled={busy || active || !ready || !!request.current}
-              onClick={() =>
-                plan.actor === "self" && plan.visual === "original"
-                  ? onSpeech(false)
-                  : openConfirm(plan.slideIds.length ? "selected" : "all")
-              }
-            >
-              {plan.slideIds.length
-                ? `生成所选 ${plan.slideIds.length} 页`
-                : "生成整场"}
-            </Button>
-          </section>
+          {!managed && (
+            <section className="rehearsal-whole">
+              <div>
+                <h3>试满意后，生成整场</h3>
+                <p>
+                  {trial
+                    ? "已有完成试播，可继续整场。"
+                    : managed
+                      ? "建议先试当前页，核对声音和节奏。"
+                      : "建议先试当前页，核对自己的声音、形象和节奏。"}
+                  修改正文或声音会生成新版本，旧素材继续保留。
+                </p>
+              </div>
+              {wholeAction}
+            </section>
+          )}
           <section
             className="rehearsal-results"
             aria-label="本场生成与试播记录"
@@ -950,7 +1021,7 @@ export function RehearsalCenter({
           </details>
         </>
       )}
-      {error && (
+      {error && (!managed || !plan || !resources) && (
         <p role="alert" className="error-text">
           {error}
         </p>

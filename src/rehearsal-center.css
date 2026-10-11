@@ -330,3 +330,272 @@
     scroll-behavior: auto;
   }
 }
+
+/* Hosted voice rehearsal keeps the common path compact; desktop/App is unchanged. */
+.workspace-web-rehearsal.page {
+  padding-top: 20px;
+}
+.workspace-web-rehearsal .workspace-heading {
+  margin-bottom: 12px;
+}
+.workspace-web-rehearsal .workspace-heading h1 {
+  font-size: 22px;
+}
+.workspace-web-rehearsal .project-area-nav {
+  margin-bottom: 16px;
+}
+.workspace-web-rehearsal .project-area-nav button {
+  padding-block: 8px;
+}
+.journey-panel.rehearsal-managed {
+  --rehearsal-space-tight: 8px;
+  --rehearsal-space-group: 12px;
+  gap: var(--rehearsal-space-group);
+}
+.rehearsal-managed .rehearsal-heading h2 {
+  font-size: 20px;
+}
+.rehearsal-managed .rehearsal-heading p {
+  margin: 4px 0 0;
+  line-height: 1.6;
+}
+.rehearsal-managed .rehearsal-steps {
+  margin: 0 0 4px;
+  gap: 16px;
+}
+.rehearsal-managed .rehearsal-steps li {
+  flex: 0 1 auto;
+  border: 0;
+  padding: 4px 0;
+  background: transparent;
+  border-radius: 0;
+  font-size: 12px;
+}
+.rehearsal-managed .rehearsal-steps li[data-current="true"] {
+  color: var(--navigation-ink, #334731);
+  font-weight: 600;
+}
+.rehearsal-managed .rehearsal-workbench {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 24px;
+}
+.rehearsal-managed .rehearsal-preview {
+  position: static;
+}
+.rehearsal-managed .rehearsal-preview-label {
+  margin-bottom: var(--rehearsal-space-tight);
+  font-size: 13px;
+}
+.rehearsal-managed .rehearsal-preview-label strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rehearsal-managed .rehearsal-caption {
+  margin: var(--rehearsal-space-tight) 0;
+  line-height: 1.6;
+}
+.rehearsal-managed .rehearsal-pages {
+  padding-block: 4px 8px;
+  gap: var(--rehearsal-space-tight);
+}
+.rehearsal-managed .rehearsal-pages > button {
+  width: 96px;
+}
+.rehearsal-managed .rehearsal-range {
+  padding-block: var(--rehearsal-space-group);
+}
+.rehearsal-managed .rehearsal-range > div {
+  max-height: 240px;
+  overflow-y: auto;
+  padding-block: var(--rehearsal-space-tight);
+}
+.rehearsal-web-controls {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  gap: var(--rehearsal-space-group);
+  min-width: 0;
+}
+.rehearsal-web-controls .field {
+  margin: 0;
+  gap: 6px;
+  scroll-margin-top: 104px;
+}
+.rehearsal-web-controls select {
+  padding: 8px 10px;
+  min-height: 40px;
+}
+.rehearsal-web-controls textarea {
+  height: clamp(112px, 18dvh, 176px);
+  min-height: 96px;
+  max-height: 280px;
+  resize: vertical;
+  caret-color: var(--accent);
+  scroll-margin-bottom: 160px;
+}
+.rehearsal-web-mode {
+  display: flex;
+  align-items: center;
+  gap: var(--rehearsal-space-group);
+}
+.rehearsal-web-mode > strong {
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.rehearsal-web-mode .rehearsal-choice {
+  flex: 1;
+}
+.rehearsal-web-mode .rehearsal-choice button {
+  padding: 8px;
+  min-height: 40px;
+}
+.rehearsal-web-voice {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px;
+  gap: var(--rehearsal-space-group);
+}
+.rehearsal-web-options {
+  border-top: 1px solid var(--line);
+}
+.rehearsal-web-options summary {
+  font-size: 12px;
+  padding-block: var(--rehearsal-space-group);
+  min-height: 40px;
+}
+.rehearsal-web-options-body {
+  display: grid;
+  gap: var(--rehearsal-space-group);
+  padding-block: 4px var(--rehearsal-space-group);
+}
+.rehearsal-web-options-body > .btn {
+  justify-self: start;
+}
+.rehearsal-web-options-body p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.rehearsal-web-dock {
+  position: sticky;
+  top: 12px;
+  z-index: 5;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper, #fff);
+  padding: 12px 16px;
+}
+.rehearsal-web-dock-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.rehearsal-web-dock-context {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.rehearsal-web-dock-context strong {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rehearsal-web-dock-context span {
+  font-size: 12px;
+  color: var(--muted);
+}
+.rehearsal-web-dock .rehearsal-actions {
+  flex-wrap: nowrap;
+  flex-shrink: 0;
+}
+.rehearsal-web-dock .btn {
+  min-height: 44px;
+}
+.rehearsal-web-dock p {
+  margin: 8px 0 0;
+  line-height: 1.6;
+}
+.rehearsal-managed .rehearsal-results {
+  margin-top: 8px;
+}
+.rehearsal-managed .rehearsal-results h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+.rehearsal-managed .rehearsal-results > p {
+  margin: 0;
+}
+.rehearsal-managed .rehearsal-history {
+  padding-block: var(--rehearsal-space-group);
+}
+.rehearsal-managed button:focus-visible,
+.rehearsal-managed summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+@media (max-width: 979px) {
+  .rehearsal-managed .rehearsal-workbench {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .rehearsal-web-controls {
+    order: -1;
+  }
+  .rehearsal-managed .rehearsal-stage {
+    max-height: 200px;
+  }
+  .rehearsal-managed .rehearsal-stage > .slide-image {
+    object-fit: contain;
+  }
+  .rehearsal-web-dock-context span {
+    display: none;
+  }
+}
+@media (max-width: 600px) {
+  .rehearsal-managed .rehearsal-heading h2 {
+    font-size: 18px;
+  }
+  .rehearsal-managed .rehearsal-steps {
+    gap: var(--rehearsal-space-group);
+    flex-wrap: wrap;
+  }
+  .rehearsal-managed .rehearsal-stage {
+    max-height: 144px;
+  }
+  .rehearsal-managed .rehearsal-preview-label .status {
+    display: none;
+  }
+  .rehearsal-web-dock {
+    top: 8px;
+    padding: 12px;
+  }
+  .rehearsal-web-dock-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    justify-content: normal;
+    gap: var(--rehearsal-space-tight);
+  }
+  .rehearsal-web-dock .rehearsal-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .rehearsal-web-dock .btn {
+    padding-inline: 8px;
+    font-size: 12px;
+    white-space: normal;
+  }
+  .rehearsal-web-controls select,
+  .rehearsal-web-mode .rehearsal-choice button {
+    min-height: 44px;
+  }
+  .rehearsal-web-controls textarea {
+    scroll-margin-bottom: 240px;
+  }
+  .rehearsal-web-controls .field {
+    scroll-margin-top: 144px;
+  }
+}

@@ -370,3 +370,7 @@ The standalone `/intro/` page uses a separate marketing presentation: white and 
 Approved built-in covers lead the page and a six-choice gallery. All application screenshots are captured from an isolated demo workspace. Cover switching has named buttons, pressed state, left/right and Home/End keyboard support; every workflow remains visible without selecting a tab. Native image dialogs support Escape and return focus. Small screens use a disclosure navigation; reveal motion respects reduced-motion preferences and all content stays visible without JavaScript.
 
 The primary action leads to installation instructions, with an explicitly labeled source ZIP download. Mac builds remain internal; no public installer or hosted generation service is implied. Export is described as full-page image PPTX with speaker notes plus a separate Markdown manuscript.
+
+## Hosted rehearsal controls — 2026-10-11
+
+The hosted rehearsal view keeps voice, speed and current-page manuscript in one compact form. Current-page trial and whole-project generation share a sticky top operation bar, with visible page and scope. Expression, trial length, existing narration and manual saving remain in a native disclosure. Long manuscript text scrolls within its field; on small screens the form precedes the preview. These values are scoped to hosted rehearsal, retain the warm studio palette and shared primitives, and do not change native App controls or existing settings. The Operate brief and validation boundaries are recorded in `.impeccable/rehearsal-web-layout.md`.

@@ -853,7 +853,9 @@ export function Workspace({
     </>
   );
   return (
-    <div className="page workspace">
+    <div
+      className={`page workspace${hosted && area === "rehearsal" ? " workspace-web-rehearsal" : ""}`}
+    >
       <div className="workspace-heading">
         <div>
           <div className="project-title-row">

@@ -3,6 +3,7 @@ import { speechSettings, providerIdentity } from "./speech/settings.mjs";
 import { voices, optionsFor } from "./speech/index.mjs";
 import { speechScript } from "./speech/scripts.mjs";
 import { presenterSpeech } from "./presenter/speech.mjs";
+import { matchNarrationPage } from "./speech/export.mjs";
 
 const fail = (message) => Object.assign(new Error(message), { status: 400 });
 // Project choices contain references and delivery preferences, never connection settings.
@@ -25,7 +26,7 @@ export function rehearsalPlan(projectId) {
     presenterSpeech(avatar || {}).voice?.id ||
     latest?.options?.voiceId ||
     "";
-  return {
+  const plan = {
     id: projectId,
     actor: old?.avatarId ? "digital" : "self",
     visual: "original",
@@ -40,6 +41,15 @@ export function rehearsalPlan(projectId) {
     slideIds: [],
     ...saved,
   };
+  // Imported desktop choices stay stored, but unsupported modes cannot become web defaults.
+  return process.env.AUTOPPT_WORKER_TOKEN
+    ? {
+        ...plan,
+        actor: plan.actor === "digital" ? "voice" : plan.actor,
+        visual: "original",
+        avatarId: "",
+      }
+    : plan;
 }
 export function saveRehearsalPlan(projectId, input) {
   const project = projectOrThrow(projectId);
@@ -63,6 +73,13 @@ export function saveRehearsalPlan(projectId, input) {
   )
     throw fail("本场演讲只保存选择，不接受服务密钥或地址。");
   const plan = { ...rehearsalPlan(projectId), ...input };
+  if (
+    process.env.AUTOPPT_WORKER_TOKEN &&
+    (plan.actor === "digital" || plan.visual !== "original" || plan.avatarId)
+  )
+    throw Object.assign(new Error("网页版暂不开放数字人和动态演示制作。"), {
+      status: 403,
+    });
   if (
     !["self", "voice", "digital"].includes(plan.actor) ||
     !["original", "motion"].includes(plan.visual) ||
@@ -116,5 +133,18 @@ export function rehearsalContext(projectId) {
     voices: voices(config),
     speech: { hasKey: !!config.apiKey, model: config.model },
     provider: providerIdentity(config),
+    narrations: all("narration")
+      .filter((n) => n.projectId === projectId && n.status === "ready")
+      .map((n) => {
+        let available = true;
+        try {
+          projectOrThrow(projectId).slides.forEach((s) =>
+            matchNarrationPage(n, s),
+          );
+        } catch {
+          available = false;
+        }
+        return { id: n.id, voiceName: n.voiceName, available };
+      }),
   };
 }

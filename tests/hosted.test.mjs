@@ -369,7 +369,10 @@ test(
       assert.equal(boot.buildInfo.runtimeMode, "hosted");
       assert.equal(boot.dataRootLabel, "hosted 账号工作区");
       assert.equal(boot.capabilities.localModelSettings.enabled, false);
-      assert.match(boot.capabilities.aiNarration.reason, /暂不提供 AI 口播/);
+      assert.match(
+        boot.capabilities.aiNarration.reason,
+        /管理员尚未连接 MiniMax/,
+      );
       assert(!JSON.stringify(boot).includes(dir));
       const style = boot.styles.find((s) => s.name === "克制儿童摄影杂志风");
       assert(style);
@@ -716,9 +719,13 @@ test(
           });
           await page.getByLabel("账号", { exact: true }).fill("admin");
           await page.getByLabel("密码", { exact: true }).fill(pass);
-          await page.getByRole("button", { name: "登录工作区", exact: true }).click();
+          await page
+            .getByRole("button", { name: "登录工作区", exact: true })
+            .click();
           await page.locator(".account-footer").waitFor();
-          await page.getByRole("button", { name: "网站管理", exact: true }).click();
+          await page
+            .getByRole("button", { name: "网站管理", exact: true })
+            .click();
           await page.getByRole("heading", { name: "内部使用管理" }).waitFor();
           await page.getByRole("button", { name: "创建一次性邀请码" }).click();
           const invitation = await page.getByLabel("新邀请码").inputValue();
@@ -738,7 +745,9 @@ test(
           await page.getByLabel("密码", { exact: true }).fill(pass);
           await page.getByLabel("确认密码", { exact: true }).fill(pass);
           await page.getByLabel("邀请码", { exact: true }).fill(invitation);
-          await page.getByRole("button", { name: "创建账号，开始制作" }).click();
+          await page
+            .getByRole("button", { name: "创建账号，开始制作" })
+            .click();
           await page.locator(".account-footer").waitFor();
           assert.match(
             await page.locator(".account-footer").innerText(),
@@ -781,7 +790,7 @@ test(
             fullPage: true,
           });
           // Use the existing isolated account/project; plain playback must never
-          // fetch speech, presenter or motion APIs, or dispatch any model calls.
+          // dispatch speech, presenter, motion or model calls. Read-only speech state is available.
           await page.context().clearCookies();
           await page.context().addCookies([
             {
@@ -802,9 +811,11 @@ test(
           const forbidden = [];
           page.on("request", (r) => {
             if (
-              /\/api\/(?:speech|presenter|motion|settings\/speech)|\/api\/projects\/[^/]+\/(?:narration|motion)/i.test(
-                r.url(),
-              )
+              (r.method() !== "GET" &&
+                /\/api\/(?:speech|presenter|motion|settings\/speech)|\/api\/projects\/[^/]+\/(?:narration|motion)/i.test(
+                  r.url(),
+                )) ||
+              /\/api\/(?:presenter|motion)/i.test(r.url())
             )
               forbidden.push(r.url());
           });
@@ -822,7 +833,7 @@ test(
           const modelBefore = textCount + imageCount;
           await page.goto(`${origin}/#project/${p.id}/rehearsal`);
           await page
-            .getByRole("heading", { name: "看一遍画面，准备放映" })
+            .getByRole("heading", { name: "把这场演讲试好，再生成整场" })
             .waitFor();
           await page
             .getByRole("button", { name: "普通放映", exact: true })

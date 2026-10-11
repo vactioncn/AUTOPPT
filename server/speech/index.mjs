@@ -73,17 +73,31 @@ function assertIdle() {
     });
 }
 export function voices(config) {
+  const managedId =
+    process.env.AUTOPPT_WORKER_TOKEN && process.env.AUTOPPT_SPEECH_VOICE_ID;
+  const custom = all("speaker")
+    .filter((v) => v.provider === providerIdentity(config))
+    .map(({ id, name, createdAt }) => ({
+      id,
+      name,
+      createdAt,
+      custom: true,
+      description: "演讲者的声音",
+    }));
   return [
     ...SPEECH_VOICES,
-    ...all("speaker")
-      .filter((v) => v.provider === providerIdentity(config))
-      .map(({ id, name, createdAt }) => ({
-        id,
-        name,
-        createdAt,
-        custom: true,
-        description: "演讲者的声音",
-      })),
+    ...custom,
+    ...(managedId &&
+    ![...SPEECH_VOICES, ...custom].some((v) => v.id === managedId)
+      ? [
+          {
+            id: managedId,
+            name: process.env.AUTOPPT_SPEECH_VOICE_NAME || "默认演讲声音",
+            custom: true,
+            description: "管理员已配置的声音",
+          },
+        ]
+      : []),
   ];
 }
 export function optionsFor(input, config) {
@@ -240,14 +254,7 @@ export function registerSpeech(app) {
         )
       : next();
   app.use(
-    [
-      "/api/speech",
-      "/api/settings/speech",
-      "/api/narration",
-      "/api/projects/:id/narration",
-      "/api/projects/:id/speech-script",
-      "/api/projects/:id/speech-performance",
-    ],
+    ["/api/speech/voices/clone", "/api/projects/:id/speech-performance"],
     localOnly,
   );
   registerPerformance(app, assertIdle);

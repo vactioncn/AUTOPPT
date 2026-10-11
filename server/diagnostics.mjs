@@ -12,7 +12,8 @@ export function diagnostics(
   { mode = runtimeMode(), speechReady = false } = {},
 ) {
   const hosted = mode === "hosted";
-  const speechReason = "邀请制网页版第一版提供普通放映，暂不提供 AI 口播生成。";
+  const speechReason =
+    "管理员尚未连接 MiniMax 语音服务；已生成音频仍可播放，普通放映可继续使用。";
   const capability = (enabled, reason) =>
     enabled ? { enabled: true } : { enabled: false, reason };
   return {
@@ -23,7 +24,7 @@ export function diagnostics(
       bundleExport: capability(true),
       standardPresentation: capability(true),
       aiNarration: capability(
-        !hosted && speechReady,
+        speechReady,
         hosted
           ? speechReason
           : "尚未配置语音服务，AI 口播生成不可用；仍可打开播放器手动翻页。",
@@ -49,7 +50,7 @@ export function diagnostics(
       designOptions: true,
       insertAndManuscriptExport: true,
       motionPresentation: !hosted,
-      speechPresentation: !hosted,
+      speechPresentation: true,
       projectPackages: true,
       spokenHtml: true,
     },

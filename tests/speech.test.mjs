@@ -611,7 +611,7 @@ test(
             animations: "disabled",
           });
         }
-        await page.getByRole("tab", {name:"放映",exact:true}).click();
+        await page.getByRole("tab", { name: "放映", exact: true }).click();
         await page
           .getByRole("button", { name: "仅放映 PPT", exact: true })
           .click();
@@ -628,9 +628,13 @@ test(
         await page
           .getByRole("button", { name: "返回演播台", exact: true })
           .click();
-        await page.getByRole("button", {name:"关闭演讲播放器",exact:true}).click();
-        await page.getByRole("button", {name:"设置",exact:true}).click();
-        await page.getByRole("tab", { name: "语音与声音", exact: true }).click();
+        await page
+          .getByRole("button", { name: "关闭演讲播放器", exact: true })
+          .click();
+        await page.getByRole("button", { name: "设置", exact: true }).click();
+        await page
+          .getByRole("tab", { name: "语音与声音", exact: true })
+          .click();
         await page.getByText("采集演讲者的声音", { exact: true }).click();
         await page.getByLabel("上传演讲者录音").setInputFiles({
           name: "test.wav",
@@ -670,7 +674,7 @@ test(
             ),
           ),
         );
-        await page.getByRole("button", {name:"项目",exact:true}).click();
+        await page.getByRole("button", { name: "项目", exact: true }).click();
         assert.equal(await page.locator(".voice-capture").count(), 0);
         assert(
           await page.evaluate(() =>
@@ -692,12 +696,23 @@ test(
     const hosted = await fetch(base + "/api/speech/voices", {
       headers: { "X-AutoPPT-Worker": "hosted-test" },
     });
-    assert.equal(hosted.status, 403);
+    assert.equal(hosted.status, 200);
+    const connection = await (
+      await fetch(base + "/api/settings/speech", {
+        headers: { "X-AutoPPT-Worker": "hosted-test" },
+      })
+    ).json();
+    assert.equal(
+      connection.hasKey,
+      false,
+      "hosted ignores the saved local supplier key",
+    );
+    assert.equal(connection.managed, true);
     const bootstrap = await (
       await fetch(base + "/api/bootstrap", {
         headers: { "X-AutoPPT-Worker": "hosted-test" },
       })
     ).json();
-    assert.equal(bootstrap.features.speechPresentation, false);
+    assert.equal(bootstrap.features.speechPresentation, true);
   },
 );

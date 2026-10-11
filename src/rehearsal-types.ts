@@ -25,6 +25,7 @@ export type RehearsalContext = {
   };
   voices: Voice[];
   speech: { hasKey: boolean; model: string };
+  narrations?: { id: string; voiceName: string; available: boolean }[];
 };
 export type RehearsalRun = {
   id: string;

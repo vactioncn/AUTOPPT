@@ -1,0 +1,15 @@
+# Enable MiniMax with: -f deploy/compose.yaml -f deploy/compose.speech.yaml
+services:
+  app:
+    environment:
+      AUTOPPT_SPEECH_API_KEY_FILE: /run/secrets/speech_key
+      AUTOPPT_SPEECH_BASE_URL: ${AUTOPPT_SPEECH_BASE_URL:-https://api.minimax.cn/v1}
+      AUTOPPT_SPEECH_MODEL: ${AUTOPPT_SPEECH_MODEL:-speech-2.8-hd}
+      AUTOPPT_SPEECH_VOICE_ID: ${AUTOPPT_SPEECH_VOICE_ID:-}
+      AUTOPPT_SPEECH_VOICE_NAME: ${AUTOPPT_SPEECH_VOICE_NAME:-默认演讲声音}
+      AUTOPPT_DAILY_SPEECH_CHARS: ${AUTOPPT_DAILY_SPEECH_CHARS:-500000}
+      AUTOPPT_USER_DAILY_SPEECH_CHARS: ${AUTOPPT_USER_DAILY_SPEECH_CHARS:-50000}
+    secrets: [speech_key]
+secrets:
+  speech_key:
+    file: ./secrets/speech_key

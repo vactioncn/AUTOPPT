@@ -96,6 +96,11 @@ async function providerRequest(
     throw new Error("语音服务返回了无效响应");
   }
   capture(data, response.status);
+  if (config.managed && !response.ok) {
+    const message =
+      typeof data.error === "string" ? data.error : data.error?.message;
+    if (typeof message === "string") throw new Error(message);
+  }
   if (!response.ok) {
     // Known account/parameter errors take precedence over retryable HTTP statuses.
     const code = Number(data.base_resp?.status_code);

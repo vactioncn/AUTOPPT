@@ -49,11 +49,13 @@ export function SpeechPresentation({
   onClose,
   onSettings,
   initialPanel = "play",
+  managed = false,
 }: {
   projectId: string;
   onClose: () => void;
   onSettings: () => void;
   initialPanel?: "play" | "text";
+  managed?: boolean;
 }) {
   const [project, setProject] = useState<Project | null>(null),
     [voices, setVoices] = useState<Voice[]>([]);
@@ -219,9 +221,11 @@ export function SpeechPresentation({
         performance: Performance | null;
         performanceTask: { status: string } | null;
       }>(`/projects/${projectId}/speech-script`),
-      api<{ setup: { narrationId: string } }>(
-        `/projects/${projectId}/presenter/setup`,
-      ).catch(() => null),
+      managed
+        ? Promise.resolve(null)
+        : api<{ setup: { narrationId: string } }>(
+            `/projects/${projectId}/presenter/setup`,
+          ).catch(() => null),
       api<{ plan: { voiceId: string; emotion: string; speed: number } }>(
         `/projects/${projectId}/rehearsal`,
       ).catch(() => null),
@@ -230,9 +234,11 @@ export function SpeechPresentation({
         if (cancelled) return;
         setProject(p);
         setPerformance(script.performance);
-        setUsePerformance(!!script.performance);
+        setUsePerformance(!managed && !!script.performance);
         setPerformanceBusy(
-          !!script.performanceTask && active(script.performanceTask.status),
+          !managed &&
+            !!script.performanceTask &&
+            active(script.performanceTask.status),
         );
         setVoices(v);
         setConfig(c);
@@ -478,7 +484,7 @@ export function SpeechPresentation({
       setTextFeedback({
         text: "口播文本已保存，原稿保持不变。已有音频不会随文本修改；请生成新的口播版本以应用修改。",
       });
-      if (advance) setPanel("expression");
+      if (advance) setPanel(managed ? "voice" : "expression");
     } catch (e) {
       setTextFeedback({ error: true, text: (e as Error).message });
     } finally {
@@ -626,7 +632,7 @@ export function SpeechPresentation({
                 {project ? "先生成 PPT 页面，再开始演讲。" : "正在载入演讲…"}
               </div>
             )}
-            {deck && page && (
+            {!managed && deck && page && (
               <PresenterOverlay
                 projectId={projectId}
                 narrationId={deck.id}
@@ -814,8 +820,10 @@ export function SpeechPresentation({
                 [
                   ["play", "放映"],
                   ["text", "1 · 口播文本"],
-                  ["expression", "2 · 演讲表达"],
-                  ["voice", "3 · 声音制作"],
+                  ...(!managed
+                    ? [["expression", "2 · 演讲表达"] as const]
+                    : []),
+                  ["voice", managed ? "2 · 声音制作" : "3 · 声音制作"],
                 ] as const
               ).map(([id, label]) => (
                 <button
@@ -834,7 +842,9 @@ export function SpeechPresentation({
                 <p>
                   {playable
                     ? "点击画面下方“开始口播”，讲完自动翻页。倍速在播放中随时可调，无需重新生成。"
-                    : "按三个步骤完成：检查正文、选择演讲表达、试听并生成声音。也可以先仅放映画面。"}
+                    : managed
+                      ? "先检查口播正文，选择声音并试听，再生成整场。"
+                      : "按三个步骤完成：检查正文、选择演讲表达、试听并生成声音。也可以先仅放映画面。"}
                 </p>
                 <Button onClick={() => setPanel("text")}>
                   检查或重新识别口播文本
@@ -857,8 +867,12 @@ export function SpeechPresentation({
             )}
             {panel === "voice" && !config?.hasKey && (
               <div className="speech-callout">
-                <p>连接语音服务后，即可试听和生成口播。</p>
-                <Button onClick={onSettings}>配置语音服务</Button>
+                <p>
+                  {managed
+                    ? "请联系管理员连接 MiniMax 语音服务。已生成音频仍可播放。"
+                    : "连接语音服务后，即可试听和生成口播。"}
+                </p>
+                {!managed && <Button onClick={onSettings}>配置语音服务</Button>}
               </div>
             )}
             {panel === "voice" && performanceBusy && (
@@ -971,11 +985,14 @@ export function SpeechPresentation({
                     </p>
                   )}
                   <Button variant="primary" onClick={() => saveTexts(true)}>
-                    保存并继续 · 选择演讲表达
+                    {managed
+                      ? "保存并继续 · 选择声音"
+                      : "保存并继续 · 选择演讲表达"}
                   </Button>
                   <p className="speech-subtle">
-                    文本识别与保存不调用模型。下一步可选 AI
-                    编排，或直接使用普通口播。
+                    {managed
+                      ? "文本识别与保存不调用模型。下一步试听并生成口播。"
+                      : "文本识别与保存不调用模型。下一步可选 AI 编排，或直接使用普通口播。"}
                   </p>
                 </section>
               )}
@@ -1099,9 +1116,11 @@ export function SpeechPresentation({
                   {usePerformance
                     ? "情绪、停顿与重点表达由 AI 演绎方案接管。"
                     : "当前使用普通口播，情绪与语速由下方设置决定。"}{" "}
-                  <button onClick={() => setPanel("expression")}>
-                    调整演讲表达
-                  </button>
+                  {!managed && (
+                    <button onClick={() => setPanel("expression")}>
+                      调整演讲表达
+                    </button>
+                  )}
                 </p>
                 <SpeechPreview
                   body={{
@@ -1143,9 +1162,11 @@ export function SpeechPresentation({
                 <p className="speech-subtle">
                   生成语速决定新音频的表达。放映时可用左侧“播放倍速”即时调整。
                 </p>
-                <Button variant="ghost" onClick={onSettings} disabled={busy}>
-                  管理声音与采集 → 设置
-                </Button>
+                {!managed && (
+                  <Button variant="ghost" onClick={onSettings} disabled={busy}>
+                    管理声音与采集 → 设置
+                  </Button>
+                )}
               </>
             )}
             <div className="speech-generate" hidden={panel !== "voice"}>

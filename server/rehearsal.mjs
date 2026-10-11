@@ -133,6 +133,11 @@ export async function createRun(projectId, input, dependencies = {}) {
     throw fail("本场已有生成任务，请先查看进度。", 409);
   const context = rehearsalContext(projectId),
     plan = context.plan;
+  if (
+    process.env.AUTOPPT_WORKER_TOKEN &&
+    (plan.actor === "digital" || plan.visual !== "original")
+  )
+    throw fail("网页版暂不开放数字人和动态演示制作。", 403);
   const ids =
     input.scope === "trial"
       ? [plan.pageId]
@@ -337,11 +342,6 @@ export async function waitForRun(id) {
 }
 export function registerRehearsal(app) {
   const base = "/api/projects/:id/rehearsal";
-  app.use(base, (_req, _res, next) =>
-    process.env.AUTOPPT_WORKER_TOKEN
-      ? next(fail("演练生成仅在本机 App 提供。", 403))
-      : next(),
-  );
   app.get(base, (req, res) => {
     const { provider, ...context } = rehearsalContext(req.params.id);
     res.json(context);
@@ -367,6 +367,11 @@ export function registerRehearsal(app) {
     const run = get("rehearsal-run", req.params.runId);
     if (!run || run.projectId !== req.params.id)
       throw fail("演练任务不存在。", 404);
+    if (
+      process.env.AUTOPPT_WORKER_TOKEN &&
+      (run.plan.actor === "digital" || run.plan.visual !== "original")
+    )
+      throw fail("网页版暂不开放数字人和动态演示制作，旧素材已保留。", 403);
     if (req.body?.confirmed !== true) throw fail("请确认继续处理与费用。");
     if (!(await publicRun(run)).compatible)
       throw fail("页面已变化，请生成新版本，旧结果已保留。", 409);

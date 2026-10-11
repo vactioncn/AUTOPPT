@@ -194,11 +194,7 @@ export function Workspace({
     "play",
   );
   const [visualReviewOpen, setVisualReviewOpen] = useState(false);
-  const records = usePresentationRecords(
-    id,
-    !hosted && speechAvailable,
-    motionAvailable,
-  );
+  const records = usePresentationRecords(id, speechAvailable, motionAvailable);
   const [insertion, setInsertion] = useState<{
     afterSlideId: string | null;
   } | null>(null);
@@ -1621,7 +1617,7 @@ export function Workspace({
             </div>
           }
         >
-          {hosted ? (
+          {hosted && speechInitialPanel === "play" ? (
             <StandardPresentation
               project={project}
               onClose={() => {
@@ -1631,6 +1627,7 @@ export function Workspace({
             />
           ) : (
             <SpeechPresentation
+              managed={hosted}
               initialPanel={speechInitialPanel}
               projectId={id}
               onClose={() => {
@@ -2215,7 +2212,7 @@ function ExportDialog({
   const [error, setError] = useState("");
   const [format, setFormat] = useState<ExportFormat>(initialFormat);
   const [confirmedFailed, setConfirmedFailed] = useState("");
-  const html = useHtmlExportOptions(project.id, !hosted);
+  const html = useHtmlExportOptions(project.id);
   const missing = project.slides.flatMap((s, i) =>
     !s.image && !s.scene ? [i + 1] : [],
   );
@@ -2293,7 +2290,7 @@ function ExportDialog({
           <option value="ppt">
             {bundleAvailable ? "ZIP 交付包 · PPTX 与逐字稿" : "PPTX"}
           </option>
-          {!hosted && <option value="html">静态 HTML · 可含口播</option>}
+          <option value="html">静态 HTML · 可含口播</option>
           <option value="project">项目迁移包 · 换电脑继续编辑</option>
         </select>
       </Field>

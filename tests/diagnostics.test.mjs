@@ -240,7 +240,7 @@ for (const mode of ["local-browser", "desktop", "hosted"]) {
           designOptions: true,
           insertAndManuscriptExport: true,
           motionPresentation: mode !== "hosted",
-          speechPresentation: mode !== "hosted",
+          speechPresentation: true,
           projectPackages: true,
           spokenHtml: true,
         });
@@ -267,7 +267,7 @@ for (const mode of ["local-browser", "desktop", "hosted"]) {
         if (mode === "hosted")
           assert.match(
             body.capabilities.aiNarration.reason,
-            /暂不提供 AI 口播/,
+            /管理员尚未连接 MiniMax/,
           );
         assert.ok(!JSON.stringify(body).includes(dir));
         assert.ok(!JSON.stringify(body).includes(token));
@@ -291,7 +291,7 @@ for (const mode of ["local-browser", "desktop", "hosted"]) {
   );
 }
 
-test("configured speech enables local AI; hosted restrictions win over configuration", () => {
+test("configured speech enables narration in every runtime; hosted settings and motion stay restricted", () => {
   for (const mode of ["local-browser", "desktop"])
     assert.equal(
       diagnostics(info, { mode, speechReady: true }).capabilities.aiNarration
@@ -301,6 +301,6 @@ test("configured speech enables local AI; hosted restrictions win over configura
   assert.equal(
     diagnostics(info, { mode: "hosted", speechReady: true }).capabilities
       .aiNarration.enabled,
-    false,
+    true,
   );
 });

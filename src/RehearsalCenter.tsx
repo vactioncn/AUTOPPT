@@ -56,6 +56,7 @@ export function RehearsalCenter({
   selectedCount?: number;
 }) {
   const endpoint = `/projects/${project.id}/rehearsal`;
+  const managed = !capabilities.localModelSettings.enabled;
   const [resources, setResources] = useState<RehearsalResources | null>(null),
     [plan, setPlan] = useState<RehearsalPlan | null>(null),
     [texts, setTexts] = useState<Record<string, string>>({});
@@ -82,16 +83,31 @@ export function RehearsalCenter({
     } | null>(null);
   choice.current = plan;
   draftTexts.current = texts;
-  const old = usePresenterJobs(`/projects/${project.id}/presenter/generations`);
+  const old = usePresenterJobs(
+    `/projects/${project.id}/presenter/generations`,
+    !managed,
+  );
   async function load() {
     const [context, studio, state] = await Promise.all([
       api<RehearsalContext>(endpoint),
-      api<PresenterStudioState>("/presenter/studio"),
-      api<{ narrations: RehearsalResources["narrations"] }>(
-        `/projects/${project.id}/presenter/setup`,
-      ),
+      managed
+        ? Promise.resolve({
+            avatars: [],
+            defaultAvatarId: "",
+            hasKey: false,
+          } as unknown as PresenterStudioState)
+        : api<PresenterStudioState>("/presenter/studio"),
+      managed
+        ? Promise.resolve(null)
+        : api<{ narrations: RehearsalResources["narrations"] }>(
+            `/projects/${project.id}/presenter/setup`,
+          ),
     ]);
-    setResources({ context, studio, narrations: state.narrations });
+    setResources({
+      context,
+      studio,
+      narrations: state?.narrations || context.narrations || [],
+    });
     if (choice.current) {
       setPlan((p) =>
         p
@@ -115,6 +131,19 @@ export function RehearsalCenter({
       setPlan({
         ...context.plan,
         ...draft,
+        ...(managed
+          ? {
+              actor:
+                draft?.actor === "digital"
+                  ? "voice"
+                  : draft?.actor || context.plan.actor,
+              visual: "original",
+              avatarId: "",
+              voiceId: context.voices.some((v) => v.id === draft?.voiceId)
+                ? draft!.voiceId
+                : context.plan.voiceId,
+            }
+          : {}),
         pageId: project.slides.some(
           (s) => s.id === (draft?.pageId || context.plan.pageId),
         )
@@ -127,7 +156,6 @@ export function RehearsalCenter({
     }
   }
   useEffect(() => {
-    if (!capabilities.localModelSettings.enabled) return;
     let alive = true;
     void load().catch((e) => {
       if (alive) setError(e.message);
@@ -159,7 +187,7 @@ export function RehearsalCenter({
       alive = false;
       clearTimeout(timer);
     };
-  }, [endpoint]);
+  }, [endpoint, managed]);
   useEffect(() => {
     if (plan)
       try {
@@ -356,24 +384,6 @@ export function RehearsalCenter({
         )}
       </section>
     );
-  if (!capabilities.localModelSettings.enabled)
-    return (
-      <section className="journey-panel" aria-label="演练中心">
-        <h2>看一遍画面，准备放映</h2>
-        <p>
-          共 {project.slides.length} 页。打开后可手动翻页，按需查看逐页讲稿。
-        </p>
-        <Button
-          variant="primary"
-          disabled={
-            !project.slides.length || !capabilities.standardPresentation.enabled
-          }
-          onClick={() => onSpeech(false)}
-        >
-          普通放映
-        </Button>
-      </section>
-    );
   return (
     <section className="journey-panel rehearsal-center" aria-label="演练中心">
       <header className="rehearsal-heading">
@@ -391,7 +401,11 @@ export function RehearsalCenter({
         <li data-current={!!trial}>3 · 生成整场</li>
       </ol>
       {!plan || !resources ? (
-        <p role="status">正在读取你的声音、头像与本场选择…</p>
+        <p role="status">
+          {managed
+            ? "正在读取声音与本场选择…"
+            : "正在读取你的声音、头像与本场选择…"}
+        </p>
       ) : (
         <>
           <div className="rehearsal-workbench">
@@ -416,7 +430,9 @@ export function RehearsalCenter({
                 )}
               </div>
               <p className="rehearsal-caption">
-                选择页面查看布局。试播后，在下面播放实际声音、嘴型和动态效果。
+                {managed
+                  ? "选择页面查看画面和正文。试播后，在下面试听实际生成的声音。"
+                  : "选择页面查看布局。试播后，在下面播放实际声音、嘴型和动态效果。"}
               </p>
               <div className="rehearsal-pages" aria-label="选择试播页">
                 {project.slides.map((s, i) => (
@@ -479,37 +495,41 @@ export function RehearsalCenter({
                     </button>
                   ))}
                 </div>
-                <details
-                  className="rehearsal-lab"
-                  open={plan.actor === "digital"}
-                >
-                  <summary>实验室 · 数字人讲解</summary>
-                  <p className="detail-help">
-                    实验功能，生成效果和等待时间仍在优化。先试一页，已有视频保留。
-                  </p>
-                  <Button
-                    aria-pressed={plan.actor === "digital"}
-                    onClick={() => choose("actor", "digital")}
+                {!managed && (
+                  <details
+                    className="rehearsal-lab"
+                    open={plan.actor === "digital"}
                   >
-                    {labels.digital}
-                  </Button>
-                </details>
-              </fieldset>
-              <fieldset disabled={busy || !!request.current}>
-                <legend>画面怎么呈现？</legend>
-                <div className="rehearsal-choice">
-                  {(["original", "motion"] as const).map((v) => (
-                    <button
-                      key={v}
-                      type="button"
-                      aria-pressed={plan.visual === v}
-                      onClick={() => choose("visual", v)}
+                    <summary>实验室 · 数字人讲解</summary>
+                    <p className="detail-help">
+                      实验功能，生成效果和等待时间仍在优化。先试一页，已有视频保留。
+                    </p>
+                    <Button
+                      aria-pressed={plan.actor === "digital"}
+                      onClick={() => choose("actor", "digital")}
                     >
-                      {v === "original" ? "原画面" : "动态演示"}
-                    </button>
-                  ))}
-                </div>
+                      {labels.digital}
+                    </Button>
+                  </details>
+                )}
               </fieldset>
+              {!managed && (
+                <fieldset disabled={busy || !!request.current}>
+                  <legend>画面怎么呈现？</legend>
+                  <div className="rehearsal-choice">
+                    {(["original", "motion"] as const).map((v) => (
+                      <button
+                        key={v}
+                        type="button"
+                        aria-pressed={plan.visual === v}
+                        onClick={() => choose("visual", v)}
+                      >
+                        {v === "original" ? "原画面" : "动态演示"}
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
+              )}
               {plan.visual === "motion" && (
                 <p className="rehearsal-note">
                   先转换当前一页；生成整场时复用与当前画面一致的动态页。转换期间可先听声音。
@@ -535,18 +555,20 @@ export function RehearsalCenter({
                   {chosenNarration ? (
                     <p className="rehearsal-note">
                       沿用“{chosenNarration.voiceName}
-                      ”的原音频和表达。数字人只同步嘴型；不会重新配音。试播使用本页完整音频。
+                      ”的原音频和表达。试播使用本页完整音频。
                     </p>
                   ) : (
                     <>
                       <div className="rehearsal-field-heading">
                         <strong>本场声音 · MiniMax</strong>
-                        <Button
-                          variant="ghost"
-                          onClick={() => setSettings("speech")}
-                        >
-                          管理声音 / 服务
-                        </Button>
+                        {!managed && (
+                          <Button
+                            variant="ghost"
+                            onClick={() => setSettings("speech")}
+                          >
+                            管理声音 / 服务
+                          </Button>
+                        )}
                       </div>
                       <Field label="选择本场声音">
                         <select
@@ -565,8 +587,9 @@ export function RehearsalCenter({
                       </Field>
                       {!resources.context.speech.hasKey && (
                         <p>
-                          先在设置连接
-                          MiniMax。完成后返回这里，选择与正文都会保留。
+                          {managed
+                            ? "管理员尚未连接 MiniMax 语音服务，请联系管理员。已保存的音频仍可播放。"
+                            : "先在设置连接 MiniMax。完成后返回这里，选择与正文都会保留。"}
                         </p>
                       )}
                       <div className="rehearsal-inline-fields">
@@ -731,7 +754,9 @@ export function RehearsalCenter({
                 </Button>
               </div>
               <p className="rehearsal-caption">
-                服务已配置不代表额度充足。试播与生成会使用相应服务额度，金额以账号账单为准。
+                {managed
+                  ? "试播与生成使用 MiniMax 语音预算，不扣图片张数。播放和复用已有音频不重新合成。"
+                  : "服务已配置不代表额度充足。试播与生成会使用相应服务额度，金额以账号账单为准。"}
               </p>
               {saved && <p role="status">{saved}</p>}
             </div>
@@ -742,7 +767,9 @@ export function RehearsalCenter({
               <p>
                 {trial
                   ? "已有完成试播，可继续整场。"
-                  : "建议先试当前页，核对自己的声音、形象和节奏。"}
+                  : managed
+                    ? "建议先试当前页，核对声音和节奏。"
+                    : "建议先试当前页，核对自己的声音、形象和节奏。"}
                 修改正文或声音会生成新版本，旧素材继续保留。
               </p>
             </div>
@@ -892,28 +919,34 @@ export function RehearsalCenter({
           <details className="rehearsal-history">
             <summary>已有版本与高级调整</summary>
             <p>
-              原口播、数字人和动态演示记录仍然保留。高级演绎和图层校准可继续使用。
+              {managed
+                ? "已保存的口播版本可继续播放，或导出含声音的离线 HTML。语音服务由管理员配置，本场声音、语速和正文在这里调整。"
+                : "原口播、数字人和动态演示记录仍然保留。高级演绎和图层校准可继续使用。"}
             </p>
             <div className="rehearsal-actions">
               <Button onClick={() => onSpeech(true)}>
-                已有口播 / 高级演绎
+                {managed ? "已有口播 / 播放与导出" : "已有口播 / 高级演绎"}
               </Button>
-              <Button
-                disabled={!capabilities.motionPresentation.enabled}
-                onClick={onMotion}
-              >
-                动态版本 / 图层校准
-              </Button>
-              <Button onClick={onSettings}>打开全局设置</Button>
+              {!managed && (
+                <Button
+                  disabled={!capabilities.motionPresentation.enabled}
+                  onClick={onMotion}
+                >
+                  动态版本 / 图层校准
+                </Button>
+              )}
+              {!managed && <Button onClick={onSettings}>打开全局设置</Button>}
             </div>
-            <PresenterJobs
-              jobs={old.jobs}
-              endpoint={`/projects/${project.id}/presenter/generations`}
-              onUpdate={(j) =>
-                old.setJobs((a) => [j, ...a.filter((v) => v.id !== j.id)])
-              }
-              onPlay={setOldPlaying}
-            />
+            {!managed && (
+              <PresenterJobs
+                jobs={old.jobs}
+                endpoint={`/projects/${project.id}/presenter/generations`}
+                onUpdate={(j) =>
+                  old.setJobs((a) => [j, ...a.filter((v) => v.id !== j.id)])
+                }
+                onPlay={setOldPlaying}
+              />
+            )}
           </details>
         </>
       )}

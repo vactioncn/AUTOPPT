@@ -6,10 +6,11 @@ import {
   presenterVideo,
   type PresenterGeneration,
 } from "./presenter-types";
-export function usePresenterJobs(endpoint: string) {
+export function usePresenterJobs(endpoint: string, enabled = true) {
   const [jobs, setJobs] = useState<PresenterGeneration[]>([]),
     [error, setError] = useState("");
   useEffect(() => {
+    if (!enabled) return;
     let alive = true,
       timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
@@ -29,7 +30,7 @@ export function usePresenterJobs(endpoint: string) {
       alive = false;
       clearTimeout(timer);
     };
-  }, [endpoint]);
+  }, [endpoint, enabled]);
   return { jobs, error, setJobs, active: jobs.some(presenterActive) };
 }
 export function PresenterJobs({

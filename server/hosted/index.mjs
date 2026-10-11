@@ -14,6 +14,8 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { Accounts } from "./accounts.mjs";
 import { acquireLock } from "./process-lock.mjs";
+import { hostedSpeechConfig } from "./speech-config.mjs";
+import { createSpeechRequestPolicy } from "../speech/request-policy.mjs";
 import {
   supportConfig,
   websitePaths,
@@ -56,6 +58,8 @@ const maxWorkers = positive("AUTOPPT_MAX_WORKSPACES", 10);
 const maxCalls = positive("AUTOPPT_MODEL_CONCURRENCY", 2);
 const dailyCalls = positive("AUTOPPT_DAILY_MODEL_CALLS", 2000);
 const perUserCalls = positive("AUTOPPT_USER_DAILY_MODEL_CALLS", 300);
+const dailySpeechChars = positive("AUTOPPT_DAILY_SPEECH_CHARS", 500000);
+const userSpeechChars = positive("AUTOPPT_USER_DAILY_SPEECH_CHARS", 50000);
 mkdirSync(dir, { recursive: true, mode: 0o700 });
 const lockPath = path.join(dir, "hosted.lock");
 acquireLock(lockPath);
@@ -97,6 +101,7 @@ const providers = Object.fromEntries(
     ];
   }),
 );
+providers.speech = hostedSpeechConfig(process.env, secret);
 if (!accounts.db.prepare("SELECT id FROM users LIMIT 1").get()) {
   const password = secret("AUTOPPT_ADMIN_PASSWORD");
   if (!password)
@@ -110,6 +115,7 @@ let gatewayBase;
 let shuttingDown = false;
 let calls = 0;
 const queue = [];
+const speechPacing = createSpeechRequestPolicy();
 async function modelSlot(res) {
   if (calls < maxCalls) {
     calls++;
@@ -209,6 +215,11 @@ async function worker(userId) {
       AUTOPPT_GATEWAY: gatewayBase,
       AUTOPPT_TEXT_MODEL: providers.text.model,
       AUTOPPT_IMAGE_MODEL: providers.image.model,
+      AUTOPPT_SPEECH_MODEL: providers.speech.model,
+      AUTOPPT_SPEECH_READY: providers.speech.apiKey ? "1" : "0",
+      AUTOPPT_SPEECH_PROVIDER_ID: providers.speech.providerId,
+      AUTOPPT_SPEECH_VOICE_ID: providers.speech.voiceId,
+      AUTOPPT_SPEECH_VOICE_NAME: providers.speech.voiceName,
     },
     stdio: ["ignore", "ignore", "pipe", "ipc"],
   });
@@ -322,6 +333,7 @@ app.get("/api/account", (req, res) => {
     hosted: true,
     user,
     modelReady: modelsReady(),
+    speechReady: !!providers.speech.apiKey,
     signupImageCredits: accounts.signupImageCredits,
     ...websiteSupport,
   });
@@ -373,12 +385,15 @@ app.get("/api/admin", (req, res) =>
   res.json({
     ...accounts.overview(),
     modelReady: modelsReady(),
+    speechReady: !!providers.speech.apiKey,
     limits: {
       concurrency: maxCalls,
       dailyCalls,
       perUserCalls,
       maxWorkers,
       signupImageCredits: accounts.signupImageCredits,
+      dailySpeechChars,
+      userSpeechChars,
     },
     activity: {
       modelCalls: calls,
@@ -447,6 +462,7 @@ app.post("/internal/model/:kind/{*route}", async (req, res) => {
     route = "/" + req.params.route.join("/");
   if (!(
     (kind === "text" && route === "/chat/completions") ||
+    (kind === "speech" && route === "/t2a_v2") ||
     (kind === "image" &&
       ["/images/generations", "/images/edits"].includes(route))
   ))
@@ -462,6 +478,11 @@ app.post("/internal/model/:kind/{*route}", async (req, res) => {
   accounts.limit(`model:global:${day}`, dailyCalls, 86400000);
   accounts.limit(`model:${u.id}:${day}`, perUserCalls, 86400000);
   await modelSlot(res);
+  const disconnected = new AbortController();
+  const abortSpeech = () => {
+    if (kind === "speech") disconnected.abort();
+  };
+  res.once("close", abortSpeech);
   try {
     // Apply backpressure while queued; do not retain dozens of large image
     // attachment bodies in memory before a provider slot is available.
@@ -469,17 +490,62 @@ app.post("/internal/model/:kind/{*route}", async (req, res) => {
       modelBody(req, res, (error) => (error ? reject(error) : resolve())),
     );
     accounts.active(u.id);
+    if (kind === "speech") {
+      let body;
+      try {
+        body = JSON.parse(req.body);
+      } catch {
+        fail("语音请求格式无效。", 400);
+      }
+      const chars = typeof body.text === "string" ? [...body.text].length : 0;
+      if (
+        !chars ||
+        chars > 10000 ||
+        body.model !== config.model ||
+        body.stream !== false ||
+        body.output_format !== "hex"
+      )
+        fail("语音请求参数无效。", 400);
+      accounts.transaction(() => {
+        accounts.limit(
+          `speech:global:${day}`,
+          dailySpeechChars,
+          86400000,
+          chars,
+        );
+        accounts.limit(
+          `speech:${u.id}:${day}`,
+          userSpeechChars,
+          86400000,
+          chars,
+        );
+      });
+    }
     if (kind === "image") accounts.dispatch(u.id, lease);
-    const response = await fetch(config.baseUrl + route, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${config.apiKey}`,
-        "Content-Type": req.headers["content-type"],
-      },
-      body: req.body,
-      signal: AbortSignal.timeout(600000),
-      redirect: "error",
-    });
+    const upstream = () => {
+      if (kind === "speech" && res.destroyed)
+        throw new Error("语音请求已取消。");
+      accounts.active(u.id);
+      return fetch(config.baseUrl + route, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${config.apiKey}`,
+          "Content-Type": req.headers["content-type"],
+        },
+        body: req.body,
+        signal: AbortSignal.any([
+          AbortSignal.timeout(600000),
+          disconnected.signal,
+        ]),
+        redirect: "error",
+      });
+    };
+    const response =
+      kind === "speech"
+        ? await speechPacing(config.providerId, upstream, {
+            signal: disconnected.signal,
+          })
+        : await upstream();
     if (!response.ok) {
       if (kind === "image")
         accounts.finish(
@@ -506,6 +572,7 @@ app.post("/internal/model/:kind/{*route}", async (req, res) => {
         uncertain: true,
       });
   } finally {
+    res.off("close", abortSpeech);
     releaseSlot();
   }
 });
@@ -564,7 +631,13 @@ app.use(["/api", "/assets"], authenticated, async (req, res) => {
     "x-autoppt-worker": w.token,
     "x-autoppt-model-ready": modelsReady() ? "1" : "0",
   };
-  for (const key of ["content-type", "content-length", "accept"])
+  for (const key of [
+    "content-type",
+    "content-length",
+    "accept",
+    "range",
+    "if-range",
+  ])
     if (req.headers[key]) headers[key] = req.headers[key];
   let response;
   try {
@@ -581,6 +654,9 @@ app.use(["/api", "/assets"], authenticated, async (req, res) => {
     fail("工作区连接暂时中断，已保存内容不会丢失，请稍后刷新。", 502);
   }
   res.status(response.status);
+  if (/^\/api\/speech\/audio\//i.test(req.originalUrl))
+    for (const key of ["content-length", "content-range", "accept-ranges"])
+      if (response.headers.has(key)) res.set(key, response.headers.get(key));
   for (const key of ["content-type", "content-disposition"])
     if (response.headers.has(key)) res.set(key, response.headers.get(key));
   // Never allow one account's cached assets to survive an account switch.

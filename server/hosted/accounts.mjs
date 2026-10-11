@@ -84,18 +84,24 @@ export class Accounts {
       throw e;
     }
   }
-  limit(key, max, windowMs) {
+  limit(key, max, windowMs, amount = 1) {
     const now = Date.now();
     const row = this.db.prepare("SELECT * FROM limits WHERE key=?").get(key);
-    if (row?.expires > now && row.count >= max)
-      fail("操作较频繁，请稍后再试。", 429);
+    const used = row?.expires > now ? row.count : 0;
+    if (used + amount > max)
+      fail(
+        key.startsWith("speech:")
+          ? "今日语音生成字符上限已达到，请联系管理员或明日继续。已完成音频可继续播放。"
+          : "操作较频繁，请稍后再试。",
+        429,
+      );
     this.db
       .prepare(
         "INSERT INTO limits VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET count=excluded.count,expires=excluded.expires",
       )
       .run(
         key,
-        row?.expires > now ? row.count + 1 : 1,
+        used + amount,
         row?.expires > now ? row.expires : now + windowMs,
       );
     this.db.prepare("DELETE FROM limits WHERE expires<?").run(now - 86400000);

@@ -11,6 +11,18 @@ import { SPEECH_VOICES } from "../../shared/speech.mjs";
 import { all, dataDir } from "../store.mjs";
 const filename = path.join(dataDir, "speech-settings.json");
 export function speechSettings() {
+  if (process.env.AUTOPPT_WORKER_TOKEN)
+    return {
+      baseUrl: `${process.env.AUTOPPT_GATEWAY}/internal/model/speech`,
+      model: process.env.AUTOPPT_SPEECH_MODEL || "speech-2.8-hd",
+      apiKey:
+        process.env.AUTOPPT_SPEECH_READY === "1"
+          ? process.env.AUTOPPT_WORKER_TOKEN
+          : "",
+      defaultVoiceId:
+        process.env.AUTOPPT_SPEECH_VOICE_ID || SPEECH_VOICES[0].id,
+      managed: true,
+    };
   const saved = existsSync(filename)
     ? JSON.parse(readFileSync(filename, "utf8"))
     : {};
@@ -22,13 +34,19 @@ export function speechSettings() {
   };
 }
 export function publicSpeechSettings() {
+  if (process.env.AUTOPPT_WORKER_TOKEN) {
+    const { model, defaultVoiceId, apiKey } = speechSettings();
+    return { model, defaultVoiceId, hasKey: !!apiKey, managed: true };
+  }
   const { apiKey, ...config } = speechSettings();
   return { ...config, hasKey: !!apiKey };
 }
 export const providerIdentity = (config) =>
-  createHash("sha256")
-    .update(config.baseUrl + "\n" + config.apiKey)
-    .digest("hex");
+  process.env.AUTOPPT_WORKER_TOKEN && process.env.AUTOPPT_SPEECH_PROVIDER_ID
+    ? process.env.AUTOPPT_SPEECH_PROVIDER_ID
+    : createHash("sha256")
+        .update(config.baseUrl + "\n" + config.apiKey)
+        .digest("hex");
 export function saveSpeechSettings(input) {
   const previous = speechSettings();
   const baseUrl = String(input.baseUrl || previous.baseUrl)

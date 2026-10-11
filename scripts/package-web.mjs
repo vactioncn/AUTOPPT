@@ -27,6 +27,7 @@ export const deploymentPaths = [
   "docs/同事安装与使用说明.md",
   "docs/邀请制网页版第一版方案.md",
   "docs/网页版网站与导航改造.md",
+  "docs/网页版语音演练.md",
 ];
 const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
 export async function packageWeb({

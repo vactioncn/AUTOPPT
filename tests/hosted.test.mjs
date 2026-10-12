@@ -21,6 +21,63 @@ import { Accounts } from "../server/hosted/accounts.mjs";
 import { copyFixture, reviewFixture } from "./fixtures/screen-copy.mjs";
 
 const pass = "Test-password-12345";
+test("six-digit passwords work across signup, change, reset and restart while preserving existing accounts", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "autoppt-short-passwords-"));
+  let a = new Accounts(dir);
+  try {
+    const shortAdmin = new Accounts(path.join(dir, "initial-admin"));
+    try {
+      await shortAdmin.bootstrap("admin", "000007");
+      assert.equal((await shortAdmin.login("admin", "000007")).role, "admin");
+    } finally {
+      shortAdmin.db.close();
+    }
+    await a.bootstrap("admin", pass);
+    const admin = await a.login("admin", pass);
+    const adminHash = a.db
+      .prepare("SELECT password FROM users WHERE id=?")
+      .get(admin.id).password;
+    const invite = a.invite(admin.id);
+    for (const invalid of ["12345", "x".repeat(129)])
+      await assert.rejects(a.register("member", invalid, invite.code), /密码/);
+    const member = await a.register("member", "000042", invite.code);
+    assert.equal((await a.login("member", "000042")).id, member.id);
+    await assert.rejects(a.login("member", "000043"), /账号或密码/);
+    const signupSession = a.session(member.id);
+    await a.changePassword(member.id, "000042", "135790");
+    assert.equal(a.authenticate(signupSession), null);
+    await assert.rejects(a.login("member", "000042"), /账号或密码/);
+    assert.equal((await a.login("member", "135790")).id, member.id);
+    const changedSession = a.session(member.id);
+    await assert.rejects(a.resetPassword(admin.id, member.id, "12345"), /密码/);
+    assert.equal(a.authenticate(changedSession).id, member.id);
+    await a.resetPassword(admin.id, member.id, "246802");
+    assert.equal(a.authenticate(changedSession), null);
+    await assert.rejects(a.login("member", "135790"), /账号或密码/);
+    assert.equal((await a.login("member", "246802")).id, member.id);
+    a.db.close();
+    a = new Accounts(dir);
+    await a.bootstrap("admin", "654321");
+    assert.equal((await a.login("admin", pass)).id, admin.id);
+    assert.equal(
+      a.db.prepare("SELECT password FROM users WHERE id=?").get(admin.id)
+        .password,
+      adminHash,
+    );
+    assert.equal(
+      (await a.login("member", "246802")).available,
+      member.available,
+    );
+    const stored = a.db
+      .prepare("SELECT password FROM users WHERE id=?")
+      .get(member.id).password;
+    assert.match(stored, /^[a-f0-9]{32}:[a-f0-9]{128}$/);
+    assert.notEqual(stored, "246802");
+  } finally {
+    a.db.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
 test("six-digit invitations remain unique, preserve leading zeroes and accept legacy links", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "autoppt-short-invites-"));
   const a = new Accounts(dir);
@@ -369,6 +426,12 @@ test(
       const inv = (await request("/api/admin/invites", {}, admin)).data;
       await request(
         "/api/account/register",
+        { name: "first", password: "12345", invite: inv.code },
+        "",
+        400,
+      );
+      await request(
+        "/api/account/register",
         { name: "first", password: pass, invite: "invalid" },
         "",
         400,
@@ -376,10 +439,20 @@ test(
       const first = (
         await request("/api/account/register", {
           name: "first",
-          password: pass,
+          password: "004218",
           invite: inv.code,
         })
       ).cookie;
+      await request("/api/account/login", {
+        name: "first",
+        password: "004218",
+      });
+      await request(
+        "/api/account/login",
+        { name: "first", password: "004219" },
+        "",
+        401,
+      );
       await request(
         "/api/account/register",
         { name: "second", password: pass, invite: inv.code },

@@ -774,14 +774,14 @@ function Access({
                     id={passwordId}
                     type={visible ? "text" : "password"}
                     required
-                    minLength={register ? 12 : 1}
+                    minLength={register ? 6 : 1}
                     maxLength={128}
                     autoComplete={
                       register ? "new-password" : "current-password"
                     }
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder={register ? "至少 12 个字符" : "输入密码"}
+                    placeholder={register ? "至少 6 位，可用纯数字" : "输入密码"}
                   />
                   <button
                     type="button"
@@ -798,7 +798,7 @@ function Access({
                   <input
                     type={visible ? "text" : "password"}
                     required
-                    minLength={12}
+                    minLength={6}
                     maxLength={128}
                     autoComplete="new-password"
                     value={confirmation}

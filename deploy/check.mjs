@@ -58,7 +58,7 @@ for (const name of ["admin_password", "text_key", "image_key"]) {
     if (
       !content ||
       (name === "admin_password" &&
-        (content.length < 12 || content.length > 128))
+        (content.length < 6 || content.length > 128))
     )
       throw new Error();
   } catch {

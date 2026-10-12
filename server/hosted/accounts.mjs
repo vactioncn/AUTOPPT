@@ -19,10 +19,10 @@ const token = () => randomBytes(32).toString("base64url");
 export async function passwordHash(password) {
   if (
     typeof password !== "string" ||
-    password.length < 12 ||
+    password.length < 6 ||
     password.length > 128
   )
-    fail("密码需要 12–128 个字符。");
+    fail("密码至少 6 位，可用纯数字，最多 128 个字符。");
   const salt = randomBytes(16).toString("hex");
   const key = await scrypt(password, salt, 64, {
     N: 32768,

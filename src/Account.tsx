@@ -284,8 +284,9 @@ export function AccountPage({ adminOnly = false }: { adminOnly?: boolean }) {
               type="password"
               autoComplete="new-password"
               required
-              minLength={12}
+              minLength={6}
               maxLength={128}
+              placeholder="至少 6 位，可用纯数字"
               value={next}
               onChange={(e) => setNext(e.target.value)}
             />
@@ -549,8 +550,9 @@ function AdminPanel() {
             <input
               type="password"
               autoComplete="new-password"
-              minLength={12}
+              minLength={6}
               maxLength={128}
+              placeholder="至少 6 位，可用纯数字"
               required
               value={resetPassword}
               onChange={(e) => setResetPassword(e.target.value)}

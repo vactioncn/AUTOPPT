@@ -101,6 +101,15 @@ test("deployment preflight validates required settings without revealing secrets
       writeFileSync(path.join(deploy, "secrets", name), privateValue);
     const run = () => execFileSync(process.execPath, [path.join(deploy, "check.mjs")], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
     assert.match(run(), /检查通过/);
+    writeFileSync(path.join(deploy, "secrets", "admin_password"), "000042");
+    assert.match(run(), /检查通过/);
+    writeFileSync(path.join(deploy, "secrets", "admin_password"), "12345");
+    assert.throws(run, (error) => {
+      assert.match(error.stderr, /secrets\/admin_password/);
+      assert(!error.stderr.includes("12345"));
+      return error.status === 1;
+    });
+    writeFileSync(path.join(deploy, "secrets", "admin_password"), privateValue);
     writeFileSync(path.join(deploy, ".env"), env.replace("AUTOPPT_MODEL_CONCURRENCY=2", "AUTOPPT_MODEL_CONCURRENCY=0"));
     assert.throws(run, (error) => {
       assert.match(error.stderr, /AUTOPPT_MODEL_CONCURRENCY/);

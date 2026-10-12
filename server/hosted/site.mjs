@@ -1,39 +1,29 @@
+import { BRAND } from "../../shared/brand.mjs";
+
 const pages = {
-  "/": [
-    "AutoPPT · 让观点有好看的表达",
-    "以审美为核心的 PPT 与演讲制作工具。看实际生成作品，从逐字稿提取观点、精炼上屏内容、智能配图。先试一页，再做整场，还可添加 AI 口播。",
-    true,
-  ],
-  "/website": [
-    "AutoPPT · 让观点有好看的表达",
-    "以审美为核心的 PPT 与演讲制作工具。看实际生成作品，从逐字稿提取观点、精炼上屏内容、智能配图。先试一页，再做整场，还可添加 AI 口播。",
-    true,
-  ],
+  "/": [BRAND.title, BRAND.description, true],
+  "/website": [BRAND.title, BRAND.description, true],
   "/login": [
-    "登录 · AutoPPT",
+    "登录 · 讲好",
     "登录自己的独立演讲工作区，继续制作讲稿与画面。",
     false,
   ],
   "/register": [
-    "邀请注册 · AutoPPT",
-    "使用管理员发放的一次性邀请码创建 AutoPPT 账号。",
+    "邀请注册 · 讲好",
+    "使用管理员发放的一次性邀请码创建讲好账号。",
     false,
   ],
   "/support": [
-    "使用帮助 · AutoPPT",
+    "使用帮助 · 讲好",
     "了解邀请注册、讲稿制作、图片额度、导出与账号恢复。",
     true,
   ],
   "/privacy": [
-    "数据与隐私说明 · AutoPPT",
+    "数据与隐私说明 · 讲好",
     "了解内容保存、模型服务、登录会话及数据管理。",
     true,
   ],
-  "/terms": [
-    "使用说明 · AutoPPT",
-    "了解邀请制网页版的功能范围和使用约定。",
-    true,
-  ],
+  "/terms": ["使用说明 · 讲好", "了解邀请制网页版的功能范围和使用约定。", true],
 };
 const escape = (value) =>
   String(value).replace(
@@ -63,13 +53,13 @@ export function supportConfig(env = process.env) {
 export const websitePaths = Object.keys(pages);
 export function renderWebsiteShell(html, pathname, origin) {
   const [title, description, index] = pages[pathname] || [
-    "页面未找到 · AutoPPT",
+    "页面未找到 · 讲好",
     "链接可能已更改，请从官网继续。",
     false,
   ];
   const canonical = new URL(pathname === "/" ? "/website" : pathname, origin)
     .href;
-  const metadata = `<title>${escape(title)}</title><meta name="description" content="${escape(description)}"/><meta name="robots" content="${index ? "index,follow" : "noindex,nofollow"}"/><link rel="canonical" href="${escape(canonical)}"/><meta property="og:type" content="website"/><meta property="og:title" content="${escape(title)}"/><meta property="og:description" content="${escape(description)}"/><meta property="og:url" content="${escape(canonical)}"/>`;
+  const metadata = `<title>${escape(title)}</title><meta name="description" content="${escape(description)}"/><meta name="robots" content="${index ? "index,follow" : "noindex,nofollow"}"/><link rel="canonical" href="${escape(canonical)}"/><meta name="theme-color" content="#faf7f0"/><meta property="og:site_name" content="讲好"/><meta property="og:type" content="website"/><meta property="og:title" content="${escape(title)}"/><meta property="og:description" content="${escape(description)}"/><meta property="og:url" content="${escape(canonical)}"/>`;
   return html
     .replace(/<title>[^<]*<\/title>/, metadata)
     .replace(

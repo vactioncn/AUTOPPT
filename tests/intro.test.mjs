@@ -5,12 +5,13 @@ import path from "node:path";
 import { once } from "node:events";
 import express from "express";
 import { chromium } from "playwright-core";
+const testDist = path.resolve(process.env.AUTOPPT_INTRO_TEST_DIST || "dist");
 import { product } from "../site/intro/content.mjs";
 import { readBuildInfo } from "../server/build-info.mjs";
 
 test("product introduction covers real workflows and ships reproducible demo screenshots", () => {
-  const html = readFileSync("dist/intro/index.html", "utf8");
-  const guide = readFileSync("dist/intro/guide.md", "utf8");
+  const html = readFileSync(path.join(testDist, "intro/index.html"), "utf8");
+  const guide = readFileSync(path.join(testDist, "intro/guide.md"), "utf8");
   assert(!html.includes("{{"));
   assert.equal(product.modules.length, 5);
   assert.deepEqual(
@@ -32,7 +33,11 @@ test("product introduction covers real workflows and ships reproducible demo scr
   assert.equal(manifest.modelCalls, 0);
   assert.equal(manifest.privateData, false);
   assert(!html.includes('id="faq"'));
-  assert(readFileSync("dist/intro/help.html", "utf8").includes("常见问题"));
+  assert(
+    readFileSync(path.join(testDist, "intro/help.html"), "utf8").includes(
+      "常见问题",
+    ),
+  );
   assert(guide.includes("PPTX 是整页图片"));
   assert(guide.includes("实际输出取决于服务商"));
 });
@@ -42,7 +47,7 @@ test(
   { skip: !process.env.INTRO_BROWSER_TEST, timeout: 60000 },
   async () => {
     const app = express();
-    app.use(express.static(path.resolve("dist")));
+    app.use(express.static(testDist));
     const server = app.listen(0, "127.0.0.1");
     await once(server, "listening");
     const base = `http://127.0.0.1:${server.address().port}`;
@@ -227,7 +232,7 @@ test(
         settings: { text: connection, image: connection },
       }),
     );
-    app.use(express.static(path.resolve("dist")));
+    app.use(express.static(testDist));
     const server = app.listen(0, "127.0.0.1");
     await once(server, "listening");
     const base = `http://127.0.0.1:${server.address().port}`;

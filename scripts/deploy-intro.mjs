@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { product } from "../site/intro/content.mjs";
+import { BRAND_ASSETS } from "../shared/brand-assets.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const bucket = "oss://turing-show";
@@ -82,6 +83,7 @@ export function prepareIntroduction(output) {
   for (const name of screenshots)
     copyPublicFile(`intro/screenshots/${name}`, output);
   copyPublicFile("favicon.svg", output);
+  for (const asset of BRAND_ASSETS) copyPublicFile(`brand/${asset}`, output);
 
   return [
     "index.html",
@@ -90,6 +92,7 @@ export function prepareIntroduction(output) {
     "intro.js",
     "guide.md",
     "favicon.svg",
+    ...BRAND_ASSETS.map((asset) => `brand/${asset}`),
     ...product.gallery.map((style) => `artwork/${style.file}.webp`),
     ...[...screenshots].map((name) => `screenshots/${name}`),
   ].sort();

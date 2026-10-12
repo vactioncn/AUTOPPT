@@ -3,6 +3,8 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import sharp from "sharp";
 import { product } from "../site/intro/content.mjs";
+import { BRAND } from "../shared/brand.mjs";
+import { BRAND_ASSETS } from "../shared/brand-assets.mjs";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 // Deployment builds into a fresh temporary directory without touching the
 // running application's dist/ or any user data.
@@ -79,12 +81,15 @@ let html = readFileSync(
   "utf8",
 );
 for (const [key, value] of Object.entries({
+  BRAND_NAME: BRAND.name,
+  BRAND_TITLE: BRAND.title,
+  BRAND_TAGLINE: BRAND.tagline,
   MODULE_OVERVIEW: overview,
   FEATURES: features,
   SETUP: setup,
   FAQ: faq,
 }))
-  html = html.replace(`{{${key}}}`, value);
+  html = html.replaceAll(`{{${key}}}`, value);
 // Small, reproducible web derivatives of the approved public covers. The
 // original product covers stay untouched; no model calls or private data.
 mkdirSync(path.join(out, "artwork"), { recursive: true });
@@ -96,15 +101,20 @@ await Promise.all(
       .toFile(path.join(out, "artwork", `${style.file}.webp`)),
   ),
 );
+for (const asset of BRAND_ASSETS) {
+  const target = path.join(out, "brand", asset);
+  mkdirSync(path.dirname(target), { recursive: true });
+  copyFileSync(path.join(root, "public/brand", asset), target);
+}
 writeFileSync(path.join(out, "index.html"), html);
 writeFileSync(
   path.join(out, "help.html"),
-  `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AutoPPT 使用帮助</title><link rel="stylesheet" href="intro.css"></head><body><main class="wrap section"><a class="text-link" href="index.html">← 产品介绍</a><h1>AutoPPT 使用帮助</h1><p>Mac App · 常见问题与操作说明</p><div class="faq-list">${faq}</div><a href="guide.md">下载完整快速指南</a></main></body></html>`,
+  `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${BRAND.name} 使用帮助</title><link rel="icon" href="brand/mark.svg"><link rel="stylesheet" href="brand/type.css"><link rel="stylesheet" href="intro.css"></head><body><main class="wrap section"><a class="text-link" href="index.html">← 产品介绍</a><h1>${BRAND.name} 使用帮助</h1><p>Mac App · 常见问题与操作说明</p><div class="faq-list">${faq}</div><a href="guide.md">下载完整快速指南</a></main></body></html>`,
 );
 for (const file of ["intro.css", "intro.js"])
   copyFileSync(path.join(root, "site/intro", file), path.join(out, file));
 const md = [
-  "# AutoPPT 功能与快速使用指南",
+  `# ${BRAND.name} 功能与快速使用指南`,
   "",
   product.description,
   "",

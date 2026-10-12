@@ -19,6 +19,9 @@ import {
 } from "../shared/web-routes.mjs";
 import { STYLE_SHOWCASE } from "../shared/style-showcase.mjs";
 import "./website.css";
+import { BRAND } from "../shared/brand.mjs";
+import { BrandLockup } from "./BrandLockup";
+import "./brand.css";
 
 export type SiteAccount = {
   user: { name: string } | null;
@@ -80,7 +83,7 @@ export function WebSite({
         document.getElementById("access")?.scrollIntoView(),
       );
     const titles = {
-      website: "让观点有好看的表达",
+      website: BRAND.descriptor,
       login: "登录",
       register: "邀请注册",
       support: "使用帮助",
@@ -88,7 +91,22 @@ export function WebSite({
       terms: "使用说明",
       notfound: "页面未找到",
     };
-    document.title = `AutoPPT · ${titles[page]}`;
+    document.title =
+      page === "website" ? BRAND.title : `${titles[page]} · ${BRAND.name}`;
+    const icon = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+    const previousIcon = icon?.getAttribute("href");
+    const description = document.querySelector<HTMLMetaElement>(
+      'meta[name="description"]',
+    );
+    const previousDescription = description?.content;
+    if (page === "website" && description)
+      description.content = BRAND.description;
+    icon?.setAttribute("href", "/brand/mark.svg");
+    return () => {
+      if (previousIcon) icon?.setAttribute("href", previousIcon);
+      if (description && previousDescription !== undefined)
+        description.content = previousDescription;
+    };
   }, [page]);
   const next = workspaceTarget(returnTo);
   const enter = account?.user
@@ -101,12 +119,8 @@ export function WebSite({
         跳到正文
       </a>
       <header className="web-header">
-        <WebLink
-          className="web-brand"
-          href="/website"
-          aria-label="AutoPPT 官网"
-        >
-          <span className="brand-icon">A</span>AutoPPT
+        <WebLink className="web-brand" href="/website" aria-label="讲好 官网">
+          <BrandLockup />
         </WebLink>
         <button
           className="web-menu"
@@ -164,9 +178,9 @@ export function WebSite({
       <footer className="web-footer">
         <div>
           <WebLink className="web-brand" href="/website">
-            AutoPPT
+            <BrandLockup compact />
           </WebLink>
-          <p>以审美为核心，让观点有好看的表达。</p>
+          <p>{BRAND.tagline}</p>
         </div>
         <nav aria-label="网站页脚">
           <WebLink href="/support">使用帮助</WebLink>
@@ -206,7 +220,7 @@ function ShowcaseImage({
       }
       width="1600"
       height="900"
-      alt={`AutoPPT 实际生成页面：${title}`}
+      alt={`讲好实际生成页面：${title}`}
       loading={hero ? "eager" : "lazy"}
       fetchPriority={hero ? "high" : "auto"}
     />
@@ -237,7 +251,7 @@ function ProductDemo() {
           playsInline
           preload="none"
           poster="/product-demo/poster.webp"
-          aria-label="AutoPPT 产品介绍视频"
+          aria-label="讲好产品介绍视频（原名 AutoPPT）"
           aria-describedby="product-demo-caption"
           onPlay={() => setPlaying(true)}
           onPause={() => setPlaying(false)}
@@ -267,8 +281,8 @@ function ProductDemo() {
       </div>
       <figcaption id="product-demo-caption">
         <div>
-          <strong>这段演讲，就是用 AutoPPT 做的。</strong>
-          <span>实际生成页面 · 播音员 AI 配音 · 自动情感编排</span>
+          <strong>这段演讲，就是用我们的工作台做的。</strong>
+          <span>更名前以 AutoPPT 制作 · 实际生成页面与 AI 配音</span>
         </div>
         <a href="/product-demo/AutoPPT-introduction.pptx" download>
           下载这份 PPT <ArrowRight size={16} />
@@ -300,17 +314,15 @@ function Home({
     <>
       <section className="web-hero web-art-hero">
         <div className="web-hero-copy">
-          <h1>
-            让观点，
+          <h1 aria-label={BRAND.tagline}>
+            从一份讲稿，
             <br />
-            有好看的表达。
+            到一次<span>从容的表达。</span>
           </h1>
           <p>
-            以审美为核心的 PPT 与演讲制作工具。
+            整理观点，制作有风格的画面。
             <br />
-            你专心把话讲好，
-            <br className="web-desktop-break" />
-            我们把它变成值得看见的画面。
+            把讲稿、演练与交付，放在一个工作台。
           </p>
           <div className="web-actions">
             <WebLink
@@ -331,15 +343,26 @@ function Home({
         </div>
         <ProductDemo />
       </section>
-      <nav className="web-feature-nav" aria-label="产品核心特点">
-        <button onClick={() => scrollTo("generated-gallery")}>
-          好看 <ArrowRight size={17} />
-        </button>
+      <nav className="web-feature-nav" aria-label="从讲稿到交付">
         <button onClick={() => scrollTo("simple-creation")}>
-          简单 <ArrowRight size={17} />
+          <strong>写</strong>
+          <ArrowRight size={18} />
+          <span>把想法整理清楚</span>
+        </button>
+        <button onClick={() => scrollTo("generated-gallery")}>
+          <strong>做</strong>
+          <ArrowRight size={18} />
+          <span>让观点有好看的画面</span>
         </button>
         <button onClick={() => scrollTo("more-expression")}>
-          更多表达 <ArrowRight size={17} />
+          <strong>练</strong>
+          <ArrowRight size={18} />
+          <span>找到讲述的节奏</span>
+        </button>
+        <button onClick={() => scrollTo("delivery-summary")}>
+          <strong>交</strong>
+          <ArrowRight size={18} />
+          <span>把成果完整带走</span>
         </button>
       </nav>
       <section
@@ -401,7 +424,7 @@ function Home({
           ))}
         </div>
         <p className="web-caption">
-          以上均使用 AutoPPT
+          以上均使用讲好
           的内置精品风格实际生成。点击任一画面可查看大图，也可以上传参考图，建立自己的风格。
         </p>
       </section>
@@ -419,7 +442,7 @@ function Home({
           <p>
             提供演讲逐字稿，选好风格。
             <br />
-            从理解内容到生成画面，接下来交给 AutoPPT。
+            从理解内容到生成画面，接下来交给讲好。
           </p>
         </div>
         <ol className="web-creation-steps">
@@ -511,6 +534,42 @@ function Home({
           </dl>
         </div>
       </section>
+      <section
+        className="web-delivery"
+        id="delivery-summary"
+        aria-labelledby="delivery-heading"
+      >
+        <div className="web-section-intro">
+          <h2 id="delivery-heading">
+            讲稿与画面，
+            <br />
+            准备齐全。
+          </h2>
+          <p>
+            现场讲，分享给同事，或让观众自己播放。
+            <br />
+            按这次表达需要的方式，把成果带走。
+          </p>
+        </div>
+        <dl>
+          <div>
+            <dt>演讲 PPT</dt>
+            <dd>每页画面与完整讲稿备注一起导出，打开即可继续准备演讲。</dd>
+          </div>
+          <div>
+            <dt>完整逐字稿</dt>
+            <dd>按页整理的 Markdown 讲稿，方便校对、练习和分享。</dd>
+          </div>
+          <div>
+            <dt>有声演示</dt>
+            <dd>口播生成后，导出可离线播放的 HTML，让画面和声音一起呈现。</dd>
+          </div>
+        </dl>
+        <p className="web-caption">
+          PPTX
+          每页为一张完整图片，文字与图形不能单独编辑。已有项目、图片与讲稿保留。
+        </p>
+      </section>
       <section className="web-faq">
         <h2>开始前，你可能想知道</h2>
         <FAQ title="如何获得账号？">
@@ -536,8 +595,9 @@ function Home({
         <h2>
           下一场演讲，
           <br />
-          从一张满意的画面开始。
+          一起准备好。
         </h2>
+        <p>{BRAND.tagline}</p>
         <WebLink
           className="btn primary"
           href={account?.user ? enter : "/register"}
@@ -692,7 +752,7 @@ function Access({
         }}
         aria-label={register ? "邀请注册" : "账号登录"}
       >
-        <h2>{register ? "邀请注册" : "登录 AutoPPT"}</h2>
+        <h2>{register ? "邀请注册" : "登录讲好"}</h2>
         <p>
           {register
             ? "邀请码仅用于首次注册，之后用账号和密码登录。"

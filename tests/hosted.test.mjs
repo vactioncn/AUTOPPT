@@ -825,7 +825,7 @@ test(
           const errors = [];
           page.on("pageerror", (e) => errors.push(e.message));
           await page.goto(origin + "/login");
-          await page.getByRole("heading", { name: "登录 AutoPPT" }).waitFor();
+          await page.getByRole("heading", { name: "登录讲好" }).waitFor();
           await page.screenshot({
             path: path.join(out, "login-desktop.png"),
             fullPage: true,
@@ -850,7 +850,7 @@ test(
           await page
             .getByRole("button", { name: "退出登录", exact: true })
             .click();
-          await page.getByRole("heading", { name: "登录 AutoPPT" }).waitFor();
+          await page.getByRole("heading", { name: "登录讲好" }).waitFor();
           await page
             .getByRole("link", { name: "使用邀请码注册", exact: true })
             .click();
@@ -892,7 +892,7 @@ test(
             viewport: { width: 390, height: 844 },
           });
           await phone.goto(origin + "/login");
-          await phone.getByRole("heading", { name: "登录 AutoPPT" }).waitFor();
+          await phone.getByRole("heading", { name: "登录讲好" }).waitFor();
           assert(
             await phone.evaluate(
               () => document.documentElement.scrollWidth <= innerWidth,

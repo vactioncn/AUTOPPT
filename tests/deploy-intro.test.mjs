@@ -15,6 +15,7 @@ import { once } from "node:events";
 import express from "express";
 import { load } from "cheerio";
 import { chromium } from "playwright-core";
+import { BRAND_ASSETS } from "../shared/brand-assets.mjs";
 import {
   prepareIntroduction,
   validateTarget,
@@ -58,10 +59,12 @@ test("standalone payload contains only public intro files and resolves inside th
   const temp = fixture(t);
   const output = path.join(temp, "site");
   const files = prepareIntroduction(output);
-  assert.equal(files.length, 20);
+  assert.equal(files.length, 20 + BRAND_ASSETS.length);
   assert.deepEqual(
     readdirSync(output, { recursive: true })
-      .filter((p) => !["screenshots", "artwork"].includes(p))
+      .filter(
+        (p) => !["screenshots", "artwork", "brand", "brand/fonts"].includes(p),
+      )
       .sort(),
     files,
   );

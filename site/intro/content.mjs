@@ -1,8 +1,9 @@
+import { BRAND } from "../../shared/brand.mjs";
 import { helpTopics } from "../../shared/help-content.mjs";
 export const product = {
-  name: "AutoPPT",
+  name: BRAND.name,
   description:
-    "AutoPPT 是一款 Mac 演讲制作 App。从逐字稿、视觉风格和演讲画面，到情感口播、动态放映、离线交付及项目迁移，在同一个本机工作区完成。",
+    "讲好（原名 AutoPPT）是 AI 演讲工作台，Mac 本机版从逐字稿、视觉风格和演讲画面，到情感口播、动态放映、离线交付及项目迁移，在同一个本机工作区完成。",
   gallery: [
     {
       file: "neo-swiss-strategy",

@@ -5,25 +5,38 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="AutoPPT，Mac 演讲制作 App。粘贴逐字稿，自动拆页、提炼重点，按自己的风格生成演示画面。13 套内置风格，逐页打磨，导出 PPT 与完整讲稿。"
+      content="讲好，AI 演讲工作台。Mac 本机版支持粘贴逐字稿，自动拆页、提炼重点，按自己的风格生成演示画面。13 套内置风格，逐页打磨，导出 PPT 与完整讲稿。"
     />
-    <meta name="theme-color" content="#ffffff" />
-    <meta property="og:title" content="AutoPPT · 好内容，自有好画面。" />
+    <meta name="theme-color" content="#faf7f0" />
+    <meta property="og:title" content="{{BRAND_TITLE}}" />
     <meta
       property="og:description"
       content="从逐字稿到有风格的演讲 PPT。自动拆页，逐页打磨，连同完整讲稿一起带走。"
     />
     <meta property="og:type" content="website" />
-    <title>AutoPPT · 好内容，自有好画面。</title>
-    <link rel="icon" href="../favicon.svg" />
+    <title>{{BRAND_TITLE}}</title>
+    <link rel="icon" href="./brand/mark.svg" />
+    <link rel="stylesheet" href="./brand/type.css" />
     <link rel="stylesheet" href="./intro.css" />
     <script src="./intro.js" defer></script>
   </head>
   <body>
+    <!--
+THESIS: 讲好 turns a manuscript into a considered visual speech and a confident delivery.
+OWN-WORLD: Warm paper, ink, vermilion, local Noto Serif SC and real generated work.
+STORY: Understand the local workflow, inspect covers and UI, then read installation instructions.
+FIRST VIEWPORT: The confirmed promise sits above actual generated covers and the local start action.
+FORM: Publishing studio, grounded direction 7, seed 81573e3e; code-led brand expansion.
+FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance.
+-->
     <a class="skip-link" href="#main">跳到正文</a>
     <header class="site-header">
       <div class="nav-inner">
-        <a class="wordmark" href="#" aria-label="AutoPPT 首页">AutoPPT</a>
+        <a class="wordmark" href="#" aria-label="讲好首页"
+          ><img src="./brand/mark.svg" width="36" height="36" alt="" /><span
+            >{{BRAND_NAME}}</span
+          ></a
+        >
         <button
           class="menu-toggle"
           aria-expanded="false"
@@ -44,10 +57,11 @@
     <main id="main">
       <section class="hero" aria-labelledby="hero-title">
         <div class="hero-copy wrap">
-          <p class="hero-category">AutoPPT · Mac 演讲制作 App</p>
-          <h1 id="hero-title">好内容。<br /><span>自有好画面。</span></h1>
+          <h1 id="hero-title">
+            从一份讲稿，<br />到一次<span>从容的表达。</span>
+          </h1>
           <p class="hero-description">
-            把逐字稿，变成有你风格的演讲 PPT。<br />从画面制作、情感口播，到动态放映与离线交付。
+            AI 演讲工作台 · Mac 本机版<br />从有风格的画面，到讲述、演练与交付，一起准备好。
           </p>
           <div class="hero-actions">
             <a class="button" href="#start">开始你的第一场演讲</a
@@ -56,7 +70,7 @@
             >
           </div>
         </div>
-        <div class="hero-stage" aria-label="AutoPPT 内置风格封面展示">
+        <div class="hero-stage" aria-label="讲好内置风格封面展示">
           <img
             class="hero-slide hero-left"
             src="artwork/tactile-journal.webp"
@@ -80,9 +94,7 @@
             fetchpriority="high"
           />
         </div>
-        <p class="image-note hero-image-note">
-          AutoPPT 内置风格封面 · 实际画面
-        </p>
+        <p class="image-note hero-image-note">讲好内置风格封面 · 实际画面</p>
       </section>
 
       <section id="workflow" class="overview section mist">
@@ -203,7 +215,7 @@
           <div class="setup-steps">{{SETUP}}</div>
           <div class="start-links">
             <a href="./help.html">使用帮助与常见问题 ↗</a>
-            <a href="./guide.md" download="AutoPPT-功能与快速使用指南.md"
+            <a href="./guide.md" download="讲好-功能与快速使用指南.md"
               >下载快速指南 <span aria-hidden="true">↓</span></a
             ><a
               href="https://github.com/vactioncn/AUTOPPT/blob/main/docs/同事安装与使用说明.md"
@@ -211,16 +223,20 @@
             ><a href="../#projects" id="open-workspace">打开本机工作台 ↗</a>
           </div>
           <p class="start-note">
-            Mac
-            内部版免登录；公开下载入口提供源码。首次生成需配置自己的模型服务，不附带模型额度。
+            讲好原名 AutoPPT。Mac 程序仍叫 AutoPPT.app，已有项目继续使用。
+            本机版免登录；公开下载入口提供源码。首次生成需配置自己的模型服务，不附带模型额度。
           </p>
         </div>
       </section>
     </main>
     <footer class="site-footer wrap">
       <div>
-        <a class="wordmark" href="#">AutoPPT</a>
-        <p>让内容讲清楚，让表达有自己的风格。</p>
+        <a class="wordmark" href="#"
+          ><img src="./brand/mark.svg" width="36" height="36" alt="" /><span
+            >{{BRAND_NAME}}</span
+          ></a
+        >
+        <p>{{BRAND_TAGLINE}}</p>
       </div>
       <a href="https://github.com/vactioncn/AUTOPPT"
         >在 GitHub 查看项目 <span aria-hidden="true">↗</span></a

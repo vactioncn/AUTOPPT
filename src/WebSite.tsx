@@ -257,7 +257,7 @@ function ProductDemo() {
           playsInline
           preload="none"
           poster="/product-demo/poster.webp"
-          aria-label="OutPPT 产品介绍视频"
+          aria-label="AutoPPT 产品介绍视频"
           aria-describedby="product-demo-caption"
           onError={() => {
             setError("视频暂时无法加载，请重试，或下载 PPT 查看。");
@@ -265,7 +265,7 @@ function ProductDemo() {
           }}
         >
           <source
-            src="/product-demo/outppt-introduction.mp4"
+            src="/product-demo/autoppt-introduction.mp4"
             type="video/mp4"
           />
           <track
@@ -283,10 +283,10 @@ function ProductDemo() {
       </div>
       <figcaption id="product-demo-caption">
         <div>
-          <strong>这段演讲，就是用 OutPPT 做的。</strong>
+          <strong>这段演讲，就是用 AutoPPT 做的。</strong>
           <span>实际生成页面 · 播音员 AI 配音 · 自动情感编排</span>
         </div>
-        <a href="/product-demo/OutPPT-introduction.pptx" download>
+        <a href="/product-demo/AutoPPT-introduction.pptx" download>
           下载这份 PPT <ArrowRight size={16} />
         </a>
       </figcaption>

@@ -1,41 +1,41 @@
 {
-  "title": "OutPPT 产品介绍",
+  "title": "AutoPPT 产品介绍",
   "pages": [
     {
       "page": 1,
       "title": "你真正想做的：把一件事讲明白。",
       "start": 0,
-      "duration": 25.375
+      "duration": 25.041667
     },
     {
       "page": 2,
       "title": "页面随着内容变化，整场又保持共同的气质。",
-      "start": 25.375,
+      "start": 25.041667,
       "duration": 24.208333
     },
     {
       "page": 3,
       "title": "观众看见重点，你的完整讲稿依然保留。",
-      "start": 49.583332999999996,
-      "duration": 20.541667
+      "start": 49.25,
+      "duration": 21.125
     },
     {
       "page": 4,
       "title": "可以先试一页，看效果，再决定要不要做整场",
-      "start": 70.125,
+      "start": 70.375,
       "duration": 21.791667
     },
     {
       "page": 5,
       "title": "画面和声音一起，完整呈现演讲。",
-      "start": 91.916667,
+      "start": 92.166667,
       "duration": 25.208333
     },
     {
       "page": 6,
       "title": "准备一段你想讲的话，从第一张画面开始。",
-      "start": 117.125,
-      "duration": 15.958333
+      "start": 117.375,
+      "duration": 15.708333
     }
   ],
   "duration": 133.104329,

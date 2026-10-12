@@ -27,6 +27,11 @@ export function RehearsalPlayer({
   const audio = useRef<HTMLAudioElement>(null),
     video = useRef<HTMLVideoElement>(null);
   const continuePlayback = useRef(autoStart);
+  const gap = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearGap = () => {
+    if (gap.current) clearTimeout(gap.current);
+    gap.current = null;
+  };
   const pieces = rehearsalPlaybackPieces(run);
   const piece = pieces[index];
   const slide =
@@ -52,11 +57,13 @@ export function RehearsalPlayer({
     setEnded(false);
     setError("");
     if (continuePlayback.current) play();
+    return clearGap;
   }, [index, piece?.clip.file, piece?.clip.audioFile]);
   useEffect(() => {
     const a = audio.current,
       v = video.current;
     return () => {
+      clearGap();
       a?.pause();
       v?.pause();
     };
@@ -73,7 +80,7 @@ export function RehearsalPlayer({
     if (!media()?.ended) continuePlayback.current = false;
     setIsPlaying(false);
   };
-  const next = () => {
+  const advance = () => {
     if (continuePlayback.current && index + 1 < pieces.length)
       setIndex((i) => i + 1);
     else {
@@ -82,6 +89,20 @@ export function RehearsalPlayer({
       setEnded(true);
     }
   };
+  const next = () => {
+    clearGap();
+    if (
+      continuePlayback.current &&
+      index + 1 < pieces.length &&
+      piece.clip.pauseAfter
+    ) {
+      setIsPlaying(true);
+      gap.current = setTimeout(() => {
+        gap.current = null;
+        advance();
+      }, piece.clip.pauseAfter * 1000);
+    } else advance();
+  };
   const mediaError = () => {
     continuePlayback.current = false;
     setIsPlaying(false);
@@ -89,11 +110,16 @@ export function RehearsalPlayer({
   };
   const toggle = () => {
     if (isPlaying) {
+      clearGap();
       continuePlayback.current = false;
       media()?.pause();
+      setIsPlaying(false);
     } else if (ended && index > 0) {
       continuePlayback.current = true;
       setIndex(0);
+    } else if (media()?.ended && index + 1 < pieces.length) {
+      continuePlayback.current = true;
+      setIndex(index + 1);
     } else play();
   };
   return (
@@ -139,7 +165,7 @@ export function RehearsalPlayer({
         </div>
         <details className="rehearsal-player-script">
           <summary>查看本段口播正文</summary>
-          <p>{piece.clip.text || piece.page.text}</p>
+          <p>{piece.clip.spokenText || piece.clip.text || piece.page.text}</p>
         </details>
         {run.plan.actor === "digital" && !piece.clip.file && (
           <p>声音可先试听；嘴型完成后可播放数字人。</p>

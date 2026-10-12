@@ -15,6 +15,8 @@ export function matchesRehearsalRun(
     "narrationId",
   ];
   if (!keys.every((key) => run.plan[key] === plan[key])) return false;
+  if ((run.plan.expression || "natural") !== (plan.expression || "natural"))
+    return false;
   if (!plan.narrationId && run.speechModel && run.speechModel !== model)
     return false;
   const ids = run.scope === "trial" ? [plan.pageId] : pageIds;

@@ -31,6 +31,7 @@ const planBody = (p: RehearsalPlan) =>
       "avatarId",
       "voiceId",
       "emotion",
+      "expression",
       "speed",
       "placement",
       "size",

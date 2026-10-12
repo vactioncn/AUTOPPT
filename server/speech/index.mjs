@@ -253,10 +253,7 @@ export function registerSpeech(app) {
           }),
         )
       : next();
-  app.use(
-    ["/api/speech/voices/clone", "/api/projects/:id/speech-performance"],
-    localOnly,
-  );
+  app.use(["/api/speech/voices/clone"], localOnly);
   registerPerformance(app, assertIdle);
   app.get("/api/settings/speech", (_req, res) =>
     res.json(publicSpeechSettings()),

@@ -42,6 +42,7 @@ test("current playback requires matching text, voice, page, trial length and mod
     { voiceId: "another" },
     { speed: 1.25 },
     { emotion: "happy" },
+    { expression: "directed" },
     { pageId: "two" },
   ])
     assert(!matchesRehearsalRun(trial, { ...plan, ...change }, context));

@@ -1,4 +1,4 @@
-import { useEffect, useState, useId, type ReactNode } from "react";
+import { useEffect, useState, useId, useRef, type ReactNode } from "react";
 import {
   ArrowRight,
   ArrowLeft,
@@ -7,6 +7,7 @@ import {
   EyeSlash,
   List,
   X,
+  Play,
 } from "@phosphor-icons/react";
 import { Button, Field } from "./components";
 import { post } from "./api";
@@ -232,6 +233,75 @@ function ShowcaseImage({
     />
   );
 }
+function ProductDemo() {
+  const video = useRef<HTMLVideoElement>(null);
+  const [started, setStarted] = useState(false);
+  const [error, setError] = useState("");
+  async function play() {
+    setError("");
+    setStarted(true);
+    if (video.current?.error) video.current.load();
+    try {
+      await video.current?.play();
+    } catch {
+      setError("视频暂时无法播放，请重试，或下载 PPT 查看完整画面。");
+      setStarted(false);
+    }
+  }
+  return (
+    <figure className="web-demo">
+      <div className="web-demo-stage">
+        <video
+          ref={video}
+          controls={started}
+          playsInline
+          preload="none"
+          poster="/product-demo/poster.webp"
+          aria-label="OutPPT 产品介绍视频"
+          aria-describedby="product-demo-caption"
+          onError={() => {
+            setError("视频暂时无法加载，请重试，或下载 PPT 查看。");
+            setStarted(false);
+          }}
+        >
+          <source
+            src="/product-demo/outppt-introduction.mp4"
+            type="video/mp4"
+          />
+          <track
+            kind="captions"
+            src="/product-demo/captions.vtt"
+            srcLang="zh"
+            label="中文"
+          />
+        </video>
+        {!started && (
+          <button className="web-demo-play" onClick={() => void play()}>
+            <Play size={22} weight="fill" /> 播放产品介绍
+          </button>
+        )}
+      </div>
+      <figcaption id="product-demo-caption">
+        <div>
+          <strong>这段演讲，就是用 OutPPT 做的。</strong>
+          <span>实际生成页面 · 播音员 AI 配音 · 自动情感编排</span>
+        </div>
+        <a href="/product-demo/OutPPT-introduction.pptx" download>
+          下载这份 PPT <ArrowRight size={16} />
+        </a>
+      </figcaption>
+      {error && (
+        <p role="alert" className="web-demo-error">
+          {error}
+        </p>
+      )}
+      <a className="web-demo-transcript" href="/product-demo/manuscript.md">
+        阅读完整介绍稿
+      </a>
+    </figure>
+  );
+}
+
 function Home({
   account,
   enter,
@@ -239,8 +309,6 @@ function Home({
   account: SiteAccount | null;
   enter: string;
 }) {
-  const [selected, setSelected] = useState(0);
-  const current = showcasePages[selected];
   const scrollTo = (id: string) =>
     document.getElementById(id)?.scrollIntoView({ block: "start" });
   return (
@@ -276,36 +344,7 @@ function Home({
           </div>
           <small>一段逐字稿，就能开始。先试一页，满意再做整场。</small>
         </div>
-        <figure className="web-showcase web-real-showcase">
-          <a
-            href={`/showcase/${current.id}.webp`}
-            aria-label={`放大查看：${current.title}`}
-          >
-            <ShowcaseImage {...current} hero />
-          </a>
-          <figcaption aria-live="polite">
-            <strong>{current.title}</strong>
-            <span>实际生成页面 · {current.caption}</span>
-          </figcaption>
-          <div className="web-work-switch" aria-label="切换实际生成作品">
-            {showcasePages.slice(0, 4).map((item, index) => (
-              <button
-                key={item.id}
-                aria-label={`查看作品：${item.title}`}
-                aria-pressed={selected === index}
-                onClick={() => setSelected(index)}
-              >
-                <img
-                  src={`/showcase/${item.id}-small.webp`}
-                  width="320"
-                  height="180"
-                  alt=""
-                />
-                <span>{item.title}</span>
-              </button>
-            ))}
-          </div>
-        </figure>
+        <ProductDemo />
       </section>
       <nav className="web-feature-nav" aria-label="产品核心特点">
         <button onClick={() => scrollTo("generated-gallery")}>
@@ -482,10 +521,10 @@ function Home({
             </div>
             <div>
               <dt>
-                叙事情感与数字人 <span>扩展方向</span>
+                自动情感编排 <span>已开放</span>
               </dt>
               <dd>
-                结合文稿安排情绪、节奏和停顿，再让数字人出镜讲述。这是我们接下来探索的表达方式，当前网页版尚未开放。
+                结合讲稿的设问、转折和重点，安排情绪、语速与停顿。使用你选好的音色，保留完整正文，先试一页，再生成整场。
               </dd>
             </div>
           </dl>
@@ -505,7 +544,7 @@ function Home({
         </FAQ>
         <FAQ title="可以用自己的声音，或制作数字人吗？">
           口播已开放，也可使用管理员接入的 MiniMax
-          专属声音。网页版暂未开放声音复刻、自动叙事情感编排和数字人制作。
+          专属声音，自动情感编排也已开放。数字人制作仍在实验室阶段，网页版暂未开放。
         </FAQ>
         <FAQ title="网页版与 Mac App 的项目是否同步？">
           两者使用独立工作区。这个网页版不会修改你的 Mac App

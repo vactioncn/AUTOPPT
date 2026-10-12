@@ -33,6 +33,8 @@ export function rehearsalPlan(projectId) {
     avatarId,
     voiceId: available.some((v) => v.id === preferred) ? preferred : "",
     emotion: "auto",
+    expression:
+      !saved && process.env.AUTOPPT_WORKER_TOKEN ? "directed" : "natural",
     speed: 1,
     placement: old?.placement || "bottom-right",
     size: old?.size || "small",
@@ -59,6 +61,7 @@ export function saveRehearsalPlan(projectId, input) {
     "avatarId",
     "voiceId",
     "emotion",
+    "expression",
     "speed",
     "placement",
     "size",
@@ -83,6 +86,7 @@ export function saveRehearsalPlan(projectId, input) {
   if (
     !["self", "voice", "digital"].includes(plan.actor) ||
     !["original", "motion"].includes(plan.visual) ||
+    !["natural", "directed"].includes(plan.expression) ||
     !["top-left", "top-right", "bottom-left", "bottom-right"].includes(
       plan.placement,
     ) ||

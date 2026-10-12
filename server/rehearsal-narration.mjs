@@ -43,6 +43,8 @@ export function publishRehearsalNarration(run, pages = run.pages) {
         .digest("hex"),
       clips: p.clips.map((c) => ({
         text: c.text,
+        spokenText: c.spokenText || c.text,
+        pauseAfter: c.pauseAfter || 0,
         file: c.audioFile,
         duration: c.duration,
       })),

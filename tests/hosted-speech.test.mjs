@@ -197,6 +197,7 @@ test(
       const base = `/api/projects/${project.id}/rehearsal`;
       const context = (await request(base, undefined, admin)).data;
       assert.equal(context.plan.voiceId, "personal-voice");
+      assert.equal(context.plan.expression, "directed");
       assert(context.voices.some((v) => v.name === "本人的声音" && v.custom));
       const config = (await request("/api/settings/speech", undefined, admin))
         .data;
@@ -216,13 +217,13 @@ test(
         `/api/projects/${project.id}/speech-performance`,
         {},
         admin,
-        403,
+        409,
       );
       await request(base, { actor: "digital" }, admin, 403, "PUT");
       await request(base, { visual: "motion" }, admin, 403, "PUT");
       await request(
         base,
-        { actor: "voice", pageId: project.slides[0].id },
+        { actor: "voice", pageId: project.slides[0].id, expression: "natural" },
         admin,
         200,
         "PUT",

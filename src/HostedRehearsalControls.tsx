@@ -83,6 +83,21 @@ export function HostedRehearsalControls({
               </select>
             </Field>
           </div>
+          <Field
+            label="表达方式"
+            hint="自动编排情绪、语速和停顿，保留你的正文与所选声音。"
+          >
+            <select
+              value={plan.expression || "natural"}
+              disabled={busy}
+              onChange={(e) =>
+                choose("expression", e.target.value as "natural" | "directed")
+              }
+            >
+              <option value="directed">自动情感编排</option>
+              <option value="natural">自然表达</option>
+            </select>
+          </Field>
           {!resources.context.speech.hasKey && (
             <p className="rehearsal-note">
               管理员尚未连接 MiniMax，请联系管理员；已有音频仍可播放。
@@ -134,19 +149,21 @@ export function HostedRehearsalControls({
               </Field>
               {!narration && (
                 <div className="rehearsal-inline-fields">
-                  <Field label="表达">
-                    <select
-                      value={plan.emotion}
-                      disabled={busy}
-                      onChange={(e) => choose("emotion", e.target.value)}
-                    >
-                      {SPEECH_EMOTIONS.map((emotion) => (
-                        <option key={emotion.id} value={emotion.id}>
-                          {emotion.name}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
+                  {(plan.expression || "natural") === "natural" && (
+                    <Field label="表达">
+                      <select
+                        value={plan.emotion}
+                        disabled={busy}
+                        onChange={(e) => choose("emotion", e.target.value)}
+                      >
+                        {SPEECH_EMOTIONS.map((emotion) => (
+                          <option key={emotion.id} value={emotion.id}>
+                            {emotion.name}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                  )}
                   <Field label="试播长度">
                     <select
                       value={trialLength}

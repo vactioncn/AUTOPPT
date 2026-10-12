@@ -10,6 +10,7 @@ export type RehearsalPlan = {
   avatarId: string;
   voiceId: string;
   emotion: string;
+  expression?: "natural" | "directed";
   speed: number;
   placement: string;
   size: string;
@@ -52,6 +53,8 @@ export type RehearsalRun = {
       audioFile?: string;
       file?: string;
       duration?: number;
+      spokenText?: string;
+      pauseAfter?: number;
       status?: string;
     }[];
   }[];

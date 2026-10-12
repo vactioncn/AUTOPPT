@@ -26,6 +26,7 @@ import { createMotion, retryMotion, stopMotion } from "./motion/index.mjs";
 import { splitSpeech } from "../shared/speech.mjs";
 import { matchNarrationPage } from "./speech/export.mjs";
 import { withUsage } from "./usage/index.mjs";
+import { prepareRehearsalExpression } from "./rehearsal-expression.mjs";
 const active = (s) => ["queued", "running"].includes(s);
 const fail = (message, status = 400) =>
   Object.assign(new Error(message), { status });
@@ -169,6 +170,13 @@ export async function createRun(projectId, input, dependencies = {}) {
     throw fail("请先在设置保存动态演示需要的模型服务。");
   const options =
     narration?.options || (voice ? optionsFor(plan, config) : null);
+  if (
+    plan.actor === "voice" &&
+    !narration &&
+    plan.expression === "directed" &&
+    !settings().text.apiKey
+  )
+    throw fail("自动情感编排需要内容分析模型，请先连接模型或选择自然表达。");
   const pages = [];
   for (const slide of selected) {
     let text = context.script.pages.find((p) => p.id === slide.id)?.text || "";
@@ -272,6 +280,7 @@ async function prepare(
     audioFactory = cachedAudio,
     motionFactory = createMotion,
     presenterFactory = createGeneration,
+    expressionModel,
     signal,
   } = {},
 ) {
@@ -312,6 +321,7 @@ async function prepare(
       run.audioStatus = "running";
       run.progress = "";
       store(run);
+      await prepareRehearsalExpression(run, store, signal, expressionModel);
       for (const p of run.pages)
         for (const c of p.clips) {
           if (get("rehearsal-run", run.id).stopRequested)
@@ -326,12 +336,18 @@ async function prepare(
               feature: "演练口播",
             },
             () =>
-              audioFactory(config, c.text, run.options, signal, (waiting) => {
-                run.progress = waiting
-                  ? `正在等待语音服务，约 ${Math.ceil(waiting.ms / 1000)} 秒后继续。可停止等待，已完成声音保留。`
-                  : "正在合成声音，完成的片段可先试听。";
-                store(run);
-              }),
+              audioFactory(
+                config,
+                c.text,
+                { ...run.options, ...c.delivery },
+                signal,
+                (waiting) => {
+                  run.progress = waiting
+                    ? `正在等待语音服务，约 ${Math.ceil(waiting.ms / 1000)} 秒后继续。可停止等待，已完成声音保留。`
+                    : "正在合成声音，完成的片段可先试听。";
+                  store(run);
+                },
+              ),
           );
           Object.assign(c, {
             audioFile: audio.file,

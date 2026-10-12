@@ -88,6 +88,7 @@ import {
 
 import { registerTrials } from "./trials.mjs";
 import { registerHtmlExport } from "./html-export.mjs";
+import { registerBackgroundMusic } from "./background-music.mjs";
 import { registerProjectPackages } from "./project-package.mjs";
 import {
   registerStyleVersions,
@@ -190,6 +191,10 @@ app.use("/api", (req, res, next) => {
   next();
 });
 registerUsage(app);
+registerBackgroundMusic(
+  app,
+  process.env.AUTOPPT_MUSIC_DIR || path.join(dataDir, "background-music"),
+);
 const safeJob = (j) => {
   const project = j.projectId ? get("project", j.projectId) : null;
   const targets = productionTargetIds(j, project);

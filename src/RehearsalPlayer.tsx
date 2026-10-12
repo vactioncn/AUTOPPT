@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { asset } from "./api";
 import { Button, Modal } from "./components";
 import { SceneView } from "./SceneView";
+import { BackgroundMusicControls } from "./BackgroundMusicControls";
 import { presenterVideo } from "./presenter-types";
 import { speechAudio } from "./speech-types";
 import { rehearsalPlaybackPieces } from "../shared/rehearsal-playback.mjs";
@@ -77,7 +78,8 @@ export function RehearsalPlayer({
   };
   const onPause = () => {
     // The browser pauses at the end before firing ended. Keep the sequence alive.
-    if (!media()?.ended) continuePlayback.current = false;
+    if (media()?.ended) return;
+    continuePlayback.current = false;
     setIsPlaying(false);
   };
   const advance = () => {
@@ -217,6 +219,7 @@ export function RehearsalPlayer({
             )}
           </div>
         </div>
+        <BackgroundMusicControls playing={isPlaying} />
         {run.scope === "trial" && run.trialLength === "short" && (
           <p className="rehearsal-caption">
             这是本页开头的短片段。满意后关闭试播，即可生成整场完整口播。

@@ -13,6 +13,7 @@ import {
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { Accounts } from "./accounts.mjs";
+import { registerBackgroundMusic } from "../background-music.mjs";
 import { acquireLock } from "./process-lock.mjs";
 import { hostedSpeechConfig } from "./speech-config.mjs";
 import { createSpeechRequestPolicy } from "../speech/request-policy.mjs";
@@ -608,6 +609,12 @@ app.get(websitePaths, (req, res) => {
     );
 });
 app.use(express.static(path.join(root, "dist"), { dotfiles: "deny" }));
+// Only the administrator's imported site playlist is public, for the homepage
+// demo as well as playback. User uploads and project assets remain below auth.
+registerBackgroundMusic(
+  app,
+  process.env.AUTOPPT_MUSIC_DIR || path.join(dir, "background-music"),
+);
 app.use(["/api", "/assets"], authenticated, async (req, res) => {
   // Express routes are case-insensitive by default. Normalize policy checks too,
   // otherwise a mixed-case URL could reach the worker with hosted restrictions bypassed.

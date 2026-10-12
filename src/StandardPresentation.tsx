@@ -8,6 +8,7 @@ import {
 } from "@phosphor-icons/react";
 import { asset } from "./api";
 import { SceneView } from "./SceneView";
+import { BackgroundMusicControls } from "./BackgroundMusicControls";
 import type { Project } from "./types";
 import "./standard-presentation.css";
 
@@ -151,6 +152,9 @@ export function StandardPresentation({
         </button>
         <span className="standard-keyboard">方向键翻页 · Esc 返回</span>
       </footer>
+      <div className="standard-music">
+        <BackgroundMusicControls playing />
+      </div>
     </dialog>
   );
 }

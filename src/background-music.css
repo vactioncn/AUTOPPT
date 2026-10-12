@@ -1,0 +1,110 @@
+.background-music {
+  padding-block: 10px;
+  font-size: 13px;
+  color: var(--ink, #242722);
+}
+.background-music-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+}
+.background-music-switch {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 40px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.background-music-toggle {
+  width: 32px;
+  height: 19px;
+  border-radius: 20px;
+  background: var(--muted, #777d70);
+  padding: 3px;
+}
+.background-music-toggle > span {
+  display: block;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: white;
+  transition: transform 160ms ease-out;
+}
+.background-music-switch[aria-checked="true"] .background-music-toggle {
+  background: var(--accent, #c94e36);
+}
+.background-music-switch[aria-checked="true"] .background-music-toggle > span {
+  transform: translateX(13px);
+}
+.background-music-track {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 180px;
+  min-width: 0;
+  max-width: 340px;
+}
+.background-music-track select {
+  min-width: 0;
+  width: 100%;
+  padding: 8px;
+  min-height: 40px;
+  border: 1px solid var(--line, #dedfd8);
+  border-radius: 7px;
+  color: inherit;
+  background: var(--paper, #fff);
+  font: inherit;
+}
+.background-music-volume {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.background-music-volume input {
+  width: 100px;
+  min-height: 40px;
+  accent-color: var(--accent, #c94e36);
+  cursor: pointer;
+}
+.background-music-label {
+  white-space: nowrap;
+}
+.background-music .background-music-hint,
+.background-music .background-music-error {
+  margin: 3px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted, #626858);
+}
+.background-music button:focus-visible,
+.background-music select:focus-visible,
+.background-music input:focus-visible {
+  outline: 2px solid var(--accent, #c94e36);
+  outline-offset: 3px;
+}
+@media (max-width: 600px) {
+  .background-music-track {
+    max-width: none;
+    flex-basis: calc(100% - 160px);
+  }
+  .background-music-volume {
+    flex-basis: 100%;
+  }
+  .background-music-volume input {
+    flex: 1;
+    max-width: 180px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .background-music-toggle > span {
+    transition: none;
+  }
+}

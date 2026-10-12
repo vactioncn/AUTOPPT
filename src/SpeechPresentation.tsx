@@ -33,6 +33,7 @@ import "./speech.css";
 import { PresenterOverlay } from "./PresenterOverlay";
 import { SpeechPerformance } from "./SpeechPerformance";
 import { SpeechPreview } from "./SpeechPreview";
+import { BackgroundMusicControls } from "./BackgroundMusicControls";
 import {
   performanceMatches,
   supportsDeliverySounds,
@@ -87,6 +88,7 @@ export function SpeechPresentation({
     [clipIndex, setClipIndex] = useState(0),
     [playing, setPlaying] = useState(false);
   const [presenting, setPresenting] = useState(false),
+    [manualPresentation, setManualPresentation] = useState(false),
     [notesOpen, setNotesOpen] = useState(false),
     [error, setError] = useState(""),
     [message, setMessage] = useState("");
@@ -566,6 +568,7 @@ export function SpeechPresentation({
     }
   }
   function start() {
+    setManualPresentation(false);
     if (audio.current?.ended && !inPause) audio.current.currentTime = 0;
     setPresenting(true);
     setPlaying(true);
@@ -701,6 +704,9 @@ export function SpeechPresentation({
               {notesOpen ? "收起讲稿" : "查看讲稿"}
             </Button>
           </div>
+          <BackgroundMusicControls
+            playing={playing || (presenting && manualPresentation)}
+          />
           {source && (
             <div className="speech-timeline">
               <span>{time(elapsed)}</span>
@@ -1273,6 +1279,7 @@ export function SpeechPresentation({
               onClick={() => {
                 setPlaying(false);
                 previewAudio.current?.pause();
+                setManualPresentation(true);
                 setPresenting(true);
               }}
             >

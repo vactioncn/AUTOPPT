@@ -10,6 +10,7 @@ import {
   Play,
 } from "@phosphor-icons/react";
 import { Button, Field } from "./components";
+import { BackgroundMusicControls } from "./BackgroundMusicControls";
 import { post } from "./api";
 import {
   navigateWeb,
@@ -214,6 +215,7 @@ function ShowcaseImage({
 function ProductDemo() {
   const video = useRef<HTMLVideoElement>(null);
   const [started, setStarted] = useState(false);
+  const [playing, setPlaying] = useState(false);
   const [error, setError] = useState("");
   async function play() {
     setError("");
@@ -237,7 +239,11 @@ function ProductDemo() {
           poster="/product-demo/poster.webp"
           aria-label="AutoPPT 产品介绍视频"
           aria-describedby="product-demo-caption"
+          onPlay={() => setPlaying(true)}
+          onPause={() => setPlaying(false)}
+          onEnded={() => setPlaying(false)}
           onError={() => {
+            setPlaying(false);
             setError("视频暂时无法加载，请重试，或下载 PPT 查看。");
             setStarted(false);
           }}
@@ -268,6 +274,7 @@ function ProductDemo() {
           下载这份 PPT <ArrowRight size={16} />
         </a>
       </figcaption>
+      <BackgroundMusicControls playing={playing} />
       {error && (
         <p role="alert" className="web-demo-error">
           {error}

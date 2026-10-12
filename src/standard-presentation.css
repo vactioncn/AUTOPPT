@@ -150,3 +150,16 @@
     display: none;
   }
 }
+.standard-music {
+  --ink: #f6f5f1;
+  --paper: #334731;
+  --muted: #c4c9bc;
+  --line: #696f65;
+  padding: 0 24px;
+  flex-shrink: 0;
+}
+@media (max-width: 600px) {
+  .standard-music {
+    padding-inline: 16px;
+  }
+}

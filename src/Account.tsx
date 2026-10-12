@@ -409,11 +409,14 @@ function AdminPanel() {
           })
         }
       >
-        创建一次性邀请码
+        创建 6 位邀请码
       </Button>
       {code && (
         <div className="invite-code">
-          <p>邀请码有效期 7 天，仅展示一次，请复制保存。</p>
+          <p>
+            6 位数字，有效期 7
+            天，每个码可注册一个账号。请复制保存，离开后不再展示。
+          </p>
           <input aria-label="新邀请码" readOnly value={code} />
           <Button
             onClick={() =>

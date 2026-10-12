@@ -137,7 +137,10 @@
   margin-top: 16px;
 }
 .invite-code input {
-  font-family: monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 30px;
+  letter-spacing: 0.12em;
+  max-width: 240px;
   margin-bottom: 10px;
 }
 .account-login input,

@@ -11,7 +11,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { randomUUID } from "node:crypto";
+import { randomUUID, randomBytes, createHash } from "node:crypto";
 import { fork } from "node:child_process";
 import { once } from "node:events";
 import http from "node:http";
@@ -21,6 +21,46 @@ import { Accounts } from "../server/hosted/accounts.mjs";
 import { copyFixture, reviewFixture } from "./fixtures/screen-copy.mjs";
 
 const pass = "Test-password-12345";
+test("six-digit invitations remain unique, preserve leading zeroes and accept legacy links", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "autoppt-short-invites-"));
+  const a = new Accounts(dir);
+  try {
+    await a.bootstrap("admin", pass);
+    const admin = await a.login("admin", pass);
+    const issued = Array.from({ length: 200 }, () => a.invite(admin.id));
+    assert(issued.every((i) => /^\d{6}$/.test(i.code)));
+    assert.equal(new Set(issued.map((i) => i.code)).size, issued.length);
+    assert(issued.every((i) => i.expires > Date.now() + 6 * 86400000));
+    const hash = (code) => createHash("sha256").update(code).digest("hex");
+    assert.equal(
+      a.db.prepare("SELECT hash FROM invites WHERE id=?").get(issued[0].id)
+        .hash,
+      hash(issued[0].code),
+    );
+    a.db.prepare("UPDATE invites SET expires=0 WHERE id=?").run(issued[0].id);
+    await assert.rejects(a.register("expired", pass, issued[0].code), /邀请码/);
+    a.db.prepare("UPDATE invites SET revoked=1 WHERE id=?").run(issued[1].id);
+    await assert.rejects(a.register("revoked", pass, issued[1].code), /邀请码/);
+    const zeroCode = "000042",
+      legacyCode = randomBytes(32).toString("base64url");
+    for (const [code, name] of [
+      [zeroCode, "leading-zero"],
+      [legacyCode, "legacy"],
+    ]) {
+      a.db
+        .prepare(
+          "INSERT OR REPLACE INTO invites(hash,id,created,expires) VALUES(?,?,?,?)",
+        )
+        .run(hash(code), randomUUID(), Date.now(), Date.now() + 86400000);
+      assert.equal((await a.register(name, pass, code)).name, name);
+      await assert.rejects(a.register(name + "-again", pass, code), /邀请码/);
+    }
+    assert.equal(a.overview().users.length, 3);
+  } finally {
+    a.db.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
 test("signup policy defaults to 20 and changes only new accounts, including zero grant", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "autoppt-signup-"));
   let accounts;
@@ -727,7 +767,7 @@ test(
             .getByRole("button", { name: "网站管理", exact: true })
             .click();
           await page.getByRole("heading", { name: "内部使用管理" }).waitFor();
-          await page.getByRole("button", { name: "创建一次性邀请码" }).click();
+          await page.getByRole("button", { name: "创建 6 位邀请码" }).click();
           const invitation = await page.getByLabel("新邀请码").inputValue();
           await page.screenshot({
             path: path.join(out, "admin-desktop.png"),
@@ -1038,6 +1078,43 @@ test(
       await request("/api/account/logout", {}, second);
       await request("/api/bootstrap", undefined, second, 401);
       assert(existsSync(path.join(dir, "users", id, "autoppt.sqlite")));
+      await t.test(
+        "short-code registration attempts are throttled without changing existing accounts",
+        async () => {
+          let limited = false;
+          for (let i = 0; i < 6; i++) {
+            const response = await fetch(origin + "/api/account/register", {
+              method: "POST",
+              headers: { Origin: origin, "Content-Type": "application/json" },
+              body: JSON.stringify({
+                name: "guessing-user",
+                password: pass,
+                invite: "not-a-valid-code",
+              }),
+            });
+            assert([400, 429].includes(response.status));
+            limited ||= response.status === 429;
+          }
+          assert(limited);
+          const limits = new Accounts(dir);
+          try {
+            assert.equal(
+              limits.db
+                .prepare(
+                  "SELECT MAX(count) AS n FROM limits WHERE key LIKE 'register:%' AND key!='register:global'",
+                )
+                .get().n,
+              5,
+            );
+            assert(
+              !limits.overview().users.some((u) => u.name === "guessing-user"),
+            );
+          } finally {
+            limits.db.close();
+          }
+          await request("/api/admin", undefined, admin);
+        },
+      );
     } finally {
       for (const gate of gates) gate();
       await stop();

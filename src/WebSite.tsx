@@ -95,7 +95,7 @@ export function WebSite({
         document.getElementById("access")?.scrollIntoView(),
       );
     const titles = {
-      website: "让讲稿成为演讲",
+      website: "让观点有好看的表达",
       login: "登录",
       register: "邀请注册",
       support: "使用帮助",
@@ -181,7 +181,7 @@ export function WebSite({
           <WebLink className="web-brand" href="/website">
             AutoPPT
           </WebLink>
-          <p>从你的原稿开始，把演讲一步步做好。</p>
+          <p>以审美为核心，让观点有好看的表达。</p>
         </div>
         <nav aria-label="网站页脚">
           <WebLink href="/support">使用帮助</WebLink>
@@ -210,12 +210,13 @@ function Home({
       <section className="web-hero">
         <div className="web-hero-copy">
           <h1>
-            把你的讲稿，
+            让观点，
             <br />
-            做成你的演讲。
+            有好看的表达。
           </h1>
           <p>
-            保留完整原稿，提炼画面重点。选择喜欢的视觉风格，先试做一页，满意后再生成整场。
+            以审美为核心的 PPT
+            与演讲制作工具。把你的讲稿，做成有风格、有层次、值得停留的画面。
           </p>
           <div className="web-actions">
             <WebLink
@@ -225,11 +226,20 @@ function Home({
               {account?.user ? "继续我的演讲" : "用邀请码开始"}
               <ArrowRight size={18} />
             </WebLink>
-            <WebLink href="/support">了解如何开始</WebLink>
+            <button
+              className="web-style-link"
+              onClick={() =>
+                document
+                  .getElementById("visual-styles")
+                  ?.scrollIntoView({ block: "center" })
+              }
+            >
+              看看精品风格 <ArrowRight size={16} />
+            </button>
           </div>
-          <small>浏览器即可制作 · 模型由管理员配置 · 每个账号独立保存</small>
+          <small>先试一页，满意再做整场。你的原稿完整保留。</small>
         </div>
-        <figure className="web-showcase">
+        <figure className="web-showcase" id="visual-styles">
           <img
             src={`/style-covers/${example[0]}.png`}
             alt={`AutoPPT 内置风格示例：${example[1]}`}
@@ -238,21 +248,52 @@ function Home({
             fetchPriority="high"
           />
           <figcaption>
-            <span>内置风格示例</span>
-            <span>{example[2]}</span>
+            <strong>{example[1]}</strong>
+            <span>内置风格示例 · {example[2]}</span>
           </figcaption>
           <div className="web-style-switch" aria-label="查看不同风格">
             {examples.map((s, i) => (
               <button
                 key={s[0]}
+                aria-label={s[1]}
                 aria-pressed={style === i}
                 onClick={() => setStyle(i)}
               >
-                {s[1]}
+                <img
+                  src={`/style-covers/${s[0]}.png`}
+                  alt=""
+                  width="240"
+                  height="135"
+                  loading="lazy"
+                />
+                <span>
+                  {["儿童摄影杂志", "先锋", "日系现代", "当代 NEO"][i]}
+                </span>
               </button>
             ))}
           </div>
         </figure>
+      </section>
+      <section
+        className="web-design-story"
+        aria-labelledby="design-story-title"
+      >
+        <h2 id="design-story-title">
+          风格有主张，
+          <br />
+          画面有分寸。
+        </h2>
+        <div>
+          <p className="web-design-lead">
+            从字体、配色到留白，建立一场演讲的视觉语言。
+          </p>
+          <p>
+            四款精品风格，为不同的表达提供起点。每一页围绕内容组织画面，让标题有重点、信息有层次，整场保持统一的审美。
+          </p>
+          <p>
+            有自己的偏好？上传参考图，建立自己的风格；再用真实讲稿试做，逐页调整到满意。
+          </p>
+        </div>
       </section>
       <section className="web-workflow" aria-labelledby="workflow-title">
         <div>
@@ -262,26 +303,27 @@ function Home({
             再决定整场怎么做。
           </h2>
           <p>
-            从一个小尝试开始。原稿、画面和修改记录都留在项目里，下一次可以接着做。
+            不用先学排版，也不用一次做完。先确认一页的视觉效果，再把喜欢的风格延续到整场。
           </p>
         </div>
         <ol>
           <li>
-            <h3>放入你的原稿</h3>
+            <h3>放入讲稿，选择审美</h3>
             <p>
-              粘贴讲稿，选个喜欢的风格。先生成一页看效果，完整讲稿同时保存。
+              粘贴你想讲的内容，选一款喜欢的精品风格。完整讲稿会保存，画面只提炼需要看见的重点。
             </p>
           </li>
           <li>
-            <h3>选风格，先试一页</h3>
+            <h3>先看一页，把感觉调对</h3>
             <p>
-              使用内置风格，或用参考图建立自己的风格。先检查第一张图，随时调整。
+              字少一点、重点突出一点，或换一种构图。看到真实画面，再决定怎么调整，旧版本随时可对照。
             </p>
           </li>
           <li>
-            <h3>生成剩余页面，打磨交付</h3>
+            <h3>延续到整场，带上台去讲</h3>
             <p>
-              确认效果后继续生成。逐页编辑、保留旧版本，再导出 PPTX 和讲稿。
+              满意后生成其余页面，导出带完整讲稿备注的 PPTX。也可以添加 AI
+              配音，先听一页再生成整场。
             </p>
           </li>
         </ol>
@@ -343,9 +385,9 @@ function Home({
       </section>
       <section className="web-close">
         <h2>
-          下一场演讲，
+          你的下一场演讲，
           <br />
-          从你的第一段话开始。
+          从一张满意的画面开始。
         </h2>
         <WebLink
           className="btn primary"
@@ -525,11 +567,12 @@ function Access({
                 <Field label="邀请码">
                   <input
                     autoComplete="off"
+                    inputMode="numeric"
                     required
                     value={invite}
                     onChange={(e) => setInvite(e.target.value)}
                     maxLength={160}
-                    placeholder="粘贴管理员发给你的邀请码"
+                    placeholder="输入 6 位数字邀请码"
                   />
                 </Field>
               )}

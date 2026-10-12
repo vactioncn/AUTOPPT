@@ -3,6 +3,7 @@ import { mkdirSync, chmodSync } from "node:fs";
 import path from "node:path";
 import {
   randomBytes,
+  randomInt,
   randomUUID,
   createHash,
   scrypt as scryptCallback,
@@ -150,15 +151,20 @@ export class Accounts {
     });
   }
   invite(actor) {
-    const code = token(),
-      id = randomUUID(),
-      created = Date.now(),
-      expires = created + 7 * 86400000;
-    this.db
-      .prepare("INSERT INTO invites(hash,id,created,expires) VALUES(?,?,?,?)")
-      .run(digest(code), id, created, expires);
-    this.audit(actor, "create-invite", id);
-    return { id, code, expires };
+    // Never recycle an old code: an expired link must not become valid again.
+    const insert = this.db.prepare(
+      "INSERT INTO invites(hash,id,created,expires) VALUES(?,?,?,?) ON CONFLICT(hash) DO NOTHING",
+    );
+    for (let attempt = 0; attempt < 128; attempt++) {
+      const code = String(randomInt(0, 1000000)).padStart(6, "0"),
+        id = randomUUID(),
+        created = Date.now(),
+        expires = created + 7 * 86400000;
+      if (!insert.run(digest(code), id, created, expires).changes) continue;
+      this.audit(actor, "create-invite", id);
+      return { id, code, expires };
+    }
+    fail("暂时无法创建邀请码，请稍后再试。", 503);
   }
   async register(name, password, invite) {
     name = username(name);

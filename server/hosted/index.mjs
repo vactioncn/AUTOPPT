@@ -353,6 +353,9 @@ app.post("/api/account/login", parse, authLimit, async (req, res) => {
   res.json({ user: u });
 });
 app.post("/api/account/register", parse, authLimit, async (req, res) => {
+  // Short invitations need a tighter budget, separate from ordinary logins.
+  accounts.limit(`register:${req.ip}`, 5, 15 * 60000);
+  accounts.limit("register:global", 30, 60 * 60000);
   const u = await accounts.register(
     req.body.name,
     req.body.password,

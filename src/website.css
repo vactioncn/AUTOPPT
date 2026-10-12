@@ -94,6 +94,16 @@
   flex-wrap: wrap;
   margin: 32px 0 18px;
 }
+.web-style-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  text-underline-offset: 5px;
+}
+.web-style-link:hover {
+  text-decoration: underline;
+}
 .web-hero small {
   color: var(--muted);
   font-size: 12px;
@@ -114,26 +124,42 @@
 }
 .web-showcase figcaption {
   display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  font-size: 12px;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 13px;
   color: var(--muted);
   margin-top: 14px;
 }
-.web-showcase figcaption > span:first-child {
-  white-space: nowrap;
+.web-showcase figcaption strong {
+  font-size: 16px;
+  color: var(--ink);
 }
 .web-style-switch {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 20px;
 }
 .web-style-switch button {
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 8px 14px;
+  padding: 5px;
+  overflow: hidden;
   color: var(--muted);
+}
+.web-style-switch img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
+  border-radius: 5px;
+  background: var(--paper);
+}
+.web-style-switch span {
+  display: block;
+  padding-block: 7px 3px;
+  font-size: 12px;
 }
 .web-style-switch button[aria-pressed="true"] {
   background: #dfe4d6;
@@ -142,6 +168,25 @@
 }
 .web-style-switch button:hover {
   background: #e9ece1;
+}
+.web-design-story {
+  max-width: 1296px;
+  margin: auto;
+  padding: 56px 5% 72px;
+  border-top: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: 1fr 1.15fr;
+  gap: 10%;
+}
+.web-design-story p {
+  max-width: 55ch;
+  line-height: 1.9;
+  color: var(--muted);
+  margin-bottom: 16px;
+}
+.web-design-story .web-design-lead {
+  font-size: 20px;
+  color: var(--ink);
 }
 .web-workflow {
   max-width: 1296px;
@@ -438,7 +483,8 @@
   .web-hero-copy > p {
     max-width: 50ch;
   }
-  .web-workflow {
+  .web-workflow,
+  .web-design-story {
     gap: 7%;
   }
   .web-proof {
@@ -501,7 +547,8 @@
   .web-style-switch {
     flex-wrap: wrap;
   }
-  .web-workflow {
+  .web-workflow,
+  .web-design-story {
     grid-template-columns: 1fr;
     padding: 45px 24px;
     gap: 32px;

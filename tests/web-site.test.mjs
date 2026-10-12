@@ -67,6 +67,8 @@ test("public metadata uses configured domain, excludes invitations and has no pr
   assert(home.includes('href="https://ppt.example.com/website"'));
   assert(home.includes('content="index,follow"'));
   assert(home.includes("<noscript>"));
+  assert(home.includes("以审美为核心的 PPT 与演讲制作工具"));
+  assert(home.includes("让观点有好看的表达"));
   const register = renderWebsiteShell(
     shell,
     "/register",

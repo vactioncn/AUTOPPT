@@ -3,6 +3,7 @@ import { audiencePrompt, palettePrompt } from "./design-options.mjs";
 import { assertDesignedCopy } from "./screen-copy.mjs";
 import { imageContentPrompt } from "./image-content.mjs";
 import { IMAGE_CANVAS_PROMPT } from "../shared/image-output.mjs";
+import { dateContextPrompt } from "./date-context.mjs";
 
 export const DIRECT_PROMPT_MODE = "verbatim-style-v6";
 
@@ -32,5 +33,5 @@ export function directImagePrompt(plan) {
     : "";
   const styleRules = pageNumberStyle(plan.styleRules, plan.pageNumber).rules;
   // Historical composition plans remain readable, but never enter a new request.
-  return `${styleRules}\n\n${plan.contentPrompt}${materials}${feedback}${audiencePrompt(plan.designOptions)}${palettePrompt(plan.designOptions)}\n\n${IMAGE_CANVAS_PROMPT}`;
+  return `${styleRules}\n\n${plan.contentPrompt}${materials}${feedback}${audiencePrompt(plan.designOptions)}${palettePrompt(plan.designOptions)}\n\n${dateContextPrompt()}\n\n${IMAGE_CANVAS_PROMPT}`;
 }

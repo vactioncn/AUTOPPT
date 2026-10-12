@@ -7,6 +7,7 @@ import { styleStamp } from "../server/core.mjs";
 import { copyFixture, reviewFixture } from "./fixtures/screen-copy.mjs";
 import sharp from "sharp";
 import { IMAGE_CANVAS_PROMPT } from "../shared/image-output.mjs";
+import { dateContextPrompt } from "../server/date-context.mjs";
 
 test("raw style prompts stay exact and independent from reusable, source-bound screen copy", async (t) => {
   const dir = mkdtempSync(path.join(tmpdir(), "autoppt-style-isolation-"));
@@ -75,6 +76,8 @@ test("raw style prompts stay exact and independent from reusable, source-bound s
       "\n\n" +
       approved.contentPrompt +
       "\n\n" +
+      dateContextPrompt() +
+      "\n\n" +
       IMAGE_CANVAS_PROMPT,
   );
   assert.equal(approved.promptMode, "verbatim-style-v6");
@@ -84,6 +87,8 @@ test("raw style prompts stay exact and independent from reusable, source-bound s
       "\n\n" +
       approved.contentPrompt +
       "\n\n【本页画面调整要求】\nVISUAL_FEEDBACK\n\n" +
+      dateContextPrompt() +
+      "\n\n" +
       IMAGE_CANVAS_PROMPT,
   );
   assert(!imagePrompt(approved).includes("UNWANTED_OLD_DIAGRAM"));

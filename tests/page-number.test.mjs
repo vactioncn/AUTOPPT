@@ -13,6 +13,7 @@ import { RELEASE_STYLES } from "../shared/builtin-style-catalog.mjs";
 import { unifiedCoverPlan } from "../server/style-cover.mjs";
 import { directImagePrompt } from "../server/direct-image.mjs";
 import { IMAGE_CANVAS_PROMPT } from "../shared/image-output.mjs";
+import { dateContextPrompt } from "../server/date-context.mjs";
 import { STYLE_COVER_NOTES } from "../shared/style-demo.mjs";
 import { PLANNING_VERSION } from "../server/content-planning.mjs";
 import { styleStamp } from "../server/core.mjs";
@@ -84,6 +85,8 @@ test("approved builtins retain exact source bytes; only four explicit page-numbe
       plan.contentPrompt +
       "\n\n【本页画面调整要求】\n" +
       plan.imageFeedback +
+      "\n\n" +
+      dateContextPrompt() +
       "\n\n" +
       IMAGE_CANVAS_PROMPT,
   );

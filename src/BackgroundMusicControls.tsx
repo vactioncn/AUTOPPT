@@ -1,21 +1,29 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { MusicNote } from "@phosphor-icons/react";
-import { createBackgroundMusicPlayer } from "../shared/background-music.mjs";
+import {
+  createBackgroundMusicPlayer,
+  BACKGROUND_MUSIC_DEFAULT_VOLUME,
+} from "../shared/background-music.mjs";
 import "./background-music.css";
 
 type Track = { id: string; name: string; url: string };
-const preferenceKey = "autoppt-background-music-v1";
+const preferenceKey = "autoppt-background-music-v2";
 function preferences() {
   try {
     const value = JSON.parse(localStorage.getItem(preferenceKey) || "{}");
-    return value && typeof value === "object" ? value : {};
+    const previous = JSON.parse(
+      localStorage.getItem("autoppt-background-music-v1") || "{}",
+    );
+    return value && typeof value === "object"
+      ? { ...value, trackId: value.trackId || previous?.trackId }
+      : {};
   } catch {
     return {};
   }
 }
 export function BackgroundMusicControls({ playing }: { playing: boolean }) {
   const [tracks, setTracks] = useState<Track[]>([]);
-  const [enabled, setEnabled] = useState(false);
+  const [enabled, setEnabled] = useState(true);
   const [trackId, setTrackId] = useState<string>(
     () => preferences().trackId || "",
   );
@@ -23,7 +31,7 @@ export function BackgroundMusicControls({ playing }: { playing: boolean }) {
     const value = preferences().volume;
     return typeof value === "number" && Number.isFinite(value)
       ? Math.max(0, Math.min(0.4, value))
-      : 0.12;
+      : BACKGROUND_MUSIC_DEFAULT_VOLUME;
   });
   const [error, setError] = useState("");
   const player = useRef<ReturnType<typeof createBackgroundMusicPlayer> | null>(
@@ -60,6 +68,29 @@ export function BackgroundMusicControls({ playing }: { playing: boolean }) {
       player.current = null;
     };
   }, []);
+  useEffect(() => {
+    if (!enabled) return;
+    // Resume in the user's actual play gesture, before the media play event and
+    // React effects. This also covers native video controls and keyboard play.
+    const unlock = (event: Event) => {
+      if (event instanceof KeyboardEvent && ![" ", "Enter"].includes(event.key))
+        return;
+      if (
+        (event.target as Element)?.closest?.(
+          ".web-demo, .speech-shell, .standard-presentation, .rehearsal-player",
+        )
+      )
+        void player.current?.unlock();
+    };
+    document.addEventListener("pointerdown", unlock, true);
+    document.addEventListener("click", unlock, true);
+    document.addEventListener("keydown", unlock, true);
+    return () => {
+      document.removeEventListener("pointerdown", unlock, true);
+      document.removeEventListener("click", unlock, true);
+      document.removeEventListener("keydown", unlock, true);
+    };
+  }, [enabled]);
   useEffect(() => {
     void player.current?.update({
       enabled,

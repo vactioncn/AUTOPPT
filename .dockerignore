@@ -2,6 +2,7 @@ node_modules
 release
 .local
 .hosted
+music
 .env
 .env.*
 deploy/secrets

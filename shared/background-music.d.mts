@@ -4,6 +4,7 @@ export type MusicSettings = {
   url: string;
   volume: number;
 };
+export const BACKGROUND_MUSIC_DEFAULT_VOLUME: 0.4;
 export function createBackgroundMusicPlayer(options?: {
   createAudio?: () => HTMLAudioElement;
   onError?: (message: string) => void;

@@ -1,0 +1,7 @@
+# Distribution bundles place the approved site playlist in ../music.
+services:
+  app:
+    environment:
+      AUTOPPT_MUSIC_DIR: /opt/autoppt/background-music
+    volumes:
+      - ../music:/opt/autoppt/background-music:ro

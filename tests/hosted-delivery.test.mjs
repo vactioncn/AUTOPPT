@@ -92,15 +92,57 @@ test("deployment preflight validates required settings without revealing secrets
   try {
     const deploy = path.join(root, "deploy");
     mkdirSync(path.join(deploy, "secrets"), { recursive: true });
-    copyFileSync(new URL("../deploy/check.mjs", import.meta.url), path.join(deploy, "check.mjs"));
-    const env = readFileSync(new URL("../deploy/.env.example", import.meta.url), "utf8")
-      .replace("ppt.example.com", "ppt.fixture.invalid") + "\nAUTOPPT_BUILD_GIT_SHA=" + "a".repeat(40) + "\n";
+    copyFileSync(
+      new URL("../deploy/check.mjs", import.meta.url),
+      path.join(deploy, "check.mjs"),
+    );
+    const env =
+      readFileSync(
+        new URL("../deploy/.env.example", import.meta.url),
+        "utf8",
+      ).replace("ppt.example.com", "ppt.fixture.invalid") +
+      "\nAUTOPPT_BUILD_GIT_SHA=" +
+      "a".repeat(40) +
+      "\n";
     writeFileSync(path.join(deploy, ".env"), env);
     const privateValue = "Do-not-print-this-fixture-secret";
     for (const name of ["admin_password", "text_key", "image_key"])
       writeFileSync(path.join(deploy, "secrets", name), privateValue);
-    const run = () => execFileSync(process.execPath, [path.join(deploy, "check.mjs")], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+    const run = (...flags) =>
+      execFileSync(
+        process.execPath,
+        [path.join(deploy, "check.mjs"), ...flags],
+        { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+      );
     assert.match(run(), /检查通过/);
+    const music = path.join(root, "music"),
+      id = "a".repeat(24);
+    mkdirSync(music);
+    writeFileSync(
+      path.join(music, "index.json"),
+      JSON.stringify([{ id, name: "Piano" }]),
+    );
+    writeFileSync(path.join(music, id + ".mp3"), "fixture piano");
+    writeFileSync(path.join(deploy, "secrets", "speech_key"), privateValue);
+    assert.match(run("--speech", "--music"), /检查通过/);
+    rmSync(path.join(deploy, "secrets", "speech_key"));
+    assert.throws(
+      () => run("--speech", "--music"),
+      (error) => {
+        assert.match(error.stderr, /secrets\/speech_key/);
+        assert(!error.stderr.includes(privateValue));
+        return error.status === 1;
+      },
+    );
+    writeFileSync(path.join(deploy, "secrets", "speech_key"), privateValue);
+    rmSync(path.join(music, "index.json"));
+    assert.throws(
+      () => run("--speech", "--music"),
+      (error) => {
+        assert.match(error.stderr, /music\/index.json/);
+        return error.status === 1;
+      },
+    );
     writeFileSync(path.join(deploy, "secrets", "admin_password"), "000042");
     assert.match(run(), /检查通过/);
     writeFileSync(path.join(deploy, "secrets", "admin_password"), "12345");
@@ -110,7 +152,10 @@ test("deployment preflight validates required settings without revealing secrets
       return error.status === 1;
     });
     writeFileSync(path.join(deploy, "secrets", "admin_password"), privateValue);
-    writeFileSync(path.join(deploy, ".env"), env.replace("AUTOPPT_MODEL_CONCURRENCY=2", "AUTOPPT_MODEL_CONCURRENCY=0"));
+    writeFileSync(
+      path.join(deploy, ".env"),
+      env.replace("AUTOPPT_MODEL_CONCURRENCY=2", "AUTOPPT_MODEL_CONCURRENCY=0"),
+    );
     assert.throws(run, (error) => {
       assert.match(error.stderr, /AUTOPPT_MODEL_CONCURRENCY/);
       assert(!error.stderr.includes(privateValue));
@@ -193,6 +238,47 @@ test("source package freezes a clean commit, hashes files, excludes local secret
         sha(await zip.file("AutoPPT-Web/" + file.path).async("nodebuffer")),
         file.sha256,
       );
+    const musicDirectory = path.join(root, "approved-music");
+    mkdirSync(musicDirectory);
+    const piano = Buffer.from("ID3 fixture piano bytes"),
+      pianoId = sha(piano).slice(0, 24);
+    writeFileSync(path.join(musicDirectory, pianoId + ".mp3"), piano);
+    writeFileSync(
+      path.join(musicDirectory, "index.json"),
+      JSON.stringify([{ id: pianoId, name: "Approved piano" }]),
+    );
+    const complete = await packageWeb({ root, musicDirectory });
+    const completeZip = await JSZip.loadAsync(readFileSync(complete.output), {
+      checkCRC32: true,
+    });
+    const completeManifest = JSON.parse(
+      await completeZip.file("AutoPPT-Web/RELEASE.json").async("string"),
+    );
+    assert.equal(completeManifest.musicIncluded, true);
+    assert.equal(completeManifest.musicTracks.length, 1);
+    assert.deepEqual(
+      await completeZip
+        .file("AutoPPT-Web/music/" + pianoId + ".mp3")
+        .async("nodebuffer"),
+      piano,
+    );
+    for (const file of completeManifest.files)
+      assert.equal(
+        sha(
+          await completeZip
+            .file("AutoPPT-Web/" + file.path)
+            .async("nodebuffer"),
+        ),
+        file.sha256,
+      );
+    writeFileSync(
+      path.join(musicDirectory, pianoId + ".mp3"),
+      "changed after import",
+    );
+    await assert.rejects(
+      packageWeb({ root, musicDirectory }),
+      /音乐文件校验失败/,
+    );
     await assert.rejects(packageWeb({ root }), /EEXIST/);
     writeFileSync(path.join(root, "README.md"), "changed");
     await assert.rejects(packageWeb({ root }), /干净提交/);

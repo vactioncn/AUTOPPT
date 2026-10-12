@@ -1,4 +1,4 @@
-import { readFileSync, accessSync, constants } from "node:fs";
+import { readFileSync, accessSync, constants, statSync } from "node:fs";
 import path from "node:path";
 const dir = path.resolve(import.meta.dirname);
 const values = Object.fromEntries(
@@ -12,6 +12,8 @@ const values = Object.fromEntries(
     }),
 );
 const problems = [];
+const speech = process.argv.includes("--speech");
+const music = process.argv.includes("--music");
 if (
   !/^(?!.*example)(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$/i.test(
     values.AUTOPPT_DOMAIN || "",
@@ -50,7 +52,12 @@ for (const [key, min, max] of [
   if (!Number.isSafeInteger(n) || n < min || n > max)
     problems.push(`${key} 应为 ${min}–${max} 的整数。`);
 }
-for (const name of ["admin_password", "text_key", "image_key"]) {
+for (const name of [
+  "admin_password",
+  "text_key",
+  "image_key",
+  ...(speech ? ["speech_key"] : []),
+]) {
   try {
     const file = path.join(dir, "secrets", name);
     accessSync(file, constants.R_OK);
@@ -63,6 +70,52 @@ for (const name of ["admin_password", "text_key", "image_key"]) {
       throw new Error();
   } catch {
     problems.push(`检查 secrets/${name} 文件是否存在、可读且内容有效。`);
+  }
+}
+if (speech) {
+  try {
+    const url = new URL(values.AUTOPPT_SPEECH_BASE_URL);
+    if (
+      url.protocol !== "https:" ||
+      url.username ||
+      url.password ||
+      url.search ||
+      url.hash ||
+      !/^speech-/.test(values.AUTOPPT_SPEECH_MODEL || "")
+    )
+      throw new Error();
+  } catch {
+    problems.push("检查 MiniMax 原生 HTTPS 地址和 speech 模型名称。");
+  }
+  for (const name of [
+    "AUTOPPT_DAILY_SPEECH_CHARS",
+    "AUTOPPT_USER_DAILY_SPEECH_CHARS",
+  ]) {
+    const n = Number(values[name]);
+    if (!Number.isSafeInteger(n) || n < 1)
+      problems.push(`${name} 应为正整数。`);
+  }
+}
+if (music) {
+  try {
+    const root = path.resolve(dir, "../music");
+    const list = JSON.parse(
+      readFileSync(path.join(root, "index.json"), "utf8"),
+    );
+    if (!Array.isArray(list) || !list.length || list.length > 30)
+      throw new Error();
+    for (const track of list) {
+      if (
+        !/^[a-f0-9]{24}$/.test(track.id || "") ||
+        typeof track.name !== "string"
+      )
+        throw new Error();
+      const file = path.join(root, track.id + ".mp3");
+      accessSync(file, constants.R_OK);
+      if (!statSync(file).isFile() || !statSync(file).size) throw new Error();
+    }
+  } catch {
+    problems.push("检查 music/index.json 和曲目 MP3 是否完整且可读。");
   }
 }
 if (problems.length) {

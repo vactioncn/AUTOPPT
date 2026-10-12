@@ -97,7 +97,7 @@ test("music is opt-in; pause fades before stopping and resumes at the same posit
   a.currentTime = 6;
   h.context.currentTime = 3;
   a.emit("timeupdate");
-  assert.equal(h.ramps.at(-1).value, 0.12);
+  assert.equal(h.ramps.at(-1).value, 0.4);
   await h.player.update({ playing: false });
   assert.equal(h.ramps.at(-1).value, 0);
   assert.equal(a.paused, false);
@@ -131,9 +131,9 @@ test("a song change fades out the old stream; loop edges fade without affecting 
   const head = h.ramps.at(-1).value;
   a.currentTime = 3;
   a.emit("timeupdate");
-  assert(tail < 0.03);
-  assert(head < 0.02);
-  assert.equal(h.ramps.at(-1).value, 0.12);
+  assert(tail < 0.07);
+  assert(head < 0.04);
+  assert.equal(h.ramps.at(-1).value, 0.4);
   await h.player.update({ volume: 99 });
   a.emit("timeupdate");
   assert.equal(h.ramps.at(-1).value, 0.4);

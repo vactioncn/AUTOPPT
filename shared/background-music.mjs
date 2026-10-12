@@ -1,5 +1,6 @@
 // Stream just the selected track. GainNode fades also work on mobile browsers
 // where changing HTMLMediaElement.volume is not supported.
+export const BACKGROUND_MUSIC_DEFAULT_VOLUME = 0.4;
 export function createBackgroundMusicPlayer({
   createAudio = () => new Audio(),
   createContext = () =>
@@ -11,7 +12,12 @@ export function createBackgroundMusicPlayer({
   let context,
     current,
     disposed = false;
-  let desired = { enabled: false, playing: false, url: "", volume: 0.12 };
+  let desired = {
+    enabled: false,
+    playing: false,
+    url: "",
+    volume: BACKGROUND_MUSIC_DEFAULT_VOLUME,
+  };
   const entries = new Set();
   const wanted = () =>
     desired.enabled && desired.playing && !!desired.url && !disposed;

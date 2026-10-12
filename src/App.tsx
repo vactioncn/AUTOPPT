@@ -1,4 +1,6 @@
 import { FirstPicture } from "./FirstPicture";
+import { BRAND } from "../shared/brand.mjs";
+import { BrandLockup } from "./BrandLockup";
 import { UsagePage } from "./Usage";
 import { Help } from "./Help";
 import { useOnboarding, WorkspaceReadiness } from "./OnboardingUI";
@@ -148,15 +150,15 @@ export default function App() {
     contentRoute.split("/")[2] || (account.hosted ? "studio" : "overview"),
   );
   useEffect(() => {
-    if (account.hosted)
-      document.title = `AutoPPT · ${route.startsWith("new") ? "开始制作" : route.startsWith("project/") ? data?.projects.find((p) => p.id === route.split("/")[1])?.title || "我的演讲" : route === "styles" ? "风格库" : "我的演讲"}`;
+    document.title = `${BRAND.name} · ${route.startsWith("new") ? "开始制作" : route.startsWith("project/") ? data?.projects.find((p) => p.id === route.split("/")[1])?.title || "我的演讲" : route === "styles" ? "风格库" : "我的演讲"}`;
   }, [account.hosted, route, data?.projects]);
   const notify = (text: string) => setToast(text);
   if (!data)
     return (
       <div className="boot">
-        <div className="brand-icon">A</div>
-        <h1>AutoPPT</h1>
+        <h1>
+          <BrandLockup compact />
+        </h1>
         {error ? (
           <>
             <p>{error}</p>
@@ -198,11 +200,12 @@ export default function App() {
         />
       ) : (
         <aside className="sidebar">
-          <button className="brand" onClick={() => go("projects")}>
-            <span className="brand-icon">A</span>
-            <span>
-              AutoPPT<small>你的演讲制作室</small>
-            </span>
+          <button
+            className="brand"
+            onClick={() => go("projects")}
+            aria-label={`${BRAND.name} 我的演讲`}
+          >
+            <BrandLockup />
           </button>
           <Button
             variant="primary"

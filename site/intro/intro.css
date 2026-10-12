@@ -8,8 +8,14 @@
   --line: #ded8cc;
   --radius: 24px;
   font-family:
-    -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue",
-    "PingFang SC", "Microsoft YaHei", sans-serif;
+    "Jianghao Sans",
+    -apple-system,
+    BlinkMacSystemFont,
+    "SF Pro Display",
+    "Helvetica Neue",
+    "PingFang SC",
+    "Microsoft YaHei",
+    sans-serif;
   color: var(--ink);
   background: #faf7f0;
   font-synthesis: none;
@@ -1449,9 +1455,11 @@ dialog::backdrop {
   flex-shrink: 0;
 }
 .wordmark span {
-  font-family: "Jianghao Serif", serif;
-  font-weight: 650;
-  font-size: 29px;
+  font-family: "Jianghao Sans", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-weight: 700;
+  font-size: 32px;
+  line-height: 1.1;
+  letter-spacing: 0.02em;
 }
 .site-header {
   background: #faf7f0;
@@ -1459,19 +1467,23 @@ dialog::backdrop {
 .hero h1,
 .section-heading h2,
 .ownership h2 {
-  font-family: "Jianghao Serif", serif;
-  font-weight: 550;
-  letter-spacing: -0.025em;
+  font-family: inherit;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.4;
 }
 .hero h1 {
-  font-size: clamp(38px, 5.2vw, 72px);
-  line-height: 1.5;
+  font-size: clamp(36px, 5vw, 64px);
+  line-height: 1.36;
+  letter-spacing: -0.015em;
 }
 .hero h1 span {
   color: #a83d30;
 }
 .hero-description {
   color: #676258;
+  font-size: 18px;
+  line-height: 1.8;
 }
 .button {
   border-radius: 5px;
@@ -1481,14 +1493,25 @@ dialog::backdrop {
 }
 @media (max-width: 759px) {
   .hero h1 {
-    font-size: clamp(29px, 8.4vw, 46px);
-    line-height: 1.55;
+    font-size: clamp(32px, 8.7vw, 36px);
+    line-height: 1.45;
   }
   .wordmark span {
-    font-size: 26px;
+    font-size: 28px;
   }
   .wordmark img {
     width: 30px;
     height: 30px;
+  }
+  .hero-description {
+    font-size: 16px;
+  }
+}
+@media (max-width: 360px) {
+  .hero h1 {
+    font-size: 30px;
+  }
+  .hero h1 span {
+    white-space: nowrap;
   }
 }

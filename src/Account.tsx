@@ -11,6 +11,7 @@ import { Button, Field } from "./components";
 import { clearWorkspacePreferences } from "./onboarding";
 import "./account.css";
 import { WebSite } from "./WebSite";
+import { BrandLockup } from "./BrandLockup";
 import {
   publicPage,
   navigateWeb,
@@ -155,7 +156,9 @@ export function AccountGate({ children }: { children: ReactNode }) {
   if (!account)
     return (
       <div className="boot">
-        <h1>AutoPPT</h1>
+        <h1>
+          <BrandLockup compact />
+        </h1>
         <p>{error || "正在连接工作空间…"}</p>
         {error && <Button onClick={refresh}>重新连接</Button>}
       </div>

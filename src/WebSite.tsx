@@ -21,6 +21,7 @@ import { STYLE_SHOWCASE } from "../shared/style-showcase.mjs";
 import "./website.css";
 import { BRAND } from "../shared/brand.mjs";
 import { BrandLockup } from "./BrandLockup";
+import { NarrationExample } from "./NarrationExample";
 import "./brand.css";
 
 export type SiteAccount = {
@@ -251,9 +252,15 @@ function ProductDemo() {
           playsInline
           preload="none"
           poster="/product-demo/poster.webp"
-          aria-label="讲好产品介绍视频（原名 AutoPPT）"
+          aria-label="讲好产品介绍视频"
           aria-describedby="product-demo-caption"
-          onPlay={() => setPlaying(true)}
+          onPlay={() => {
+            video.current
+              ?.closest(".web-site")
+              ?.querySelector<HTMLAudioElement>(".narration-example audio")
+              ?.pause();
+            setPlaying(true);
+          }}
           onPause={() => setPlaying(false)}
           onEnded={() => setPlaying(false)}
           onError={() => {
@@ -263,7 +270,7 @@ function ProductDemo() {
           }}
         >
           <source
-            src="/product-demo/autoppt-introduction.mp4"
+            src="/product-demo/jianghao-introduction.mp4"
             type="video/mp4"
           />
           <track
@@ -282,9 +289,9 @@ function ProductDemo() {
       <figcaption id="product-demo-caption">
         <div>
           <strong>这段演讲，就是用我们的工作台做的。</strong>
-          <span>更名前以 AutoPPT 制作 · 实际生成页面与 AI 配音</span>
+          <span>使用讲好制作 · 实际生成页面与 AI 配音</span>
         </div>
-        <a href="/product-demo/AutoPPT-introduction.pptx" download>
+        <a href="/product-demo/讲好-产品介绍.pptx" download>
           下载这份 PPT <ArrowRight size={16} />
         </a>
       </figcaption>
@@ -399,23 +406,15 @@ function Home({
                     key={page.id}
                     className={index === 0 ? "web-style-main" : undefined}
                   >
-                    <a
-                      href={`/style-showcase/${page.id}.webp`}
-                      aria-label={`放大查看：${style.name} · ${page.expression} · ${page.title}`}
-                    >
-                      <ShowcaseImage
-                        {...page}
-                        folder="style-showcase"
-                        sizes={
-                          index === 0
-                            ? "(max-width: 1000px) 90vw, 45vw"
-                            : "(max-width: 1000px) 43vw, 22vw"
-                        }
-                      />
-                      <span className="web-image-open">
-                        <ArrowRight size={18} /> 放大查看
-                      </span>
-                    </a>
+                    <ShowcaseImage
+                      {...page}
+                      folder="style-showcase"
+                      sizes={
+                        index === 0
+                          ? "(max-width: 1000px) 90vw, 45vw"
+                          : "(max-width: 1000px) 43vw, 22vw"
+                      }
+                    />
                     <figcaption>{page.expression}</figcaption>
                   </figure>
                 ))}
@@ -424,8 +423,7 @@ function Home({
           ))}
         </div>
         <p className="web-caption">
-          以上均使用讲好
-          的内置精品风格实际生成。点击任一画面可查看大图，也可以上传参考图，建立自己的风格。
+          以上均使用讲好的内置精品风格实际生成。也可以上传参考图，建立自己的风格。
         </p>
       </section>
       <section
@@ -501,10 +499,7 @@ function Home({
           </p>
         </div>
         <div className="web-expression-body">
-          <figure>
-            <ShowcaseImage id="story" title="先讲故事" />
-            <figcaption>画面承接观点，声音讲述故事。</figcaption>
-          </figure>
+          <NarrationExample />
           <dl>
             <div>
               <dt>

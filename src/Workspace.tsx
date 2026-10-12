@@ -1,4 +1,5 @@
 import { VisualReview } from "./VisualReview";
+import { BRAND } from "../shared/brand.mjs";
 import { JobFeedback } from "./JobFeedback";
 import { PageConcepts } from "./OnboardingUI";
 import {
@@ -1802,7 +1803,9 @@ export function Workspace({
               </div>
             </div>
             <h2>先从一小段开始。</h2>
-            <p>粘贴你的逐字稿，内容拆分、画面设计和图片生成，交给 AutoPPT。</p>
+            <p>
+              粘贴你的逐字稿，内容拆分、画面设计和图片生成，交给{BRAND.name}。
+            </p>
           </div>
         )}
         {project.slides.length > 0 && (

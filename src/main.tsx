@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { AccountGate } from "./Account";
+import { BrandLockup } from "./BrandLockup";
 import "@fontsource/dm-sans/400.css";
 import "@fontsource/dm-sans/500.css";
 import "@fontsource/dm-sans/600.css";
@@ -16,7 +17,9 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       <React.Suspense
         fallback={
           <div className="boot">
-            <h1>AutoPPT</h1>
+            <h1>
+              <BrandLockup compact />
+            </h1>
             <p>正在打开工作区…</p>
           </div>
         }

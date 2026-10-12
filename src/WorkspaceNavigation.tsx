@@ -16,6 +16,8 @@ import { AccountFooter, useAccount } from "./Account";
 import { Button } from "./components";
 import type { ProjectSummary } from "./types";
 import { navigateWeb } from "../shared/web-routes.mjs";
+import { BRAND } from "../shared/brand.mjs";
+import { BrandLockup } from "./BrandLockup";
 import "./workspace-navigation.css";
 
 export function WorkspaceNavigation({
@@ -92,7 +94,7 @@ export function WorkspaceNavigation({
         >
           <List size={24} />
         </button>
-        <strong>AutoPPT</strong>
+        <BrandLockup compact />
         <button className="icon-btn" aria-label="新建演讲" onClick={onCreate}>
           <Plus size={23} />
         </button>
@@ -116,12 +118,9 @@ export function WorkspaceNavigation({
           <button
             className="brand"
             onClick={() => visit("projects")}
-            aria-label="AutoPPT 我的演讲"
+            aria-label={`${BRAND.name} 我的演讲`}
           >
-            <span className="brand-icon">A</span>
-            <span>
-              AutoPPT<small>从讲稿到画面</small>
-            </span>
+            <BrandLockup />
           </button>
           <button
             className="workspace-nav-close icon-btn"

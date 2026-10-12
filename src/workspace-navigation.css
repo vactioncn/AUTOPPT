@@ -20,10 +20,6 @@
 .workspace-nav-brand .brand {
   padding: 0 8px;
 }
-.workspace-nav-brand .brand small {
-  letter-spacing: 0;
-  font-size: 11px;
-}
 .workspace-nav-create {
   width: 100%;
   margin-top: 30px;
@@ -135,9 +131,13 @@
   .workspace-nav-brand .brand {
     padding: 0;
   }
-  .workspace-nav-brand .brand > span:last-child,
+  .workspace-nav-brand .jianghao-wordmark,
+  .workspace-nav-brand .jianghao-descriptor,
   .workspace-recents {
     display: none;
+  }
+  .workspace-nav-brand .jianghao-lockup {
+    grid-template-columns: 36px;
   }
   .workspace-nav-create {
     font-size: 0;
@@ -180,8 +180,15 @@
     top: 0;
     z-index: 35;
   }
-  .workspace-mobile-bar strong {
-    font-size: 18px;
+  .workspace-mobile-bar .jianghao-lockup {
+    gap: 8px;
+  }
+  .workspace-mobile-bar .jianghao-lockup img {
+    width: 26px;
+    height: 26px;
+  }
+  .workspace-mobile-bar .jianghao-wordmark {
+    font-size: 22px;
   }
   .workspace-navigation {
     display: none;
@@ -208,9 +215,6 @@
   .workspace-nav-brand .brand {
     display: flex;
     justify-content: flex-start;
-  }
-  .workspace-nav-brand .brand > span:last-child {
-    display: block;
   }
   .workspace-navigation .account-footer {
     display: flex !important;

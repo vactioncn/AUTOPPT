@@ -114,13 +114,8 @@ test(
             document.getElementById("gallery-title").textContent ===
             "暗黑参数化数据地形风",
         );
-        await page.locator("#gallery-zoom").click();
-        assert(
-          (await page.locator("#viewer-image").getAttribute("src")).includes(
-            "dark-data-terrain.webp",
-          ),
-        );
-        await page.keyboard.press("Escape");
+        assert.equal(await page.locator(".gallery [data-zoom]").count(), 0);
+        await page.locator("#gallery-image").click();
         assert(!(await page.getByRole("dialog").isVisible()));
         await page.locator("#style-making").screenshot({
           path: `test-results/onboarding/intro/${label}-styles.png`,
@@ -253,7 +248,7 @@ test(
       const model = page.getByLabel("模型名称", { exact: true }).first();
       await model.fill("unsaved-model-draft");
       await page.getByRole("button", { name: "产品介绍", exact: true }).click();
-      const frame = page.frameLocator('iframe[title="AutoPPT 产品介绍"]');
+      const frame = page.frameLocator('iframe[title="讲好 产品介绍"]');
       await frame.getByRole("heading", { level: 1 }).waitFor();
       assert.equal(context.pages().length, 1);
       assert.equal(new URL(page.url()).hash, "#intro");

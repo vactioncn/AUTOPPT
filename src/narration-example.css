@@ -1,0 +1,165 @@
+.web-site .narration-example {
+  min-width: 0;
+}
+.web-site .narration-example-page {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
+}
+.web-site .narration-example figcaption {
+  padding-top: 22px;
+}
+.narration-example-speaker {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.web-site .narration-example .narration-example-avatar {
+  flex: 0 0 64px;
+  width: 64px;
+  height: 64px;
+  aspect-ratio: 1;
+  object-fit: contain;
+}
+.narration-example-speaker h3 {
+  margin: 0 0 4px;
+  color: var(--ink);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.5;
+  text-wrap: balance;
+}
+.narration-example-speaker p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.narration-example-details {
+  margin-top: 20px;
+  animation: narration-example-reveal 420ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.narration-example-excerpt {
+  margin: 0 0 20px;
+  font-size: 15px;
+  line-height: 1.9;
+  max-width: 60ch;
+}
+.narration-example-player {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+.narration-example-disclosure {
+  margin: -8px 0 20px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.65;
+}
+.narration-example-play,
+.narration-example-reveal,
+.narration-example-error button {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.narration-example-play {
+  flex-shrink: 0;
+  padding: 10px 18px;
+  color: var(--paper);
+  background: var(--ink);
+  border: 0;
+  border-radius: 3px;
+}
+.narration-example-play:hover {
+  background: var(--accent);
+}
+.narration-example-reveal {
+  margin-top: 20px;
+  padding: 8px 0;
+  color: var(--ink);
+  background: transparent;
+  border: 0;
+  text-decoration: underline;
+  text-underline-offset: 5px;
+}
+.narration-example-progress {
+  flex: 1;
+  min-width: 0;
+}
+.narration-example-progress input {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  margin: 0;
+  accent-color: var(--ink);
+  cursor: pointer;
+}
+.narration-example-progress input:disabled {
+  cursor: wait;
+}
+.narration-example-time {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+.narration-example-loading,
+.narration-example-error {
+  margin: 12px 0 0;
+  font-size: 14px;
+  line-height: 1.7;
+}
+.narration-example-error a {
+  color: var(--ink);
+  text-underline-offset: 4px;
+}
+.narration-example-error button {
+  margin-top: 4px;
+  padding: 8px 0;
+  color: var(--ink);
+  background: transparent;
+  border: 0;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.narration-example :is(button, input):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+@keyframes narration-example-reveal {
+  from {
+    opacity: 0.72;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (max-width: 640px) {
+  .narration-example-speaker {
+    gap: 12px;
+  }
+  .narration-example-speaker h3 {
+    font-size: 18px;
+  }
+  .narration-example-player {
+    gap: 16px;
+  }
+  .narration-example-play {
+    padding-inline: 14px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .narration-example-details {
+    animation: none;
+  }
+}

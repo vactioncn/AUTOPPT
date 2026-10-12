@@ -484,7 +484,7 @@ export function registerUsage(app) {
   app.get("/api/usage/export", (req, res) =>
     res
       .type("text/csv")
-      .set("Content-Disposition", 'attachment; filename="AutoPPT-usage.csv"')
+      .set("Content-Disposition", 'attachment; filename="jianghao-usage.csv"')
       .send(usageCsv(req.query)),
   );
 }

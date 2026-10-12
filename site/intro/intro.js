@@ -49,9 +49,6 @@ for (const [index, button] of choices.entries()) {
       button.dataset.styleLabel;
     document.getElementById("gallery-description").textContent =
       button.dataset.styleDetail;
-    const zoom = document.getElementById("gallery-zoom");
-    zoom.dataset.zoom = button.dataset.styleSrc;
-    zoom.dataset.caption = `${button.dataset.styleLabel} · 内置风格封面`;
     status.textContent = "";
   });
   button.addEventListener("keydown", (event) => {

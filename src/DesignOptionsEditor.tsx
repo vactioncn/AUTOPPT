@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { BRAND } from "../shared/brand.mjs";
 import type { DesignOptions } from "./types";
 import { api } from "./api";
 import { Button, Field } from "./components";
@@ -114,7 +115,7 @@ export function DesignOptionsEditor({
       <p className="detail-help" role="status">
         {supported === null
           ? "正在加载设置…"
-          : "当前服务尚未加载内容倾向与配色功能，请在任务结束后正常重启 AutoPPT 再使用。"}
+          : `当前服务尚未加载内容倾向与配色功能，请在任务结束后正常重启${BRAND.name}再使用。`}
       </p>
     );
   const locked = disabled || busy;

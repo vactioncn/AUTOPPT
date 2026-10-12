@@ -1,4 +1,5 @@
 import { ArrowLeft } from "@phosphor-icons/react";
+import { BRAND } from "../shared/brand.mjs";
 import { useState } from "react";
 import { Button } from "./components";
 import { VersionWorkspace } from "./VersionWorkspace";
@@ -37,7 +38,7 @@ export function Help({
       <div className="page-heading">
         <div>
           {!hosted && (
-            <span className="speech-eyebrow">AUTOPPT · 使用帮助</span>
+            <span className="speech-eyebrow">{BRAND.name} · 使用帮助</span>
           )}
           <h1>有问题，从这里找答案。</h1>
           <p>

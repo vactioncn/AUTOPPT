@@ -269,7 +269,7 @@ try {
     path.join(output, "manifest.json"),
     JSON.stringify(
       {
-        source: "isolated AutoPPT demo workspace",
+        source: "isolated 讲好 demo workspace",
         viewport: { width: 1440, height: 1040 },
         modelCalls: 0,
         privateData: false,

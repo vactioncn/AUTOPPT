@@ -28,7 +28,7 @@ colors:
   public-selection: "#e7c5b7"
 typography:
   display:
-    fontFamily: '"DM Sans", -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif'
+    fontFamily: '"Jianghao Sans", "DM Sans", -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif'
     fontSize: "36px"
     fontWeight: 600
     lineHeight: 1.5
@@ -55,42 +55,79 @@ typography:
     fontSize: "12px"
     fontWeight: 500
   public-display:
-    fontFamily: '"Jianghao Serif", serif'
-    fontSize: "clamp(36px, 4.25vw, 63px)"
-    fontWeight: 550
-    lineHeight: 1.48
-    letterSpacing: "-0.025em"
+    fontFamily: '"Jianghao Sans", "DM Sans", "PingFang SC", "Microsoft YaHei", sans-serif'
+    fontSize: "clamp(36px, 4.1vw, 58px)"
+    fontWeight: 600
+    lineHeight: 1.36
+    letterSpacing: "-0.015em"
   public-headline:
-    fontFamily: '"Jianghao Serif", serif'
-    fontSize: "clamp(30px, 3.1vw, 44px)"
-    fontWeight: 550
-    lineHeight: 1.5
-    letterSpacing: "-0.02em"
+    fontFamily: '"Jianghao Sans", "DM Sans", "PingFang SC", "Microsoft YaHei", sans-serif'
+    fontSize: "clamp(28px, 3vw, 42px)"
+    fontWeight: 600
+    lineHeight: 1.4
+    letterSpacing: "-0.01em"
   public-wordmark:
-    fontFamily: '"Jianghao Serif", serif'
+    fontFamily: '"Jianghao Sans", "PingFang SC", "Microsoft YaHei", sans-serif'
     fontSize: "32px"
-    fontWeight: 650
-    lineHeight: 1
-    letterSpacing: "-0.02em"
+    fontWeight: 700
+    lineHeight: 1.1
+    letterSpacing: "0.02em"
   public-body:
-    fontFamily: '"DM Sans", -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif'
-    fontSize: "15px"
+    fontFamily: '"Jianghao Sans", "DM Sans", -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif'
+    fontSize: "16px"
+    fontWeight: 400
+    lineHeight: 1.8
   public-lead:
     fontSize: "17px"
-    lineHeight: 1.95
+    lineHeight: 1.85
   public-button:
     fontSize: "14px"
     fontWeight: 500
     lineHeight: 1.5
   public-caption:
     fontSize: "13px"
-    lineHeight: 1.9
-  public-intro-display:
-    fontFamily: '"Jianghao Serif", serif'
-    fontSize: "clamp(38px, 5.2vw, 72px)"
-    fontWeight: 550
+    lineHeight: 1.65
+  public-descriptor:
+    fontSize: "12px"
+    fontWeight: 400
     lineHeight: 1.5
-    letterSpacing: "-0.025em"
+    letterSpacing: "0.025em"
+  public-feature:
+    fontSize: "24px"
+    fontWeight: 500
+    lineHeight: 1.5
+  public-section-title:
+    fontSize: "20px"
+    fontWeight: 600
+    lineHeight: 1.5
+  public-faq-title:
+    fontSize: "28px"
+    fontWeight: 600
+    lineHeight: 1.4
+  public-mobile-display:
+    fontSize: "clamp(32px, 8.7vw, 36px)"
+    fontWeight: 600
+    lineHeight: 1.45
+    letterSpacing: "-0.015em"
+  public-narrow-display:
+    fontSize: "30px"
+    fontWeight: 600
+    lineHeight: 1.45
+    letterSpacing: "-0.015em"
+  public-mobile-wordmark:
+    fontSize: "28px"
+    fontWeight: 700
+    lineHeight: 1.1
+    letterSpacing: "0.02em"
+  public-intro-display:
+    fontFamily: '"Jianghao Sans", "PingFang SC", "Microsoft YaHei", sans-serif'
+    fontSize: "clamp(36px, 5vw, 64px)"
+    fontWeight: 600
+    lineHeight: 1.36
+    letterSpacing: "-0.015em"
+  public-intro-lead:
+    fontSize: "18px"
+    lineHeight: 1.8
 rounded:
   badge: "5px"
   icon: "6px"
@@ -198,6 +235,7 @@ The interface is a warm, restrained working environment for a person developing 
 This records the implemented system in `src/styles.css`, `src/studio.css`, `src/scene.css`, the shared components and main views, refreshed on 2026-10-01. The selected style is a whole visual grammar: typography, palette, linework, details and whitespace. Content determines the original composition and expression; style determines how it is drawn. The application palette does not become the output style. Content attachments and the production report extend the existing quiet working surfaces, shared buttons and modal conventions. Product behavior remains documented in `PRODUCT.md`.
 
 **Key Characteristics:**
+
 - Warm light canvas with white working surfaces and fine olive-gray borders.
 - Large, complete generated images paired with quiet saved-state captions and PNG download.
 - Compact persistent navigation; content and feedback beneath the image, with design rules and history available on demand.
@@ -207,7 +245,9 @@ The 2026-10-11 invitation-hosted website and workspace journey extended this ide
 
 **Public Brand — 2026-10-12: "Publishing Studio"**
 
-The confirmed public identity is **讲好 · AI 演讲工作台 · 从一份讲稿，到一次从容的表达。** Marketing, invitation/login, support reading pages and the standalone Mac introduction use warm paper, ink and vermilion, locally hosted serif display type, fine rules and actual work as proof. The `public-*` tokens are intentional additions scoped to those surfaces; unprefixed tokens remain the App/workspace system. Brand geometry and the larger type scale are not App drift. Current source authority and implementation boundaries are recorded in `.impeccable/jianghao-brand.md` and `docs/讲好-品牌规范.md`.
+The confirmed public identity is **讲好 · AI 演讲工作台 · 从一份讲稿，到一次从容的表达。** Marketing, invitation/login, support reading pages and the standalone Mac introduction use warm paper, ink and vermilion, locally hosted Noto Sans SC type, fine rules and actual work as proof. The `public-*` tokens are intentional additions scoped to those surfaces; unprefixed tokens remain the App/workspace system. Brand geometry and the larger type scale are not App drift. Current source authority and implementation boundaries are recorded in `.impeccable/jianghao-brand.md` and `docs/讲好-品牌规范.md`.
+
+The current source also unifies the product display name, workbench headers, menus and shared mark as 讲好. App and workspace body text now use `Jianghao Sans` with DM Sans and system fallbacks; their established studio palette, layout, type sizes and control dimensions remain. The installed `/Applications/AutoPPT.app` has not been replaced or restarted by this source update. Its filename, data paths and project-package identifiers remain AutoPPT.
 
 ## Colors
 
@@ -231,7 +271,7 @@ The current public brand uses `public-action` for the quotation mark, primary ac
 
 ## Typography
 
-DM Sans is bundled locally at weights 400, 500, 600 and 700 through `src/main.tsx`. Chinese text uses the declared system fallbacks, beginning with PingFang SC on macOS. App and authenticated-workspace roles inherit this stack; these surfaces use no separate display or monospaced face.
+App and authenticated-workspace roles now inherit the root `Jianghao Sans` stack, with locally bundled DM Sans at weights 400, 500, 600 and 700 and Chinese system fallbacks. This family change keeps the established working-interface type scale, line spacing and control dimensions. Dynamic characters outside the bundled subsets use the declared fallback faces.
 
 The frontmatter records the base hierarchy. Home display type varies with viewport; general page headings use local sizes around the headline role. Section and card titles step down to compact supporting labels. Page numbers and batch counts use tabular numerals where alignment matters.
 
@@ -239,9 +279,11 @@ Generated image typography follows the saved style and design plan; it does not 
 
 ### Public Brand Type — 2026-10-12
 
-Public display headings and the wordmark use `Jianghao Serif`, the local alias for Noto Serif SC. The frontmatter records the hosted hero, section heading, wordmark, lead and body roles; invitation and reading headings use this serif while retaining their existing surface sizes. The eight variable WOFF2 character subsets use `font-display: swap` and weights 200–900, with the original OFL license supplied beside them. Body copy retains locally bundled DM Sans and Chinese system sans fallbacks; the standalone Mac introduction retains its declared system sans body stack.
+Public type uses `Jianghao Sans`, the local alias for Noto Sans SC Variable. Display and section headings use weight 600; the shared 讲好 wordmark uses weight 700 with slightly open tracking. The frontmatter records the hosted hero, section heading, wordmark, body, lead and compact metadata roles. Ordinary public body copy is 16px/1.8, with 17px/1.85 hero support and 13px/1.65 captions; dense navigation, form and descriptor roles retain their documented compact sizes. Invitation and reading headings use the same face while retaining their existing surface sizes. Fifteen variable WOFF2 character chunks (about 875 KiB total) are limited to characters present in public copy, use `font-display: swap` and weights 100–900, and include the original OFL license. Unavailable dynamic characters fall back to Chinese system sans. The hosted stack keeps DM Sans as a fallback; the static introduction shares the local face with its system sans fallbacks. No remote font service is required.
 
-At 1100px and below the hosted hero becomes `clamp(36px, 5.5vw, 60px)`. At 640px and below it uses `clamp(30px, 8.4vw, 44px)` with line-height 1.55, lead copy becomes 15px/1.9 and section headings 29px. The standalone hero uses `public-intro-display`, then `clamp(29px, 8.4vw, 46px)`/1.55 below 759px. The small legacy static captions remain current implementation detail, not a new minimum-size rule or a claimed craft-floor pass.
+At 1100px and below the hosted hero becomes `clamp(36px, 5.5vw, 58px)`. At 640px and below it uses `public-mobile-display` (32–36px/1.45), lead copy becomes 16px/1.8 and section headings 28px. The standalone hero uses `public-intro-display`, then the same `public-mobile-display` role below 759px. Both shared wordmarks use the 28px mobile role. The small legacy static captions remain current implementation detail, not a new minimum-size rule or a claimed craft-floor pass.
+
+At 360px and below, hosted and static hero headings use `public-narrow-display` (30px) and keep “从容的表达。” together with `white-space: nowrap` on that phrase. This resolves the reviewed 320px title wrap; the 390px-and-wider type scale is unchanged.
 
 ### Hosted Website and Navigation Type — 2026-10-11 Snapshot
 
@@ -263,13 +305,13 @@ Content attachments form a two-column grid beneath the page-redesign feedback, w
 
 The digital-presenter settings pair a saved-avatar library (240px) with a flexible workbench, separated by an open gap (28px). Identity editing and text preview follow the same border-and-spacing hierarchy as the existing studio. At its local narrow breakpoint (at most 700px), the library moves above the workbench and retains two avatar columns; identity fields stack beneath the portrait, and action rows wrap. This layout applies to the presenter settings, without changing the shell's existing breakpoints.
 
-| Viewport | Implemented behavior |
-| --- | --- |
-| At least 1600px | Wider page padding (44px 60px), larger home display (42px), larger gallery gaps. |
-| At most 1150px | Sidebar narrows to 192px; project/style libraries become two columns; workflow becomes two columns; toolbars wrap; page detail narrows to 1.4:1 columns with a 260px minimum information panel. |
-| At most 850px | Sidebar becomes a 76px icon rail; recent projects are hidden; page detail stacks vertically; versions use two columns. |
-| At most 960px | The style workbench stacks with the editor first; the footer action remains accessible and history scrolls horizontally. |
-| At most 600px | Navigation becomes a fixed bottom bar (62px); page padding is 24px 18px 28px; libraries and slide galleries become one column; settings, split preview and style detail stack. |
+| Viewport        | Implemented behavior                                                                                                                                                                            |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| At least 1600px | Wider page padding (44px 60px), larger home display (42px), larger gallery gaps.                                                                                                                |
+| At most 1150px  | Sidebar narrows to 192px; project/style libraries become two columns; workflow becomes two columns; toolbars wrap; page detail narrows to 1.4:1 columns with a 260px minimum information panel. |
+| At most 850px   | Sidebar becomes a 76px icon rail; recent projects are hidden; page detail stacks vertically; versions use two columns.                                                                          |
+| At most 960px   | The style workbench stacks with the editor first; the footer action remains accessible and history scrolls horizontally.                                                                        |
+| At most 600px   | Navigation becomes a fixed bottom bar (62px); page padding is 24px 18px 28px; libraries and slide galleries become one column; settings, split preview and style detail stack.                  |
 
 On mobile, bulk actions and toasts sit above the bottom navigation. The home illustration is hidden, page selection controls stay visible, and the style chooser retains two columns. Dialogs remain scrollable within the viewport.
 
@@ -289,13 +331,13 @@ The public website uses an open, ruled layout. Header, hero and footer share a c
 
 Account entry is centered within 1190px, with 1.1:1 columns, a 10% gap and padding (60px 5% 80px). Its white form uses 30px internal padding, an 18px gap between main blocks and a 16px fieldset gap. At the narrow breakpoint the story remains above the form, its supporting list is hidden and the form remains full width with 22px internal padding.
 
-| Hosted surface breakpoint | Implemented behavior |
-| --- | --- |
-| Website at most 900px | Hero and proof sections stack; hero top padding becomes 48px with a 38px gap. Workflow retains two columns with a 7% gap. Account entry retains two columns with a 5% gap and 4% side padding. |
-| Website at most 640px | Header becomes at least 72px high with 16px 20px padding and a disclosure menu. Hero uses 42px 20px 50px padding; workflow stacks with 45px 24px padding. Account entry stacks with 28px 20px 45px padding and a 26px gap. Footer stacks and style choices wrap. |
-| Hosted workspace above 950px | Sticky full-height sidebar is 232px, with a flexible main column; creation, primary destinations, recent projects and bottom support/account groups remain visible. |
-| Hosted workspace 641–950px | Sidebar becomes a 76px icon rail with named/title-bearing controls, a separate compact account icon and hidden recent projects. |
-| Hosted workspace at most 640px | A sticky 56px top bar opens a closable, fixed drawer (`min(300px, 88vw)`, 100dvh). The hosted shell has no bottom navigation padding; its internal top bar is 49px high. Drawer bottom padding respects the safe area. |
+| Hosted surface breakpoint      | Implemented behavior                                                                                                                                                                                                                                             |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Website at most 900px          | Hero and proof sections stack; hero top padding becomes 48px with a 38px gap. Workflow retains two columns with a 7% gap. Account entry retains two columns with a 5% gap and 4% side padding.                                                                   |
+| Website at most 640px          | Header becomes at least 72px high with 16px 20px padding and a disclosure menu. Hero uses 42px 20px 50px padding; workflow stacks with 45px 24px padding. Account entry stacks with 28px 20px 45px padding and a 26px gap. Footer stacks and style choices wrap. |
+| Hosted workspace above 950px   | Sticky full-height sidebar is 232px, with a flexible main column; creation, primary destinations, recent projects and bottom support/account groups remain visible.                                                                                              |
+| Hosted workspace 641–950px     | Sidebar becomes a 76px icon rail with named/title-bearing controls, a separate compact account icon and hidden recent projects.                                                                                                                                  |
+| Hosted workspace at most 640px | A sticky 56px top bar opens a closable, fixed drawer (`min(300px, 88vw)`, 100dvh). The hosted shell has no bottom navigation padding; its internal top bar is 49px high. Drawer bottom padding respects the safe area.                                           |
 
 These hosted values supersede the earlier Hosted Web V1 entry-form and shell geometry only for the new website journey. The local App keeps its own 600px/850px/1150px shell breakpoints. CSS breakpoints are independent of screenshot pixel dimensions and browser zoom.
 
@@ -307,7 +349,7 @@ Dialogs use a dim translucent backdrop with a small blur (3px). The modal is the
 
 Motion is brief and functional: button and project-card transitions (0.18s), page border and reveal transitions (0.15s), task progress (0.3s), and a continuous loading spinner (1.2s). Reduced-motion preferences collapse animations and transitions to near-zero duration.
 
-The earlier hosted website stayed flat: borders, spacing and the proof section's pale olive ground separated content, without added card or hero shadows. The workspace drawer uses a translucent ink backdrop (`#24282466`) below the drawer. Current public pages retain flat, ruled surfaces and a shadow-free video action. Their single branded moment changes the hero's key phrase from ink to vermilion over 800ms (`cubic-bezier(0.16, 1, 0.3, 1)`) only when reduced motion is not requested. Shared functional state transitions remain; the standalone intro retains its existing cover-stack depth and reduced-motion treatment.
+The earlier hosted website stayed flat: borders, spacing and the proof section's pale olive ground separated content, without added card or hero shadows. The workspace drawer uses a translucent ink backdrop (`#24282466`) below the drawer. Current public pages retain flat, ruled surfaces and a shadow-free video action. The hero's key phrase changes from ink to vermilion over 800ms (`cubic-bezier(0.16, 1, 0.3, 1)`) only when reduced motion is not requested. The Amanda example can slide into view when its section approaches the viewport, with a click-to-reveal alternative; revealing never starts audio. Shared functional state transitions remain; the standalone intro retains its existing cover-stack depth and reduced-motion treatment.
 
 ## Shapes
 
@@ -399,13 +441,21 @@ The surface contract and source trace are `.impeccable/hosted-web-v1.md`. Six lo
 
 ### Public Brand Implementation — 2026-10-12
 
-`src/brand.css` loads after `src/website.css` and scopes the public identity to `.web-site`; `src/BrandLockup.tsx` combines a 40px quotation mark, real serif wordmark and optional descriptor.
+`src/brand.css` loads after `src/website.css` and scopes the public identity to `.web-site`; `src/BrandLockup.tsx` combines a 40px quotation mark, real sans wordmark and optional descriptor; the shared lockup carries this face into the product without changing the global working-interface type scale.
 
 Four ruled actions connect writing, the existing twelve-page gallery, narration and delivery. Account form behavior and workspace return semantics remain those of the existing journey, with scoped palette and heading changes.
 
-Hosted public primary buttons use the prefixed component tokens; 44px is their minimum height. On the ink closing section the action reverses to paper and ink. Hosted links, buttons and summaries use a 2px vermilion focus outline with a 5px offset; input focus uses 2px with a 2px offset and a matching caret. The skip link is clipped while unfocused and fully revealed on focus. Existing menu disclosure, captioned video, full-image links and error recovery remain available.
+The gallery presents complete artwork without the former enlargement prompt or image-opening interaction. `src/NarrationExample.tsx` adds 《朝花夕拾》 page 4, “先讲故事”, with the original 36.816625-second Amanda AI recording and an illustrative girl avatar. Its reveal loads the case description; a separate explicit play action starts sound. Named pause, progress and retry controls retain the original recording. The source page and audio are read-only publication copies; the original project and manuscript remain intact.
 
-The static Mac introduction carries the same public palette, quotation mark, serif hero and 5px actions through `site/intro/intro.css`, with its centered cover hero, local installation/source links and existing layout. It does not become the hosted invitation homepage. The direction contract is embedded in `index.html` and `site/intro/index.template.html`: publishing studio, grounded direction 7, seed `81573e3e`, code-led expansion. Asset provenance, validation and the limited review verdict belong to `.impeccable/jianghao-brand.md`.
+Hosted public primary buttons use the prefixed component tokens; 44px is their minimum height. On the ink closing section the action reverses to paper and ink. Hosted links, buttons and summaries use a 2px vermilion focus outline with a 5px offset; input focus uses 2px with a 2px offset and a matching caret. The skip link is clipped while unfocused and fully revealed on focus. Existing menu disclosure, captioned video, complete image frames and error recovery remain available.
+
+The static Mac introduction carries the same public palette, quotation mark, sans hero and 5px actions through `site/intro/intro.css`, with its centered cover hero, local installation/source links and existing layout. It does not become the hosted invitation homepage. The direction contract is embedded in `index.html` and `site/intro/index.template.html`: publishing studio, grounded direction 7, seed `81573e3e`, code-led expansion. Asset provenance, validation and the limited review verdict belong to `.impeccable/jianghao-brand.md`.
+
+Public six-page product media now uses `public/product-demo/jianghao-introduction.mp4` and `public/product-demo/讲好-产品介绍.pptx`, with matching 讲好 names, exact SVG mark, manuscript and subtitles. Three old-name narration segments were re-recorded; nineteen original segments remain. The video is approximately 128.092 seconds, with subtitles aligned to decoded audio and pauses. PPT page structure, canvas dimensions, read-back and per-page rendered branding were checked; this is media verification, not a new whole-surface visual verdict.
+
+Current scoped checks passed 21 website/desktop/version/usage/deployment cases with one public-deployment browser test skipped, plus three static-intro checks including browser inspection. Website media controls and geometry passed at 1440, 820, 390 and 320px. The independent review in `.impeccable/review/brand-unification/finish-review.md` returned **ship** for the two resolved findings only: 320px promise wrapping and documentation truth. Full-suite limitations remain recorded in `.impeccable/jianghao-brand.md`; this verdict does not certify the whole new workbench, installed App, human PowerPoint opening or voice quality.
+
+Selected-source preservation checks retained 《朝花夕拾》 at 133 pages: the chosen page-4 record and original Amanda narration record are equal, and the original page file plus five source audio segments have equal SHA-256 hashes. The isolated product-demonstration source retained all 27 checked database/WAL/SHM/settings/JSON/audio inputs. These are scoped source checks, not a byte audit of all active-user databases.
 
 ### Hosted Website and Workspace Journey — 2026-10-11 Snapshot
 
@@ -450,6 +500,7 @@ Actual samples in test project `76279902-8efb-4e61-ade7-3595a836670e` are black 
 ## Do's and Don'ts
 
 ### Do:
+
 - **Do** preserve complete generated images and keep historical web scenes clearly identified.
 - **Do** reuse the warm shell, terracotta action color and olive supporting states across App and authenticated-workspace views; use `public-*` identity tokens on public brand surfaces.
 - **Do** show progress, incomplete work, changed inputs, saved notes and pages awaiting redesign as distinct states with meaningful text.
@@ -460,6 +511,7 @@ Actual samples in test project `76279902-8efb-4e61-ade7-3595a836670e` are black 
 - **Do** keep hosted website and workspace layout values scoped, preserve named navigation in the icon rail, and associate account-format help with its field.
 
 ### Don't:
+
 - **Don't** present missing results, failed pages or stale previews as newly completed output.
 - **Don't** let the application palette substitute for the user’s saved output style or let that style recolor application controls.
 - **Don't** reintroduce template or visual-direction pickers, generic layout galleries or element editing into the current image workflow. PPTX export must remain complete images with speaker notes.
@@ -468,12 +520,11 @@ Actual samples in test project `76279902-8efb-4e61-ade7-3595a836670e` are black 
 - **Don't** treat reviewed image samples or a successful interface review as a general guarantee of output quality or reference-style fidelity.
 - **Don't** expose private workspace media as public demonstration assets or turn the hosted website's type and breakpoints into global App defaults.
 
-
 ## Product introduction website
 
-The standalone `/intro/` page now uses the scoped 讲好 public identity: warm paper, ink, vermilion, locally hosted serif display headings, system sans body and generous centered product storytelling. Its existing cover hero and local installation/source path remain separate from the hosted invitation homepage. The earlier white/pale-gray and blue presentation is superseded only on this introduction surface; the App working-interface palette remains as documented above.
+The standalone `/intro/` page now uses the scoped 讲好 public identity: warm paper, ink, vermilion, locally hosted Noto Sans SC headings and body, system sans fallbacks and generous centered product storytelling. Its existing cover hero and local installation/source path remain separate from the hosted invitation homepage. The earlier white/pale-gray and blue presentation is superseded only on this introduction surface; the App working-interface palette remains as documented above.
 
-Approved built-in covers lead the page and a six-choice gallery. All application screenshots are captured from an isolated demo workspace. Cover switching has named buttons, pressed state, left/right and Home/End keyboard support; every workflow remains visible without selecting a tab. Native image dialogs support Escape and return focus. Small screens use a disclosure navigation; reveal motion respects reduced-motion preferences and all content stays visible without JavaScript.
+Approved built-in covers lead the page and a six-choice gallery. Eight application screenshots were refreshed from the current isolated build with public fictional demonstration material, without paid-model calls or real user data. Cover switching has named buttons, pressed state, left/right and Home/End keyboard support; covers no longer open an enlargement dialog. Every workflow remains visible without selecting a tab. Screenshot image dialogs retain Escape and focus return. Small screens use a disclosure navigation; reveal motion respects reduced-motion preferences and all content stays visible without JavaScript.
 
 The primary action leads to installation instructions, with an explicitly labeled source ZIP download. Mac builds remain internal; no public installer or hosted generation service is implied. Export is described as full-page image PPTX with speaker notes plus a separate Markdown manuscript.
 

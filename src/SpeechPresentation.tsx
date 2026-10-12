@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { BRAND } from "../shared/brand.mjs";
 import {
   ArrowLeft,
   ArrowRight,
@@ -585,7 +586,7 @@ export function SpeechPresentation({
     >
       <header className="speech-header">
         <div>
-          <span className="speech-eyebrow">AUTOPPT · 演讲放映</span>
+          <span className="speech-eyebrow">{BRAND.name} · 演讲放映</span>
           <h1>{project?.title || "播放演讲"}</h1>
         </div>
         <div className="speech-inline">

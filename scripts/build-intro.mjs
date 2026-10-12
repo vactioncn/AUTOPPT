@@ -46,7 +46,7 @@ const overview = product.modules
   .join("");
 const firstStyle = product.gallery[0];
 const gallery = `<div class="gallery">
-  <figure><button class="shot-button gallery-stage" id="gallery-zoom" data-zoom="artwork/${firstStyle.file}.webp" data-caption="${esc(firstStyle.label)} · 内置风格封面" aria-label="放大当前风格封面"><img id="gallery-image" src="artwork/${firstStyle.file}.webp" alt="${esc(firstStyle.label)}封面" width="1440" height="810" loading="lazy"></button>
+  <figure><div class="gallery-stage"><img id="gallery-image" src="artwork/${firstStyle.file}.webp" alt="${esc(firstStyle.label)}封面" width="1440" height="810" loading="lazy"></div>
   <figcaption class="gallery-caption" aria-live="polite"><h3 id="gallery-title">${esc(firstStyle.label)}</h3><p id="gallery-description">${esc(firstStyle.detail)}</p></figcaption></figure>
   <div class="gallery-controls" role="group" aria-label="选择要预览的内置风格">${product.gallery.map((style, i) => `<button class="style-choice" type="button" aria-pressed="${i === 0}" aria-label="预览${esc(style.label)}" data-style-src="artwork/${style.file}.webp" data-style-label="${esc(style.label)}" data-style-detail="${esc(style.detail)}"><img src="artwork/${style.file}.webp" alt="" width="1440" height="810" loading="lazy"><span>${esc(style.short)}</span></button>`).join("")}</div>
   <p class="image-note">13 套内置风格中的 6 套展示 · 封面为已生成作品，后续画面依内容与模型而定</p>

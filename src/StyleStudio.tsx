@@ -1,4 +1,5 @@
 import { PageNumberHelp } from "./PageNumberHelp";
+import { BRAND } from "../shared/brand.mjs";
 import {
   DesignOptionsEditor,
   emptyDesignOptions,
@@ -230,7 +231,7 @@ export function StyleStudio({
                 const capabilities = await api("/bootstrap");
                 if (!capabilities.features?.unifiedStyleCover)
                   throw new Error(
-                    "当前后台还是旧版本，未加载统一封面功能。请在制作任务完成后重新打开 AutoPPT；仅刷新页面不会更新后台。",
+                    `当前后台还是旧版本，未加载统一封面功能。请在制作任务完成后重新打开${BRAND.name}；仅刷新页面不会更新后台。`,
                   );
                 const t = await post<Trial>(`/styles/${style.id}/trials`, {
                   purpose: "cover",

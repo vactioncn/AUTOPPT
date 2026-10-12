@@ -677,30 +677,6 @@
   margin: 0;
   min-width: 0;
 }
-.web-style-samples a {
-  display: block;
-  position: relative;
-  border-radius: 8px;
-  overflow: hidden;
-}
-.web-image-open {
-  position: absolute;
-  right: 12px;
-  bottom: 12px;
-  padding: 8px 12px;
-  background: var(--paper);
-  color: var(--ink);
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  opacity: 0;
-}
-.web-style-samples a:hover .web-image-open,
-.web-style-samples a:focus-visible .web-image-open {
-  opacity: 1;
-}
 .web-style-samples figcaption {
   padding-top: 8px;
   color: var(--muted);

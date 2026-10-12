@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { BRAND } from "../shared/brand.mjs";
 import { ArrowDown, Coins, Plus } from "@phosphor-icons/react";
 import { api, post, downloadFile } from "./api";
 import { Button, Field, Modal } from "./components";
@@ -154,7 +155,10 @@ export function UsagePage() {
   async function exportCsv() {
     setBusy(true);
     try {
-      await downloadFile(`/api/usage/export?${search}`, "AutoPPT-usage.csv");
+      await downloadFile(
+        `/api/usage/export?${search}`,
+        `${BRAND.name}-用量账单.csv`,
+      );
     } catch (e) {
       setError((e as Error).message);
     } finally {

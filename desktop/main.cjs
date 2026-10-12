@@ -19,7 +19,9 @@ const {
 const { randomBytes } = require("node:crypto");
 const path = require("node:path");
 
+// Keep the established userData directory and single-instance identity across rebranding.
 app.setName("AutoPPT");
+app.setAboutPanelOptions({ applicationName: "讲好" });
 // Test instances can have an isolated profile; never bundle somebody's projects.
 if (process.env.AUTOPPT_DESKTOP_PROFILE)
   app.setPath("userData", path.resolve(process.env.AUTOPPT_DESKTOP_PROFILE));
@@ -103,7 +105,7 @@ function startBackend() {
       else if (!quitting) {
         dialog.showErrorBox(
           "工作区已停止",
-          "请重新打开 AutoPPT。已保存的内容仍在本机。",
+          "请重新打开讲好。已保存的内容仍在本机。",
         );
         quitting = true;
         app.quit();
@@ -118,7 +120,7 @@ function showWindow() {
     return;
   }
   window = new BrowserWindow({
-    title: "AutoPPT",
+    title: "讲好",
     width: 1360,
     height: 900,
     minWidth: 960,
@@ -211,9 +213,9 @@ else {
       Menu.setApplicationMenu(
         Menu.buildFromTemplate([
           {
-            label: "AutoPPT",
+            label: "讲好",
             submenu: [
-              { role: "about", label: "关于 AutoPPT" },
+              { role: "about", label: "关于讲好" },
               {
                 label: "设置…",
                 accelerator: "CmdOrCtrl+,",
@@ -222,8 +224,8 @@ else {
               { label: "打开工作区", click: showWindow },
               { label: "打开数据文件夹", click: () => shell.openPath(dataDir) },
               { type: "separator" },
-              { role: "hide", label: "隐藏 AutoPPT" },
-              { role: "quit", label: "退出 AutoPPT" },
+              { role: "hide", label: "隐藏讲好" },
+              { role: "quit", label: "退出讲好" },
             ],
           },
           {
@@ -263,7 +265,7 @@ else {
             role: "help",
             label: "帮助",
             submenu: [
-              { label: "AutoPPT 使用帮助", click: () => navigate("help") },
+              { label: "讲好使用帮助", click: () => navigate("help") },
               { label: "产品介绍", click: () => navigate("intro") },
             ],
           },
@@ -273,7 +275,7 @@ else {
     })
     .catch((e) => {
       dialog.showErrorBox(
-        "AutoPPT 无法启动",
+        "讲好无法启动",
         `${e.message}\n日志位于 ${app.getPath("userData")}/server.log`,
       );
       quitting = true;

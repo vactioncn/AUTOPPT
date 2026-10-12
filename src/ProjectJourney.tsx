@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { BRAND } from "../shared/brand.mjs";
 import { api } from "./api";
 import {
   HtmlExportOptions,
@@ -532,8 +533,8 @@ export function DeliveryCenter({
       </section>
       <p className="journey-note">
         {hosted
-          ? "PPTX、Markdown 用于放映或交付；项目源文件用于在 AutoPPT"
-          : "PPTX、Markdown 与 HTML 用于放映或交付；项目源文件用于在 AutoPPT"}
+          ? `PPTX、Markdown 用于放映或交付；项目源文件用于在${BRAND.name}`
+          : `PPTX、Markdown 与 HTML 用于放映或交付；项目源文件用于在${BRAND.name}`}
         中恢复编辑，不能用交付文件替代。
       </p>
     </section>

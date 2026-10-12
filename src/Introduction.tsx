@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { ArrowLeft } from "@phosphor-icons/react";
 import { Button } from "./components";
+import { BRAND } from "../shared/brand.mjs";
 
 export function Introduction({
   onBack,
@@ -33,7 +34,11 @@ export function Introduction({
           使用帮助与常见问题
         </Button>
       </div>
-      <iframe ref={frame} title="AutoPPT 产品介绍" src="/intro/?embedded=1" />
+      <iframe
+        ref={frame}
+        title={`${BRAND.name} 产品介绍`}
+        src="/intro/?embedded=1"
+      />
     </section>
   );
 }

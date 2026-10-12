@@ -1,5 +1,6 @@
 :root {
   font-family:
+    "Jianghao Sans",
     "DM Sans",
     -apple-system,
     BlinkMacSystemFont,
@@ -267,32 +268,34 @@ img {
   gap: 11px;
   padding: 0 8px 0;
 }
-.brand-icon {
-  width: 37px;
-  height: 39px;
-  background: var(--accent);
-  border-radius: 10px;
-  color: white;
-  font-size: 29px;
-  font-weight: 500;
-  font-family: "DM Sans", sans-serif;
-  line-height: 39px;
-  text-align: center;
-  flex-shrink: 0;
+.brand .jianghao-lockup {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 4px 11px;
+  align-items: center;
+  min-width: 0;
 }
-.brand > span:last-child {
-  font-size: 22px;
-  font-weight: 600;
-  letter-spacing: -0.035em;
+.brand .jianghao-lockup img {
+  width: 36px;
+  height: 36px;
+  grid-row: 1 / 3;
+}
+.brand .jianghao-wordmark {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
   line-height: 1.1;
 }
-.brand small {
+.brand .jianghao-descriptor {
   font-size: 10px;
   color: var(--muted);
   display: block;
-  letter-spacing: 0.1em;
-  margin-top: 8px;
+  letter-spacing: 0.025em;
+  border: 0;
+  margin: 0;
+  padding: 0;
   font-weight: 400;
+  white-space: nowrap;
 }
 .new-project-side {
   margin-top: 36px;
@@ -2527,8 +2530,8 @@ img {
   .sidebar {
     padding-inline: 13px;
   }
-  .brand > span:last-child {
-    font-size: 20px;
+  .brand .jianghao-wordmark {
+    font-size: 24px;
   }
   .page {
     padding: 30px;
@@ -2607,8 +2610,12 @@ img {
     padding: 0;
     justify-content: center;
   }
-  .brand > span:last-child {
+  .sidebar .brand .jianghao-wordmark,
+  .sidebar .brand .jianghao-descriptor {
     display: none;
+  }
+  .sidebar .brand .jianghao-lockup {
+    grid-template-columns: 36px;
   }
   .new-project-side {
     font-size: 0;

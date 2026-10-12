@@ -16,6 +16,7 @@ import {
   workspaceTarget,
   type PublicPage,
 } from "../shared/web-routes.mjs";
+import { STYLE_SHOWCASE } from "../shared/style-showcase.mjs";
 import "./website.css";
 
 export type SiteAccount = {
@@ -54,24 +55,6 @@ export function WebLink({
     </a>
   );
 }
-const examples = [
-  [
-    "restrained-childhood-editorial",
-    "克制儿童摄影杂志风",
-    "黑白摄影与荧光点睛，让故事有清晰的阅读层次。",
-  ],
-  [
-    "acid-editorial",
-    "先锋酸性色彩编辑风",
-    "大胆的色彩与编辑语言，让主题更醒目。",
-  ],
-  [
-    "japanese-architecture",
-    "日系现代建筑提案风",
-    "克制留白与建筑般的秩序，让表达清晰从容。",
-  ],
-  ["neo-swiss", "当代 Neo-Swiss", "强势黑体与黑白对比，突出每一页的核心观点。"],
-];
 export function WebSite({
   page,
   account,
@@ -197,33 +180,28 @@ export function WebSite({
     </div>
   );
 }
-const showcasePages = [
-  { id: "neutrino", title: "科学的线索", caption: "先锋编辑 · 科普讲解" },
-  { id: "story", title: "先讲故事", caption: "自建书卷风 · 阅读课堂" },
-  { id: "universe", title: "看见更大的宇宙", caption: "先锋编辑 · 观点展开" },
-  {
-    id: "characters",
-    title: "从一个问题，走近人物",
-    caption: "自建书卷风 · 人物叙事",
-  },
-  { id: "antarctica", title: "把远方带到眼前", caption: "先锋编辑 · 场景叙事" },
-  { id: "viewpoint", title: "把观点讲清楚", caption: "简洁排版 · 主题表达" },
-];
 function ShowcaseImage({
   id,
   title,
   hero = false,
+  folder = "showcase",
+  sizes,
 }: {
   id: string;
   title: string;
   hero?: boolean;
+  folder?: string;
+  sizes?: string;
 }) {
   return (
     <img
-      src={`/showcase/${id}.webp`}
-      srcSet={`/showcase/${id}-small.webp 800w, /showcase/${id}.webp 1600w`}
+      src={`/${folder}/${id}.webp`}
+      srcSet={`/${folder}/${id}-small.webp 800w, /${folder}/${id}.webp 1600w`}
       sizes={
-        hero ? "(max-width: 900px) 90vw, 56vw" : "(max-width: 640px) 90vw, 45vw"
+        sizes ||
+        (hero
+          ? "(max-width: 900px) 90vw, 56vw"
+          : "(max-width: 640px) 90vw, 45vw")
       }
       width="1600"
       height="900"
@@ -369,60 +347,56 @@ function Home({
             每一页，都值得多看一眼。
           </h2>
           <p>
-            审美，贯穿从字体、配色到构图的每个选择。
+            四款精品风格，每款三种不同表达。
             <br />
-            让观点有力度，让故事有画面，让整场演讲有自己的气质。
+            故事、观点与过程，都有适合自己的画面。
           </p>
         </div>
-        <div className="web-gallery-grid">
-          {showcasePages.map((item) => (
-            <figure key={item.id}>
-              <a
-                href={`/showcase/${item.id}.webp`}
-                aria-label={`放大查看：${item.title}`}
-              >
-                <ShowcaseImage {...item} />
-                <span className="web-image-open">
-                  <ArrowRight size={18} /> 放大查看
-                </span>
-              </a>
-              <figcaption>
-                <strong>{item.title}</strong>
-                <span>{item.caption}</span>
-              </figcaption>
-            </figure>
+        <div className="web-style-gallery">
+          {STYLE_SHOWCASE.map((style) => (
+            <article
+              className="web-style-collection"
+              key={style.id}
+              aria-labelledby={`showcase-${style.id}`}
+            >
+              <header>
+                <h3 id={`showcase-${style.id}`}>{style.name}</h3>
+                <p>{style.description}</p>
+              </header>
+              <div className="web-style-samples">
+                {style.pages.map((page, index) => (
+                  <figure
+                    key={page.id}
+                    className={index === 0 ? "web-style-main" : undefined}
+                  >
+                    <a
+                      href={`/style-showcase/${page.id}.webp`}
+                      aria-label={`放大查看：${style.name} · ${page.expression} · ${page.title}`}
+                    >
+                      <ShowcaseImage
+                        {...page}
+                        folder="style-showcase"
+                        sizes={
+                          index === 0
+                            ? "(max-width: 1000px) 90vw, 45vw"
+                            : "(max-width: 1000px) 43vw, 22vw"
+                        }
+                      />
+                      <span className="web-image-open">
+                        <ArrowRight size={18} /> 放大查看
+                      </span>
+                    </a>
+                    <figcaption>{page.expression}</figcaption>
+                  </figure>
+                ))}
+              </div>
+            </article>
           ))}
         </div>
         <p className="web-caption">
-          以上均为 AutoPPT 既有生成页面，包含自建风格。点击图片可查看大图。
+          以上均使用 AutoPPT
+          的内置精品风格实际生成。点击任一画面可查看大图，也可以上传参考图，建立自己的风格。
         </p>
-        <div className="web-style-note">
-          <h3>
-            四款精品风格，
-            <br />
-            也是你自己风格的起点。
-          </h3>
-          <div>
-            <p>
-              克制儿童摄影杂志、先锋、日系现代、当代
-              NEO。选一种喜欢的气质，也可以上传参考图，建立自己的视觉语言。
-            </p>
-            <div className="web-style-covers" aria-label="四款内置精品风格">
-              {examples.map((s) => (
-                <figure key={s[0]}>
-                  <img
-                    src={`/style-covers/${s[0]}.png`}
-                    width="320"
-                    height="180"
-                    loading="lazy"
-                    alt={s[1]}
-                  />
-                  <figcaption>{s[1]}</figcaption>
-                </figure>
-              ))}
-            </div>
-          </div>
-        </div>
       </section>
       <section
         className="web-simple"
@@ -540,7 +514,7 @@ function Home({
           网页版由管理员统一配置内容和图片服务，你只需要准备讲稿。生成图片消耗账号额度，编辑文字和导出不消耗图片额度。
         </FAQ>
         <FAQ title="作品展示里的风格都能直接使用吗？">
-          展示包含内置风格与用户自建风格的实际生成页面。新账号默认提供四款精品风格，也可以上传参考图创建自己的风格；生成结果会随内容和模型而变化。
+          这里的四组作品均由内置精品风格实际生成，新账号都可以直接使用。每组展示三种不同的页面表达，也可以上传参考图创建自己的风格；生成结果会随内容和模型而变化。
         </FAQ>
         <FAQ title="可以用自己的声音，或制作数字人吗？">
           口播已开放，也可使用管理员接入的 MiniMax
@@ -781,7 +755,9 @@ function Access({
                     }
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder={register ? "至少 6 位，可用纯数字" : "输入密码"}
+                    placeholder={
+                      register ? "至少 6 位，可用纯数字" : "输入密码"
+                    }
                   />
                   <button
                     type="button"

@@ -20,3 +20,7 @@ EVIDENCE: Browser tests in a disposable localhost mock workspace; UI registratio
 ## Product demonstration 2026-10-12
 
 The hero now leads with a real six-page product presentation and MiniMax announcer narration. It keeps the incumbent warm typography and canvas. The inline native video loads on demand, offers accessible captions, controls and an explicit transcript, and has a PPT download. Existing artwork remains in the gallery. Automatic emotional direction is a shipped voice feature independent of presenter generation. All public media is produced in an isolated demo workspace and reviewed before publication.
+
+## Four-theme gallery 2026-10-12
+
+The aesthetic section now combines artwork and style introduction in four open editorial collections: restrained childhood photography, avant-garde, Japanese modern and contemporary NEO. Each collection contains one lead page and two companion expressions, all produced with the corresponding unchanged built-in rules and authored demonstration manuscripts in an isolated workspace. Fine captions identify the expression; the complete 16:9 artwork remains the focus. The separate cover gallery is removed from this hosted homepage. Desktop pairs the four collections in two columns; screens up to 1000px stack collections, retaining the main page and two companions within each. Every page links to an optimized full-size image and has a descriptive accessible name. Existing hero video, simple-creation explanation, voice features, accounts and private workspaces are outside this refinement.

@@ -1,0 +1,48 @@
+{
+  "description": "用户要求用于官网展示的既有 AutoPPT 生成页面选集；仅缩放压缩，未重绘或修改页面文字。",
+  "modelCalls": 0,
+  "items": [
+    {
+      "id": "neutrino",
+      "title": "科学的线索",
+      "caption": "先锋编辑 · 科普讲解",
+      "src": "/showcase/neutrino.webp",
+      "thumbnail": "/showcase/neutrino-small.webp"
+    },
+    {
+      "id": "story",
+      "title": "先讲故事",
+      "caption": "自建书卷风 · 阅读课堂",
+      "src": "/showcase/story.webp",
+      "thumbnail": "/showcase/story-small.webp"
+    },
+    {
+      "id": "universe",
+      "title": "看见更大的宇宙",
+      "caption": "先锋编辑 · 观点展开",
+      "src": "/showcase/universe.webp",
+      "thumbnail": "/showcase/universe-small.webp"
+    },
+    {
+      "id": "characters",
+      "title": "从一个问题，走近人物",
+      "caption": "自建书卷风 · 人物叙事",
+      "src": "/showcase/characters.webp",
+      "thumbnail": "/showcase/characters-small.webp"
+    },
+    {
+      "id": "antarctica",
+      "title": "把远方带到眼前",
+      "caption": "先锋编辑 · 场景叙事",
+      "src": "/showcase/antarctica.webp",
+      "thumbnail": "/showcase/antarctica-small.webp"
+    },
+    {
+      "id": "viewpoint",
+      "title": "把观点讲清楚",
+      "caption": "简洁排版 · 主题表达",
+      "src": "/showcase/viewpoint.webp",
+      "thumbnail": "/showcase/viewpoint-small.webp"
+    }
+  ]
+}

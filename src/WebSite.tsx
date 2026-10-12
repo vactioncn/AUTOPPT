@@ -196,6 +196,42 @@ export function WebSite({
     </div>
   );
 }
+const showcasePages = [
+  { id: "neutrino", title: "科学的线索", caption: "先锋编辑 · 科普讲解" },
+  { id: "story", title: "先讲故事", caption: "自建书卷风 · 阅读课堂" },
+  { id: "universe", title: "看见更大的宇宙", caption: "先锋编辑 · 观点展开" },
+  {
+    id: "characters",
+    title: "从一个问题，走近人物",
+    caption: "自建书卷风 · 人物叙事",
+  },
+  { id: "antarctica", title: "把远方带到眼前", caption: "先锋编辑 · 场景叙事" },
+  { id: "viewpoint", title: "把观点讲清楚", caption: "简洁排版 · 主题表达" },
+];
+function ShowcaseImage({
+  id,
+  title,
+  hero = false,
+}: {
+  id: string;
+  title: string;
+  hero?: boolean;
+}) {
+  return (
+    <img
+      src={`/showcase/${id}.webp`}
+      srcSet={`/showcase/${id}-small.webp 800w, /showcase/${id}.webp 1600w`}
+      sizes={
+        hero ? "(max-width: 900px) 90vw, 56vw" : "(max-width: 640px) 90vw, 45vw"
+      }
+      width="1600"
+      height="900"
+      alt={`AutoPPT 实际生成页面：${title}`}
+      loading={hero ? "eager" : "lazy"}
+      fetchPriority={hero ? "high" : "auto"}
+    />
+  );
+}
 function Home({
   account,
   enter,
@@ -203,11 +239,13 @@ function Home({
   account: SiteAccount | null;
   enter: string;
 }) {
-  const [style, setStyle] = useState(0);
-  const example = examples[style];
+  const [selected, setSelected] = useState(0);
+  const current = showcasePages[selected];
+  const scrollTo = (id: string) =>
+    document.getElementById(id)?.scrollIntoView({ block: "start" });
   return (
     <>
-      <section className="web-hero">
+      <section className="web-hero web-art-hero">
         <div className="web-hero-copy">
           <h1>
             让观点，
@@ -215,8 +253,11 @@ function Home({
             有好看的表达。
           </h1>
           <p>
-            以审美为核心的 PPT
-            与演讲制作工具。把你的讲稿，做成有风格、有层次、值得停留的画面。
+            以审美为核心的 PPT 与演讲制作工具。
+            <br />
+            你专心把话讲好，
+            <br className="web-desktop-break" />
+            我们把它变成值得看见的画面。
           </p>
           <div className="web-actions">
             <WebLink
@@ -228,164 +269,252 @@ function Home({
             </WebLink>
             <button
               className="web-style-link"
-              onClick={() =>
-                document
-                  .getElementById("visual-styles")
-                  ?.scrollIntoView({ block: "center" })
-              }
+              onClick={() => scrollTo("generated-gallery")}
             >
-              看看精品风格 <ArrowRight size={16} />
+              看看实际作品 <ArrowRight size={16} />
             </button>
           </div>
-          <small>先试一页，满意再做整场。你的原稿完整保留。</small>
+          <small>一段逐字稿，就能开始。先试一页，满意再做整场。</small>
         </div>
-        <figure className="web-showcase" id="visual-styles">
-          <img
-            src={`/style-covers/${example[0]}.png`}
-            alt={`AutoPPT 内置风格示例：${example[1]}`}
-            width="1536"
-            height="1024"
-            fetchPriority="high"
-          />
-          <figcaption>
-            <strong>{example[1]}</strong>
-            <span>内置风格示例 · {example[2]}</span>
+        <figure className="web-showcase web-real-showcase">
+          <a
+            href={`/showcase/${current.id}.webp`}
+            aria-label={`放大查看：${current.title}`}
+          >
+            <ShowcaseImage {...current} hero />
+          </a>
+          <figcaption aria-live="polite">
+            <strong>{current.title}</strong>
+            <span>实际生成页面 · {current.caption}</span>
           </figcaption>
-          <div className="web-style-switch" aria-label="查看不同风格">
-            {examples.map((s, i) => (
+          <div className="web-work-switch" aria-label="切换实际生成作品">
+            {showcasePages.slice(0, 4).map((item, index) => (
               <button
-                key={s[0]}
-                aria-label={s[1]}
-                aria-pressed={style === i}
-                onClick={() => setStyle(i)}
+                key={item.id}
+                aria-label={`查看作品：${item.title}`}
+                aria-pressed={selected === index}
+                onClick={() => setSelected(index)}
               >
                 <img
-                  src={`/style-covers/${s[0]}.png`}
+                  src={`/showcase/${item.id}-small.webp`}
+                  width="320"
+                  height="180"
                   alt=""
-                  width="240"
-                  height="135"
-                  loading="lazy"
                 />
-                <span>
-                  {["儿童摄影杂志", "先锋", "日系现代", "当代 NEO"][i]}
-                </span>
+                <span>{item.title}</span>
               </button>
             ))}
           </div>
         </figure>
       </section>
+      <nav className="web-feature-nav" aria-label="产品核心特点">
+        <button onClick={() => scrollTo("generated-gallery")}>
+          好看 <ArrowRight size={17} />
+        </button>
+        <button onClick={() => scrollTo("simple-creation")}>
+          简单 <ArrowRight size={17} />
+        </button>
+        <button onClick={() => scrollTo("more-expression")}>
+          更多表达 <ArrowRight size={17} />
+        </button>
+      </nav>
       <section
-        className="web-design-story"
-        aria-labelledby="design-story-title"
+        className="web-gallery"
+        id="generated-gallery"
+        aria-labelledby="gallery-heading"
       >
-        <h2 id="design-story-title">
-          风格有主张，
-          <br />
-          画面有分寸。
-        </h2>
-        <div>
-          <p className="web-design-lead">
-            从字体、配色到留白，建立一场演讲的视觉语言。
-          </p>
-          <p>
-            四款精品风格，为不同的表达提供起点。每一页围绕内容组织画面，让标题有重点、信息有层次，整场保持统一的审美。
-          </p>
-          <p>
-            有自己的偏好？上传参考图，建立自己的风格；再用真实讲稿试做，逐页调整到满意。
-          </p>
-        </div>
-      </section>
-      <section className="web-workflow" aria-labelledby="workflow-title">
-        <div>
-          <h2 id="workflow-title">
-            先看一页效果，
+        <div className="web-section-intro">
+          <h2 id="gallery-heading">
+            好看。
             <br />
-            再决定整场怎么做。
+            每一页，都值得多看一眼。
           </h2>
           <p>
-            不用先学排版，也不用一次做完。先确认一页的视觉效果，再把喜欢的风格延续到整场。
+            审美，贯穿从字体、配色到构图的每个选择。
+            <br />
+            让观点有力度，让故事有画面，让整场演讲有自己的气质。
           </p>
         </div>
-        <ol>
-          <li>
-            <h3>放入讲稿，选择审美</h3>
+        <div className="web-gallery-grid">
+          {showcasePages.map((item) => (
+            <figure key={item.id}>
+              <a
+                href={`/showcase/${item.id}.webp`}
+                aria-label={`放大查看：${item.title}`}
+              >
+                <ShowcaseImage {...item} />
+                <span className="web-image-open">
+                  <ArrowRight size={18} /> 放大查看
+                </span>
+              </a>
+              <figcaption>
+                <strong>{item.title}</strong>
+                <span>{item.caption}</span>
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+        <p className="web-caption">
+          以上均为 AutoPPT 既有生成页面，包含自建风格。点击图片可查看大图。
+        </p>
+        <div className="web-style-note">
+          <h3>
+            四款精品风格，
+            <br />
+            也是你自己风格的起点。
+          </h3>
+          <div>
             <p>
-              粘贴你想讲的内容，选一款喜欢的精品风格。完整讲稿会保存，画面只提炼需要看见的重点。
+              克制儿童摄影杂志、先锋、日系现代、当代
+              NEO。选一种喜欢的气质，也可以上传参考图，建立自己的视觉语言。
+            </p>
+            <div className="web-style-covers" aria-label="四款内置精品风格">
+              {examples.map((s) => (
+                <figure key={s[0]}>
+                  <img
+                    src={`/style-covers/${s[0]}.png`}
+                    width="320"
+                    height="180"
+                    loading="lazy"
+                    alt={s[1]}
+                  />
+                  <figcaption>{s[1]}</figcaption>
+                </figure>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+      <section
+        className="web-simple"
+        id="simple-creation"
+        aria-labelledby="simple-heading"
+      >
+        <div className="web-section-intro">
+          <h2 id="simple-heading">
+            简单。
+            <br />
+            把话讲好，就很好。
+          </h2>
+          <p>
+            提供演讲逐字稿，选好风格。
+            <br />
+            从理解内容到生成画面，接下来交给 AutoPPT。
+          </p>
+        </div>
+        <ol className="web-creation-steps">
+          <li>
+            <h3>提取观点，划分演讲单元。</h3>
+            <p>
+              读懂你想表达什么，按语义整理成适合一页页讲述的单元，让每一页都有重点。
             </p>
           </li>
           <li>
-            <h3>先看一页，把感觉调对</h3>
+            <h3>上屏的精炼，要讲的完整。</h3>
             <p>
-              字少一点、重点突出一点，或换一种构图。看到真实画面，再决定怎么调整，旧版本随时可对照。
+              自动区分观众需要看见的重点，和你需要讲清楚的内容。上屏内容不等于全部内容，完整逐字稿始终保留。
             </p>
           </li>
           <li>
-            <h3>延续到整场，带上台去讲</h3>
+            <h3>智能配图，画面自然成形。</h3>
             <p>
-              满意后生成其余页面，导出带完整讲稿备注的 PPTX。也可以添加 AI
-              配音，先听一页再生成整场。
+              围绕内容安排图像与构图，再用选定的风格生成页面。先看一页效果，满意后继续整场。
             </p>
           </li>
         </ol>
+        <div className="web-script-example">
+          <div>
+            <h3>你提供逐字稿</h3>
+            <p>
+              我们做演讲时，最重要的是先想清楚自己想表达的观点。一小段文字可以提炼出一个清楚的观点，再用一页画面把它呈现出来。观众看见重点，演讲者把背后的思考讲完整。
+            </p>
+            <span>示意讲稿 · 完整正文保留</span>
+          </div>
+          <figure>
+            <ShowcaseImage id="viewpoint" title="把观点讲清楚" />
+            <figcaption>观众看见重点，你继续讲完整。</figcaption>
+          </figure>
+        </div>
+        <p className="web-caption">
+          导出 PPTX
+          时，完整逐字稿写入演讲者备注；每页画面以整张图片呈现，文字与图形不能单独编辑。
+        </p>
       </section>
-      <section className="web-proof">
-        <img
-          src="/intro/screenshots/manuscript.webp"
-          alt="AutoPPT 示例项目中的逐页讲稿与画面工作区"
-          width="1440"
-          height="1000"
-          loading="lazy"
-        />
-        <div>
-          <h2>
-            画面可以精炼。
+      <section
+        className="web-expression"
+        id="more-expression"
+        aria-labelledby="expression-heading"
+      >
+        <div className="web-section-intro">
+          <h2 id="expression-heading">
+            更多表达。
             <br />
-            你的原话，要完整。
+            让演讲，带上你的声音。
           </h2>
           <p>
-            上屏重点与完整逐字稿分别保存。调整页面、恢复版本，或继续追加内容，都能在同一个项目完成。
+            从一页画面，到一段有声音的讲述。
+            <br />
+            让同一份内容，有更多抵达观众的方式。
           </p>
-          <ul>
-            <li>
-              <Check size={18} />
-              完整逐字稿写入 PPTX 演讲者备注
-            </li>
-            <li>
-              <Check size={18} />
-              导出独立 Markdown 讲稿与图片
-            </li>
-            <li>
-              <Check size={18} />
-              保存历史，随时对照与恢复
-            </li>
-          </ul>
-          <p className="web-caption">
-            PPTX
-            每页为一张完整图片，文字和图形不能单独编辑。图示来自公开演示项目。
-          </p>
+        </div>
+        <div className="web-expression-body">
+          <figure>
+            <ShowcaseImage id="story" title="先讲故事" />
+            <figcaption>画面承接观点，声音讲述故事。</figcaption>
+          </figure>
+          <dl>
+            <div>
+              <dt>
+                AI 口播 <span>已开放</span>
+              </dt>
+              <dd>
+                选择声音，先试听当前页，再生成整场。画面与口播同步播放，也可以导出带声音的离线演示。
+              </dd>
+            </div>
+            <div>
+              <dt>
+                你的专属声音 <span>管理员接入</span>
+              </dt>
+              <dd>
+                已有自己的 MiniMax
+                声音，可由管理员接入使用，让演讲保留熟悉的音色。网页版暂不提供自行录制与声音复刻。
+              </dd>
+            </div>
+            <div>
+              <dt>
+                叙事情感与数字人 <span>扩展方向</span>
+              </dt>
+              <dd>
+                结合文稿安排情绪、节奏和停顿，再让数字人出镜讲述。这是我们接下来探索的表达方式，当前网页版尚未开放。
+              </dd>
+            </div>
+          </dl>
         </div>
       </section>
       <section className="web-faq">
         <h2>开始前，你可能想知道</h2>
         <FAQ title="如何获得账号？">
-          目前采用邀请制。向邀请你的管理员获取一次性邀请码，创建账号即可进入独立工作区。已有账号可以直接登录。
+          目前采用邀请制。向管理员获取 6
+          位数字邀请码，创建账号即可进入独立工作区。已有账号可以直接登录。
         </FAQ>
         <FAQ title="我需要配置图片模型吗？">
           网页版由管理员统一配置内容和图片服务，你只需要准备讲稿。生成图片消耗账号额度，编辑文字和导出不消耗图片额度。
+        </FAQ>
+        <FAQ title="作品展示里的风格都能直接使用吗？">
+          展示包含内置风格与用户自建风格的实际生成页面。新账号默认提供四款精品风格，也可以上传参考图创建自己的风格；生成结果会随内容和模型而变化。
+        </FAQ>
+        <FAQ title="可以用自己的声音，或制作数字人吗？">
+          口播已开放，也可使用管理员接入的 MiniMax
+          专属声音。网页版暂未开放声音复刻、自动叙事情感编排和数字人制作。
         </FAQ>
         <FAQ title="网页版与 Mac App 的项目是否同步？">
           两者使用独立工作区。这个网页版不会修改你的 Mac App
           数据，也不会自动将所有 App 内容公开或同步给其他用户。
         </FAQ>
-        <FAQ title="可以做口播、数字人或动态演示吗？">
-          网页版支持 MiniMax 口播短试播、整场生成及含声音的离线
-          HTML，语音服务由管理员连接。数字人和动态演示制作暂未开放。Mac App
-          的已有能力和内容保留。
-        </FAQ>
       </section>
       <section className="web-close">
         <h2>
-          你的下一场演讲，
+          下一场演讲，
           <br />
           从一张满意的画面开始。
         </h2>

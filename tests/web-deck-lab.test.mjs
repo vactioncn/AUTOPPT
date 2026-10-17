@@ -1,6 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
+import {
+  mkdtemp,
+  readFile,
+  writeFile,
+  rm,
+  mkdir,
+  symlink,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
@@ -103,6 +110,63 @@ test("single-file output preserves source text, contains both themes and cannot 
     assert.ok(html.includes("data:font/woff2;base64,"));
     assert.ok(!/(?:src|href)=["']https?:|url\(https?:/.test(html));
     assert.ok(!html.includes("url(./fonts/"));
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("local image assets are embedded with attribution and preserve the source and cues", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "web-deck-media-"));
+  try {
+    const deck = fixture();
+    const png = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aHfoAAAAASUVORK5CYII=",
+      "base64",
+    );
+    await writeFile(path.join(dir, "concept.png"), png);
+    deck.assets = {
+      concept: { file: "concept.png", alt: "概念图", caption: "AI 视觉示意" },
+    };
+    deck.slides[0].hero = "concept";
+    await writeFile(path.join(dir, "in.json"), JSON.stringify(deck));
+    await buildWebDeck(path.join(dir, "in.json"), path.join(dir, "out.html"));
+    const html = await readFile(path.join(dir, "out.html"), "utf8");
+    const packed = JSON.parse(
+      html.match(
+        /<script id="deck-data" type="application\/json">([\s\S]*?)<\/script>/,
+      )[1],
+    );
+    assert.deepEqual(packed.source, deck.source);
+    assert.deepEqual(packed.slides, deck.slides);
+    assert.deepEqual(packed.assets.concept, {
+      alt: "概念图",
+      caption: "AI 视觉示意",
+      src: `data:image/png;base64,${png.toString("base64")}`,
+    });
+    assert.ok(!html.includes('"file":"concept.png"'));
+    assert.ok(!/(?:src|href)=["']https?:|url\(https?:/.test(html));
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("asset paths cannot read outside the storyboard directory, including symlinks", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "web-deck-path-"));
+  try {
+    const inner = path.join(dir, "story");
+    await mkdir(inner);
+    const external = path.join(dir, "external.png");
+    await writeFile(external, "outside");
+    await symlink(external, path.join(inner, "linked.png"));
+    for (const file of [external, "../external.png", "linked.png"]) {
+      const deck = fixture();
+      deck.assets = { concept: { file } };
+      await writeFile(path.join(inner, "in.json"), JSON.stringify(deck));
+      await assert.rejects(
+        buildWebDeck(path.join(inner, "in.json"), path.join(inner, "out.html")),
+        /相对路径|超出分镜目录/,
+      );
+    }
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

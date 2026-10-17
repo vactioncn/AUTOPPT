@@ -1,4 +1,4 @@
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { readFile, writeFile, mkdir, realpath } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { validateDeck, buildTimeline } from "../site/web-deck-lab/model.mjs";
@@ -13,12 +13,38 @@ const esc = (value) =>
 
 export async function buildWebDeck(input, output) {
   const deck = validateDeck(JSON.parse(await readFile(input, "utf8")));
+  // Illustrative assets are explicitly supplied by the storyboard author.
+  // Keep the single-file output self-contained and restrict it to local raster images.
+  const sourceRoot = await realpath(path.dirname(input));
+  for (const [id, asset] of Object.entries(deck.assets || {})) {
+    if (!asset.file || path.isAbsolute(asset.file))
+      throw new Error(`素材 ${id} 需要分镜目录内的相对路径。`);
+    const source = await realpath(path.resolve(sourceRoot, asset.file));
+    if (!source.startsWith(sourceRoot + path.sep))
+      throw new Error(`素材 ${id} 超出分镜目录。`);
+    const mime = {
+      ".png": "image/png",
+      ".jpg": "image/jpeg",
+      ".jpeg": "image/jpeg",
+      ".webp": "image/webp",
+    }[path.extname(source).toLowerCase()];
+    if (!mime) throw new Error(`素材 ${id} 仅支持 PNG、JPEG 或 WebP。`);
+    const bytes = await readFile(source);
+    if (bytes.length > 10 * 1024 * 1024)
+      throw new Error(`素材 ${id} 超过 10 MB。`);
+    deck.assets[id] = {
+      alt: asset.alt || "视觉示意",
+      caption: asset.caption || "",
+      src: `data:${mime};base64,${bytes.toString("base64")}`,
+    };
+  }
   const dir = path.join(root, "site/web-deck-lab");
-  const [template, css, js, model, fontCss] = await Promise.all([
+  const [template, css, js, model, design, fontCss] = await Promise.all([
     readFile(path.join(dir, "index.template.html"), "utf8"),
     readFile(path.join(dir, "deck.css"), "utf8"),
     readFile(path.join(dir, "deck.js"), "utf8"),
     readFile(path.join(dir, "model.mjs"), "utf8"),
+    readFile(path.join(dir, "design.mjs"), "utf8"),
     readFile(path.join(root, "public/brand/type.css"), "utf8"),
   ]);
   // All fonts travel with the file. No CDN, runtime fetch, API key or user database.
@@ -45,7 +71,7 @@ export async function buildWebDeck(input, output) {
     CSS: css,
     FONTS: fonts,
     DATA: data,
-    JS: `${model.replace(/^export /gm, "")}\n${js}`,
+    JS: `${model.replace(/^export /gm, "")}\n${design.replace(/^export /gm, "")}\n${js}`,
   };
   const html = template.replace(
     /__(TITLE|CSS|FONTS|DATA|JS)__/g,

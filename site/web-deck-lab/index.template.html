@@ -9,7 +9,7 @@
 </head>
 <body>
   <header class="toolbar">
-    <div class="lab-name"><span class="lab-dot"></span> H5 演讲试验 <small>模板 × 表现方式</small></div>
+    <div class="lab-name">演讲预览 <small>__TITLE__</small></div>
     <label class="theme-field">模板
       <select id="theme" aria-label="选择视觉模板">
         <option value="swiss">当代 Neo-Swiss</option>
@@ -19,7 +19,7 @@
     <div class="tools">
       <button id="overview">目录</button><button id="notes">讲稿与来源</button>
       <button id="phone" aria-pressed="false">手机预览</button>
-      <button id="fullscreen">全屏</button>
+      <button id="fullscreen">全屏</button><button id="present">开始演讲</button>
     </div>
   </header>
   <main class="workspace">
@@ -33,6 +33,7 @@
     <div class="navigation"><button id="previous" aria-label="上一步">←</button><span id="step-number" aria-live="polite"></span><button id="next">下一步 →</button></div>
     <div class="total-progress"><div id="total-progress"></div></div>
   </footer>
+  <button id="exit-present" hidden>退出演讲 · Esc</button>
   <dialog id="detail" aria-labelledby="dialog-title">
     <div class="dialog-head"><h2 id="dialog-title"></h2><button id="close-dialog" aria-label="关闭">关闭 ×</button></div>
     <div id="dialog-body"></div>

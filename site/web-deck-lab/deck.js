@@ -17,40 +17,14 @@
         })[c],
     );
   const lines = (value) => esc(value).replaceAll("\n", "<br>");
-  const marked = (value, accent) =>
-    accent && value.includes(accent)
-      ? lines(value).replace(lines(accent), `<mark>${lines(accent)}</mark>`)
-      : lines(value);
-  const label = (text) => `<p class="small-label">${esc(text)}</p>`;
-  const reveal = (phase) => `data-reveal="${phase}"`;
-  const renderers = {
-    cover: (s) =>
-      `<div class="cover-main"><h1>${marked(s.title, s.accent)}</h1><p class="subtitle">${esc(s.subtitle)}</p></div><div class="cover-index" aria-hidden="true">↗</div><p class="cover-aside">${esc(s.aside)}</p>`,
-    compare: (s) =>
-      `<h2 class="section-title">${lines(s.title)}</h2><div class="compare-grid"><div class="compare-column">${label(s.left.label)}<h3>${lines(s.left.title)}</h3></div><div class="compare-column new" ${reveal(1)}>${label(s.right.label)}<h3>${lines(s.right.title)}</h3></div></div><p class="conclusion" ${reveal(2)}>${esc(s.conclusion)}</p>`,
-    network: (s) =>
-      `<div class="network-layout"><div><h2>${lines(s.title)}</h2><p class="subtitle">${esc(s.subtitle)}</p></div><div class="network-map">${s.items.map((item, i) => `<div class="network-node" ${reveal(i < 2 ? 1 : 2)}>${esc(item)}</div>`).join("")}<div class="network-center">${esc(s.center)}</div></div></div>`,
-    question: (s) =>
-      `<div class="question-main"><p class="question-stem">${esc(s.title)}</p><h2>${lines(s.question)}</h2><p class="question-close" ${reveal(1)}><span>${esc(s.conclusion)}</span></p></div>`,
-    scenario: (s) =>
-      `<div class="scenario-layout"><div><h2>${lines(s.title)}</h2><div class="year">${esc(s.year)}</div><p class="small-label">${esc(s.subtitle)}</p><div class="experiment">${esc(s.label)}</div></div><div class="budget" ${reveal(1)}><div class="amount">${esc(s.budget)}<span>${esc(s.unit)}</span></div><p class="condition">${esc(s.condition)}</p></div></div>`,
-    flow: (s) =>
-      `<h2 class="section-title">${lines(s.title)}</h2><div class="flow-track">${s.items.map((item, i) => `<div class="flow-node focus-item" ${reveal(Math.floor(i / 2))} data-focus="${Math.floor(i / 2)}"><span class="node-no">0${i + 1}</span><strong>${esc(item)}</strong></div>`).join("")}</div><p class="subtitle">${esc(s.subtitle)}</p>`,
-    lenses: (s) =>
-      `<div class="lenses-layout"><div><h2>${lines(s.title)}</h2><p class="subtitle">${esc(s.subtitle)}</p></div><div class="lens-list">${s.items.map((item, i) => `<div class="lens focus-item" data-focus="${i}"><span>0${i + 1}</span><strong>${esc(item)}</strong></div>`).join("")}</div></div>`,
-    agenda: (s) =>
-      `<div class="agenda-layout"><h2>${lines(s.title)}</h2><div class="agenda-list">${s.items.map((item, i) => `<div class="agenda-row focus-item" data-focus="${i}"><span>0${i + 1}</span><strong>${esc(item.title)}</strong><p>${esc(item.text)}</p></div>`).join("")}</div></div>`,
-    statement: (s) =>
-      `<div class="statement-main"><p class="prelude">${esc(s.title)}</p><h2 ${reveal(1)}>${lines(s.statement)}</h2><p class="subtitle" ${reveal(1)}>${esc(s.subtitle)}</p></div>`,
-  };
   $("stage").innerHTML = deck.slides
     .map(
       (s, i) =>
-        `<section class="slide ${s.type} ${["question", "statement"].includes(s.type) ? "dark" : ""}" data-slide-id="${i + 1}" aria-label="第 ${i + 1} 页：${esc(s.title.replaceAll("\n", ""))}" hidden><div class="slide-head"><span class="chapter">${esc(s.chapter)}</span><span>${esc(deck.source.title)}</span></div>${renderers[s.type](s)}<div class="slide-foot"><span>${esc(s.chapter)}</span><span class="folio">${String(i + 1).padStart(2, "0")} / ${String(deck.slides.length).padStart(2, "0")}</span></div></section>`,
+        `<section class="slide ${s.type} ${["question", "statement"].includes(s.type) ? "dark" : ""}" data-slide-id="${i + 1}" data-visual="${Boolean(s.hero && deck.assets?.[s.hero])}" aria-label="第 ${i + 1} 页：${esc(s.title.replaceAll("\n", ""))}" hidden><div class="slide-head"><span class="chapter">${esc(s.chapter)}</span><span>${esc(deck.source.title)}</span></div>${renderVisual(s, deck)}<div class="slide-foot"><span>${esc(s.chapter)}</span><span class="folio">${String(i + 1).padStart(2, "0")} / ${String(deck.slides.length).padStart(2, "0")}</span></div></section>`,
     )
     .join("");
   const pages = [...document.querySelectorAll(".slide")];
-  const storageKey = `web-deck-lab:${deck.id}:v1`;
+  const storageKey = `web-deck-lab:${deck.id}:v2`;
   let saved = {};
   try {
     saved = JSON.parse(localStorage.getItem(storageKey) || "{}");
@@ -88,7 +62,7 @@
   }
   function fit() {
     const viewport = $("viewport");
-    const compact = viewport.clientWidth < 680;
+    const compact = viewport.clientWidth < 760;
     viewport.classList.toggle("compact", compact);
     if (!compact) {
       const scale = Math.min(
@@ -111,7 +85,13 @@
       el.hidden = i !== page;
       el.inert = i !== page;
     });
+    const pageChanged = page !== previousPage;
     pages[page].dataset.phase = phase;
+    if (pageChanged) {
+      pages[page].classList.remove("scene-enter");
+      void pages[page].offsetWidth;
+      pages[page].classList.add("scene-enter");
+    }
     pages[page].querySelectorAll("[data-reveal]").forEach((el) => {
       const visible = Number(el.dataset.reveal) <= phase;
       el.classList.toggle("not-yet", !visible);
@@ -151,11 +131,19 @@
     previousPage = page;
     persist();
     fit();
+    if (!pageChanged && $("viewport").classList.contains("compact")) {
+      pages[page].querySelector(".is-current")?.scrollIntoView({
+        block: "center",
+        behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "instant"
+          : "smooth",
+      });
+    }
     settleTimer = setTimeout(
       () => {
         $("stage").dataset.settled = "true";
       },
-      theme === "architecture" ? 650 : 370,
+      pageChanged ? 1150 : theme === "architecture" ? 1000 : 850,
     );
   }
   function move(delta) {
@@ -190,9 +178,25 @@
         : "继承低饱和灰阶、轻字重、较宽留白与细线；重点改用细线或明暗层级，缩小信息组以增加呼吸感。";
     openDialog(
       "讲稿与来源",
-      `<p class="notes-meta">${esc(deck.source.title)} · ${esc(deck.source.version || "")}<br>取材页码：${s.sources.map(esc).join("、")}。上屏文字为节选提炼，原文保留在下方。</p><section class="notes-section"><h3>${esc(s.pattern)} · ${esc(s.patternName)}</h3><p>${styleDescription}</p><ol>${s.cues.map((cue) => `<li>${esc(cue)}</li>`).join("")}</ol></section><section class="notes-section"><h3>对应原稿</h3>${s.sources.map((n) => `<h4>原稿第 ${esc(n)} 页</h4><div class="original">${esc(deck.source.pages[String(n)])}</div>`).join("")}</section><p class="notes-meta">独立 H5 试作。两款模板已人工适配，本页不调用模型。尚未接入文档上传、任意模板自动适配或正式生成入口。</p>`,
+      `<p class="notes-meta">${esc(deck.source.title)} · ${esc(deck.source.version || "")}<br>取材页码：${s.sources.map(esc).join("、")}。上屏文字为节选提炼，原文保留在下方。</p><section class="notes-section"><h3>${esc(s.pattern)} · ${esc(s.patternName)}</h3><p>${styleDescription}</p><ol>${s.cues.map((cue) => `<li>${esc(cue)}</li>`).join("")}</ol></section><section class="notes-section"><h3>对应原稿</h3>${s.sources.map((n) => `<h4>原稿第 ${esc(n)} 页</h4><div class="original">${esc(deck.source.pages[String(n)])}</div>`).join("")}</section><p class="notes-meta">独立 H5 试作。两款模板已人工适配；配图如标注“AI 视觉示意”，仅用于营造概念场景，不代表真实门店。本页播放不调用模型。尚未接入文档上传、任意模板自动适配或正式生成入口。</p>`,
     );
   };
+  $("stage").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-image]");
+    const asset = deck.assets?.[button?.dataset.image];
+    if (!asset?.src?.match(/^data:image\/(png|jpeg|webp);base64,/)) return;
+    openDialog(
+      "概念视觉",
+      `<figure class="image-detail"><img src="${esc(asset.src)}" alt="${esc(asset.alt)}"><figcaption>${esc(asset.caption)}</figcaption></figure>`,
+    );
+  });
+  function setPresentation(enabled) {
+    document.body.classList.toggle("presenting", enabled);
+    $("exit-present").hidden = !enabled;
+    fit();
+  }
+  $("present").onclick = () => setPresentation(true);
+  $("exit-present").onclick = () => setPresentation(false);
   $("close-dialog").onclick = () => $("detail").close();
   $("detail").addEventListener("close", () => dialogReturnFocus?.focus());
   $("dialog-body").onclick = (event) => {
@@ -258,6 +262,18 @@
       return;
     }
     if (!$("blackout").hidden || event.repeat) return;
+    if (
+      event.key === "Escape" &&
+      document.body.classList.contains("presenting")
+    ) {
+      setPresentation(false);
+      return;
+    }
+    if (event.key.toLowerCase() === "f") {
+      event.preventDefault();
+      setPresentation(!document.body.classList.contains("presenting"));
+      return;
+    }
     const onButton = event.target.closest("button");
     if (
       ["ArrowRight", "ArrowDown", "PageDown"].includes(event.key) ||

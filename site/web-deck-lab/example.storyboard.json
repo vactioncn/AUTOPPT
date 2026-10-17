@@ -1,0 +1,37 @@
+{
+  "id": "web-deck-public-example",
+  "title": "让一个观点被记住",
+  "source": {
+    "title": "公开演示文字",
+    "version": "示例，不含用户项目",
+    "pages": {
+      "1": "让一个观点被记住。先讲清楚一个问题，再用具体的例子展开。",
+      "2": "这一页，观众最需要记住什么？先确定一个重点，再决定如何呈现。"
+    }
+  },
+  "slides": [
+    {
+      "type": "cover",
+      "title": "让一个观点\n被记住。",
+      "accent": "被记住。",
+      "subtitle": "从一个清楚的问题开始。",
+      "aside": "具体的例子，留给现场展开。",
+      "pattern": "M01",
+      "patternName": "主题封面",
+      "chapter": "开始表达",
+      "sources": [1],
+      "cues": ["先说明主题。"]
+    },
+    {
+      "type": "question",
+      "title": "这一页，",
+      "question": "观众最需要\n记住什么？",
+      "conclusion": "先确定一个重点。",
+      "pattern": "M03",
+      "patternName": "关键提问",
+      "chapter": "确定重点",
+      "sources": [2],
+      "cues": ["提出问题。", "揭示判断标准。"]
+    }
+  ]
+}

@@ -1,0 +1,375 @@
+@font-face {
+  font-family: DemoSans;
+  src: url(fonts/NotoSansSC-500.woff) format("woff");
+  font-weight: 100 900;
+  font-display: swap;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: #f0ede6;
+  color: #292820;
+  font-family: DemoSans, system-ui, sans-serif;
+}
+a {
+  color: inherit;
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+header,
+main,
+footer {
+  width: min(1240px, calc(100% - 64px));
+  margin: auto;
+}
+header {
+  height: 85px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #d8d2c6;
+  font-size: 13px;
+}
+.brand {
+  font-size: 27px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+.brand span {
+  font-size: 13px;
+  font-weight: 400;
+  color: #676258;
+  margin-left: 20px;
+  letter-spacing: 1px;
+}
+.intro {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin: 36px 0 24px;
+  gap: 20px;
+}
+.eyebrow {
+  font:
+    11px/1.7 ui-monospace,
+    monospace;
+  letter-spacing: 2px;
+  color: #a83d30;
+}
+h1 {
+  font-size: 30px;
+  font-weight: 650;
+  line-height: 1.5;
+  margin: 8px 0;
+}
+p {
+  font-size: 14px;
+  line-height: 1.8;
+  color: #676258;
+  margin: 0;
+}
+.spec {
+  white-space: nowrap;
+  font-size: 12px;
+  margin-bottom: 7px;
+  color: #676258;
+}
+.spec span {
+  margin: 0 10px;
+  color: #bcb6a9;
+}
+.theater {
+  background: #fffdf8;
+  border: 1px solid #d8d2c6;
+  box-shadow: 0 20px 55px #2928200a;
+}
+om-player {
+  display: block;
+  aspect-ratio: 16/9;
+  background: #faf7f0;
+}
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 22px 8px;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+.modes {
+  display: flex;
+  background: #efebe3;
+  padding: 4px;
+  gap: 3px;
+  border-radius: 7px;
+}
+.actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+button {
+  font: inherit;
+  font-size: 13px;
+  min-height: 44px;
+  padding: 8px 15px;
+  border: 1px solid #d8d2c6;
+  border-radius: 4px;
+  background: transparent;
+  color: #292820;
+  cursor: pointer;
+}
+button:disabled {
+  opacity: 0.45;
+  cursor: wait;
+}
+button:hover {
+  background: #efebe3;
+}
+button:focus-visible,
+a:focus-visible,
+input:focus-visible {
+  outline: 3px solid #a83d30;
+  outline-offset: 3px;
+}
+.modes button {
+  border: 0;
+  min-height: 36px;
+}
+.modes button[aria-pressed="true"] {
+  background: #fffdf8;
+  box-shadow: 0 2px 5px #29282012;
+}
+.primary {
+  background: #a83d30;
+  border-color: #a83d30;
+  color: #fffdf8;
+  min-width: 110px;
+}
+.primary:hover {
+  background: #8e3126;
+}
+.transport {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 10px 24px;
+}
+.transport input {
+  flex: 1;
+  min-width: 0;
+  accent-color: #a83d30;
+  cursor: pointer;
+}
+.transport output {
+  font:
+    12px/1.5 ui-monospace,
+    monospace;
+  white-space: nowrap;
+}
+.chapter-list {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  padding: 5px 24px;
+}
+.chapter-list button {
+  border: 0;
+  border-top: 2px solid #ded8cc;
+  border-radius: 0;
+  text-align: left;
+  padding: 13px 0 8px;
+  color: #676258;
+}
+.chapter-list button[aria-current="true"] {
+  border-color: #a83d30;
+  color: #a83d30;
+}
+.status {
+  font-size: 12px;
+  padding: 10px 24px 18px;
+  min-height: 47px;
+}
+.below {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 70px;
+  margin: 40px 0 48px;
+}
+.below article > span {
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: #a83d30;
+}
+.below h2 {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 9px 0 13px;
+}
+.below p {
+  max-width: 560px;
+}
+.keys {
+  font-size: 12px;
+  margin-top: 18px;
+}
+.below nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 25px;
+  font-size: 13px;
+  margin: 15px 0 18px;
+}
+.below nav a {
+  border-bottom: 1px solid #b8a38e;
+  padding-bottom: 4px;
+}
+footer {
+  border-top: 1px solid #d8d2c6;
+  font-size: 11px;
+  line-height: 1.8;
+  color: #676258;
+  padding: 20px 0 40px;
+}
+.theater:is(:fullscreen, .expanded) {
+  background: #151511;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border: 0;
+}
+.theater:is(:fullscreen, .expanded) om-player {
+  width: min(100vw, calc((100vh - 175px) * 16 / 9));
+  align-self: center;
+  flex-shrink: 0;
+}
+.theater:is(:fullscreen, .expanded) .toolbar,
+.theater:is(:fullscreen, .expanded) .transport,
+.theater:is(:fullscreen, .expanded) .chapter-list,
+.theater:is(:fullscreen, .expanded) .status {
+  background: #fffdf8;
+}
+.theater:is(:fullscreen, .expanded) .chapter-list {
+  display: none;
+}
+.theater:is(:fullscreen, .expanded) .status {
+  padding-bottom: 10px;
+}
+@media (max-width: 650px) {
+  header,
+  main,
+  footer {
+    width: calc(100% - 28px);
+  }
+  header {
+    height: 70px;
+  }
+  .brand {
+    font-size: 24px;
+  }
+  .brand span {
+    display: none;
+  }
+  header > a:last-child {
+    font-size: 11px;
+  }
+  .intro {
+    margin: 24px 0 18px;
+    display: block;
+  }
+  h1 {
+    font-size: 24px;
+    max-width: 330px;
+  }
+  .intro p {
+    font-size: 12px;
+  }
+  .spec {
+    margin-top: 14px;
+  }
+  .toolbar {
+    padding: 12px;
+    gap: 10px;
+  }
+  .actions {
+    width: 100%;
+    display: flex;
+    gap: 5px;
+  }
+  .actions button {
+    padding: 8px 10px;
+    min-width: 0;
+  }
+  .actions .primary {
+    flex: 1;
+  }
+  .modes {
+    width: 100%;
+  }
+  .modes button {
+    flex: 1;
+    min-height: 44px;
+  }
+  .transport {
+    padding: 8px 12px;
+    gap: 8px;
+  }
+  .chapter-list {
+    padding: 5px 12px;
+    gap: 6px;
+  }
+  .chapter-list button {
+    font-size: 11px;
+    min-height: 44px;
+  }
+  .status {
+    padding: 8px 12px 12px;
+    font-size: 11px;
+  }
+  .below {
+    grid-template-columns: 1fr;
+    gap: 28px;
+    margin: 28px 0;
+  }
+  .below p {
+    font-size: 13px;
+  }
+  .keys {
+    display: none;
+  }
+  footer {
+    font-size: 10px;
+  }
+  .theater:is(:fullscreen, .expanded) .toolbar {
+    flex-wrap: nowrap;
+  }
+  .theater:is(:fullscreen, .expanded) .modes {
+    width: auto;
+  }
+  .theater:is(:fullscreen, .expanded) .actions {
+    width: auto;
+  }
+  .theater:is(:fullscreen, .expanded) .transport {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  * {
+    scroll-behavior: auto;
+  }
+}
+
+body.presenting {
+  overflow: hidden;
+}
+.theater.expanded {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  width: 100%;
+  height: 100dvh;
+}

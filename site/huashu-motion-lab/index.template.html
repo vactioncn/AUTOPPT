@@ -1,0 +1,160 @@
+<!doctype html>
+<html
+  lang="zh-CN"
+  data-composition-variables='[
+ {"id":"headline","type":"string","label":"开场第二行","default":"怎样让人看懂？","group":"文案"},
+ {"id":"takeaway","type":"string","label":"结尾第二行","default":"你的思路。","group":"文案"},
+ {"id":"q1","type":"number","label":"Q1 订单（演示）","default":30,"min":1,"max":80,"step":1,"group":"演示数据"},
+ {"id":"q2","type":"number","label":"Q2 订单（演示）","default":45,"min":0,"max":80,"step":1,"group":"演示数据"},
+ {"id":"q3","type":"number","label":"Q3 订单（演示）","default":40,"min":0,"max":80,"step":1,"group":"演示数据"},
+ {"id":"q4","type":"number","label":"Q4 订单（演示）","default":60,"min":0,"max":80,"step":1,"group":"演示数据"},
+ {"id":"accent","type":"color","label":"品牌朱红","default":"#A83D30","group":"配色"},
+ {"id":"paper","type":"color","label":"暖纸色","default":"#FAF7F0","group":"配色"},
+ {"id":"ink","type":"color","label":"墨色","default":"#292820","group":"配色"}
+]'
+>
+  <head>
+    <meta charset="utf-8" />
+    <title>一页 PPT，怎样让人看懂？ · 讲好</title>
+    <script src="vendor/gsap.min.js"></script>
+    <script src="vendor/om.js"></script>
+    <style>
+      __CSS__
+    </style>
+  </head>
+  <body>
+    <main
+      id="film"
+      data-composition-id="film"
+      data-width="1920"
+      data-height="1080"
+      data-fps="30"
+    >
+      <section class="scene" id="hook">
+        <div class="folio"><b>讲好</b><span>表达实验 / 01</span></div>
+        <div class="eyebrow" data-om-id="opening-label">把一个观点，讲清楚</div>
+        <h1 data-om-id="opening-title">
+          <span>一页 PPT，</span
+          ><span class="accent" data-var-text="headline">怎样让人看懂？</span>
+        </h1>
+        <p class="opening-note" data-om-id="opening-note">
+          让画面，跟着你的讲述发生。
+        </p>
+        <div class="paper-stack" data-om-id="paper-stack">
+          <div class="sheet back back-two"></div>
+          <div class="sheet back back-one"></div>
+          <div class="sheet front" data-om-id="opening-paper">
+            <div class="paper-top">
+              QUARTERLY REVIEW <span>2026 / DEMO</span>
+            </div>
+            <h3>季度订单回顾</h3>
+            <div class="ghost-line"></div>
+            <div class="ghost-line short"></div>
+            <p class="paper-conclusion" data-om-id="opening-conclusion">
+              Q4 订单对比 Q1
+            </p>
+            <div class="mini-bars"><i></i><i></i><i></i><i></i></div>
+            <div class="paper-foot">演示数据 / 汇报结构示意</div>
+          </div>
+        </div>
+        <div class="scene-foot">MOTION STUDY <span>01 / 05</span></div>
+      </section>
+      <section class="scene" id="focus">
+        <div class="folio"><b>讲好</b><span>01 / 聚焦</span></div>
+        <div class="eyebrow">信息有层次，观众才有方向</div>
+        <h2 data-om-id="focus-title">先给观众<br /><em>一个重点。</em></h2>
+        <p class="focus-note" data-om-id="focus-note">
+          次要内容退后。<br />真正要讲的，留在眼前。
+        </p>
+        <div class="focus-paper" data-om-id="focus-paper">
+          <div class="paper-top">QUARTERLY REVIEW <span>01</span></div>
+          <p class="minor m1">Q1 — Q3：回顾季度变化</p>
+          <div class="focus-rule"></div>
+          <p class="major" data-om-id="focus-conclusion">
+            Q4 对比 Q1<br /><strong class="growth-phrase"></strong>
+          </p>
+          <p class="minor m2">渠道、产品、活动明细</p>
+          <div class="paper-foot">演示数据 / 先呈现结论，再展开证据</div>
+        </div>
+        <div class="scene-foot">一个画面，一个主角。 <span>02 / 05</span></div>
+      </section>
+      <section class="scene" id="data">
+        <div class="folio"><b>讲好</b><span>02 / 证据</span></div>
+        <h2 data-om-id="data-title">数字，变成看得懂的变化。</h2>
+        <div class="chart-caption">
+          季度订单 / 单 <span>演示数据，不代表实际经营结果</span>
+        </div>
+        <div class="chart" data-om-id="order-chart">
+          <div class="gridline g80"><span>80</span></div>
+          <div class="gridline g60"><span>60</span></div>
+          <div class="gridline g40"><span>40</span></div>
+          <div class="gridline g20"><span>20</span></div>
+          <div class="gridline g0"><span>0</span></div>
+          <div id="bars"></div>
+        </div>
+        <div class="data-insight" data-om-id="data-insight">
+          <p>Q4 相比 Q1</p>
+          <strong id="growth-value"></strong>
+          <div class="insight-rule"></div>
+          <p class="growth-phrase"></p>
+          <small id="calculation"></small>
+        </div>
+        <div class="scene-foot">
+          先出现坐标，再出现数据，最后出现结论。<span>03 / 05</span>
+        </div>
+      </section>
+      <section class="scene dark" id="logic">
+        <div class="folio"><b>讲好</b><span>03 / 顺序</span></div>
+        <h2 data-om-id="logic-title">让画面跟着思路走。</h2>
+        <p class="logic-sub">把一整页的论证，变成三个可跟随的步骤。</p>
+        <div class="connector c1"></div>
+        <div class="connector c2"></div>
+        <div class="node n1" data-om-id="logic-question">
+          <span>01</span>
+          <h3>问题</h3>
+          <p>订单发生了什么变化？</p>
+        </div>
+        <div class="node n2" data-om-id="logic-evidence">
+          <span>02</span>
+          <h3>证据</h3>
+          <p>比较 Q1 与 Q4</p>
+        </div>
+        <div class="node n3" data-om-id="logic-action">
+          <span>03</span>
+          <h3>行动</h3>
+          <p>下一步，验证增长原因</p>
+        </div>
+        <p class="logic-note" data-om-id="logic-note">
+          一次出现一件事，留出理解的时间。
+        </p>
+        <div class="scene-foot">演讲的节奏，由你掌握。<span>04 / 05</span></div>
+      </section>
+      <section class="scene red" id="ending">
+        <div class="folio"><b>讲好</b><span>表达实验 / 01</span></div>
+        <div class="end-line"></div>
+        <h2 data-om-id="ending-title">
+          让观众跟上<br /><span data-var-text="takeaway">你的思路。</span>
+        </h2>
+        <p class="end-note" data-om-id="ending-note">
+          从一页静态画面，到一段有顺序的表达。
+        </p>
+        <div class="delivery">
+          <span>现场逐步讲</span><span>自动连续播</span><span>导出视频用</span>
+        </div>
+        <div class="signature" data-om-id="brand-signature">
+          讲好<span>从容表达。</span>
+        </div>
+        <div class="scene-foot">
+          HUASHU-MOTION × 讲好 · 独立能力试验<span>05 / 05</span>
+        </div>
+      </section>
+      <div class="film-progress"></div>
+    </main>
+    <script type="text/vnd.abc" id="om-score">
+      __SCORE__
+    </script>
+    <script>
+      __JS__;
+    </script>
+  </body>
+</html>

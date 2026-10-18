@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>一页 PPT，怎样让人看懂？ · 讲好动效试验</title>
+    <link rel="stylesheet" href="viewer.css" />
+    <script defer src="player/om-player.js"></script>
+    <script defer src="viewer.js"></script>
+  </head>
+  <body>
+    <header>
+      <a href="index.html" class="brand">讲好<span>表达实验</span></a
+      ><a href="native.html">原生分享播放器 ↗</a>
+    </header>
+    <main>
+      <div class="intro">
+        <div>
+          <p class="eyebrow">HUASHU-MOTION / 实际制作样片</p>
+          <h1>一页 PPT，怎样让人看懂？</h1>
+          <p>同一份内容，连续播放或按你的讲述节奏逐步展开。</p>
+        </div>
+        <div class="spec">
+          40 秒 <span>/</span> 5 场景 <span>/</span> 带配乐
+        </div>
+      </div>
+      <section class="theater" id="theater" aria-label="演示播放器">
+        <om-player
+          id="player"
+          src="film/index.html"
+          muted
+          disable-click-to-play
+        ></om-player>
+        <div class="toolbar">
+          <div class="modes" role="group" aria-label="播放模式">
+            <button id="movie" aria-pressed="true">连续播放</button
+            ><button id="steps" aria-pressed="false">逐步讲</button>
+          </div>
+          <div class="actions">
+            <button id="previous" aria-label="上一步">←</button
+            ><button id="play" class="primary" disabled>正在准备…</button
+            ><button id="next" aria-label="下一步">→</button
+            ><button id="sound" aria-pressed="false">开启声音</button
+            ><button id="fullscreen">全屏</button>
+          </div>
+        </div>
+        <div class="transport">
+          <input
+            id="scrub"
+            type="range"
+            min="0"
+            max="40"
+            step="0.01"
+            value="2.6"
+            aria-label="播放位置"
+          /><output id="clock">00:02 / 00:40</output>
+        </div>
+        <div class="chapter-list" aria-label="场景选择">
+          <button data-at="2.6">01 提问</button
+          ><button data-at="11.5">02 聚焦</button
+          ><button data-at="21.5">03 证据</button
+          ><button data-at="30.3">04 顺序</button
+          ><button data-at="37">05 收束</button>
+        </div>
+        <p id="status" class="status" role="status">正在准备画面…</p>
+      </section>
+      <section class="below">
+        <article>
+          <span>看什么</span>
+          <h2>动画怎样帮助理解</h2>
+          <p>
+            重点句被单独提出来；图表从坐标、数据走到结论；论证链按「问题 → 证据
+            → 行动」依次展开。
+          </p>
+          <p class="keys">空格：播放 / 下一步　← →：退回 / 推进　F：全屏</p>
+        </article>
+        <article>
+          <span>拿来用</span>
+          <h2>观看、修改与带走</h2>
+          <nav>
+            <a href="demo.mp4" download>下载 1080p 视频 ↓</a
+            ><a href="source.zip" download>下载可编辑源码 ↓</a
+            ><a id="studio" hidden>打开本机编辑器 ↗</a>
+          </nav>
+          <p>
+            图表为演示数据。本页「逐步讲」为讲好试验增加；原生工具负责动画、配乐、编辑器与导出。
+          </p>
+        </article>
+      </section>
+    </main>
+    <footer>独立能力试验 · 尚未接入讲好正式工作台 · 无模型 API 调用</footer>
+  </body>
+</html>

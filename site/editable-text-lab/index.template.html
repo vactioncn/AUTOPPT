@@ -92,6 +92,18 @@
         flex-wrap: wrap;
         margin-bottom: 14px;
       }
+      .style-tabs {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin: 0 0 24px;
+        padding-bottom: 20px;
+        border-bottom: 1px solid #ddddd3;
+      }
+      .style-tabs button {
+        font-size: 14px;
+        padding: 10px 16px;
+      }
       .frame {
         width: 100%;
         aspect-ratio: __WIDTH__/__HEIGHT__;
@@ -328,12 +340,15 @@
   <body>
     <header>
       <div>
-        <div class="brand">讲好 <small>正文分层 · 单页试验</small></div>
+        <div class="brand">
+          讲好 <small id="experiment-label">正文分层 · 风格对照</small>
+        </div>
         <p class="intro">《朝花夕拾》 · 先讲故事</p>
       </div>
       <button id="fullscreen">全屏看效果</button>
     </header>
     <main>
+      <nav class="style-tabs" id="style-tabs" aria-label="风格样例"></nav>
       <div class="layout">
         <section aria-label="原图与分层效果对照">
           <div class="toolbar" aria-label="显示方式">
@@ -372,10 +387,10 @@
         </section>
         <aside>
           <h1>试着改一句话</h1>
-          <p>3 行正文拆成 4 个文字层，黑字和红字可分别修改。</p>
+          <p id="case-description"></p>
           <div class="fields" id="fields"></div>
           <div class="actions">
-            <button id="sample">试改“一分钟”</button
+            <button id="sample">试改一句</button
             ><button id="reset">恢复原文</button
             ><button id="save">保存修改版 HTML</button>
           </div>
@@ -385,10 +400,10 @@
         </aside>
       </div>
       <footer class="foot">
-        <span>局部去字 + 独立文字层 · 单页手工校准样例</span
+        <span>局部去字 + 独立文字层 · 人工校准样例</span
         ><span>底图只替换正文笔画附近；替换区域之外逐像素保留原图。</span
         ><span
-          ><a href="editable-text.pptx" id="pptx">下载原文分层 PPTX</a
+          ><a href="editable-text.pptx" id="pptx">下载五种风格分层 PPTX</a
           >（不会同步当前网页的修改）</span
         >
       </footer>

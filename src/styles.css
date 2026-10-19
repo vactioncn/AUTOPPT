@@ -3836,6 +3836,66 @@ textarea::placeholder {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
+.audience-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.audience-status .btn {
+  font-size: 12px;
+  padding: 6px 8px;
+}
+.palette-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.palette-filters button {
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  font-size: 12px;
+}
+.palette-filters button[aria-pressed="true"] {
+  background: var(--ink, #242628);
+  color: #fff;
+  border-color: transparent;
+}
+.palette-preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 18px;
+  border: 1px solid;
+  border-radius: 9px;
+}
+.palette-preview > i {
+  width: 6px;
+  height: 40px;
+  flex-shrink: 0;
+}
+.palette-preview strong {
+  display: block;
+  font-size: 18px;
+}
+.palette-preview small {
+  display: block;
+  margin-top: 5px;
+  color: inherit;
+}
+.custom-colors input.color-hex {
+  min-width: 0;
+  width: 100%;
+  padding: 8px 4px;
+  font-size: 12px;
+  font-family: monospace;
+}
 .palette-choice {
   display: flex;
   flex-direction: column;
@@ -4068,3 +4128,20 @@ textarea::placeholder {
 .preview-ready { padding:22px; border:1px solid var(--line); border-left:3px solid var(--accent); background:var(--paper); border-radius:10px; display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:18px; }
 .preview-ready h3 { margin:6px 0; font-size:18px; }.preview-ready p { margin:0; color:var(--muted); font-size:13px; line-height:1.7; }.preview-ready > div > span { color:var(--accent); font-size:12px; font-weight:600; }.preview-ready-actions { display:flex; flex-wrap:wrap; gap:10px; }
 @media(max-width:640px) { .generation-choice { grid-template-columns:1fr; }.preview-ready-actions { width:100%; }.preview-ready-actions .btn { flex:1; } }
+
+/* Keep the project settings actions visible while browsing the larger palette library. */
+.design-options-modal[open] {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.design-options-modal > .modal-heading,
+.design-options-modal > .modal-actions {
+  flex-shrink: 0;
+}
+.design-options-modal > .design-options-editor {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 2px;
+  margin: 0 -2px;
+}

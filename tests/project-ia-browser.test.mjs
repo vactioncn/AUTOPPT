@@ -1182,6 +1182,10 @@ test(
       const request = route.request(),
         url = new URL(request.url()),
         method = request.method();
+      if (url.pathname === "/api/design-options/audience" && method === "POST") {
+        const { description } = request.postDataJSON();
+        return route.fulfill({ json: { description, brief: `隔离测试说明：${description}` } });
+      }
       if (url.pathname === "/api/account") {
         // Snapshot at request time so a held success can arrive after a newer
         // failure (and vice versa), through real browser fetches and React.
@@ -1451,10 +1455,11 @@ test(
         );
         await page.setViewportSize({ width: 1280, height: 800 });
         await dialog.getByLabel("内容倾向（可选）").fill("面向新同事");
+        await expect(dialog.locator(".audience-status")).toContainText("内容倾向方案已就绪");
+        assert.equal(await dialog.locator(".audience-details").getAttribute("open"), null);
+        await expect(dialog.getByRole("button", { name: "重新生成说明" })).toBeVisible();
         await dialog.getByText("展开说明（可选）", { exact: true }).click();
-        await expect(
-          dialog.getByRole("button", { name: "AI 完善说明" }),
-        ).toBeVisible();
+        await expect(dialog.getByLabel("受众与行业语境（可编辑）")).toHaveValue("隔离测试说明：面向新同事");
         await dialog.locator(".palette-grid").scrollIntoViewIfNeeded();
         await shot("create-advanced-settings", dialog);
         await dialog.getByLabel("内容倾向（可选）").fill("");

@@ -2,6 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { AUDIENCE_BRIEF_EXAMPLE } from "../server/audience-brief.mjs";
 import {
+  DESIGN_PALETTES,
+  PALETTE_GROUPS,
+  samePalette,
+  normalizeHexColor,
+} from "../shared/design-palettes.mjs";
+import {
   designOptions,
   designOptionsKey,
   audiencePrompt,
@@ -9,6 +15,54 @@ import {
   expandAudience,
   extractPalette,
 } from "../server/design-options.mjs";
+
+test("expanded presets fit saved design options and have readable body text", () => {
+  assert.equal(DESIGN_PALETTES.length, 16);
+  assert.equal(
+    new Set(DESIGN_PALETTES.map(({ palette }) => palette.name)).size,
+    16,
+  );
+  const luminance = (hex) =>
+    hex
+      .slice(1)
+      .match(/../g)
+      .map((h) => {
+        const c = parseInt(h, 16) / 255;
+        return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+      })
+      .reduce((sum, c, i) => sum + c * [0.2126, 0.7152, 0.0722][i], 0);
+  for (const group of PALETTE_GROUPS)
+    assert.equal(DESIGN_PALETTES.filter((p) => p.group === group).length, 4);
+  for (const { palette } of DESIGN_PALETTES) {
+    assert.deepEqual(designOptions({ palette }).palette, palette);
+    const [a, b] = palette.colors
+      .slice(0, 2)
+      .map(luminance)
+      .sort((x, y) => y - x);
+    assert((a + 0.05) / (b + 0.05) >= 4.5, palette.name);
+    assert.match(palettePrompt({ palette }), /其余字体、材质/);
+    assert(
+      samePalette(
+        {
+          colors: palette.colors,
+          instructions: palette.instructions,
+          name: palette.name,
+        },
+        palette,
+      ),
+    );
+    assert(
+      !samePalette({ ...palette, instructions: "用户修改后的要求" }, palette),
+    );
+  }
+});
+
+test("custom HEX input accepts shorthand but never persists partial or invalid colors", () => {
+  assert.equal(normalizeHexColor(" abc "), "#AABBCC");
+  assert.equal(normalizeHexColor("#17324d"), "#17324D");
+  for (const hex of ["", "#1", "#12345", "red", "#12345678", "#GGGGGG"])
+    assert.equal(normalizeHexColor(hex), null);
+});
 
 test("optional context and palette preserve legacy defaults and validate independent fields", () => {
   assert.deepEqual(designOptions(), { audience: null, palette: null });

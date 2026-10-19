@@ -88,6 +88,10 @@ test(
       });
       const errors = [];
       page.on("pageerror", (e) => errors.push(e.message));
+      await page.route("**/api/design-options/audience", async (route) => {
+        const { description } = route.request().postDataJSON();
+        await route.fulfill({ json: { description, brief: `隔离测试说明：${description}` } });
+      });
       // All trial operations stay in this test. There is no real model endpoint.
       await page.route(`**/api/styles/${style.id}/trials`, async (route) => {
         if (route.request().method() === "POST") {

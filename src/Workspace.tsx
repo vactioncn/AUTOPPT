@@ -1931,6 +1931,7 @@ export function Workspace({
       {editingOptions && (
         <Modal
           title="内容倾向与配色"
+          className="design-options-modal"
           subtitle="仅用于这个项目，不改变风格库或其他项目。"
           onClose={() => {
             if (!submitting) setEditingOptions(null);

@@ -637,7 +637,7 @@ export function StyleStudio({
                   onChange={setChoices}
                   styleId={style.id}
                   rules={rules}
-                  disabled={disabled}
+                  disabled={busy || !!running || loading}
                   onBusyChange={setOptionsBusy}
                 />
               </details>

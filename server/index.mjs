@@ -451,7 +451,9 @@ app.post("/api/projects/:id/batches", (req, res) => {
   )
     throw Object.assign(
       new Error(
-        "模型尚未就绪，请联系管理员或稍后查看模型服务状态。草稿可以继续保存。",
+        req.headers["x-autoppt-model-ready"] === "0"
+          ? "模型尚未就绪，请联系管理员或稍后查看模型服务状态。草稿可以继续保存。"
+          : "网页后台版本尚未同步，请在任务结束后更新并重启主服务。请保留原有模型配置；草稿可以继续保存。",
       ),
       { status: 503 },
     );

@@ -1258,8 +1258,18 @@ test("hosted worker requires authentication and explicit readiness before accept
   ]) {
     const response = await request(url, body, headers);
     assert.equal(response.status, 503);
-    assert.match((await response.json()).error, /模型尚未就绪/);
+    assert.match(
+      (await response.json()).error,
+      headers["x-autoppt-model-ready"] === "0"
+        ? /模型尚未就绪/
+        : /网页后台版本尚未同步/,
+    );
   }
+  const readyResponse = await request(url, { ...body, text: "" }, {
+    "x-autoppt-model-ready": "1",
+  });
+  assert.equal(readyResponse.status, 400);
+  assert.match((await readyResponse.json()).error, /请先写下这一段逐字稿/);
   assert.equal(
     (await (await request(`/api/projects/${project.id}`)).json()).batches
       .length,

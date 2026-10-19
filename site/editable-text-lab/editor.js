@@ -14,16 +14,32 @@
   const ctx = document.createElement("canvas").getContext("2d"),
     nodes = new Map(),
     fields = new Map();
-  const fonts = {
-    sans: "Noto Sans SC Variable",
-    serif: "Noto Serif SC Variable",
-  };
+  const fonts = data.fonts || [
+    {
+      id: "sans",
+      family: "Noto Sans SC Variable",
+      label: "思源黑体",
+      weights: [100, 200, 300, 400, 500, 600, 700, 800, 900],
+    },
+    {
+      id: "serif",
+      family: "Noto Serif SC Variable",
+      label: "思源宋体",
+      weights: [200, 300, 400, 500, 600, 700, 800, 900],
+    },
+  ];
+  const layerChoice = document.getElementById("font-layer"),
+    familyChoice = document.getElementById("font-family"),
+    weightChoice = document.getElementById("font-weight"),
+    naturalChoice = document.getElementById("natural-glyphs");
   let page =
       data.pages.find((p) => p.id === data.activePageId) || data.pages[0],
     mode = "edited",
     renderVersion = 0;
-  const family = (l) => fonts[l.font] || fonts.serif;
-  const fontSpec = (l) => `${l.fontWeight} ${l.fontSize}px "${family(l)}"`;
+  const fontInfo = (l) => fonts.find((f) => f.id === (l.font || "serif"));
+  const family = (l) => fontInfo(l).family;
+  const fontSpec = (l) =>
+    `${l.fontWeight} ${l.fontSize}px "${family(l)}", "Noto Sans SC Variable"`;
   function switchMode(next) {
     mode = next;
     frame.dataset.mode = mode;
@@ -91,7 +107,71 @@
     fields.get(l.id).value = value;
     nodes.get(l.id).classList.toggle("over", overflow(l, value));
     report();
+    // Newly typed characters may need another embedded unicode subset.
+    const node = nodes.get(l.id);
+    document.fonts
+      .load(fontSpec(l), value || " ")
+      .then(() => {
+        if (nodes.get(l.id) !== node || l.value !== value) return;
+        node.classList.toggle("over", overflow(l, value));
+        report();
+      })
+      .catch(showError);
   }
+  function selectedLayer() {
+    return (
+      page.layers.find((l) => l.id === layerChoice.value) || page.layers[0]
+    );
+  }
+  function showFontControls() {
+    const l = selectedLayer(),
+      font = fontInfo(l);
+    familyChoice.value = font.id;
+    weightChoice.replaceChildren(
+      ...font.weights.map(
+        (weight) => new Option(String(weight), String(weight)),
+      ),
+    );
+    // Legacy/manual values can be a valid intermediate variable weight.
+    if (!font.weights.includes(l.fontWeight))
+      weightChoice.add(new Option(String(l.fontWeight), String(l.fontWeight)));
+    weightChoice.value = String(l.fontWeight);
+    weightChoice.disabled = font.weights.length === 1;
+    naturalChoice.checked = l.layout === "natural";
+    document.getElementById("font-description").textContent =
+      `${font.usage || "内置字体"}。${font.weights.length === 1 ? "使用原生单一字重，不模拟加粗。" : "按实际字重显示。"} 换字体会开启自然字形，字宽变化时请检查版式。`;
+  }
+  function chooseLayer(id) {
+    layerChoice.value = id;
+    showFontControls();
+  }
+  layerChoice.addEventListener("change", showFontControls);
+  familyChoice.addEventListener("change", () => {
+    const l = selectedLayer(),
+      font = fonts.find((f) => f.id === familyChoice.value);
+    l.font = font.id;
+    l.fontWeight = font.variable
+      ? Math.max(font.weights[0], Math.min(font.weights.at(-1), l.fontWeight))
+      : font.weights.reduce((a, b) =>
+          Math.abs(b - l.fontWeight) < Math.abs(a - l.fontWeight) ? b : a,
+        );
+    l.layout = "natural";
+    render(page).catch(showError);
+  });
+  weightChoice.addEventListener("change", () => {
+    selectedLayer().fontWeight = Number(weightChoice.value);
+    render(page).catch(showError);
+  });
+  naturalChoice.addEventListener("change", () => {
+    selectedLayer().layout = naturalChoice.checked ? "natural" : "matched";
+    render(page).catch(showError);
+  });
+  document.getElementById("reset-font").addEventListener("click", () => {
+    const l = selectedLayer();
+    Object.assign(l, l.originalTypography);
+    render(page).catch(showError);
+  });
+  familyChoice.replaceChildren(...fonts.map((f) => new Option(f.label, f.id)));
   async function render(next) {
     const version = ++renderVersion;
     page = next;
@@ -106,6 +186,11 @@
     document
       .querySelectorAll(".actions button")
       .forEach((b) => (b.disabled = true));
+    document
+      .querySelectorAll(
+        ".font-panel select,.font-panel input,.font-panel button",
+      )
+      .forEach((el) => (el.disabled = true));
     await Promise.all(
       page.layers.map((l) =>
         document.fonts.load(fontSpec(l), l.text + (l.value || "")),
@@ -139,10 +224,16 @@
     for (const [index, l] of page.layers.entries()) {
       l.order = index + 1;
       l.value ??= l.text;
+      l.originalTypography ??= {
+        font: l.font || "serif",
+        fontWeight: l.fontWeight,
+        layout: "matched",
+      };
       ctx.font = fontSpec(l);
       const m = ctx.measureText(l.text);
       l.scaleX = l.w / (m.actualBoundingBoxLeft + m.actualBoundingBoxRight);
       l.scaleY = l.h / (m.actualBoundingBoxAscent + m.actualBoundingBoxDescent);
+      if (l.layout === "natural") l.scaleX = l.scaleY;
       const baseline =
         (l.fontSize - m.fontBoundingBoxAscent - m.fontBoundingBoxDescent) / 2 +
         m.fontBoundingBoxAscent;
@@ -157,7 +248,7 @@
       Object.assign(span.style, {
         left: `${l.x}px`,
         top: `${l.y}px`,
-        fontFamily: `"${family(l)}"`,
+        fontFamily: `"${family(l)}", "Noto Sans SC Variable"`,
         fontSize: `${l.fontSize}px`,
         fontWeight: String(l.fontWeight),
         color: l.color,
@@ -180,6 +271,8 @@
         switchMode("edited");
         update(l, input.value);
       });
+      input.addEventListener("focus", () => chooseLayer(l.id));
+      span.addEventListener("focus", () => chooseLayer(l.id));
       span.addEventListener("input", (e) => {
         if (!e.isComposing) update(l, span.textContent, true);
       });
@@ -204,8 +297,21 @@
     }
     switchMode("edited");
     fit();
+    const selected = layerChoice.value;
+    layerChoice.replaceChildren(
+      ...page.layers.map((l) => new Option(`${l.order}. ${l.label}`, l.id)),
+    );
+    if (page.layers.some((l) => l.id === selected))
+      layerChoice.value = selected;
+    document
+      .querySelectorAll(
+        ".font-panel select,.font-panel input,.font-panel button",
+      )
+      .forEach((el) => (el.disabled = false));
+    showFontControls();
     status.classList.remove("error");
     status.textContent = "可以直接改字。切换风格会保留各页修改。";
+    if (page.layers.some((l) => overflow(l, l.value))) report();
     frame.removeAttribute("aria-busy");
     document
       .querySelectorAll(".actions button")

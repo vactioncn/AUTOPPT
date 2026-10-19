@@ -16,13 +16,12 @@
         color: #292b29;
         background: #f3f2ee;
         font:
-          15px/1.6 -apple-system,
-          BlinkMacSystemFont,
-          "PingFang SC",
+          15px/1.6 "Noto Sans SC Variable",
           sans-serif;
       }
       button,
       input,
+      select,
       textarea {
         font: inherit;
       }
@@ -128,6 +127,7 @@
         inset: 0;
       }
       .text-layer {
+        font-synthesis: none;
         position: absolute;
         transform-origin: 0 0;
         white-space: pre;
@@ -233,6 +233,46 @@
       .field textarea:focus {
         outline: 2px solid #ad442e;
         border-color: transparent;
+      }
+      .font-panel {
+        border: 1px solid #d9d8d0;
+        border-radius: 7px;
+        padding: 12px;
+        margin-bottom: 20px;
+        background: #eeede7;
+      }
+      .font-panel summary {
+        cursor: pointer;
+        font-weight: 550;
+        font-size: 14px;
+      }
+      .font-panel label {
+        display: block;
+        font-size: 12px;
+        margin-top: 12px;
+      }
+      .font-panel select {
+        display: block;
+        width: 100%;
+        min-width: 0;
+        padding: 8px;
+        border: 1px solid #d9d8d0;
+        border-radius: 5px;
+        background: #fff;
+        color: inherit;
+        margin-top: 4px;
+        font-size: 13px;
+      }
+      .font-panel p {
+        margin: 10px 0 0;
+        font-size: 12px;
+      }
+      .font-panel button {
+        margin-top: 12px;
+        font-size: 12px;
+      }
+      .font-panel input {
+        accent-color: #292d2a;
       }
       .actions {
         display: flex;
@@ -388,6 +428,28 @@
         <aside>
           <h1>试着改一句话</h1>
           <p id="case-description"></p>
+          <details class="font-panel" open>
+            <summary>内置字体 · 试换与对照</summary>
+            <p>5 款字体随网页保存，离线也能继续编辑。</p>
+            <label
+              >调整哪段文字<select
+                id="font-layer"
+                aria-label="调整哪段文字"
+              ></select
+            ></label>
+            <label
+              >字体<select id="font-family" aria-label="字体"></select
+            ></label>
+            <label
+              >字重<select id="font-weight" aria-label="字重"></select
+            ></label>
+            <label
+              ><input type="checkbox" id="natural-glyphs" />
+              自然字形（不横向拉伸）</label
+            >
+            <p id="font-description"></p>
+            <button id="reset-font">恢复这段原字体</button>
+          </details>
           <div class="fields" id="fields"></div>
           <div class="actions">
             <button id="sample">试改一句</button
@@ -404,7 +466,7 @@
         ><span>底图只替换正文笔画附近；替换区域之外逐像素保留原图。</span
         ><span
           ><a href="editable-text.pptx" id="pptx">下载五种风格分层 PPTX</a
-          >（不会同步当前网页的修改）</span
+          >（原校准版，不同步网页中的改字或字体调整）</span
         >
       </footer>
     </main>

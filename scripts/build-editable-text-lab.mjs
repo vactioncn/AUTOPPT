@@ -5,6 +5,10 @@ import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 import { textRemoval } from "../server/motion/pixels.mjs";
+import {
+  embeddedFontLibrary,
+  normalizeFont,
+} from "../site/editable-text-lab/fonts.mjs";
 
 const repo = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 if (!process.argv[2])
@@ -76,7 +80,12 @@ for (const [index, p] of paths.entries()) {
     )
       throw new Error("Invalid layer geometry, type or color");
     layerIds.add(l.id);
-    l.font = l.font === "sans" ? "sans" : "serif";
+    Object.assign(l, normalizeFont(l.font, l.fontWeight));
+    l.originalTypography = {
+      font: l.font,
+      fontWeight: l.fontWeight,
+      layout: "matched",
+    };
     const removal = textRemoval(data, width, height, l),
       b = removal.box;
     for (let y = 0; y < b.height; y++)
@@ -143,29 +152,13 @@ for (const [index, p] of paths.entries()) {
     outsideMaskDifferences: outsideDifferences,
   });
 }
-let css = "",
-  licenses = [];
-for (const font of new Set(pages.flatMap((p) => p.layers.map((l) => l.font)))) {
-  const pkg = path.join(
-    repo,
-    `node_modules/@fontsource-variable/noto-${font}-sc`,
-  );
-  let face = await fs.readFile(path.join(pkg, "index.css"), "utf8");
-  for (const url of new Set(
-    [...face.matchAll(/url\(([^)]+)\)/g)].map((m) => m[1]),
-  )) {
-    const bytes = await fs.readFile(
-      path.resolve(pkg, url.replace(/['"]/g, "")),
-    );
-    face = face.replaceAll(
-      `url(${url})`,
-      `url(data:font/woff2;base64,${bytes.toString("base64")})`,
-    );
-  }
-  css += face;
-  licenses.push(await fs.readFile(path.join(pkg, "LICENSE"), "utf8"));
-}
-const deck = { pages, activePageId: config.activePageId || pages[0].id };
+const { css, fonts, licenses } = await embeddedFontLibrary();
+const deck = {
+  pages,
+  fonts,
+  fontLicenses: licenses,
+  activePageId: config.activePageId || pages[0].id,
+};
 const script = await fs.readFile(
   path.join(repo, "site/editable-text-lab/editor.js"),
   "utf8",
@@ -183,7 +176,11 @@ html = html
 await fs.writeFile(path.join(out, "index.html"), html);
 await fs.writeFile(
   path.join(out, "FONT-LICENSE.txt"),
-  [...new Set(licenses)].join("\n\n"),
+  licenses.map((l) => `${l.font}\n${l.text}`).join("\n\n"),
+);
+await fs.writeFile(
+  path.join(out, "font-manifest.json"),
+  JSON.stringify(fonts, null, 2),
 );
 await fs.writeFile(
   path.join(out, "layers.json"),

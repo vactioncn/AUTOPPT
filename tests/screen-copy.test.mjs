@@ -210,7 +210,7 @@ test("independent review shortens a dense draft, preserves qualifiers and leaves
 });
 
 test("unreliable review retains sourced copy while repeated wording is advisory", async () => {
-  for (const mutate of [
+  for (const [index, mutate] of [
     (r) => {
       r.entries[0].text = r.entries[0].text.replace("20%", "120%");
     },
@@ -223,7 +223,7 @@ test("unreliable review retains sourced copy while repeated wording is advisory"
     (r) => {
       r.entries.push({ ...r.entries[1] });
     },
-  ]) {
+  ].entries()) {
     let n = 0;
     const copy = await prepareScreenCopy(input, async (_s, user) => {
       if (!n++) return draft();
@@ -231,11 +231,18 @@ test("unreliable review retains sourced copy while repeated wording is advisory"
       mutate(r);
       return r;
     });
-    assert.equal(n, 2);
+    assert.equal(n, index === 3 ? 2 : 4);
     assert(!copy.displayText.join("").includes("120%"));
     assert(copy.displayText.join("").includes("仅试点门店"));
     assert(copy.displayText.join("").includes("不是销售额增长"));
-    assert(!JSON.stringify(copy).includes("编造的原稿"));
+    assert(
+      !JSON.stringify([
+        copy.entries,
+        copy.mustKeep,
+        copy.spokenOnly,
+        copy.semanticSupport,
+      ]).includes("编造的原稿"),
+    );
     assert(
       copy.review.warnings.length ||
         copy.review.changes.some((c) => c.includes("自动恢复")),
@@ -321,7 +328,9 @@ test("uncertain fidelity falls back to original wording instead of failing the p
     },
   );
   assert.deepEqual(copy.displayText, [source]);
-  assert.equal(copy.review.sourceFallback, true);
+  assert.equal(copy.review.sourceFallback, false);
+  assert.equal(copy.review.excerptFallback, true);
+  assert.equal(calls, 4);
   assert.equal(copy.review.status, "advisory");
   assert(reusableScreenCopy(copy, source));
 });
@@ -347,7 +356,7 @@ test("readability concerns preserve editable output and suggest optional splitti
       .entries.slice(0, 2)
       .map((e) => e.text),
   );
-  assert.equal(n, 2);
+  assert.equal(n, 4);
   const bad = draft();
   bad.entries[0] = null;
   assert.throws(() => validateScreenCopy(bad, input), /来源/);
@@ -461,7 +470,8 @@ test("optional review outage and malformed editorial results retain usable copy;
   );
   assert.equal(result.review.status, "advisory");
   const malformed = await prepareScreenCopy(input, async () => ({}));
-  assert.deepEqual(malformed.displayText, [notes]);
+  assert.deepEqual(malformed.displayText, [notes.split("。")[0] + "。"]);
+  assert.equal(malformed.review.repairAttempts, 2);
   const controller = new AbortController();
   calls = 0;
   await assert.rejects(

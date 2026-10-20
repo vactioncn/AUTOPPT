@@ -18,11 +18,7 @@ import sharp from "sharp";
 import { screenImage, imageMime } from "./image-storage.mjs";
 import { attachmentKey } from "./attachments.mjs";
 import { spokenManuscript } from "./manuscript.mjs";
-import {
-  prepareScreenCopy,
-  reusableScreenCopy,
-  sourceScreenCopy,
-} from "./screen-copy.mjs";
+import { prepareScreenCopy, reusableScreenCopy } from "./screen-copy.mjs";
 import { DIRECT_PROMPT_MODE, directImagePrompt } from "./direct-image.mjs";
 import { PLANNING_VERSION, validateBriefs } from "./content-planning.mjs";
 import { imageContentPrompt } from "./image-content.mjs";
@@ -299,12 +295,8 @@ export async function design(
       ? "正在复用已提炼的上屏文案"
       : "正在提炼上屏文案并复核阅读负担",
   );
-  const screenCopy = options.preserveSourceCopy
-    ? sourceScreenCopy(
-        { notes, brief, attachments },
-        "沿用原稿继续制作；文案层级和密度建议不再阻塞出图。",
-      )
-    : savedCopy && !copyFeedback
+  const screenCopy =
+    savedCopy && !copyFeedback
       ? structuredClone(savedCopy)
       : await prepareScreenCopy(
           {
@@ -316,6 +308,7 @@ export async function design(
             attachments,
             signal,
             previous: null,
+            onProgress: options.onProgress,
           },
           jsonModel,
         );

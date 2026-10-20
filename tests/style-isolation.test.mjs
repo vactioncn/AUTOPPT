@@ -55,6 +55,19 @@ test("raw style prompts stay exact and independent from reusable, source-bound s
       response = reviewFixture(data);
     else if (body.messages[0].content.includes("演讲上屏文案编辑"))
       response = copyFixture(data, [data.feedback ? "参与" : "一起参与"]);
+    else if (body.messages[0].content.includes("演讲内容关系分析师"))
+      response = {
+        pages: data.pages.map((page) => ({
+          id: page.id,
+          claim: "邀请一起参与",
+          relationship: "invitation",
+          literalSpatial: false,
+          evidence: page.notes,
+          entities: ["参与"],
+          visualTask: "表达邀请",
+          mustNotImply: [],
+        })),
+      };
     else assert.fail("Style rewriting or visual planning must not be called");
     return Response.json({
       choices: [{ message: { content: JSON.stringify(response) } }],
@@ -182,6 +195,20 @@ test("raw style prompts stay exact and independent from reusable, source-bound s
     ...approved,
     screenCopy: { ...approved.screenCopy, version: 1 },
   };
+  const originalApproved = structuredClone(approved);
+  const fullSourceCache = {
+    ...approved,
+    screenCopy: {
+      ...approved.screenCopy,
+      review: { ...approved.screenCopy.review, sourceFallback: true },
+    },
+  };
+  const beforeRecovery = calls.length;
+  const recovered = await render(minimal, fullSourceCache);
+  assert.equal(calls.length, beforeRecovery + 2);
+  assert(!recovered.copyReused);
+  assert.equal(recovered.styleRules, minimal.rules);
+  assert.deepEqual(approved, originalApproved);
   const migrated = await render(minimal, legacy);
   assert(!migrated.copyReused);
   assert.throws(
@@ -198,7 +225,9 @@ test("raw style prompts stay exact and independent from reusable, source-bound s
   })
     .png()
     .toBuffer();
+  const textFetch = globalThis.fetch;
   globalThis.fetch = async (url, options) => {
+    if (url.endsWith("/chat/completions")) return textFetch(url, options);
     assert.equal(url, "http://127.0.0.1:1/v1/images/generations");
     const body = JSON.parse(options.body);
     assert.equal(body.prompt, imagePrompt(approved));
@@ -251,4 +280,24 @@ test("raw style prompts stay exact and independent from reusable, source-bound s
     reportedQuality: "low",
     revisedPrompt: "provider rewrite",
   });
+  put("trial", {
+    ...resumed,
+    id: "fallback-trial",
+    status: "failed",
+    image: null,
+    plan: fullSourceCache,
+  });
+  const beforeFallbackCalls = calls.length;
+  await runTrial(
+    { payload: { styleId: minimal.id, trialId: "fallback-trial" } },
+    new AbortController().signal,
+    () => {},
+  );
+  const retried = get("trial", "fallback-trial");
+  assert.equal(retried.status, "completed");
+  assert.equal(calls.length, beforeFallbackCalls + 3);
+  assert.equal(retried.plan.screenCopy.review.sourceFallback, false);
+  assert.deepEqual(retried.plan.displayText, ["一起参与"]);
+  assert.equal(retried.plan.styleRules, minimal.rules);
+  assert.equal(retried.notes, notes);
 });

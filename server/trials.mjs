@@ -294,6 +294,7 @@ export async function runTrial(job, signal, progress) {
       t.plan.planningVersion !== PLANNING_VERSION ||
       t.plan.promptMode !== DIRECT_PROMPT_MODE ||
       t.plan.compositionPlan ||
+      t.plan.screenCopy?.review?.sourceFallback === true ||
       designOptionsKey(t.plan.designOptions) !==
         designOptionsKey(t.designOptions)
     ) {

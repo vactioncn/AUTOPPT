@@ -13,7 +13,7 @@ import { copyFixture, reviewFixture } from "./fixtures/screen-copy.mjs";
 import { preservedFixture, fontPackFixture } from "./fixtures/layered.mjs";
 
 test(
-  "first render is layered; checkpoints, direct editing, undo, mixed export and restore preserve existing pages",
+  "legacy copy failure resumes normal planning; layered checkpoints, editing, export and history preserve existing pages",
   { timeout: 60000 },
   async (t) => {
     const dir = await mkdtemp(path.join(tmpdir(), "jianghao-native-"));
@@ -27,7 +27,8 @@ test(
     await fontPackFixture(dir);
     const events = [],
       prompts = [];
-    let failCheck = true;
+    let failCheck = true,
+      copyCalls = 0;
     const provider = http.createServer(async (req, res) => {
       const chunks = [];
       for await (const c of req) chunks.push(c);
@@ -74,9 +75,10 @@ test(
           };
         else if (system.includes("演讲上屏文案复核编辑"))
           result = reviewFixture(data);
-        else if (system.includes("演讲上屏文案编辑"))
+        else if (system.includes("演讲上屏文案编辑")) {
+          copyCalls++;
           result = copyFixture(data, ["先讲故事", "让表达更从容"]);
-        else throw Error(system.slice(0, 100));
+        } else throw Error(system.slice(0, 100));
       }
       res.end(
         JSON.stringify({
@@ -127,6 +129,7 @@ test(
           notes: "先讲故事，让表达更从容。",
           image: null,
           status: "pending",
+          error: "文案提炼未通过，未开始出图。旧版引用检查失败。",
         },
       ],
     };
@@ -202,6 +205,15 @@ test(
     assert.equal((await finished(job.id)).status, "completed");
     let saved = await request("/projects/project");
     assert.deepEqual(saved.slides[0], old);
+    assert.equal(
+      copyCalls,
+      1,
+      "legacy copy failure re-enters planning; image retry reuses the valid copy",
+    );
+    assert.deepEqual(saved.slides[1].plan.displayText, [
+      "先讲故事",
+      "让表达更从容",
+    ]);
     assert.deepEqual(events, ["image", "analysis", "analysis", "check"]);
     const packageResponse = await fetch(
       `${base}/projects/project/package?revision=${saved.revision}`,

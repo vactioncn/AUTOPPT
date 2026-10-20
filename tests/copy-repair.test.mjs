@@ -85,7 +85,8 @@ test("unreliable source references keep the last valid draft without failing the
     result.displayText,
     draft().entries.map((e) => e.text),
   );
-  assert.equal(calls, 2);
+  assert.equal(calls, 4);
+  assert.equal(result.review.repairAttempts, 2);
   assert.equal(result.review.status, "advisory");
 });
 
@@ -106,7 +107,7 @@ test("initial protection errors restore the source and retain the original prote
   assert.deepEqual(result.displayText, [draft().entries[0].sourceQuote]);
 });
 
-test("source mismatch falls back to the complete source rather than an invented summary", async () => {
+test("persistent source mismatch tries alternatives then uses a short intact source claim", async () => {
   let calls = 0;
   const result = await prepareScreenCopy(input, async () => {
     calls++;
@@ -114,9 +115,11 @@ test("source mismatch falls back to the complete source rather than an invented 
     raw.mustKeep[0].sourceQuote = "部分试点，门店效率最高提升20%。";
     return raw;
   });
-  assert.equal(calls, 1);
-  assert.deepEqual(result.displayText, [notes]);
-  assert.equal(result.review.sourceFallback, true);
+  assert.equal(calls, 4);
+  assert.deepEqual(result.displayText, [draft().entries[0].sourceQuote]);
+  assert.equal(result.review.sourceFallback, false);
+  assert.equal(result.review.excerptFallback, true);
+  assert.equal(result.review.repairAttempts, 2);
 });
 
 test("optional claim moved entirely to speech releases its own protection, but a retained claim cannot lose its conditions", async () => {
@@ -195,9 +198,9 @@ test("fidelity concerns use exact source wording and remain advisory", async () 
     result.checks.faithful = false;
     return result;
   });
-  assert.deepEqual(copy.displayText, [notes]);
+  assert.deepEqual(copy.displayText, [draft().entries[0].sourceQuote]);
   assert.equal(copy.review.status, "advisory");
-  assert.equal(calls, 2);
+  assert.equal(calls, 4);
 });
 
 test("claim omission cannot release the main claim or hide an unqualified result in auxiliary excerpts", async () => {

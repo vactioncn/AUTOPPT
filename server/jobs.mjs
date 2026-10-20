@@ -369,10 +369,6 @@ async function renderSlides(j, ids, signal, redesign = false) {
     const pageNumber = p.slides.findIndex((x) => x.id === sid) + 1;
     j.pageProgress.current = { id: sid, page: pageNumber };
     try {
-      const preserveSourceCopy =
-        !s.image &&
-        !s.scene &&
-        /^(?:上屏)?文案.*未通过.*未开始出图/u.test(s.error || "");
       s.status = "generating";
       s.error = null;
       saveProject(p);
@@ -383,6 +379,7 @@ async function renderSlides(j, ids, signal, redesign = false) {
       let stamp = styleStamp(style);
       const reusablePending =
         !s.pendingPlan?.compositionPlan &&
+        s.pendingPlan?.screenCopy?.review?.sourceFallback !== true &&
         s.pendingPlan?.planningVersion === PLANNING_VERSION &&
         s.pendingPlan?.promptMode === DIRECT_PROMPT_MODE &&
         s.pendingPlanStyle?.fingerprint === stamp.fingerprint &&
@@ -397,6 +394,7 @@ async function renderSlides(j, ids, signal, redesign = false) {
           plan.planningVersion !== PLANNING_VERSION ||
           plan.promptMode !== DIRECT_PROMPT_MODE ||
           plan.compositionPlan ||
+          plan.screenCopy?.review?.sourceFallback === true ||
           redesign ||
           s.stale ||
           s.planStyle?.fingerprint !== stamp.fingerprint ||
@@ -419,7 +417,6 @@ async function renderSlides(j, ids, signal, redesign = false) {
             designOptions: choices,
             contentBrief: briefs[s.id],
             copyFeedback: j.payload.copyFeedback || "",
-            preserveSourceCopy,
             onProgress: (stage) =>
               progress(
                 j,

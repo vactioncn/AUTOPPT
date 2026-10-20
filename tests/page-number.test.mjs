@@ -1,4 +1,4 @@
-import { layoutFixture } from "./fixtures/layered.mjs";
+import { preservedFixture } from "./fixtures/layered.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, mkdtempSync, rmSync } from "node:fs";
@@ -144,11 +144,13 @@ test(
       if (url.endsWith("/chat/completions")) {
         const body = JSON.parse(options.body);
         const system = body.messages[0].content;
-        const result = system.includes("版式设计师")
-          ? layoutFixture(
-              JSON.parse(body.messages[1].content[0].text).displayText,
-            )
-          : { hasText: false, detail: "fixture" };
+        const result = system.includes("原画面文字还原师")
+          ? preservedFixture(JSON.parse(body.messages[1].content[0].text))
+          : {
+              mainTextRemoved: true,
+              nonTextPreserved: true,
+              detail: "fixture",
+            };
         return Response.json({
           choices: [{ message: { content: JSON.stringify(result) } }],
         });

@@ -10,7 +10,7 @@ import { DatabaseSync } from "node:sqlite";
 import sharp from "sharp";
 import JSZip from "jszip";
 import { copyFixture, reviewFixture } from "./fixtures/screen-copy.mjs";
-import { layoutFixture, fontPackFixture } from "./fixtures/layered.mjs";
+import { preservedFixture, fontPackFixture } from "./fixtures/layered.mjs";
 
 test(
   "first render is layered; checkpoints, direct editing, undo, mixed export and restore preserve existing pages",
@@ -43,18 +43,22 @@ test(
       const system = body.messages[0].content;
       const raw = body.messages[1].content[0].text;
       let result;
-      if (system.includes("检查这张演讲底图")) {
+      if (system.includes("检查局部去字结果")) {
         events.push("check");
         // A valid transport response but invalid inspection; retry must reuse pixels.
-        result = failCheck
-          ? { detail: "incomplete" }
-          : { hasText: false, detail: "无文字" };
-        failCheck = false;
+        result = {
+          mainTextRemoved: true,
+          nonTextPreserved: true,
+          detail: "fixture",
+        };
       } else {
         const data = JSON.parse(raw);
-        if (system.includes("版式设计师")) {
-          events.push("layout");
-          result = layoutFixture(data.displayText);
+        if (system.includes("原画面文字还原师")) {
+          events.push("analysis");
+          result = failCheck
+            ? { texts: [], objects: [] }
+            : preservedFixture(data);
+          failCheck = false;
         } else if (system.includes("演讲内容关系分析师"))
           result = {
             pages: data.pages.map((p) => ({
@@ -193,12 +197,12 @@ test(
     assert.equal((await finished(job.id)).status, "failed");
     const interim = await request("/projects/project");
     assert.equal(interim.slides[1].image, null);
-    assert(interim.slides[1].pendingLayered.candidateBackground);
+    assert(interim.slides[1].pendingLayered.originalImage);
     await request(`/jobs/${job.id}/retry`, {}, "POST", 200);
     assert.equal((await finished(job.id)).status, "completed");
     let saved = await request("/projects/project");
     assert.deepEqual(saved.slides[0], old);
-    assert.deepEqual(events, ["layout", "image", "check", "check"]);
+    assert.deepEqual(events, ["image", "analysis", "analysis", "check"]);
     const packageResponse = await fetch(
       `${base}/projects/project/package?revision=${saved.revision}`,
     );
@@ -228,8 +232,13 @@ test(
       (await request(`/projects/${importedProject.id}/motion`))[0].id,
       `native-${importedProject.id}`,
     );
-    assert(!prompts[0].includes("先讲故事"));
-    assert(prompts[0].includes("不要在图片中绘制任何文字"));
+    assert(prompts[0].includes("先讲故事"));
+    assert(!prompts[0].includes("不要在图片中绘制任何文字"));
+    assert.equal(
+      saved.slides[1].layered.preservation.outsideMaskDifferences,
+      0,
+    );
+    assert(saved.slides[1].layered.originalImage);
     assert.equal(saved.slides[1].layered.layers[0].text, "先讲故事");
     let deck = (await request("/projects/project/motion"))[0];
     assert.equal(deck.id, "native-project");
@@ -293,6 +302,6 @@ test(
     saved = await request("/projects/project");
     assert.equal(saved.slides[1].layered.layers[0].text, "从故事开始");
     assert.deepEqual(saved.slides[0], old);
-    assert.deepEqual(events, ["layout", "image", "check", "check"]);
+    assert.deepEqual(events, ["image", "analysis", "analysis", "check"]);
   },
 );

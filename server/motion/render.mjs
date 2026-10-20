@@ -7,7 +7,7 @@ import { embeddedFonts } from "./fonts.mjs";
 import { planEntrance } from "../../shared/motion/choreography.mjs";
 import { pageImage } from "../export.mjs";
 import { readExportAudio, matchNarrationPage } from "../speech/export.mjs";
-import { screenImage } from "../image-storage.mjs";
+import { imageMime } from "../image-storage.mjs";
 const escape = (str) =>
   String(str).replace(
     /[&<>"']/g,
@@ -75,9 +75,10 @@ export async function* motionHtmlChunks(
     yield "</script>";
   }
   const image = (name) =>
-    embed(`image:${name}`, async () =>
-      screenImage(await readFile(assetPath(name)), { resize: false }),
-    );
+    embed(`image:${name}`, async () => ({
+      data: await readFile(assetPath(name)),
+      mime: imageMime(name),
+    }));
   for (const p of selected) {
     const n = narration ? matchNarrationPage(narration, p, !staticMode) : null;
     const layered = p.layered || (!staticMode ? p : null);

@@ -2,6 +2,36 @@ import { writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import path from "node:path";
 
+export function preservedFixture({ displayText, pageNumber }) {
+  const values = [...displayText, ...(pageNumber ? [pageNumber] : [])];
+  return {
+    texts: values.map((value, i) => {
+      const text = value.replaceAll("\n", ""),
+        size = Math.min(36, 1200 / [...text].length);
+      return {
+        text,
+        x: 100,
+        y: 80 + i * 90,
+        w:
+          [...text].reduce(
+            (n, c) => n + (c.charCodeAt(0) < 128 ? 0.56 : 1),
+            0,
+          ) * size,
+        h: size * 0.9,
+        fontSize: size,
+        font: "sans",
+        fontWeight: i ? 400 : 700,
+        color: "#20272b",
+        step: i,
+        pageNumber: !!pageNumber && i === values.length - 1,
+      };
+    }),
+    objects: [],
+    summary: "fixture",
+    warnings: [],
+  };
+}
+
 export function layoutFixture(displayText) {
   return {
     choreography: "editorial",

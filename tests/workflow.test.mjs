@@ -1,4 +1,4 @@
-import { layoutFixture, fontPackFixture } from "./fixtures/layered.mjs";
+import { preservedFixture, fontPackFixture } from "./fixtures/layered.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, readFileSync, mkdirSync } from "node:fs";
@@ -125,10 +125,10 @@ test(
         (c) => c.type === "image_url",
       ).length;
       let output;
-      if (system.includes("版式设计师")) {
-        output = layoutFixture(JSON.parse(user).displayText);
-      } else if (system.includes("检查这张演讲底图")) {
-        output = { hasText: false, detail: "fixture" };
+      if (system.includes("原画面文字还原师")) {
+        output = preservedFixture(JSON.parse(user));
+      } else if (system.includes("检查局部去字结果")) {
+        output = { mainTextRemoved: true, nonTextPreserved: true, detail: "fixture" };
       } else if (
         system.includes("风格规范整理师") ||
         system.includes("演讲页面设计师")
@@ -676,7 +676,7 @@ test(
     assert(!imageRequests[0].prompt.includes(text));
     assert(
       project.slides[0].plan.screenCopy.displayText.every((text) =>
-        !imageRequests[0].prompt.includes(text),
+        imageRequests[0].prompt.includes(text),
       ),
     );
     assert.equal(
@@ -1178,7 +1178,7 @@ test(
     );
     assert(imageRequests.every((r) => !r.prompt.includes("不要自行补写")));
     assert(imageRequests.every((r) => !r.prompt.includes("【输出规格】")));
-    assert(imageRequests.every((r) => r.prompt.includes("DETAIL LABEL") || r.prompt.includes("本次分层规则")));
+    assert(imageRequests.every((r) => r.prompt.includes("DETAIL LABEL")));
     assert(imageRequests.every((r) => !r.prompt.includes("savedObservations")));
     assert(
       imageRequests.every(

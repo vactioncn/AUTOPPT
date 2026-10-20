@@ -47,6 +47,7 @@ const kinds = new Set([
 ]);
 const assetKeys = new Set([
   "image",
+  "originalImage",
   "filename",
   "background",
   "candidateBackground",

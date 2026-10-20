@@ -14,7 +14,13 @@ export function regionBox(layer, width, height, padding = 0) {
 }
 // Locate actual glyph pixels instead of erasing their whole rectangle. This keeps
 // highlighted blocks, rules, and texture between letters intact.
-export function textRemoval(data, width, height, layer) {
+export function textRemoval(
+  data,
+  width,
+  height,
+  layer,
+  { smooth = false } = {},
+) {
   const box = regionBox(
     layer,
     width,
@@ -276,7 +282,9 @@ export function textRemoval(data, width, height, layer) {
         }
         if (mode < 0 || !modes[mode])
           return { box, mask, simple: false, pixels };
-        const local = nearby(mode, i % w, Math.floor(i / w));
+        // For native pages, smooth backdrops use a continuous color plane:
+        // nearby averages can reproduce faint glyph-shaped compression halos.
+        const local = smooth ? null : nearby(mode, i % w, Math.floor(i / w));
         for (let c = 0; c < 3; c++)
           pixels[i * 4 + c] = Math.max(
             0,

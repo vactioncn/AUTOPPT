@@ -24,7 +24,7 @@ import {
 import { PLANNING_VERSION } from "./content-planning.mjs";
 import { DIRECT_PROMPT_MODE } from "./direct-image.mjs";
 import { snapshot, styleStamp } from "./core.mjs";
-import { generateLayeredPage } from "./motion/layered.mjs";
+import { generatePreservedPage } from "./motion/preserved.mjs";
 import { MANUSCRIPT_VERSION, spokenManuscript } from "./manuscript.mjs";
 import { runTrial } from "./trials.mjs";
 import { reusableScreenCopy } from "./screen-copy.mjs";
@@ -443,8 +443,8 @@ async function renderSlides(j, ids, signal, redesign = false) {
         completed,
         pending.length,
       );
-      // The first render is already editable: layout first, then a text-free
-      // background. Checkpoints belong to this proposed version, not the old page.
+      // Keep the image model's complete design, then remove only main text.
+      // Publish once all layers are ready; intermediate artwork remains private.
       const layeredWork =
         reusablePending && s.pendingLayered ? s.pendingLayered : {};
       layeredWork.layeredPlan = plan;
@@ -453,7 +453,7 @@ async function renderSlides(j, ids, signal, redesign = false) {
       // capability yet; keep their existing production path until that rollout.
       const layered = process.env.AUTOPPT_WORKER_TOKEN
         ? null
-        : await generateLayeredPage(
+        : await generatePreservedPage(
             layeredWork,
             signal,
             (stage) =>

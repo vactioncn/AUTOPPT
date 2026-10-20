@@ -20,7 +20,7 @@ export function nativeDeck(project) {
     scene: s.scene,
     image: s.image,
     source: {
-      image: s.layered ? null : s.image,
+      image: s.layered ? s.layered.originalImage || null : s.image,
       notes: speakerNotes(s),
       stale: !!s.stale,
       fingerprint: createHash("sha256")

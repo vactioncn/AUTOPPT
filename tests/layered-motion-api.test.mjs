@@ -114,10 +114,23 @@ test("layered API saves, rejects stale revisions and undoes without touching pro
     revision: 1,
     layers: [{ ...layer, text: "每讲完一个故事" }],
     playbackMode: "steps",
+    choreography: "story",
     reviewed: true,
   });
   assert.equal(saved.pages[0].layers[0].text, "每讲完一个故事");
   assert.equal(saved.pages[0].history.length, 1);
+  assert.equal(saved.pages[0].choreography, "story");
+  const playback = await fetch(base + "/api/motion/deck/html").then((r) =>
+    r.text(),
+  );
+  assert(playback.includes('"choreography":"story"'));
+  assert(playback.includes("const planEntrance ="));
+  await request(
+    "/api/motion/deck/pages/page",
+    "PATCH",
+    { revision: saved.revision, layers: [layer], choreography: "bad" },
+    400,
+  );
   await request(
     "/api/motion/deck/pages/page",
     "PATCH",
@@ -141,6 +154,7 @@ test("layered API saves, rejects stale revisions and undoes without touching pro
   });
   assert.equal(undone.pages[0].layers[0].text, "先讲故事");
   assert.equal(undone.pages[0].source.notes, "原讲稿");
+  assert.equal(undone.pages[0].choreography, "custom");
   assert.equal(undone.pages[0].history.length, 0);
   const html = await fetch(base + "/api/motion/deck/html").then((r) =>
     r.text(),

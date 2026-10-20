@@ -1,4 +1,5 @@
 import { validateLayers } from "./schema.mjs";
+import { choreography } from "./choreography.mjs";
 
 export const PLAYBACK_MODES = ["natural", "steps", "whole"];
 export function playbackMode(value) {
@@ -48,7 +49,13 @@ export function validateLayout(raw, displayText) {
     raw.background.length > 8000
   )
     throw new Error("缺少底图设计说明");
-  return { width: 1600, height: 900, layers, background: raw.background };
+  return {
+    width: 1600,
+    height: 900,
+    layers,
+    background: raw.background,
+    choreography: choreography(raw.choreography ?? "custom"),
+  };
 }
 
 export function backgroundPrompt(plan) {

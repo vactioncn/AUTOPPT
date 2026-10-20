@@ -18,6 +18,7 @@ import { api, asset, patch, post, downloadFile } from "./api";
 import { Button, Field, Modal } from "./components";
 import type { Project } from "./types";
 import "./motion.css";
+import { CHOREOGRAPHIES } from "../shared/motion/choreography.mjs";
 
 type Layer = {
   id: string;
@@ -59,6 +60,7 @@ type MotionPage = {
   usedRepair?: boolean;
   background?: string;
   playbackMode?: string;
+  choreography?: string;
   history?: unknown[];
 };
 type Deck = {
@@ -109,6 +111,11 @@ export function MotionPresentation({
     [deckId, setDeckId] = useState(""),
     [deck, setDeck] = useState<Deck | null>(null);
   const [sourceMode, setSourceMode] = useState(initialMode);
+  const [sequenceDraft, setSequenceDraft] = useState<string | null>(null);
+  const [inspectorTab, setInspectorTab] = useState<"text" | "motion">("text");
+  const [auditioning, setAuditioning] = useState(false);
+  const [canvasReady, setCanvasReady] = useState(false);
+  const saveAction = useRef<() => void>(() => {});
   const [modeDraft, setModeDraft] = useState<string | null>(null);
   const [layoutCheck, setLayoutCheck] = useState<{
     pageId: string;
@@ -126,7 +133,6 @@ export function MotionPresentation({
     [baseRevision, setBaseRevision] = useState(0),
     [layerId, setLayerId] = useState(""),
     [compare, setCompare] = useState(initialMode !== "layered");
-  const [previewHtml, setPreviewHtml] = useState<string | undefined>(undefined);
   const html = useHtmlExportOptions(project.id);
   const frame = useRef<HTMLIFrameElement>(null),
     dirty = useRef(false);
@@ -154,40 +160,10 @@ export function MotionPresentation({
   const page = deck?.pages.find((p) => p.id === pageId) || deck?.pages[0];
   const dirtyValue =
     (!!draft && JSON.stringify(draft) !== JSON.stringify(page?.layers)) ||
-    (modeDraft !== null && modeDraft !== (page?.playbackMode || "natural"));
+    (modeDraft !== null && modeDraft !== (page?.playbackMode || "natural")) ||
+    (sequenceDraft !== null &&
+      sequenceDraft !== (page?.choreography || "custom"));
   dirty.current = dirtyValue;
-  useEffect(() => {
-    if (!draft || !deck || !page) {
-      setPreviewHtml(undefined);
-      return;
-    }
-    const controller = new AbortController();
-    const timer = setTimeout(async () => {
-      try {
-        const response = await fetch(
-          `/api/motion/${deck.id}/pages/${page.id}/preview`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ layers: draft }),
-            signal: controller.signal,
-          },
-        );
-        if (!response.ok) {
-          const data = await response.json();
-          throw new Error(data.error || "预览失败");
-        }
-        const html = await response.text();
-        if (!controller.signal.aborted) setPreviewHtml(html);
-      } catch (e) {
-        if (!controller.signal.aborted) setError((e as Error).message);
-      }
-    }, 450);
-    return () => {
-      clearTimeout(timer);
-      controller.abort();
-    };
-  }, [draft, deck?.id, page?.id]);
 
   useEffect(() => {
     const before = (e: BeforeUnloadEvent) => {
@@ -216,17 +192,51 @@ export function MotionPresentation({
         setPageId(e.data.pageId);
         setDraft(null);
         setModeDraft(null);
+        setSequenceDraft(null);
         setEditingPlayback(true);
       }
-      if (
-        e.source === frame.current?.contentWindow &&
-        e.data?.type === "motion-select"
-      )
-        setLayerId(e.data.id);
+      if (e.source === frame.current?.contentWindow) {
+        if (e.data?.type === "motion-select") setLayerId(e.data.id);
+        if (e.data?.type === "motion-audition") setAuditioning(e.data.playing);
+        if (
+          e.data?.type === "motion-ready" &&
+          page &&
+          e.data.pageId === page.id
+        ) {
+          setCanvasReady(true);
+          frame.current?.contentWindow?.postMessage(
+            {
+              type: "motion-update",
+              layers: draft || page.layers,
+              choreography: sequenceDraft || page.choreography || "custom",
+            },
+            "*",
+          );
+        }
+        if (e.data?.type === "motion-save-request") saveAction.current();
+        if (
+          e.data?.type === "motion-canvas-edit" &&
+          page &&
+          e.data.pageId === page.id &&
+          deck &&
+          !busy &&
+          !active(deck)
+        ) {
+          if (!dirty.current) setBaseRevision(deck.revision);
+          setDraft(
+            e.data.layers.map((l: Layer) => ({
+              ...l,
+              ...(l.type === "image"
+                ? { asset: page.layers.find((old) => old.id === l.id)?.asset }
+                : {}),
+            })),
+          );
+        }
+      }
     };
     window.addEventListener("message", listener);
     return () => window.removeEventListener("message", listener);
-  }, [deck?.id]);
+  }, [deck?.id, deck?.revision, page?.id, draft, sequenceDraft, busy]);
   const changePage = (id: string) => {
     if (dirtyValue) {
       setError("请先保存当前校准，或点击撤销修改，再切换页面。");
@@ -235,6 +245,9 @@ export function MotionPresentation({
     setPageId(id);
     setDraft(null);
     setModeDraft(null);
+    setSequenceDraft(null);
+    setCanvasReady(false);
+    setAuditioning(false);
     setLayerId("");
     setError("");
   };
@@ -259,6 +272,25 @@ export function MotionPresentation({
   const ready = deck?.pages.filter((p) => p.status === "ready").length || 0;
   const layers = draft || page?.layers || [];
   const layered = deck?.sourceMode === "layered";
+  const sequence = sequenceDraft || page?.choreography || "custom";
+  useEffect(() => {
+    frame.current?.contentWindow?.postMessage(
+      { type: "motion-update", layers, choreography: sequence },
+      "*",
+    );
+  }, [layers, sequence]);
+  useEffect(() => {
+    frame.current?.contentWindow?.postMessage(
+      { type: "motion-lock", locked: busy || active(deck) },
+      "*",
+    );
+  }, [busy, deck?.status]);
+  useEffect(() => {
+    frame.current?.contentWindow?.postMessage(
+      { type: "motion-select-layer", id: layerId },
+      "*",
+    );
+  }, [layerId]);
   const signature = JSON.stringify(layers.map(({ asset: _asset, ...l }) => l));
   const checkReady =
     !!layoutCheck &&
@@ -279,16 +311,11 @@ export function MotionPresentation({
     layers[0];
   const update = (value: Partial<Layer>) => {
     if (!current || !deck) return;
-    if (!draft && modeDraft === null) setBaseRevision(deck.revision);
+    if (!dirtyValue) setBaseRevision(deck.revision);
     const next = layers.map((l) =>
       l.id === current.id ? { ...l, ...value } : l,
     );
     setDraft(next);
-    if (!layered)
-      frame.current?.contentWindow?.postMessage(
-        { type: "motion-update", layers: next },
-        "*",
-      );
   };
   const close = () => {
     if (dirtyValue) {
@@ -314,14 +341,16 @@ export function MotionPresentation({
             : "正在核对排版，请稍后保存。",
         );
       const next = await patch<Deck>(`/motion/${deck.id}/pages/${page.id}`, {
-        revision: draft || modeDraft !== null ? baseRevision : deck.revision,
+        revision: dirtyValue ? baseRevision : deck.revision,
         layers,
         playbackMode: modeDraft || page.playbackMode || "natural",
+        choreography: sequence,
         reviewed: true,
       });
       setDeck(next);
       setDraft(null);
       setModeDraft(null);
+      setSequenceDraft(null);
       const saved = next.pages.find((p) => p.id === page.id)!;
       player.current?.postMessage(
         {
@@ -330,11 +359,15 @@ export function MotionPresentation({
           pageId: page.id,
           layers: saved.layers,
           playbackMode: saved.playbackMode,
+          choreography: saved.choreography,
         },
         location.origin,
       );
       if (editingPlayback) setEditingPlayback(false);
     });
+  saveAction.current = () => {
+    if (!busy && checkReady && !overflow.length) void save();
+  };
   const numeric = (
     label: string,
     key: keyof Layer,
@@ -615,12 +648,54 @@ export function MotionPresentation({
                           </figure>
                         )}
                         <figure>
-                          <figcaption>点击画面中的文字即可修改</figcaption>
+                          <figcaption className="motion-edit-caption">
+                            <span>
+                              {layered
+                                ? "点文字直接编辑 · 拖动手柄调整位置与范围"
+                                : "点击选择要调整的图层"}
+                            </span>
+                            {layered && (
+                              <button
+                                type="button"
+                                disabled={
+                                  !canvasReady ||
+                                  busy ||
+                                  !draft ||
+                                  JSON.stringify(draft) ===
+                                    JSON.stringify(page.layers)
+                                }
+                                title="也可在画面内按 ⌘Z / Ctrl+Z"
+                                onClick={() =>
+                                  frame.current?.contentWindow?.postMessage(
+                                    { type: "motion-undo" },
+                                    "*",
+                                  )
+                                }
+                              >
+                                撤销一步
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              disabled={!canvasReady || busy}
+                              onClick={() =>
+                                frame.current?.contentWindow?.postMessage(
+                                  {
+                                    type: auditioning
+                                      ? "motion-stop"
+                                      : "motion-replay",
+                                  },
+                                  "*",
+                                )
+                              }
+                            >
+                              {auditioning ? "停止试播" : "试播动效"}
+                            </button>
+                          </figcaption>
                           <iframe
                             key={`${deck.id}-${page.id}`}
                             ref={frame}
                             src={previewUrl}
-                            srcDoc={previewHtml}
                             title="动态页面预览"
                             sandbox="allow-scripts"
                             allow="fullscreen"
@@ -668,21 +743,26 @@ export function MotionPresentation({
                 </section>
                 {page?.status === "ready" && current && (
                   <aside className="motion-inspector">
-                    <Field label="播放方式">
-                      <select
-                        value={modeDraft || page.playbackMode || "natural"}
-                        disabled={busy || active(deck)}
-                        onChange={(e) => {
-                          if (!draft && modeDraft === null)
-                            setBaseRevision(deck.revision);
-                          setModeDraft(e.target.value);
-                        }}
+                    <div
+                      className="motion-inspector-tabs"
+                      role="group"
+                      aria-label="编辑选项"
+                    >
+                      <button
+                        type="button"
+                        aria-pressed={inspectorTab === "text"}
+                        onClick={() => setInspectorTab("text")}
                       >
-                        <option value="natural">自然出场</option>
-                        <option value="steps">逐步讲述 · 点击下一步</option>
-                        <option value="whole">整页静态</option>
-                      </select>
-                    </Field>
+                        文字排版
+                      </button>
+                      <button
+                        type="button"
+                        aria-pressed={inspectorTab === "motion"}
+                        onClick={() => setInspectorTab("motion")}
+                      >
+                        页面动效
+                      </button>
+                    </div>
                     <Field label="图层">
                       <select
                         aria-label="选择动态图层"
@@ -698,17 +778,70 @@ export function MotionPresentation({
                       </select>
                     </Field>
                     <div className="motion-fields-scroll">
-                      <fieldset disabled={busy || active(deck)}>
+                      {inspectorTab === "motion" && (
+                        <>
+                          <Field label="页面动效编排">
+                            <select
+                              aria-label="页面动效编排"
+                              value={sequence}
+                              disabled={busy || active(deck)}
+                              onChange={(e) => {
+                                if (!dirtyValue) setBaseRevision(deck.revision);
+                                setSequenceDraft(e.target.value);
+                              }}
+                            >
+                              {CHOREOGRAPHIES.map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.name}
+                                </option>
+                              ))}
+                            </select>
+                          </Field>
+                          <Field label="播放方式">
+                            <select
+                              value={
+                                modeDraft || page.playbackMode || "natural"
+                              }
+                              disabled={busy || active(deck)}
+                              onChange={(e) => {
+                                if (!dirtyValue) setBaseRevision(deck.revision);
+                                setModeDraft(e.target.value);
+                              }}
+                            >
+                              <option value="natural">自然出场</option>
+                              <option value="steps">
+                                逐步讲述 · 点击下一步
+                              </option>
+                              <option value="whole">整页静态</option>
+                            </select>
+                          </Field>
+                          <p className="detail-help">
+                            {
+                              CHOREOGRAPHIES.find((p) => p.id === sequence)
+                                ?.description
+                            }
+                          </p>
+                          <p className="detail-help">
+                            按内容选择编排。试播会完整展示本页；正式播放可选择逐步讲述。
+                          </p>
+                        </>
+                      )}
+                      <fieldset
+                        hidden={inspectorTab !== "text"}
+                        disabled={busy || active(deck)}
+                      >
                         {current.type === "text" && (
                           <>
-                            <Field label="文字">
-                              <textarea
-                                value={current.text}
-                                onChange={(e) =>
-                                  update({ text: e.target.value })
-                                }
-                              />
-                            </Field>
+                            {!layered && (
+                              <Field label="文字">
+                                <textarea
+                                  value={current.text}
+                                  onChange={(e) =>
+                                    update({ text: e.target.value })
+                                  }
+                                />
+                              </Field>
+                            )}
                             <Field label="字体">
                               <select
                                 value={current.font}
@@ -824,24 +957,28 @@ export function MotionPresentation({
                           <p className="detail-help">
                             移动文字只调整排版，底图保持不变。
                           </p>
-                          <Field label="出场动效">
-                            <select
-                              value={current.effect}
-                              onChange={(e) =>
-                                update({ effect: e.target.value })
-                              }
-                            >
-                              {Object.entries(effects).map(([v, t]) => (
-                                <option key={v} value={v}>
-                                  {t}
-                                </option>
-                              ))}
-                            </select>
-                          </Field>
+                          {sequence === "custom" && (
+                            <Field label="出场动效">
+                              <select
+                                value={current.effect}
+                                onChange={(e) =>
+                                  update({ effect: e.target.value })
+                                }
+                              >
+                                {Object.entries(effects).map(([v, t]) => (
+                                  <option key={v} value={v}>
+                                    {t}
+                                  </option>
+                                ))}
+                              </select>
+                            </Field>
+                          )}
                           <div className="motion-fields">
                             {numeric("讲述步骤", "step", 0, 30)}
-                            {numeric("延迟 ms", "delay", 0, 3000, 50)}
-                            {numeric("时长 ms", "duration", 100, 3000, 50)}
+                            {sequence === "custom" &&
+                              numeric("延迟 ms", "delay", 0, 3000, 50)}
+                            {sequence === "custom" &&
+                              numeric("时长 ms", "duration", 100, 3000, 50)}
                           </div>
                         </details>
                       </fieldset>
@@ -871,13 +1008,16 @@ export function MotionPresentation({
                         <CheckCircle />
                         {editingPlayback
                           ? "保存并更新播放页"
-                          : "保存并标记已校对"}
+                          : dirtyValue
+                            ? "保存修改"
+                            : "保存并标记已校对"}
                       </Button>
                       {dirtyValue && (
                         <Button
                           onClick={() => {
                             setDraft(null);
                             setModeDraft(null);
+                            setSequenceDraft(null);
                             setError("");
                             if (frame.current) frame.current.src = previewUrl;
                           }}

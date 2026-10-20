@@ -1,6 +1,7 @@
 import { exportLayeredPptx } from "./pptx.mjs";
 import { generateLayeredPage } from "./layered.mjs";
 import { playbackMode } from "../../shared/motion/layered.mjs";
+import { choreography } from "../../shared/motion/choreography.mjs";
 import { withUsage } from "../usage/index.mjs";
 import {
   withModelRequestProgress,
@@ -277,6 +278,9 @@ export function registerMotion(app) {
     const mode = playbackMode(
       req.body.playbackMode ?? p.playbackMode ?? "natural",
     );
+    const sequence = choreography(
+      req.body.choreography ?? p.choreography ?? "custom",
+    );
     if (
       d.sourceMode === "layered" &&
       layers.some((l) => l.type === "text" && l.fit)
@@ -287,12 +291,14 @@ export function registerMotion(app) {
       {
         layers: p.layers,
         playbackMode: p.playbackMode || "natural",
+        choreography: p.choreography || "custom",
         reviewed: p.reviewed,
         at: now(),
       },
     ].slice(-20);
     p.layers = layers;
     p.playbackMode = mode;
+    p.choreography = sequence;
     p.reviewed = req.body.reviewed === true;
     save(d);
     res.json(publicDeck(d));

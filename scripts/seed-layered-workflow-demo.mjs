@@ -3,10 +3,12 @@
 import { readFile, mkdir, copyFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { validateLayers } from "../shared/motion/schema.mjs";
-const [sourceArg, targetArg] = process.argv.slice(2);
+const [sourceArg, targetArg, option] = process.argv.slice(2);
+if (option && option !== "--authored-motion") throw new Error("Unknown option");
+const authored = option === "--authored-motion";
 if (!sourceArg || !targetArg)
   throw new Error(
-    "Usage: node scripts/seed-layered-workflow-demo.mjs EXPERIMENT_DIR NEW_DATA_DIR",
+    "Usage: node scripts/seed-layered-workflow-demo.mjs EXPERIMENT_DIR NEW_DATA_DIR [--authored-motion]",
   );
 const source = path.resolve(sourceArg),
   target = path.resolve(targetArg);
@@ -94,7 +96,16 @@ for (const p of input.pages) {
     background,
     layers,
     status: "ready",
-    playbackMode: "steps",
+    playbackMode: authored ? "natural" : "steps",
+    choreography: authored
+      ? {
+          story: "story",
+          japanese: "editorial",
+          childhood: "focus",
+          neo: "chapter",
+          avant: "contrast",
+        }[p.id]
+      : "custom",
     reviewed: false,
     warnings: [],
     summary:

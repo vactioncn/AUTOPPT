@@ -4,6 +4,7 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { assetPath } from "../store.mjs";
 import { embeddedFonts } from "./fonts.mjs";
+import { planEntrance } from "../../shared/motion/choreography.mjs";
 import { pageImage } from "../export.mjs";
 import { readExportAudio, matchNarrationPage } from "../speech/export.mjs";
 import { screenImage } from "../image-storage.mjs";
@@ -46,7 +47,7 @@ export async function* motionHtmlChunks(
     embeddedFonts(
       staticMode ? selected.map(() => ({ layers: [] })) : selected,
       deck.customFont,
-      managed,
+      managed || preview,
     ),
   ]);
   const payload = json({
@@ -105,6 +106,7 @@ export async function* motionHtmlChunks(
       }
     const page = {
       id: p.id,
+      choreography: p.choreography || "custom",
       playbackMode: preview
         ? "whole"
         : p.playbackMode || (deck.sourceMode === "layered" ? "natural" : null),
@@ -138,7 +140,7 @@ export async function* motionHtmlChunks(
     }
   }
   yield `<script type="application/json" id="deck-audio">${json(audio)}</script>`;
-  yield `<script>${runtime}</script><template id="font-licenses">${escape(fonts.licenses)}</template></body></html>`;
+  yield `<script>const planEntrance = ${planEntrance.toString()};\n${runtime}</script><template id="font-licenses">${escape(fonts.licenses)}</template></body></html>`;
 }
 
 // Small in-memory previews/test callers only. Download routes always spool to

@@ -57,6 +57,12 @@
     hideTimer,
     touch = null,
     motion = !deck.staticMode;
+  let audition = false,
+    auditionTicket = 0,
+    selectedLayer = "",
+    composing = false;
+  const editHistory = [],
+    redoHistory = [];
   const audio = document.getElementById("speech-audio"),
     speechStatus = document.getElementById("speech-status"),
     speechGate = document.getElementById("speech-gate");
@@ -172,9 +178,18 @@
   function fit() {
     const p = deck.pages[index];
     if (!p) return;
+    stage.style.setProperty(
+      "--editor-scale",
+      Math.min(
+        viewport.clientWidth / p.width,
+        viewport.clientHeight / p.height,
+      ),
+    );
     stage.style.width = p.width + "px";
     stage.style.height = p.height + "px";
     stage.style.transform = `translate(-50%,-50%) scale(${Math.min(viewport.clientWidth / p.width, viewport.clientHeight / p.height)})`;
+    if (deck.preview)
+      current?.querySelectorAll(".layer.selected").forEach(keepHandlesInCanvas);
   }
   function cancelAnimations() {
     animations.forEach((a) => a.cancel());
@@ -216,6 +231,28 @@
       ];
     return [{ opacity: 0 }, { opacity: 1 }];
   }
+  function endAudition() {
+    auditionTicket++;
+    audition = false;
+    document.body.classList.remove("audition");
+    applyMode();
+    reveal(false);
+    parent.postMessage({ type: "motion-audition", playing: false }, "*");
+  }
+  function auditionPage() {
+    endAudition();
+    document.activeElement?.blur();
+    audition = true;
+    document.body.classList.add("audition");
+    motion = true;
+    incremental = false;
+    reveal(true);
+    const ticket = ++auditionTicket;
+    parent.postMessage({ type: "motion-audition", playing: true }, "*");
+    Promise.allSettled(animations.map((a) => a.finished)).then(() => {
+      if (ticket === auditionTicket) endAudition();
+    });
+  }
   function reveal(animate = true) {
     cancelAnimations();
     current.querySelectorAll(".layer").forEach((node, i) => {
@@ -224,24 +261,54 @@
       node.hidden = !visible;
       if (
         !animate ||
-        deck.preview ||
+        (deck.preview && !audition) ||
         !visible ||
         l.effect === "none" ||
-        !motion ||
-        reduced.matches
+        !motion
       )
         return;
       if (incremental && l.step < step) return;
       const order = allSteps().indexOf(l.step);
+      const p = deck.pages[index];
+      const authored = p.choreography && p.choreography !== "custom";
+      const plan = planEntrance(p, l, i, incremental, reduced.matches);
       animations.push(
-        node.querySelector(".content").animate(frames(l.effect), {
-          duration: l.duration,
-          delay: l.delay + (incremental ? 0 : Math.max(0, order) * 430),
-          easing: "cubic-bezier(.22,1,.36,1)",
-          fill: "backwards",
-        }),
+        node
+          .querySelector(".content")
+          .animate(
+            authored || reduced.matches ? plan.frames : frames(l.effect),
+            {
+              duration:
+                authored || reduced.matches ? plan.duration : l.duration,
+              delay:
+                authored || reduced.matches
+                  ? plan.delay
+                  : l.delay + (incremental ? 0 : Math.max(0, order) * 430),
+              easing: plan.easing,
+              fill: "backwards",
+            },
+          ),
       );
     });
+    const p = deck.pages[index];
+    if (
+      animate &&
+      (!deck.preview || audition) &&
+      motion &&
+      !reduced.matches &&
+      ["story", "chapter"].includes(p.choreography) &&
+      (!incremental || step === 0)
+    ) {
+      animations.push(
+        current.querySelector(".background").animate(
+          [
+            { transform: "scale(1.025)", opacity: 0.82 },
+            { transform: "scale(1)", opacity: 1 },
+          ],
+          { duration: 1200, easing: "cubic-bezier(.16,1,.3,1)" },
+        ),
+      );
+    }
     updateCounter();
   }
   function renderText(l, content) {
@@ -359,21 +426,28 @@
         img.draggable = false;
         content.append(img);
       }
-      if (deck.preview)
-        outer.addEventListener("click", () =>
-          parent.postMessage({ type: "motion-select", id: l.id }, "*"),
-        );
+      if (deck.preview) {
+        outer.addEventListener("click", () => selectLayer(l.id));
+        if (deck.layered) attachEditor(outer, l);
+      }
       scene.append(outer);
     }
     stage.append(scene);
     current = scene;
     fit();
+    if (deck.preview) selectLayer(selectedLayer, false);
     notes.textContent = p.notes || "本页没有演讲备注。";
     const original = document.getElementById("original");
     original.src = mediaSource(p.original);
     reveal(animate);
     inspectLayout();
-    if (!deck.preview && animate && motion && !reduced.matches)
+    if (
+      !deck.preview &&
+      animate &&
+      motion &&
+      !reduced.matches &&
+      (!p.choreography || p.choreography === "custom")
+    )
       animations.push(
         scene.animate(
           [
@@ -571,6 +645,7 @@
       if (!p || !editing) return;
       p.layers = e.data.layers;
       p.playbackMode = e.data.playbackMode;
+      p.choreography = e.data.choreography || "custom";
       await Promise.all(
         p.layers
           .filter((l) => l.type === "text")
@@ -613,6 +688,8 @@
   }
   document.addEventListener("keydown", (e) => {
     if (
+      deck.preview ||
+      e.target.isContentEditable ||
       ["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName) ||
       e.ctrlKey ||
       e.metaKey ||
@@ -655,6 +732,7 @@
   viewport.addEventListener(
     "touchstart",
     (e) => {
+      if (deck.preview) return;
       touch = {
         x: e.changedTouches[0].clientX,
         y: e.changedTouches[0].clientY,
@@ -684,17 +762,328 @@
   window.addEventListener("resize", fit);
   new ResizeObserver(fit).observe(viewport);
   reduced.addEventListener("change", () => reveal());
-  if (deck.preview)
-    window.addEventListener("message", (e) => {
-      if (e.source !== parent || e.data?.type !== "motion-update") return;
-      const updates = e.data.layers;
-      if (!Array.isArray(updates)) return;
-      deck.pages[index].layers = updates.map((l) => ({
-        ...l,
-        asset: deck.pages[index].layers.find((p) => p.id === l.id)?.asset,
-      }));
-      render(false);
+  function selectLayer(id, notify = true) {
+    selectedLayer = id;
+    current
+      ?.querySelectorAll(".layer")
+      .forEach((n) => n.classList.toggle("selected", n.dataset.id === id));
+    current?.querySelectorAll(".layer.selected").forEach(keepHandlesInCanvas);
+    if (notify) parent.postMessage({ type: "motion-select", id }, "*");
+  }
+  function rememberEdit() {
+    const snapshot = JSON.stringify(deck.pages[index].layers);
+    if (editHistory.at(-1) !== snapshot) editHistory.push(snapshot);
+    if (editHistory.length > 80) editHistory.shift();
+    redoHistory.length = 0;
+  }
+  function emitEdit() {
+    parent.postMessage(
+      {
+        type: "motion-canvas-edit",
+        pageId: deck.pages[index].id,
+        layers: deck.pages[index].layers.map(({ asset, ...l }) => l),
+      },
+      "*",
+    );
+    Promise.all(
+      deck.pages[index].layers
+        .filter((l) => l.type === "text")
+        .map((l) =>
+          document.fonts.load(
+            `${l.fontWeight} 16px "${fonts[l.font]}"`,
+            l.text,
+          ),
+        ),
+    )
+      .then(() => requestAnimationFrame(inspectLayout))
+      .catch(() => {
+        fontLoadFailed = true;
+        inspectLayout();
+      });
+  }
+  function undoCanvas(redo = false) {
+    const from = redo ? redoHistory : editHistory,
+      to = redo ? editHistory : redoHistory;
+    if (!from.length) return;
+    endAudition();
+    to.push(JSON.stringify(deck.pages[index].layers));
+    deck.pages[index].layers = JSON.parse(from.pop());
+    render(false);
+    emitEdit();
+  }
+  function placeLayer(node, l) {
+    Object.assign(node.style, {
+      left: l.x + "px",
+      top: l.y + "px",
+      width: l.w + "px",
+      height: l.h + "px",
+      transform: `rotate(${l.rotation}deg)`,
     });
+    const text = node.querySelector(".text");
+    if (text && !l.fit) text.style.width = l.w + "px";
+    keepHandlesInCanvas(node);
+  }
+  function keepHandlesInCanvas(node) {
+    if (!node.classList.contains("selected")) return;
+    const bounds = stage.getBoundingClientRect();
+    const scale = bounds.width / deck.pages[index].width;
+    const l = deck.pages[index].layers.find((l) => l.id === node.dataset.id);
+    const angle = ((l?.rotation || 0) * Math.PI) / 180;
+    for (const handle of node.querySelectorAll(".move-handle,.resize-handle")) {
+      handle.style.translate = "none";
+      const r = handle.getBoundingClientRect();
+      if (!r.width) continue;
+      const dx =
+        r.left < bounds.left + 2
+          ? bounds.left + 2 - r.left
+          : Math.min(0, bounds.right - 2 - r.right);
+      const dy =
+        r.top < bounds.top + 2
+          ? bounds.top + 2 - r.top
+          : Math.min(0, bounds.bottom - 2 - r.bottom);
+      // Handle offsets are in the rotated layer's local coordinates.
+      handle.style.translate = `${(dx * Math.cos(angle) + dy * Math.sin(angle)) / scale}px ${(-dx * Math.sin(angle) + dy * Math.cos(angle)) / scale}px`;
+    }
+  }
+  function attachEditor(outer, initial) {
+    const getLayer = () =>
+      deck.pages[index].layers.find((l) => l.id === initial.id);
+    const text = outer.querySelector(".text");
+    if (text) {
+      text.contentEditable = "plaintext-only";
+      text.spellcheck = false;
+      text.setAttribute("role", "textbox");
+      text.setAttribute("aria-multiline", "true");
+      text.setAttribute(
+        "aria-label",
+        `编辑文字：${initial.label || initial.text.slice(0, 20)}`,
+      );
+      text.addEventListener("focus", () => {
+        if (audition) endAudition();
+        selectLayer(initial.id);
+      });
+      text.addEventListener("compositionstart", () => {
+        rememberEdit();
+        composing = true;
+      });
+      const input = () => {
+        const value = text.innerText.replace(/\r\n/g, "\n");
+        if (!composing && value !== getLayer().text) rememberEdit();
+        getLayer().text = value;
+        if (!composing) emitEdit();
+      };
+      text.addEventListener("compositionend", () => {
+        composing = false;
+        input();
+      });
+      text.addEventListener("beforeinput", () => {
+        if (!composing) rememberEdit();
+      });
+      text.addEventListener("input", input);
+      text.addEventListener("paste", (e) => {
+        e.preventDefault();
+        document.execCommand(
+          "insertText",
+          false,
+          e.clipboardData.getData("text/plain"),
+        );
+      });
+      text.addEventListener("drop", (e) => e.preventDefault());
+      text.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && !e.isComposing) {
+          text.blur();
+          outer.querySelector(".move-handle")?.focus();
+        }
+      });
+    }
+    for (const resize of [false, true]) {
+      const handle = document.createElement("button");
+      handle.type = "button";
+      handle.className = resize ? "resize-handle" : "move-handle";
+      const icon = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "svg",
+      );
+      icon.setAttribute("viewBox", "0 0 24 24");
+      icon.setAttribute("aria-hidden", "true");
+      const path = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "path",
+      );
+      path.setAttribute(
+        "d",
+        resize
+          ? "M6 6l12 12M10 18h8v-8"
+          : "M12 3v18M3 12h18M8 7l4-4 4 4M8 17l4 4 4-4M7 8l-4 4 4 4M17 8l4 4-4 4",
+      );
+      path.setAttribute("fill", "none");
+      path.setAttribute("stroke", "currentColor");
+      path.setAttribute("stroke-width", "1.7");
+      path.setAttribute("stroke-linecap", "round");
+      path.setAttribute("stroke-linejoin", "round");
+      icon.append(path);
+      handle.append(icon);
+      handle.setAttribute(
+        "aria-label",
+        `${resize ? "调整范围" : "移动"}：${initial.label || initial.id}`,
+      );
+      handle.title = resize
+        ? "拖动调整文本范围；方向键微调，Shift 加速"
+        : "拖动移动；方向键微调，Shift 加速";
+      const applyDelta = (start, dx, dy) => {
+        const l = getLayer(),
+          p = deck.pages[index];
+        if (resize) {
+          const angle = (start.rotation * Math.PI) / 180;
+          l.w = Math.min(
+            p.width - start.x,
+            Math.max(16, start.w + dx * Math.cos(angle) + dy * Math.sin(angle)),
+          );
+          l.h = Math.min(
+            p.height - start.y,
+            Math.max(16, start.h - dx * Math.sin(angle) + dy * Math.cos(angle)),
+          );
+        } else {
+          l.x = Math.min(p.width - l.w, Math.max(0, start.x + dx));
+          l.y = Math.min(p.height - l.h, Math.max(0, start.y + dy));
+        }
+        for (const key of ["x", "y", "w", "h"])
+          l[key] = Math.floor(l[key] * 100) / 100;
+        placeLayer(outer, l);
+      };
+      let drag = null;
+      handle.addEventListener("pointerdown", (e) => {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        if (audition) endAudition();
+        selectLayer(initial.id);
+        text?.blur();
+        handle.focus();
+        rememberEdit();
+        drag = {
+          x: e.clientX,
+          y: e.clientY,
+          layer: { ...getLayer() },
+          scale: stage.getBoundingClientRect().width / deck.pages[index].width,
+        };
+        handle.setPointerCapture(e.pointerId);
+      });
+      handle.addEventListener("pointermove", (e) => {
+        if (!drag) return;
+        applyDelta(
+          drag.layer,
+          (e.clientX - drag.x) / drag.scale,
+          (e.clientY - drag.y) / drag.scale,
+        );
+      });
+      const finish = () => {
+        if (drag) {
+          drag = null;
+          emitEdit();
+        }
+      };
+      handle.addEventListener("pointerup", finish);
+      handle.addEventListener("lostpointercapture", finish);
+      handle.addEventListener("pointercancel", () => {
+        if (!drag) return;
+        Object.assign(getLayer(), drag.layer);
+        placeLayer(outer, getLayer());
+        finish();
+      });
+      handle.addEventListener("keydown", (e) => {
+        const delta = {
+          ArrowLeft: [-1, 0],
+          ArrowRight: [1, 0],
+          ArrowUp: [0, -1],
+          ArrowDown: [0, 1],
+        }[e.key];
+        if (!delta) return;
+        e.preventDefault();
+        rememberEdit();
+        applyDelta(
+          { ...getLayer() },
+          delta[0] * (e.shiftKey ? 10 : 1),
+          delta[1] * (e.shiftKey ? 10 : 1),
+        );
+        emitEdit();
+      });
+      outer.append(handle);
+    }
+  }
+  if (deck.preview) {
+    document.addEventListener("keydown", (e) => {
+      if (composing || e.isComposing) return;
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        undoCanvas(e.shiftKey);
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        parent.postMessage({ type: "motion-save-request" }, "*");
+      }
+    });
+    window.addEventListener("message", async (e) => {
+      if (e.source !== parent) return;
+      if (e.data?.type === "motion-lock") {
+        document.body.classList.toggle("editor-locked", !!e.data.locked);
+        if (e.data.locked) document.activeElement?.blur();
+        current.querySelectorAll(".text[contenteditable]").forEach((n) => {
+          n.contentEditable = e.data.locked ? "false" : "plaintext-only";
+        });
+        return;
+      }
+      if (e.data?.type === "motion-replay") return auditionPage();
+      if (e.data?.type === "motion-stop") return endAudition();
+      if (e.data?.type === "motion-select-layer")
+        return selectLayer(e.data.id, false);
+      if (e.data?.type === "motion-undo") return undoCanvas();
+      if (e.data?.type !== "motion-update" || !Array.isArray(e.data.layers))
+        return;
+      if (composing) return;
+      const p = deck.pages[index];
+      const next = e.data.layers.map((l) => ({
+        ...l,
+        asset: p.layers.find((old) => old.id === l.id)?.asset,
+      }));
+      const sequenceChanged =
+        p.choreography !== (e.data.choreography || "custom");
+      p.choreography = e.data.choreography || "custom";
+      // Input echoes must not replace the focused node or disturb the IME/caret.
+      const changed = next.filter(
+        (l, i) => JSON.stringify(l) !== JSON.stringify(p.layers[i]),
+      );
+      if (audition && (changed.length || sequenceChanged)) endAudition();
+      if (changed.length) rememberEdit();
+      p.layers = next;
+      for (const l of changed) {
+        const node = [...current.querySelectorAll(".layer")].find(
+          (n) => n.dataset.id === l.id,
+        );
+        if (!node) continue;
+        placeLayer(node, l);
+        if (l.type === "text") {
+          const content = node.querySelector(".content");
+          content.replaceChildren();
+          renderText(l, content);
+          // Replace handlers as a unit only for changes originating in the inspector.
+          node
+            .querySelectorAll(".move-handle,.resize-handle")
+            .forEach((h) => h.remove());
+          if (deck.layered) attachEditor(node, l);
+          keepHandlesInCanvas(node);
+          try {
+            await document.fonts.load(
+              `${l.fontWeight} 16px "${fonts[l.font]}"`,
+              l.text,
+            );
+          } catch {
+            fontLoadFailed = true;
+          }
+        }
+      }
+      requestAnimationFrame(inspectLayout);
+    });
+  }
   await document.fonts.ready;
   // Load dynamically inserted CJK glyph ranges before measuring their ink bounds.
   const fontGroups = new Map();
@@ -733,6 +1122,11 @@
   document.getElementById("loading").remove();
   applyMode();
   render(!deck.preview);
+  if (deck.preview)
+    parent.postMessage(
+      { type: "motion-ready", pageId: deck.pages[index].id },
+      "*",
+    );
   speechProgress();
   showControls();
   window.__motionReady = true;

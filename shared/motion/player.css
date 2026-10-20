@@ -202,8 +202,77 @@ button:disabled {
   background: #101214;
 }
 .preview .layer:hover {
-  outline: 2px solid #73b7ff;
+  outline: calc(1px / var(--editor-scale, 1)) solid #94543f;
   cursor: pointer;
+}
+.preview .layer.selected {
+  outline: calc(1.5px / var(--editor-scale, 1)) solid #94543f;
+}
+.preview .text[contenteditable] {
+  cursor: text;
+  outline: none;
+  min-height: 1em;
+  caret-color: currentColor;
+}
+.preview .text[contenteditable]::selection {
+  background: #94543f44;
+}
+.preview button:focus-visible {
+  outline: calc(2px / var(--editor-scale, 1)) solid #542d20;
+  outline-offset: calc(2px / var(--editor-scale, 1));
+}
+.move-handle,
+.resize-handle {
+  display: none;
+  position: absolute;
+  z-index: 3;
+  width: calc(26px / var(--editor-scale, 1));
+  height: calc(26px / var(--editor-scale, 1));
+  padding: 0;
+  border: calc(1px / var(--editor-scale, 1)) solid #fff;
+  border-radius: calc(4px / var(--editor-scale, 1));
+  background: #94543f;
+  color: #fff;
+  font: calc(17px / var(--editor-scale, 1)) system-ui;
+  touch-action: none;
+  user-select: none;
+}
+.move-handle {
+  left: 0;
+  top: 0;
+  transform: translateY(-100%);
+  cursor: move;
+}
+.move-handle svg,
+.resize-handle svg {
+  display: block;
+  width: 70%;
+  height: 70%;
+  margin: 15%;
+}
+.resize-handle {
+  right: 0;
+  bottom: 0;
+  transform: translateY(100%);
+  cursor: nwse-resize;
+}
+.selected > .move-handle,
+.selected > .resize-handle,
+.layer:focus-within > .move-handle,
+.layer:focus-within > .resize-handle {
+  display: block;
+}
+.preview.audition .layer,
+.preview.audition .layer:hover {
+  outline: none;
+  pointer-events: none;
+}
+.editor-locked .scene {
+  pointer-events: none;
+}
+.audition .move-handle,
+.audition .resize-handle {
+  display: none;
 }
 #speech-status {
   position: fixed;

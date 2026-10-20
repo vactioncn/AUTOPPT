@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-20T00:02:49Z",
+  "generatedAt": "2026-10-20T00:30:46Z",
   "title": "Design System: AutoPPT",
   "extensions": {
     "presenterStudio": {
@@ -776,14 +776,19 @@
       }
     },
     "layeredPresentation": {
-      "recordedAt": "2026-10-20T00:02:49Z",
+      "recordedAt": "2026-10-20T00:30:46Z",
       "scope": "Operate-mode extension of the incumbent warm working interface for the local layered presentation trial. Existing global tokens, identity and unrelated records are preserved.",
       "directionContract": ".impeccable/layered-speech.md",
-      "documentation": "docs/分层演讲-制作与编辑试用.md",
+      "documentation": [
+        "docs/分层演讲-制作与编辑试用.md",
+        "docs/分层演讲-画布编辑与动效编排.md"
+      ],
       "sources": [
         "src/MotionPresentation.tsx",
         "src/motion.css",
-        "shared/motion/player.js"
+        "shared/motion/player.js",
+        "shared/motion/player.css",
+        "shared/motion/choreography.mjs"
       ],
       "layout": {
         "desktopColumns": "120px minmax(0, 1fr) 250px",
@@ -793,10 +798,85 @@
         "footer": "Non-scrolling flex item with opaque inspector surface and top border.",
         "shortDesktopPreview": "At min-width: 1000px and max-height: 800px, width is min(100%, calc((100dvh - 420px) * 16 / 9)); aspect ratio remains 16:9.",
         "compact": "At max-width: 950px, inspector follows preview with automatic height and fields in normal flow.",
-        "mobile": "At max-width: 600px, stack preview and fields beneath a horizontal page sequence; toolbar actions wrap."
+        "mobile": "At max-width: 600px, stack preview and fields beneath a horizontal page sequence; toolbar actions wrap.",
+        "inspectorModes": "Two labeled buttons, 文字排版 / 页面动效, use aria-pressed in an editing-options group. The buttons and named layer selector remain above the scrolling fields.",
+        "canvasActions": "One-step local undo and draft audition remain beside the canvas; saved-page and deck playback remain in the top toolbar."
       },
-      "normalizationBoundary": "The local darker terracotta and warm inspector fill are scoped component treatments. Slide fonts, sizes, colors and geometry are authored content, not UI type tokens. No generic composition template or automatic text shrink/stretch rule is introduced.",
-      "verificationBoundary": "No final visual-review verdict is recorded here. The generation pipeline is mock-tested; five existing style fixtures are exercised in an isolated workspace. This record does not claim a live-model five-style run, installed-App replacement or native/cross-system PowerPoint acceptance."
+      "normalizationBoundary": "The darker terracotta, warm inspector fill, SVG canvas handles and selection treatments stay scoped to this editor. Slide fonts, sizes, colors and geometry are authored content, not UI type tokens. No generic composition template, automatic text shrink/stretch rule or claim of all 24 structural components is introduced.",
+      "verificationBoundary": "Browser evidence covers five existing styles, direct text replacement/continued typing, newline overflow blocking, keyboard move/resize, local undo, save/saved undo, audition and desktop/mobile layouts. Real pointer top-edge move, bottom-edge resize and undo were checked in a standalone preview using the same canvas editor; embedded-iframe pointer automation remains limited. Physical IME candidate UI, OS reduced-motion switching, device frame rates and native/cross-system PowerPoint opening remain unverified. The full generation path is mock-tested; no new live-model run, installed-App replacement or existing-project migration is claimed.",
+      "canvasEditing": {
+        "text": "Direct plaintext editing, selection, line breaks and paste on the actual text. Input echoes preserve the focused node and caret; composition guards defer external updates during IME input.",
+        "geometry": "Named SVG move/resize buttons retain their on-screen size as the canvas scales and are clamped inside canvas edges. Arrow keys change one canvas unit; Shift changes ten. Resizing changes the text area, not the chosen font size or glyph proportions.",
+        "feedback": "Warm local terracotta selection outlines and handles follow the inspector accent; the caret inherits authored text color. Wait for font/layout checks and block saving on overflow.",
+        "history": "Canvas one-step undo and undo/redo shortcuts restore local layer edits. Footer controls separately save, discard the unsaved draft or undo the last save. Saving checks record revision; typing and audition do not persist changes or call models."
+      },
+      "motion": {
+        "presets": [
+          {
+            "id": "story",
+            "label": "叙事镜头",
+            "behavior": "Background settles and text follows semantic groups.",
+            "references": [
+              "M06",
+              "M07"
+            ]
+          },
+          {
+            "id": "focus",
+            "label": "金句聚焦",
+            "behavior": "Largest text comes into focus before supporting text.",
+            "references": [
+              "M03",
+              "M04"
+            ]
+          },
+          {
+            "id": "chapter",
+            "label": "章节开场",
+            "behavior": "Headline settles from a slight expansion; details follow.",
+            "references": [
+              "M01",
+              "M02"
+            ]
+          },
+          {
+            "id": "editorial",
+            "label": "阅读节奏",
+            "behavior": "A restrained horizontal entrance staggers text within each group.",
+            "references": [
+              "M06",
+              "M09"
+            ]
+          },
+          {
+            "id": "contrast",
+            "label": "两侧对话",
+            "behavior": "Actual left/right layer position determines entrance direction.",
+            "references": [
+              "M14",
+              "M15"
+            ]
+          },
+          {
+            "id": "progression",
+            "label": "层层推进",
+            "behavior": "Existing speaking steps control progressive rising entrances.",
+            "references": [
+              "M05",
+              "M09",
+              "M13"
+            ]
+          }
+        ],
+        "compatibility": "原有编排 preserves existing per-layer effects; missing choreography retains that custom behavior. The six presets animate existing layers only, not all 24 structural expressions.",
+        "entranceDuration": "650–950ms",
+        "easing": "cubic-bezier(.16,1,.3,1)",
+        "maximumStaggerDelay": "1400ms",
+        "focusBlur": "At most 3px; returns to zero.",
+        "backgroundSettle": "Story/chapter only: scale(1.025) / opacity 0.82 to scale(1) / opacity 1 over 1200ms.",
+        "reducedMotion": "120ms opacity-only fades with zero stagger; no spatial movement, blur or background settle.",
+        "continuity": "Finite entrances end in saved geometry. Replay, backward steps, page changes and edits cancel transient animations. Draft audition temporarily shows the whole page, then returns to editing; whole-page playback skips entrances."
+      }
     }
   },
   "components": [
@@ -966,12 +1046,17 @@
       },
       {
         "name": "The Bounded Edit Loop Rule",
-        "body": "Keep playback actions in the top toolbar and save/undo in an opaque, non-scrolling inspector footer. On desktop, only the field body scrolls; the playback-mode and layer selectors stay above it. On narrow screens, release the inspector height and let fields follow the preview in normal document flow.",
+        "body": "Keep saved-page and deck playback in the top toolbar, draft audition and one-step undo beside the canvas, and save/draft-discard/saved-undo in an opaque, non-scrolling inspector footer. On desktop, only the field body scrolls; the two inspector mode buttons and layer selector stay above it. On narrow screens, release the inspector height and let fields follow the preview in normal document flow.",
         "section": "layout"
       },
       {
         "name": "The Natural Text Rule",
         "body": "Preserve natural glyph shapes and the explicitly chosen font size. For layered text, wait for font/layout checks and block saving on overflow; explain the correction beside the save action instead of silently shrinking or stretching text.",
+        "section": "components"
+      },
+      {
+        "name": "The Authored Layer Motion Rule",
+        "body": "Choose motion from the content and existing layer relationships. The six page choreographies—“叙事镜头”, “金句聚焦”, “章节开场”, “阅读节奏”, “两侧对话” and “层层推进”—use semantic groups, largest text, actual left/right position or speaking steps; “原有编排” preserves custom layer effects. These adapt suitable expressions from the 24-expression reference without creating their structural components, inventing data or changing saved geometry.",
         "section": "components"
       }
     ],

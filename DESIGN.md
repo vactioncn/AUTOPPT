@@ -249,7 +249,7 @@ The confirmed public identity is **讲好 · AI 演讲工作台 · 从一份讲�
 
 The current source also unifies the product display name, workbench headers, menus and shared mark as 讲好. App and workspace body text now use `Jianghao Sans` with DM Sans and system fallbacks; their established studio palette, layout, type sizes and control dimensions remain. The installed `/Applications/AutoPPT.app` has not been replaced or restarted by this source update. Its filename, data paths and project-package identifiers remain AutoPPT.
 
-The local “分层制作 · 试用” surface extends this same working identity: a complete slide preview, compact labeled controls and explicit save state. Its authored text and background keep the presentation’s own style. This is a scoped source-workbench extension; implementation and validation boundaries remain in `.impeccable/layered-speech.md` and `docs/分层演讲-制作与编辑试用.md`.
+The local “分层制作 · 试用” surface extends this same working identity: a complete slide canvas with direct text editing, compact labeled controls and explicit save state. Its authored text and background keep the presentation’s own style. This is a scoped source-workbench extension; implementation and validation boundaries remain in `.impeccable/layered-speech.md`, `docs/分层演讲-制作与编辑试用.md` and `docs/分层演讲-画布编辑与动效编排.md`.
 
 ## Colors
 
@@ -325,7 +325,7 @@ The local motion workbench uses a wide dialog, with a page rail, flexible comple
 
 At 950px and below the inspector moves beneath the preview and releases its height constraint. At 600px and below the workbench stacks, the page rail becomes a horizontal sequence, and toolbar actions wrap. These are local editing-surface breakpoints, not replacements for the App shell’s breakpoints.
 
-**The Bounded Edit Loop Rule.** Keep playback actions in the top toolbar and save/undo in an opaque, non-scrolling inspector footer. On desktop, only the field body scrolls; the playback-mode and layer selectors stay above it. On narrow screens, release the inspector height and let fields follow the preview in normal document flow.
+**The Bounded Edit Loop Rule.** Keep saved-page and deck playback in the top toolbar, draft audition and one-step undo beside the canvas, and save/draft-discard/saved-undo in an opaque, non-scrolling inspector footer. On desktop, only the field body scrolls; the two inspector mode buttons and layer selector stay above it. On narrow screens, release the inspector height and let fields follow the preview in normal document flow.
 
 ### Public Brand Layout — 2026-10-12
 
@@ -419,15 +419,21 @@ The current workflow produces images and exposes single-image download and proje
 
 ### Layered Presentation Trial
 
-“分层制作 · 试用” opens an independent local presentation record. The editor reuses the shared buttons, labeled white fields, fine borders and warm working surfaces. A darker local terracotta marks selected pages, disclosure headings, carets and keyboard focus; this supporting treatment does not recolor the authored slide or replace the global action color. Interface text retains the working type ramp; slide fonts, sizes, colors and spacing belong to the presentation.
+“分层制作 · 试用” opens an independent local presentation record. The editor reuses the shared buttons, labeled white fields, fine borders and warm working surfaces. A darker local terracotta marks selected pages, disclosure headings, inspector focus and canvas selection outlines/handles; the canvas caret inherits the authored text color. This supporting treatment does not recolor the authored slide or replace the global action color. Interface text retains the working type ramp; slide fonts, sizes, colors and spacing belong to the presentation.
 
-Clicking canvas text or selecting a named layer selects the content shown in the same editing controls. Text, built-in font, supported weight, size, color and tracking are directly available. Geometry, effect, step, delay and duration live in the native “位置与出场顺序” disclosure. “自然出场”, “逐步讲述 · 点击下一步” and “整页静态” are saved per page; page and full-deck playback actions remain in the top toolbar and are disabled while edits are unsaved.
+Click the actual main text to type, select, insert line breaks or paste plain text in place. Input echoes retain the focused node and caret; composition guards defer external updates during IME input. Named SVG handles move the layer or resize its text area, with scale-compensated targets kept inside the canvas edges. Handle arrow keys adjust one canvas unit, or ten with Shift. Moving or resizing changes geometry while preserving the chosen font size and natural glyph shapes. Artistic lettering already in the background remains artwork.
+
+“文字排版” and “页面动效” are two labeled buttons with explicit pressed state. The former exposes built-in font, supported weight, size, color and tracking; geometry and speaking step remain in “位置与出场顺序”, with individual effect, delay and duration available for “原有编排”. The latter exposes page choreography and “自然出场”, “逐步讲述 · 点击下一步” or “整页静态”. “试播动效” beside the canvas auditions the current draft and returns it to editable geometry when stopped or finished. Saved-page and full-deck playback remain in the top toolbar and are disabled while edits are unsaved.
 
 **The Natural Text Rule.** Preserve natural glyph shapes and the explicitly chosen font size. For layered text, wait for font/layout checks and block saving on overflow; explain the correction beside the save action instead of silently shrinking or stretching text.
 
-The stable action footer holds the primary save action, overflow/status text, and either draft undo or the last-save undo when available. The managed player’s “暂停改字” pauses playback and opens the matching editor page. Saving refreshes that player without discarding the current page or speaking step; the speaker chooses when to continue. The status copy explicitly distinguishes screen text from the manuscript and existing narration. Offline playback has no workbench-edit action.
+**The Authored Layer Motion Rule.** Choose motion from the content and existing layer relationships. The six page choreographies—“叙事镜头”, “金句聚焦”, “章节开场”, “阅读节奏”, “两侧对话” and “层层推进”—use semantic groups, largest text, actual left/right position or speaking steps; “原有编排” preserves custom layer effects. These adapt suitable expressions from the 24-expression reference without creating their structural components, inventing data or changing saved geometry.
 
-This extension does not turn the ordinary image workflow into an element editor. The full generation path is mock-tested; the five-style trial reuses existing artwork in an isolated workspace. This design record makes no screenshot-review, live-model-quality, installed-App or cross-system PowerPoint acceptance claim; those results belong in the linked trial documentation.
+The six choreographies use finite transform/opacity entrances (650–950ms, `cubic-bezier(.16,1,.3,1)`) with total stagger delay capped at 1.4s. Focus briefly adds at most 3px blur; story and chapter can settle the background over 1.2s. Replay, stepping backward, page changes and edits cancel transient animations. Final layout is the saved layout. Reduced motion uses 120ms fades without spatial movement, blur, background zoom or stagger; whole-page mode skips entrances.
+
+The canvas’s “撤销一步” and its undo/redo shortcuts restore local layer edits. The stable footer separately holds explicit save, overflow/status text, “撤销修改” for unsaved changes, or “撤销上次保存” when available. Saving checks the record revision; typing and audition do not persist changes or call a model. The managed player’s “暂停改字” pauses playback and opens the matching editor page. Saving refreshes that player without discarding the current page or speaking step; the speaker chooses when to continue. Status copy distinguishes screen text from the manuscript and existing narration. Offline playback has no workbench-edit action.
+
+The five-style trial reuses existing artwork in a fresh isolated workspace; the full generation path is mock-tested. Browser evidence covers direct replacement/continued typing, line-break overflow blocking, keyboard move/resize, local undo, save/saved undo, audition and desktop/mobile layouts. Real pointer movement at the top edge, resizing at the bottom edge and undo were checked in a standalone preview using the same canvas editor; embedded-iframe pointer automation remains limited. Physical IME candidate UI, the OS reduced-motion switch, device frame rates and native/cross-system PowerPoint opening remain unverified. This source-workbench record does not imply a new live-model run, installed-App replacement or migration of existing projects; detailed evidence belongs in the linked trial documentation.
 
 ### Content Attachments
 

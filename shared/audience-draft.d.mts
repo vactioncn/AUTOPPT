@@ -3,6 +3,7 @@ export type AudienceDraftState = {
   error: string;
 };
 export function createAudienceDraft(options: {
+  autoGenerate?: boolean;
   generate: (
     description: string,
     signal: AbortSignal,
@@ -18,5 +19,6 @@ export function createAudienceDraft(options: {
     context: string;
   }): void;
   retry(): void;
+  cancel(): void;
   dispose(): void;
 };

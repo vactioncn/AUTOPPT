@@ -1,3 +1,8 @@
+import {
+  AUDIENCE_PRESETS,
+  audiencePreset,
+  audiencePresetId,
+} from "../shared/audience-presets.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { AUDIENCE_BRIEF_EXAMPLE } from "../server/audience-brief.mjs";
@@ -140,4 +145,20 @@ test("palette extraction requires exact source evidence and does not invent hex 
   const prompt = palettePrompt({ palette: output.palette });
   assert.match(prompt, /仅替换风格原文中冲突的颜色/);
   assert.match(prompt, /承载事实的颜色编码/);
+});
+
+test("industry presets save in the existing schema without a model or shared-style mutation", () => {
+  assert.equal(new Set(AUDIENCE_PRESETS.map((p) => p.id)).size, 9);
+  assert.equal(audiencePresetId(null), "none");
+  assert.equal(audiencePreset("none"), null);
+  for (const p of AUDIENCE_PRESETS) {
+    const audience = audiencePreset(p.id);
+    assert.deepEqual(designOptions({ audience }), { audience, palette: null });
+    assert.equal(audiencePresetId(audience), p.id);
+    assert.match(audience.brief, /不新增事实/);
+    assert.match(audience.brief, /不改变所选风格/);
+    audience.brief += "用户修改";
+    assert.equal(audiencePresetId(audience), "custom");
+    assert.notEqual(audiencePreset(p.id).brief, audience.brief);
+  }
 });

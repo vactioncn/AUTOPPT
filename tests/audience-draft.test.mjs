@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createAudienceDraft } from "../shared/audience-draft.mjs";
 
-function fixture() {
+function fixture(options = {}) {
   let clock = 0,
     id = 0;
   const timers = new Map(),
@@ -10,6 +10,7 @@ function fixture() {
     results = [],
     states = [];
   const draft = createAudienceDraft({
+    ...options,
     setTimer: (fn, ms) => {
       timers.set(++id, { at: clock + ms, fn });
       return id;
@@ -127,5 +128,57 @@ test("saved briefs and manual edits do not trigger model calls, explicit regener
   f.calls[0].resolve(result("已有受众"));
   await settle();
   assert.deepEqual(f.results, [result("已有受众")]);
+  f.draft.dispose();
+});
+
+test("manual drafts never call a model for typing, presets, remounts or style changes", async () => {
+  const f = fixture({ autoGenerate: false });
+  for (const change of [
+    { description: "面向老师", composing: true },
+    { composing: false },
+    { description: "面向小学老师" },
+    { context: "new-style" },
+    { brief: "内置行业说明" },
+    { enabled: false },
+    { enabled: true, brief: "" },
+  ]) {
+    f.update(change);
+    f.advance(10000);
+    assert.equal(f.calls.length, 0);
+  }
+  f.draft.retry();
+  f.advance(0);
+  assert.equal(f.calls.length, 1);
+  f.calls[0].resolve(result("面向小学老师"));
+  await settle();
+  assert.deepEqual(f.results, [result("面向小学老师")]);
+  f.draft.dispose();
+});
+
+test("cancel releases a manual blocking dialog and late replies cannot overwrite the next choice", async () => {
+  const f = fixture({ autoGenerate: false });
+  f.update({ description: "自定义受众" });
+  f.draft.retry();
+  f.advance(0);
+  f.draft.cancel();
+  assert(f.calls[0].signal.aborted);
+  assert.equal(f.states.at(-1).status, "idle");
+  f.calls[0].resolve(result("迟到的自定义受众"));
+  await settle();
+  assert.deepEqual(f.results, []);
+  f.advance(10000);
+  assert.equal(f.calls.length, 1);
+  f.draft.retry();
+  f.advance(0);
+  f.calls[1].reject(new Error("内容模型暂时不可用"));
+  await settle();
+  assert.equal(f.states.at(-1).status, "error");
+  f.advance(10000);
+  assert.equal(f.calls.length, 2);
+  f.draft.retry();
+  f.advance(0);
+  f.calls[2].resolve(result("自定义受众"));
+  await settle();
+  assert.deepEqual(f.results, [result("自定义受众")]);
   f.draft.dispose();
 });

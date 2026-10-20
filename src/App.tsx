@@ -11,11 +11,7 @@ import {
 } from "./onboarding";
 import { useAccount, AccountFooter, AccountPage } from "./Account";
 import { DeleteItem } from "./DeleteItem";
-import {
-  DesignOptionsEditor,
-  emptyDesignOptions,
-  validDesignOptions,
-} from "./DesignOptionsEditor";
+import { NewProject, type NewProjectDraft } from "./NewProject";
 import { SceneView } from "./SceneView";
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
@@ -36,9 +32,9 @@ import {
   SpinnerGap,
   Coins,
 } from "@phosphor-icons/react";
-import { api, post, asset, formatDate, active } from "./api";
+import { api, asset, formatDate, active } from "./api";
 import type { Bootstrap, ProjectSummary, Style, Project } from "./types";
-import { Button, Modal, Field, StylePreview } from "./components";
+import { Button, StylePreview } from "./components";
 import { Workspace } from "./Workspace";
 import { projectArea } from "./project-journey";
 import { StyleLibrary } from "./StyleLibrary";
@@ -441,7 +437,9 @@ export default function App() {
               curated={account.hosted}
               promptRepair={styleRepair}
               onReturn={
-                creationDraft ? (styleId) => create(styleId, true) : undefined
+                creationDraft
+                  ? (styleId) => create(styleId || creationDraft.styleId, true)
+                  : undefined
               }
               urlImportAvailable={!!data.features?.styleUrlImport}
               styles={offered}
@@ -786,175 +784,5 @@ function ProjectHome({
         </>
       )}
     </div>
-  );
-}
-type NewProjectDraft = {
-  title: string;
-  choices: typeof emptyDesignOptions;
-  advanced: boolean;
-};
-function NewProject({
-  styles,
-  initialStyle,
-  initialDraft,
-  onStyles,
-  onClose,
-  onCreated,
-}: {
-  styles: Style[];
-  initialStyle: string;
-  initialDraft: NewProjectDraft | null;
-  onStyles: (draft: NewProjectDraft) => void;
-  onClose: () => void;
-  onCreated: (p: Project) => void;
-}) {
-  const [advanced, setAdvanced] = useState(initialDraft?.advanced || false);
-  const [choices, setChoices] = useState(
-    initialDraft?.choices || emptyDesignOptions,
-  );
-  const [optionsBusy, setOptionsBusy] = useState(false);
-  const [title, setTitle] = useState(initialDraft?.title || ""),
-    [styleId, setStyleId] = useState(initialStyle),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (
-      busy ||
-      optionsBusy ||
-      !title.trim() ||
-      !validDesignOptions(choices) ||
-      !styles.some((s) => s.id === styleId && s.rules && !s.deletedAt)
-    )
-      return;
-    setBusy(true);
-    setError("");
-    try {
-      onCreated(
-        await post("/projects", { title, styleId, designOptions: choices }),
-      );
-    } catch (e) {
-      setError((e as Error).message);
-      setBusy(false);
-    }
-  };
-  return (
-    <Modal
-      title="开始一场新的演讲"
-      subtitle="先写主题就能开始。风格、受众和配色以后都能修改。"
-      onClose={onClose}
-    >
-      <form onSubmit={submit} className="new-project-form">
-        <div className="new-project-scroll">
-          <Field label="演讲主题">
-            <input
-              autoFocus
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="例如：儿童摄影行业的下一步"
-              maxLength={100}
-              required
-            />
-          </Field>
-          <div className="new-project-style">
-            <div>
-              <span>当前默认风格</span>
-              <strong>
-                {styles.find((s) => s.id === styleId && s.rules && !s.deletedAt)
-                  ?.name || "暂无可用风格"}
-              </strong>
-            </div>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setAdvanced(true)}
-            >
-              更换
-            </Button>
-          </div>
-          {!styles.some((s) => s.rules && !s.deletedAt) && (
-            <div className="small-notice">
-              <p>
-                风格库还没有可用风格。填写风格提示词并保存后，即可回来创建演讲。
-              </p>
-              <Button
-                type="button"
-                onClick={() => onStyles({ title, choices, advanced })}
-              >
-                前往风格库创建
-              </Button>
-            </div>
-          )}
-          <details
-            className="new-project-options"
-            open={advanced}
-            onToggle={(event) => setAdvanced(event.currentTarget.open)}
-          >
-            <summary>个性化设置，可稍后修改</summary>
-            <div className="field">
-              <span>选择视觉风格</span>
-              <div className="style-choice-grid">
-                {styles
-                  .filter((s) => !!s.rules && !s.deletedAt)
-                  .map((s) => (
-                    <button
-                      type="button"
-                      className={`style-choice ${styleId === s.id ? "chosen" : ""}`}
-                      key={s.id}
-                      aria-pressed={styleId === s.id}
-                      onClick={() => setStyleId(s.id)}
-                    >
-                      <StylePreview style={s} compact />
-                      <span>
-                        {s.name}
-                        {s.id === DEFAULT_STYLE_ID && " · 内置默认"}
-                        {styleId === s.id && (
-                          <CheckCircle weight="fill" size={17} />
-                        )}
-                      </span>
-                    </button>
-                  ))}
-              </div>
-              <small>
-                {styles.some((s) => s.rules && !s.deletedAt)
-                  ? "后续添加的页面将沿用这个风格。"
-                  : "风格库暂时没有可用风格，请先填写提示词创建风格。"}
-              </small>
-            </div>
-            <DesignOptionsEditor
-              value={choices}
-              onChange={setChoices}
-              styleId={styleId}
-              disabled={busy}
-              onBusyChange={setOptionsBusy}
-            />
-          </details>
-          {error && (
-            <p className="error-text" role="alert">
-              {error}
-            </p>
-          )}
-        </div>
-        <div className="modal-actions">
-          <Button onClick={onClose} type="button">
-            取消
-          </Button>
-          <Button
-            type="submit"
-            variant="primary"
-            loading={busy}
-            disabled={
-              optionsBusy ||
-              !validDesignOptions(choices) ||
-              !title.trim() ||
-              !styles.some((s) => s.id === styleId && s.rules && !s.deletedAt)
-            }
-          >
-            创建并写第一段
-            <ArrowRight size={17} />
-          </Button>
-        </div>
-      </form>
-    </Modal>
   );
 }

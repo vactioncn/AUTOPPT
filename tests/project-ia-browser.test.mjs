@@ -1394,22 +1394,27 @@ test(
       },
     );
     await scenario(
-      "minimal project form retains advanced choices and focuses composer after real creation",
+      "two-step project form retains choices and focuses composer after real creation",
       async () => {
         await card.getByRole("button", { name: "开始第一个演讲" }).click();
         const dialog = page.getByRole("dialog");
         await expect(
           dialog.getByLabel("演讲主题", { exact: true }),
         ).toBeVisible();
-        await expect(dialog.locator(".style-choice-grid")).toBeHidden();
-        await expect(dialog.getByLabel("内容倾向（可选）")).toBeHidden();
+        await expect(dialog.locator(".style-choice-grid")).toBeVisible();
+        await expect(dialog.locator(".audience-preset-grid")).toBeHidden();
         await dialog
           .getByLabel("演讲主题", { exact: true })
           .fill("隔离的新手演讲");
-        await shot("create-collapsed", dialog);
-        await dialog.getByRole("button", { name: "更换", exact: true }).click();
-        await expect(dialog.locator(".style-choice-grid")).toBeVisible();
-        await expect(dialog.getByLabel("内容倾向（可选）")).toBeVisible();
+        await shot("create-style", dialog);
+        await dialog.getByRole("button", { name: "下一步 · 内容倾向", exact: true }).click();
+        await expect(dialog.locator(".audience-preset-grid")).toBeVisible();
+        await dialog.getByRole("button", { name: /摄影影像/ }).click();
+        await dialog.getByRole("button", { name: "上一步", exact: true }).click();
+        await expect(dialog.getByLabel("演讲主题", { exact: true })).toHaveValue("隔离的新手演讲");
+        await dialog.getByRole("button", { name: "下一步 · 内容倾向", exact: true }).click();
+        await expect(dialog.getByRole("button", { name: /摄影影像/ })).toHaveAttribute("aria-pressed", "true");
+        await dialog.getByText("配色调整（可选）", { exact: true }).click();
         await expect(dialog.locator(".palette-grid")).toBeVisible();
         await dialog.locator(".new-project-scroll").evaluate((el) => {
           el.scrollTop = 0;
@@ -1454,18 +1459,17 @@ test(
           el.style.removeProperty("--new-project-safe-bottom"),
         );
         await page.setViewportSize({ width: 1280, height: 800 });
-        await dialog.getByLabel("内容倾向（可选）").fill("面向新同事");
-        await expect(dialog.locator(".audience-status")).toContainText("内容倾向方案已就绪");
-        assert.equal(await dialog.locator(".audience-details").getAttribute("open"), null);
-        await expect(dialog.getByRole("button", { name: "重新生成说明" })).toBeVisible();
-        await dialog.getByText("展开说明（可选）", { exact: true }).click();
+        await dialog.getByRole("button", { name: /定制我的内容倾向/ }).click();
+        await dialog.getByLabel("受众与场景").fill("面向新同事");
+        await expect(dialog.getByRole("button", { name: "创建并写第一段" })).toBeDisabled();
+        await expect(dialog.getByRole("button", { name: "生成专属倾向" })).toBeVisible();
+        await dialog.getByRole("button", { name: "生成专属倾向" }).click();
+        await expect(dialog.locator(".audience-ready")).toContainText("专属倾向已就绪");
+        await dialog.getByText("查看并修改说明", { exact: true }).click();
         await expect(dialog.getByLabel("受众与行业语境（可编辑）")).toHaveValue("隔离测试说明：面向新同事");
-        await dialog.locator(".palette-grid").scrollIntoViewIfNeeded();
-        await shot("create-advanced-settings", dialog);
-        await dialog.getByLabel("内容倾向（可选）").fill("");
-        await dialog
-          .getByText("个性化设置，可稍后修改", { exact: true })
-          .click();
+        await dialog.getByLabel("受众与行业语境（可编辑）").fill("我审阅后的说明");
+        await shot("create-custom-ready", dialog);
+        await dialog.getByRole("button", { name: /通用 · 不限定行业/ }).click();
         await dialog.getByRole("button", { name: "创建并写第一段" }).click();
         await expect(
           page.getByLabel("添加逐字稿", { exact: true }),
@@ -1763,8 +1767,6 @@ test(
         await expect(page.getByLabel("演讲主题", { exact: true })).toHaveValue(
           "保留中的主题",
         );
-        await button("更换").click();
-        await page.getByLabel("内容倾向（可选）").fill("新同事的受众草稿");
         await page.getByRole("dialog").getByRole("button", { name: "前往风格库创建", exact: true }).click();
         await page.getByLabel("风格名称", { exact: true }).fill("隔离手写风格");
         await page
@@ -1777,10 +1779,7 @@ test(
         await expect(page.getByLabel("演讲主题", { exact: true })).toHaveValue(
           "保留中的主题",
         );
-        await expect(page.getByLabel("内容倾向（可选）")).toHaveValue(
-          "新同事的受众草稿",
-        );
-        await expect(page.locator(".new-project-style")).toContainText(
+        await expect(page.locator(".creation-style-summary")).toContainText(
           "隔离手写风格",
         );
         await page
@@ -1807,21 +1806,16 @@ test(
         const newProject = () => page.getByRole("complementary").getByRole("button", { name: "新建演讲项目", exact: true }).click();
         await newProject();
         await page.getByLabel("演讲主题", { exact: true }).fill("应当放弃的主题");
-        await button("更换").click();
-        await page.getByLabel("内容倾向（可选）").fill("应当放弃的高级选项");
         await page.getByRole("dialog").getByRole("button", { name: "前往风格库创建", exact: true }).click();
         await button("关闭").click();
         await button("返回新建演讲").click();
         await expect(page.getByLabel("演讲主题", { exact: true })).toHaveValue("应当放弃的主题");
-        await expect(page.getByLabel("内容倾向（可选）")).toHaveValue("应当放弃的高级选项");
         await page.getByRole("dialog").getByRole("button", { name: "前往风格库创建", exact: true }).click();
         await button("关闭").click();
         await page.getByRole("navigation", { name: "主导航" }).getByRole("button", { name: "项目", exact: true }).click();
         await newProject();
         await expect(page.getByLabel("演讲主题", { exact: true })).toHaveValue("");
-        await expect(page.getByLabel("内容倾向（可选）")).toBeHidden();
-        await button("更换").click();
-        await expect(page.getByLabel("内容倾向（可选）")).toHaveValue("");
+        await expect(page.locator(".audience-preset-grid")).toBeHidden();
         await button("关闭").click();
         await page.getByRole("navigation", { name: "主导航" }).getByRole("button", { name: /风格库/ }).click();
         await expect(page.locator(".styles-page")).toBeVisible();

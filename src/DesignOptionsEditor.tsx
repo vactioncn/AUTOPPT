@@ -33,6 +33,7 @@ export function DesignOptionsEditor({
   rules,
   disabled = false,
   onBusyChange,
+  hideAudience = false,
 }: {
   value: DesignOptions;
   onChange: (value: DesignOptions) => void;
@@ -40,6 +41,7 @@ export function DesignOptionsEditor({
   rules?: string;
   disabled?: boolean;
   onBusyChange?: (busy: boolean) => void;
+  hideAudience?: boolean;
 }) {
   const [supported, setSupported] = useState<boolean | null>(null);
   const [draftState, setDraftState] = useState<AudienceDraftState>({
@@ -92,7 +94,7 @@ export function DesignOptionsEditor({
     draft.current?.update({
       description: value.audience?.description || "",
       brief: value.audience?.brief || "",
-      enabled: supported === true && !disabled,
+      enabled: supported === true && !disabled && !hideAudience,
       composing,
       context: JSON.stringify([styleId, rules]),
     });
@@ -101,6 +103,7 @@ export function DesignOptionsEditor({
     value.audience?.brief,
     supported,
     disabled,
+    hideAudience,
     composing,
     styleId,
     rules,
@@ -126,77 +129,81 @@ export function DesignOptionsEditor({
       : ["#FFFFFF", "#202020", "#3972B8"];
   return (
     <div className="design-options-editor simple-options">
-      <Field label="内容倾向（可选）">
-        <input
-          value={value.audience?.description || ""}
-          disabled={locked}
-          onCompositionStart={() => setComposing(true)}
-          onCompositionEnd={() => setComposing(false)}
-          maxLength={2000}
-          placeholder="默认不调整；例如：面向儿童摄影影楼老板"
-          onChange={(e) =>
-            onChange({
-              ...value,
-              audience: e.target.value.trim()
-                ? { description: e.target.value, brief: "" }
-                : null,
-            })
-          }
-        />
-      </Field>
-      <small>
-        写一句受众、行业或使用场景，停止输入后 AI
-        自动生成说明。留空沿用原内容，不补充原稿没有的观点。
-      </small>
-      {value.audience && (
-        <div className="audience-status" role="status" aria-live="polite">
-          <span>
-            {draftState.status === "generating"
-              ? "正在生成内容倾向方案…"
-              : draftState.status === "waiting"
-                ? "输入完成后将自动生成方案…"
-                : draftState.status === "error"
-                  ? "暂未生成说明，当前简述仍可使用。"
-                  : value.audience.brief.trim()
-                    ? "内容倾向方案已就绪，可展开查看或修改。"
-                    : "将按当前简述生成方案。"}
-          </span>
-          <Button
-            type="button"
-            variant="ghost"
-            disabled={locked || busy}
-            onClick={() => draft.current?.retry()}
-          >
-            {draftState.status === "error" ? "重试" : "重新生成说明"}
-          </Button>
-        </div>
-      )}
-      {draftState.error && (
-        <p role="alert" className="error-text">
-          {draftState.error}
-        </p>
-      )}
-      {value.audience && (
-        <details className="audience-details">
-          <summary>展开说明（可选）</summary>
-          <p className="detail-help">
-            这里仅用于查看或编辑说明，不影响自动生成。修改上方简述会自动更新方案；手动编辑的说明会保留。
-          </p>
-          <Field label="受众与行业语境（可编辑）">
-            <textarea
-              rows={12}
-              maxLength={10000}
+      {!hideAudience && (
+        <>
+          <Field label="内容倾向（可选）">
+            <input
+              value={value.audience?.description || ""}
               disabled={locked}
-              value={value.audience.brief}
+              onCompositionStart={() => setComposing(true)}
+              onCompositionEnd={() => setComposing(false)}
+              maxLength={2000}
+              placeholder="默认不调整；例如：面向儿童摄影影楼老板"
               onChange={(e) =>
                 onChange({
                   ...value,
-                  audience: { ...value.audience!, brief: e.target.value },
+                  audience: e.target.value.trim()
+                    ? { description: e.target.value, brief: "" }
+                    : null,
                 })
               }
             />
           </Field>
-        </details>
+          <small>
+            写一句受众、行业或使用场景，停止输入后 AI
+            自动生成说明。留空沿用原内容，不补充原稿没有的观点。
+          </small>
+          {value.audience && (
+            <div className="audience-status" role="status" aria-live="polite">
+              <span>
+                {draftState.status === "generating"
+                  ? "正在生成内容倾向方案…"
+                  : draftState.status === "waiting"
+                    ? "输入完成后将自动生成方案…"
+                    : draftState.status === "error"
+                      ? "暂未生成说明，当前简述仍可使用。"
+                      : value.audience.brief.trim()
+                        ? "内容倾向方案已就绪，可展开查看或修改。"
+                        : "将按当前简述生成方案。"}
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={locked || busy}
+                onClick={() => draft.current?.retry()}
+              >
+                {draftState.status === "error" ? "重试" : "重新生成说明"}
+              </Button>
+            </div>
+          )}
+          {draftState.error && (
+            <p role="alert" className="error-text">
+              {draftState.error}
+            </p>
+          )}
+          {value.audience && (
+            <details className="audience-details">
+              <summary>展开说明（可选）</summary>
+              <p className="detail-help">
+                这里仅用于查看或编辑说明，不影响自动生成。修改上方简述会自动更新方案；手动编辑的说明会保留。
+              </p>
+              <Field label="受众与行业语境（可编辑）">
+                <textarea
+                  rows={12}
+                  maxLength={10000}
+                  disabled={locked}
+                  value={value.audience.brief}
+                  onChange={(e) =>
+                    onChange({
+                      ...value,
+                      audience: { ...value.audience!, brief: e.target.value },
+                    })
+                  }
+                />
+              </Field>
+            </details>
+          )}
+        </>
       )}
       <fieldset className="palette-picker" disabled={locked}>
         <legend>配色方案</legend>

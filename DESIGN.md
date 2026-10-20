@@ -567,3 +567,8 @@ The hosted rehearsal view keeps voice, speed and current-page manuscript in one 
 Rehearsal has one primary action, “开始演练”. A real saved first-page preview and the playback source sit beside it. “编辑文字与动效” belongs to the production area; closing the editor leaves the user there. The player can return to that editor, and reopening rehearsal reads the saved record. Selected versions are remembered per project in the browser; incomplete, stale or reordered versions are not silently substituted with another editable deck.
 
 AI narration and its existing records use one collapsed “AI 口播与配音（可选）” disclosure. Active work remains visible in its summary. Legacy picture extraction stays in compatibility settings, not the primary flow. Screen copy, speaker notes and narrated text remain separate. The warm workbench identity, action color, fonts and shared controls are unchanged; mobile stacks the preview and actions.
+
+
+### New project creation (2026-10-20)
+
+Local project creation has two steps: topic and visual style, then optional audience context. Style covers are selectable directly and searchable; industry presets carry authored briefs and never invoke a model. The default is unrestricted context. Custom generation is explicit, with a cancellable native modal showing the requested audience and elapsed waiting time. Creation waits for a complete custom brief and a separate user action after review. Errors release the modal and allow retry or preset selection. Back navigation and style-library roundtrips retain the draft. Keep the action row outside the scroll area on desktop and mobile. Existing project and trial editors retain their current behavior; no saved-content migration is involved.

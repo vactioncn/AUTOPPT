@@ -4,6 +4,7 @@ export function createAudienceDraft({
   generate,
   onResult,
   onState,
+  autoGenerate = true,
   delay = 900,
   setTimer = setTimeout,
   clearTimer = clearTimeout,
@@ -26,6 +27,7 @@ export function createAudienceDraft({
     const { description, brief, enabled, composing, context } = input;
     if (!enabled || !description.trim()) return state("idle");
     if (!force && brief.trim()) return state("ready");
+    if (!force && !autoGenerate) return state("idle");
     if (composing) return state("waiting");
     const key = JSON.stringify([context, description]);
     if (!force && failures.has(key)) return state("error", failures.get(key));
@@ -66,6 +68,10 @@ export function createAudienceDraft({
     },
     retry() {
       if (!disposed && input) schedule(true);
+    },
+    cancel() {
+      cancel();
+      state("idle");
     },
     dispose() {
       disposed = true;

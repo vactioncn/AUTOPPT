@@ -12,6 +12,7 @@ export function diagnostics(
   { mode = runtimeMode(), speechReady = false } = {},
 ) {
   const hosted = mode === "hosted";
+  const motionEnabled = !hosted || process.env.AUTOPPT_LAYERED_ENABLED === "1";
   const speechReason =
     "管理员尚未连接 MiniMax 语音服务；已生成音频仍可播放，普通放映可继续使用。";
   const capability = (enabled, reason) =>
@@ -30,8 +31,8 @@ export function diagnostics(
           : "尚未配置语音服务，AI 口播生成不可用；仍可打开播放器手动翻页。",
       ),
       motionPresentation: capability(
-        !hosted,
-        "邀请制网页版第一版暂不提供动态演示；已有项目素材保留。",
+        motionEnabled,
+        "此服务器尚未启用文字与动效编辑，请联系管理员部署完整版本；已有素材保留。",
       ),
       localModelSettings: capability(
         !hosted,
@@ -49,7 +50,7 @@ export function diagnostics(
       directStylePrompt: true,
       designOptions: true,
       insertAndManuscriptExport: true,
-      motionPresentation: !hosted,
+      motionPresentation: motionEnabled,
       speechPresentation: true,
       projectPackages: true,
       spokenHtml: true,

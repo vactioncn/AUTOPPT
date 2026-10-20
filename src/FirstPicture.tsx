@@ -15,12 +15,14 @@ export function FirstPicture({
   styles,
   initialStyle,
   example,
+  creditsPerPage = 1,
   onCreated,
 }: {
   scope: string;
   styles: Style[];
   initialStyle?: string;
   example: boolean;
+  creditsPerPage?: number;
   onCreated: (project: Project, message: string) => void;
 }) {
   const account = useAccount();
@@ -93,7 +95,7 @@ export function FirstPicture({
           throw new Error("登录已失效，请重新登录。讲稿仍保留在此浏览器。");
         if (!fresh.modelReady)
           throw new Error("生成服务暂未就绪，可以先保存讲稿，稍后继续。");
-        if (fresh.user.available < 1)
+        if (fresh.user.available < creditsPerPage)
           throw new Error("图片额度不足，可以先保存讲稿，再联系管理员补充。");
       }
       setStage("正在保存完整讲稿…");
@@ -298,7 +300,7 @@ export function FirstPicture({
             <p>
               {busy
                 ? stage
-                : `完整讲稿会保存到我的演讲；先生成 1 张，成功使用 1 张图片额度。当前可用 ${account.user?.available ?? 0} 张。`}
+                : `完整讲稿会保存到我的演讲；先试做 1 页，预估 ${creditsPerPage} 张图片额度（出图与底图修复按实际成功调用扣减）。当前可用 ${account.user?.available ?? 0} 张。`}
             </p>
           </div>
           <div className="first-picture-buttons">

@@ -257,6 +257,48 @@ test("source package freezes a clean commit, hashes files, excludes local secret
         sha(await zip.file("AutoPPT-Web/" + file.path).async("nodebuffer")),
         file.sha256,
       );
+    const fontDirectory = path.join(root, "reviewed-fonts");
+    mkdirSync(fontDirectory);
+    const faces = [
+      ["Jianghao Sans", "regular"],
+      ["Jianghao Sans", "bold"],
+      ["Jianghao Sans Light", "regular"],
+      ["Jianghao Serif", "regular"],
+      ["Jianghao Serif", "bold"],
+    ].map(([family, slot], i) => {
+      // Package structure fixture only; real font rendering is tested separately.
+      const bytes = Buffer.alloc(200, i);
+      bytes.writeUInt32LE(bytes.length);
+      bytes.writeUInt16LE(0x504c, 34);
+      const file = `font-${i + 1}.fntdata`;
+      writeFileSync(path.join(fontDirectory, file), bytes);
+      return {
+        family,
+        slot,
+        file,
+        sha256: sha(bytes),
+        license: "SIL OPEN FONT LICENSE",
+        characters: Array.from({ length: 20000 }, (_, n) => n),
+      };
+    });
+    writeFileSync(
+      path.join(fontDirectory, "manifest.json"),
+      JSON.stringify({ version: 1, fonts: faces }),
+    );
+    const fontRelease = await packageWeb({
+      root,
+      fontDirectory,
+      outputDir: path.join(root, "font-release"),
+    });
+    const fontZip = await JSZip.loadAsync(readFileSync(fontRelease.output));
+    assert.equal(
+      JSON.parse(await fontZip.file("AutoPPT-Web/RELEASE.json").async("string"))
+        .fontsIncluded,
+      true,
+    );
+    assert.equal(fontZip.file(/deploy\/fonts\/font-\d+\.fntdata$/).length, 5);
+    writeFileSync(path.join(fontDirectory, "font-1.fntdata"), "damaged");
+    await assert.rejects(packageWeb({ root, fontDirectory }), /校验失败/);
     const musicDirectory = path.join(root, "approved-music");
     mkdirSync(musicDirectory);
     const piano = Buffer.from("ID3 fixture piano bytes"),

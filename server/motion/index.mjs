@@ -213,7 +213,10 @@ export function recoverMotion() {
   }
 }
 export function registerMotion(app) {
-  if (process.env.AUTOPPT_WORKER_TOKEN) {
+  if (
+    process.env.AUTOPPT_WORKER_TOKEN &&
+    process.env.AUTOPPT_LAYERED_ENABLED !== "1"
+  ) {
     app.use(["/api/projects/:id/motion", "/api/motion"], (req, res) =>
       res.status(403).json({
         error: "邀请制网页版第一版暂不提供动态演示；已有项目素材保留。",

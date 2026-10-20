@@ -18,6 +18,7 @@ COPY --from=build --chown=node:node /app/server ./server
 COPY --from=build --chown=node:node /app/shared ./shared
 COPY --from=build --chown=node:node /app/dist ./dist
 COPY --from=build --chown=node:node /app/build-info.json ./build-info.json
+COPY --from=build --chown=node:node /app/deploy/fonts ./font-pack
 COPY --from=build --chown=node:node /app/scripts/hosted-admin.mjs ./scripts/hosted-admin.mjs
 COPY --from=build --chown=node:node /app/scripts/hosted-backup.mjs ./scripts/hosted-backup.mjs
 COPY --from=build --chown=node:node /app/scripts/import-background-music.mjs ./scripts/import-background-music.mjs

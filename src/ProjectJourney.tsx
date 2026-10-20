@@ -238,7 +238,7 @@ export function DeliveryCenter({
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState("");
   const [chosen, setChosen] = useState("");
-  const html = useHtmlExportOptions(project.id, !hosted);
+  const html = useHtmlExportOptions(project.id, motionAvailable || !hosted);
   const deck =
     records.dynamic.records.find((d) => d.id === chosen) ||
     records.dynamic.records[0];
@@ -376,7 +376,7 @@ export function DeliveryCenter({
               导出演说稿（Markdown）
             </Button>
           </article>
-          {!hosted && (
+          {(motionAvailable || !hosted) && (
             <article className="journey-card">
               <h3>静态 HTML</h3>
               <p>
@@ -404,7 +404,7 @@ export function DeliveryCenter({
               </Button>
             </article>
           )}
-          {!hosted && (
+          {(motionAvailable || !hosted) && (
             <article className="journey-card">
               <h3>动态 HTML</h3>
               <p>下载演练中心已转换的动态演示，保留该演示的版本与页面范围。</p>

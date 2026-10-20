@@ -386,6 +386,7 @@ export default function App() {
               scope={onboardingScope}
               key={account.user?.id}
               styles={offered}
+              creditsPerPage={capabilities.motionPresentation.enabled ? 2 : 1}
               initialStyle={contentRoute.split("/")[1]}
               example={contentRoute.split("/")[1] === "example"}
               onCreated={(p, message) => {

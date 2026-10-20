@@ -216,6 +216,9 @@ async function worker(userId) {
       AUTOPPT_GATEWAY: gatewayBase,
       AUTOPPT_TEXT_MODEL: providers.text.model,
       AUTOPPT_IMAGE_MODEL: providers.image.model,
+      AUTOPPT_LAYERED_ENABLED:
+        process.env.AUTOPPT_LAYERED_ENABLED === "1" ? "1" : "0",
+      AUTOPPT_PPTX_FONT_DIR: process.env.AUTOPPT_PPTX_FONT_DIR || "",
       AUTOPPT_SPEECH_MODEL: providers.speech.model,
       AUTOPPT_SPEECH_READY: providers.speech.apiKey ? "1" : "0",
       AUTOPPT_SPEECH_PROVIDER_ID: providers.speech.providerId,
@@ -668,6 +671,10 @@ app.use(["/api", "/assets"], authenticated, async (req, res) => {
     fail("工作区连接暂时中断，已保存内容不会丢失，请稍后刷新。", 502);
   }
   res.status(response.status);
+  // The authenticated editor and rehearsal embed this account's own player.
+  // Keep other sites from framing it; never loosen the gate or cache policy.
+  if (/^\/api\/motion\/[^/?]+\/html(?:\?|$)/i.test(req.originalUrl))
+    res.set("X-Frame-Options", "SAMEORIGIN");
   if (/^\/api\/speech\/audio\//i.test(req.originalUrl))
     for (const key of ["content-length", "content-range", "accept-ranges"])
       if (response.headers.has(key)) res.set(key, response.headers.get(key));

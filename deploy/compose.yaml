@@ -26,6 +26,8 @@ services:
       AUTOPPT_DAILY_MODEL_CALLS: ${AUTOPPT_DAILY_MODEL_CALLS:-2000}
       AUTOPPT_USER_DAILY_MODEL_CALLS: ${AUTOPPT_USER_DAILY_MODEL_CALLS:-300}
       AUTOPPT_MAX_WORKSPACES: ${AUTOPPT_MAX_WORKSPACES:-10}
+      AUTOPPT_LAYERED_ENABLED: '1'
+      AUTOPPT_PPTX_FONT_DIR: /app/font-pack
     secrets: [admin_password, text_key, image_key]
     volumes: [autoppt_data:/data]
     healthcheck:

@@ -147,6 +147,7 @@ export function Workspace({
 }) {
   const insertExportAvailable = capabilities.bundleExport.enabled;
   const motionAvailable = capabilities.motionPresentation.enabled;
+  const creditsPerPage = hosted && motionAvailable ? 2 : 1;
   const speechAvailable = capabilities.standardPresentation.enabled;
   const [editingOptions, setEditingOptions] = useState<DesignOptions | null>(
     null,
@@ -428,9 +429,9 @@ export function Workspace({
         setGenerationDialog("models");
         return;
       }
-      if (hosted && (await checkQuota()).available < 1)
+      if (hosted && (await checkQuota()).available < creditsPerPage)
         throw new Error(
-          "可用图片额度为 0，请联系管理员补充。完整草稿已保存，补充后即可继续。",
+          `本次每页预估需要 ${creditsPerPage} 张图片额度，请联系管理员补充。完整草稿已保存。`,
         );
       const accepted = await post<{
         id: string;
@@ -524,14 +525,18 @@ export function Workspace({
     !busy &&
     project.batches.length === 1 &&
     (previewRemaining.length > 0 || project.slides.length === 1);
-  const imagePlan = planImageBatch(imageBatch?.ids || [], credits?.available);
+  const imagePlan = planImageBatch(
+    imageBatch?.ids || [],
+    credits?.available,
+    creditsPerPage,
+  );
   const completeImageBatch = async (count: number) => {
     if (completingPreview || busy || !imageBatch || count < 1) return;
     setCompletingPreview(true);
     setImageBatchError("");
     let accepted = false;
     try {
-      if (hosted && (await checkQuota()).available < count)
+      if (hosted && (await checkQuota()).available < count * creditsPerPage)
         throw new Error(
           "可用额度刚刚发生变化，请按更新后的张数重新确认。此次尚未提交生成。",
         );
@@ -853,7 +858,7 @@ export function Workspace({
           {credits?.available === 0
             ? "请联系管理员补充，草稿仍可正常保存。"
             : generationMode === "preview"
-              ? "试做成功使用 1 张，满意后再做剩余页。"
+              ? `每页按 ${creditsPerPage} 张预估，按实际成功出图及底图修复扣减。满意后再做剩余页。`
               : "拆页后才确定总张数；建议先试一页。"}
         </p>
       )}
@@ -1712,7 +1717,7 @@ export function Workspace({
                           ).map((warning, i) => (
                             <p key={i}>{warning}</p>
                           ))}
-                          {s.layered?.extractionAnalysis && !hosted && (
+                          {s.layered?.extractionAnalysis && motionAvailable && (
                             <>
                               <Button
                                 disabled={pageBusy(s.id)}
@@ -2170,9 +2175,7 @@ export function Workspace({
               </p>
               <p>
                 {hosted
-                  ? generationMode === "preview"
-                    ? "成功生成试做页使用 1 张图片额度；内容分析也会调用模型。"
-                    : "每张成功图片使用 1 张额度；内容分析也会调用模型。"
+                  ? `每页预估 ${creditsPerPage} 张图片额度，整图生成和模型去字修复各使用 1 张；纯色区域可本地处理时不额外扣减。内容分析也会调用模型。`
                   : "费用由已配置服务商按实际调用收取。"}
               </p>
               <p>返回修改或关闭不会丢失草稿。</p>
@@ -2271,7 +2274,7 @@ export function Workspace({
               <strong>
                 {checkingQuota
                   ? "正在确认可用额度…"
-                  : `可用 ${credits?.available ?? "待确认"} 张 · 本次需要 ${imagePlan.total} 张`}
+                  : `可用 ${credits?.available ?? "待确认"} 张 · 本次预估 ${imagePlan.total * creditsPerPage} 张`}
               </strong>
               {!checkingQuota && imagePlan.limited && (
                 <p>
@@ -2281,7 +2284,8 @@ export function Workspace({
                 </p>
               )}
               <p>
-                每张成功图片使用 1 张。其他任务可能占用额度，提交时会再次检查。
+                整图生成与模型去字修复各使用 1
+                张；按实际成功调用扣减。其他任务可能占用额度，提交时会再次检查。
               </p>
             </div>
           )}

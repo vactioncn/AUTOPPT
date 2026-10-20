@@ -63,5 +63,9 @@ test("image batch budgeting keeps the exact original page order, deduplicates an
   assert.equal(planImageBatch(input, null).known, false);
   assert.equal(planImageBatch(input, -1).known, false);
   assert.equal(planImageBatch(input, 3).limited, false);
+  assert.equal(planImageBatch(input, 3, 2).affordable, 1);
+  assert.equal(planImageBatch(input, 1, 2).affordable, 0);
+  assert.equal(planImageBatch(input, 6, 2).limited, false);
+  assert.throws(() => planImageBatch(input, 3, 0), /额度估算/);
   assert.deepEqual(input, ["last", "first", "last", "middle"]);
 });

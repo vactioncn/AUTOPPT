@@ -14,6 +14,8 @@ test-results/
 .hosted/
 /music/
 deploy/secrets/
+deploy/fonts/*.fntdata
+deploy/fonts/manifest.json
 
 __pycache__/
 *.pyc

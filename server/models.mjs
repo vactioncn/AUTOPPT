@@ -92,10 +92,21 @@ async function providerRequest(
       throw Object.assign(new ProviderError("图片响应中断，结果待核对。"), {
         uncertain: true,
       });
+    if (response.ok)
+      throw Object.assign(
+        new ProviderError(
+          /text\/html|application\/xhtml/i.test(
+            response.headers.get("content-type") || "",
+          )
+            ? `服务地址可以连接，但生成请求返回了网页（HTTP ${response.status}），不是模型结果。请检查“模型服务”的 API 基础地址，常见地址需要包含 /v1。`
+            : `接口已响应（HTTP ${response.status}），但没有返回有效 JSON。请核对 API 地址和兼容协议；本次生成结果未确认。`,
+        ),
+        { uncertain: true },
+      );
     return {};
   });
   capture(data, response.status);
-  if (!response.ok) {
+  if (!response.ok || data?.error || data?.success === false) {
     if (upstreamHandshakeFailure(response.status, data))
       throw Object.assign(
         new ProviderError(
@@ -104,9 +115,9 @@ async function providerRequest(
         { retryableConnection: kind === "text", uncertain: true },
       );
     const message = safeError(
-      data.error?.message ||
-        (typeof data.error === "string" ? data.error : "") ||
-        data.message ||
+      data?.error?.message ||
+        (typeof data?.error === "string" ? data.error : "") ||
+        data?.message ||
         "请检查接口设置。",
     );
     if (
@@ -119,12 +130,19 @@ async function providerRequest(
     throw Object.assign(
       new ProviderError(`模型服务返回 ${response.status}：${message}`),
       {
-        uncertain: !!data.uncertain,
+        uncertain: !!data?.uncertain,
         retryReason: transientModelRejection(response.status, data),
         retryAfterMs: retryAfterMs(response.headers.get("retry-after")),
       },
     );
   }
+  if (!data || typeof data !== "object" || Array.isArray(data))
+    throw Object.assign(
+      new ProviderError(
+        "接口已响应，但返回的 JSON 不是模型结果对象。请核对服务方的 OpenAI 兼容接口格式。",
+      ),
+      { uncertain: true },
+    );
   return data;
 }
 export async function jsonModel(system, user, refs = [], signal) {
@@ -161,7 +179,7 @@ export async function jsonModel(system, user, refs = [], signal) {
   const raw = data.choices?.[0]?.message?.content;
   if (typeof raw !== "string")
     throw new ProviderError(
-      "模型没有返回可读的结果。请检查模型是否支持文本和视觉分析。",
+      "接口已响应，但未返回 Chat Completions 的可读文本内容。请核对服务方的接口协议和响应格式。",
     );
   try {
     return JSON.parse(

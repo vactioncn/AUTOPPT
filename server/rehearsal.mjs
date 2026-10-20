@@ -216,6 +216,7 @@ export async function createRun(projectId, input, dependencies = {}) {
       sourceFingerprint: pageStamp(slide),
       image: slide.image,
       scene: slide.scene || null,
+      ...(slide.layered ? { layered: slide.layered } : {}),
       notes: slide.notes,
       text,
       fullText,

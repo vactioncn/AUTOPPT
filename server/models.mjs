@@ -1,3 +1,4 @@
+import { attachmentImagePrompt } from "./direct-image.mjs";
 import { backgroundPrompt } from "../shared/motion/layered.mjs";
 import { trackUsage } from "./usage/index.mjs";
 import {
@@ -5,7 +6,11 @@ import {
   meterHeaders,
   hostedWorker,
 } from "./hosted/worker-meter.mjs";
-import { designOptions, audiencePrompt } from "./design-options.mjs";
+import {
+  designOptions,
+  audiencePrompt,
+  palettePrompt,
+} from "./design-options.mjs";
 import { readFileSync, writeFileSync } from "node:fs";
 import { settings, assetPath, id } from "./store.mjs";
 import { sentences, unitsFromEnds, styleStamp } from "./core.mjs";
@@ -365,7 +370,13 @@ async function generateImageOutput(plan, style, signal, attachments = []) {
   )
     throw new Error("风格已变化，请用当前风格重新生成。");
   const prompt = plan.layeredLayout
-    ? backgroundPrompt(plan)
+    ? backgroundPrompt(plan) +
+      attachmentImagePrompt(plan) +
+      (plan.imageFeedback
+        ? `\n\n本页画面调整要求：${plan.imageFeedback}`
+        : "") +
+      audiencePrompt(plan.designOptions) +
+      palettePrompt(plan.designOptions)
     : imagePrompt(plan);
   plan.imageRequest = {
     providerOrigin: new URL(config.baseUrl).origin,

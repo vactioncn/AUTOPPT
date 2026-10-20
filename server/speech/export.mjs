@@ -23,6 +23,8 @@ export function matchNarrationPage(narration, page, motion = false) {
           n.notes === page.source.notes &&
           !n.scene
       : n.image === page.image &&
+        JSON.stringify(n.layered || null) ===
+          JSON.stringify(page.layered || null) &&
         JSON.stringify(n.scene || null) ===
           JSON.stringify(page.scene || null) &&
         n.notes === speakerNotes(page));

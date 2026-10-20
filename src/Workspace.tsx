@@ -68,6 +68,7 @@ import {
   downloadFile,
 } from "./api";
 import { SceneView } from "./SceneView";
+import { LayeredView } from "./LayeredView";
 import { StandardPresentation } from "./StandardPresentation";
 import { PptRehearsal } from "./PptRehearsal";
 import type {
@@ -495,7 +496,8 @@ export function Workspace({
   const editPpt = () => {
     setMotionMode("layered");
     setMotionDeckId(
-      (preferredPpt.projectId === id && preferredPpt.deckId) ||
+      (project.slides.some((s) => s.layered) && `native-${project.id}`) ||
+        (preferredPpt.projectId === id && preferredPpt.deckId) ||
         editablePpt?.id ||
         "",
     );
@@ -1097,7 +1099,12 @@ export function Workspace({
           </div>
           <div className="studio-topbar-actions">
             {motionAvailable && !!project.slides.length && (
-              <Button onClick={editPpt}>编辑文字与动效</Button>
+              <Button
+                disabled={!!busy && !project.slides.some((s) => s.layered)}
+                onClick={editPpt}
+              >
+                编辑文字与动效
+              </Button>
             )}
             {(!!project.slides.length || !!project.batches.length) &&
               !composerOpen &&
@@ -1969,6 +1976,7 @@ export function Workspace({
               }
             }
             setRecordRefresh((value) => value + 1);
+            void onRefresh();
           }}
         />
       )}
@@ -2635,8 +2643,9 @@ function ExportDialog({
                 : "PPTX 文件"}
           </p>
           <p>
-            图片按原比例完整放入页面，使用适合屏幕播放的高质量
-            JPG，减小文件体积。
+            {project.slides.some((s) => s.layered)
+              ? "新制作页面保留底图与独立文字；PPTX 可继续改字并内嵌完整字体。已有整图页面保持原样。页面动效请使用动态 HTML。"
+              : "图片按原比例完整放入页面，使用适合屏幕播放的高质量 JPG，减小文件体积。"}
             {format === "ppt" && "备注使用每页最新保存的完整讲稿。"}
           </p>
           {bundleAvailable && format === "ppt" && (
@@ -2981,6 +2990,7 @@ function SlideDetail({
                       ...slide,
                       image: version.image,
                       scene: version.scene,
+                      layered: version.layered || null,
                       plan: version.plan,
                     }
                   : slide
@@ -3055,7 +3065,7 @@ function SlideDetail({
                 href={asset(displayed.image) + "?download=screen"}
                 download
               >
-                保存图片
+                {displayed.layered ? "保存底图" : "保存图片"}
               </a>
             )}
             <div className="redesign-box">
@@ -3303,7 +3313,9 @@ function SlideDetail({
                   className={!history ? "version-card current" : "version-card"}
                   onClick={() => setHistory(null)}
                 >
-                  {slide.scene ? (
+                  {slide.layered ? (
+                    <LayeredView page={slide.layered} label="当前版本" />
+                  ) : slide.scene ? (
                     <SceneView scene={slide.scene} label="当前版本" />
                   ) : (
                     slide.image && (
@@ -3325,7 +3337,9 @@ function SlideDetail({
                       }
                       onClick={() => setHistory(v.id)}
                     >
-                      {v.scene ? (
+                      {v.layered ? (
+                        <LayeredView page={v.layered} label="历史版本" />
+                      ) : v.scene ? (
                         <SceneView scene={v.scene} label="历史版本" />
                       ) : v.image ? (
                         <img
@@ -3498,7 +3512,11 @@ function SplitDialog({
         <div>
           {slide.image && (
             <figure className="split-original">
-              <img src={asset(slide.image)} alt="拆分前的原画面" />
+              {slide.layered ? (
+                <LayeredView page={slide.layered} label="拆分前的原画面" />
+              ) : (
+                <img src={asset(slide.image)} alt="拆分前的原画面" />
+              )}
               <figcaption>原画面参考；新页面将按各自讲稿重新生成。</figcaption>
             </figure>
           )}

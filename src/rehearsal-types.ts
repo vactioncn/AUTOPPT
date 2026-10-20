@@ -2,7 +2,7 @@ import type {
   PresenterGeneration,
   PresenterStudioState,
 } from "./presenter-types";
-import type { Scene } from "./types";
+import type { LayeredPage, Scene } from "./types";
 import type { Voice } from "./speech-types";
 export type RehearsalPlan = {
   actor: "self" | "voice" | "digital";
@@ -48,6 +48,7 @@ export type RehearsalRun = {
     fullText?: string;
     image?: string | null;
     scene?: Scene | null;
+    layered?: LayeredPage | null;
     clips: {
       text?: string;
       audioFile?: string;

@@ -16,7 +16,8 @@ import {
 } from "@phosphor-icons/react";
 import { api, asset, patch, post, downloadFile } from "./api";
 import { Button, Field, Modal } from "./components";
-import type { Project } from "./types";
+import type { Project, LayeredPage } from "./types";
+import { LayeredView } from "./LayeredView";
 import "./motion.css";
 import { CHOREOGRAPHIES } from "../shared/motion/choreography.mjs";
 
@@ -64,6 +65,7 @@ type MotionPage = {
   history?: unknown[];
 };
 type Deck = {
+  native?: boolean;
   id: string;
   title: string;
   sourceRevision: number;
@@ -424,25 +426,29 @@ export function MotionPresentation({
               >
                 {decks.map((d) => (
                   <option key={d.id} value={d.id}>
-                    {new Date(d.createdAt).toLocaleString("zh-CN")} ·{" "}
-                    {d.pages.length} 页 ·{" "}
+                    {d.native
+                      ? "当前 PPT"
+                      : new Date(d.createdAt).toLocaleString("zh-CN")}{" "}
+                    · {d.pages.length} 页 ·{" "}
                     {d.sourceMode === "layered" ? "可编辑文字" : "旧版提取"} ·{" "}
                     {statuses[d.status] || d.status}
                   </option>
                 ))}
-                <option value="new">创建新的演示</option>
+                {!deck?.native && <option value="new">创建新的演示</option>}
               </select>
             </Field>
           )}
           {!creating && (
             <div className="motion-topbar-actions">
-              <Button
-                disabled={dirtyValue || active(deck)}
-                onClick={() => setCreating(true)}
-              >
-                <Plus />
-                新建演示
-              </Button>
+              {!deck?.native && (
+                <Button
+                  disabled={dirtyValue || active(deck)}
+                  onClick={() => setCreating(true)}
+                >
+                  <Plus />
+                  新建演示
+                </Button>
+              )}
               {deck && (
                 <>
                   <Button
@@ -581,7 +587,8 @@ export function MotionPresentation({
                     停止
                   </Button>
                 ) : (
-                  ready < deck.pages.length && (
+                  ready < deck.pages.length &&
+                  !deck.native && (
                     <Button
                       loading={busy}
                       onClick={() =>
@@ -594,9 +601,14 @@ export function MotionPresentation({
                   )
                 )}
               </div>
-              {project.revision !== deck.sourceRevision && (
+              {project.revision !== deck.sourceRevision && !deck.native && (
                 <p className="detail-help">
                   这是转换时保存的项目快照。原项目后续修改不会自动改变这份演示。
+                </p>
+              )}
+              {deck.native && ready < deck.pages.length && (
+                <p className="detail-help">
+                  已完成的页面可以直接编辑；其余页面请回到制作台继续原任务，无需另做一份分层演示。
                 </p>
               )}
               <div className="motion-workbench">
@@ -607,11 +619,20 @@ export function MotionPresentation({
                       className={p.id === page?.id ? "chosen" : ""}
                       onClick={() => changePage(p.id)}
                     >
-                      {(p.source.image || p.background) && (
-                        <img
-                          src={asset(p.source.image || p.background!)}
-                          alt=""
-                        />
+                      {deck.native && p.background && p.layers.length ? (
+                        <div style={{ width: "100%", aspectRatio: "16/9" }}>
+                          <LayeredView
+                            page={p as unknown as LayeredPage}
+                            label={`第 ${p.number} 页`}
+                          />
+                        </div>
+                      ) : (
+                        (p.source.image || p.background) && (
+                          <img
+                            src={asset(p.source.image || p.background!)}
+                            alt=""
+                          />
+                        )
                       )}
                       <span>
                         第 {p.number} 页{" "}
@@ -1059,40 +1080,42 @@ export function MotionPresentation({
                   </small>
                 </div>
                 <div className="motion-footer-actions">
-                  <label className="btn motion-font">
-                    导入原稿字体
-                    <input
-                      type="file"
-                      accept=".woff2"
-                      disabled={busy || active(deck) || dirtyValue}
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        if (f)
-                          run(async () => {
-                            if (f.size > 8 * 1024 * 1024)
-                              throw new Error("字体最多 8 MB");
-                            try {
-                              await new FontFace(
-                                "Motion Upload Check",
-                                await f.arrayBuffer(),
-                              ).load();
-                            } catch {
-                              throw new Error(
-                                "浏览器无法读取这个字体，请换用有效的 WOFF2 文件",
-                              );
-                            }
-                            const body = new FormData();
-                            body.append("font", f);
-                            body.append("revision", String(deck.revision));
-                            await api(`/motion/${deck.id}/font`, {
-                              method: "POST",
-                              body,
+                  {!deck.native && (
+                    <label className="btn motion-font">
+                      导入原稿字体
+                      <input
+                        type="file"
+                        accept=".woff2"
+                        disabled={busy || active(deck) || dirtyValue}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f)
+                            run(async () => {
+                              if (f.size > 8 * 1024 * 1024)
+                                throw new Error("字体最多 8 MB");
+                              try {
+                                await new FontFace(
+                                  "Motion Upload Check",
+                                  await f.arrayBuffer(),
+                                ).load();
+                              } catch {
+                                throw new Error(
+                                  "浏览器无法读取这个字体，请换用有效的 WOFF2 文件",
+                                );
+                              }
+                              const body = new FormData();
+                              body.append("font", f);
+                              body.append("revision", String(deck.revision));
+                              await api(`/motion/${deck.id}/font`, {
+                                method: "POST",
+                                body,
+                              });
                             });
-                          });
-                        e.target.value = "";
-                      }}
-                    />
-                  </label>
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                  )}
                   {layered && (
                     <Button
                       loading={busy}

@@ -24,6 +24,7 @@ import {
 import { PLANNING_VERSION } from "./content-planning.mjs";
 import { DIRECT_PROMPT_MODE } from "./direct-image.mjs";
 import { snapshot, styleStamp } from "./core.mjs";
+import { generateLayeredPage } from "./motion/layered.mjs";
 import { MANUSCRIPT_VERSION, spokenManuscript } from "./manuscript.mjs";
 import { runTrial } from "./trials.mjs";
 import { reusableScreenCopy } from "./screen-copy.mjs";
@@ -442,7 +443,40 @@ async function renderSlides(j, ids, signal, redesign = false) {
         completed,
         pending.length,
       );
-      const image = await generateImage(plan, style, signal, attachments);
+      // The first render is already editable: layout first, then a text-free
+      // background. Checkpoints belong to this proposed version, not the old page.
+      const layeredWork =
+        reusablePending && s.pendingLayered ? s.pendingLayered : {};
+      layeredWork.layeredPlan = plan;
+      layeredWork.source = { notes: s.notes, style, attachments };
+      // Hosted workspaces have not enabled the editable canvas/font-pack export
+      // capability yet; keep their existing production path until that rollout.
+      const layered = process.env.AUTOPPT_WORKER_TOKEN
+        ? null
+        : await generateLayeredPage(
+            layeredWork,
+            signal,
+            (stage) =>
+              progress(
+                j,
+                `${stage} · 原第 ${pageNumber} 页`,
+                completed,
+                pending.length,
+              ),
+            () => {
+              signal.throwIfAborted();
+              const current = projectOrThrow(j.projectId);
+              const target = current.slides.find((page) => page.id === sid);
+              target.pendingPlan = plan;
+              // Keep credentials and duplicated source material out of the checkpoint.
+              const { source, ...saved } = layeredWork;
+              target.pendingLayered = saved;
+              saveProject(current);
+            },
+          );
+      const image = layered
+        ? layered.background
+        : await generateImage(plan, style, signal, attachments);
       signal.throwIfAborted();
       p = projectOrThrow(j.projectId);
       s = p.slides.find((x) => x.id === sid);
@@ -450,6 +484,7 @@ async function renderSlides(j, ids, signal, redesign = false) {
       Object.assign(s, {
         plan,
         image,
+        layered,
         scene: null,
         status: "ready",
         error: null,
@@ -463,6 +498,7 @@ async function renderSlides(j, ids, signal, redesign = false) {
       });
       delete s.pendingPlan;
       delete s.pendingPlanStyle;
+      delete s.pendingLayered;
       delete s.pendingAttachments;
       saveProject(p);
       j.payload.finishedIds = [...(j.payload.finishedIds || []), sid];

@@ -28,7 +28,15 @@ export async function inspectPresentation(buffer, slides) {
       1,
       `slide ${i + 1} must have exactly one image`,
     );
-    assert.doesNotMatch(xml, /<p:sp>|<p:graphicFrame>|<a:t>/);
+    if (page.layered) {
+      assert.equal(
+        (xml.match(/<p:sp>/g) || []).length,
+        page.layered.layers.filter((l) => l.type === "text").length,
+      );
+      for (const layer of page.layered.layers.filter((l) => l.type === "text"))
+        for (const line of layer.text.split("\n"))
+          assert(decode(xml).includes(line));
+    } else assert.doesNotMatch(xml, /<p:sp>|<p:graphicFrame>|<a:t>/);
     const relId = xml.match(/<a:blip r:embed="([^"]+)"/)[1];
     const rels = await zip
       .file(`ppt/slides/_rels/slide${i + 1}.xml.rels`)

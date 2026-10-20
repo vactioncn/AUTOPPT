@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 import { assetPath } from "../store.mjs";
 import { validateLayers } from "../../shared/motion/schema.mjs";
+import { pageImage } from "../export.mjs";
 
 const xml = (s) =>
   String(s).replace(
@@ -63,8 +64,13 @@ export async function exportLayeredPptx(
   const used = new Map();
   for (const p of deck.pages) {
     const slide = ppt.addSlide();
+    const raster = p.raster || (p.scene ? await pageImage(p) : null);
     slide.addImage({
-      path: assetPath(p.background),
+      ...(raster
+        ? {
+            data: `image/${raster.format};base64,${raster.data.toString("base64")}`,
+          }
+        : { path: assetPath(p.background) }),
       x: 0,
       y: 0,
       w: 40 / 3,

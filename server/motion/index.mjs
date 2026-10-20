@@ -1,5 +1,6 @@
 import { exportLayeredPptx } from "./pptx.mjs";
 import { generateLayeredPage } from "./layered.mjs";
+import { nativeDeck, getNativeDeck, saveNativePage } from "./native.mjs";
 import { playbackMode } from "../../shared/motion/layered.mjs";
 import { choreography } from "../../shared/motion/choreography.mjs";
 import { withUsage } from "../usage/index.mjs";
@@ -45,7 +46,7 @@ const publicDeck = (d) => ({
   customFont: d.customFont ? { name: d.customFont.name } : null,
 });
 function getDeck(key) {
-  const d = get("motion", key);
+  const d = get("motion", key) || getNativeDeck(key);
   if (!d) throw Object.assign(new Error("动态演示不存在"), { status: 404 });
   projectOrThrow(d.projectId);
   return d;
@@ -220,12 +221,14 @@ export function registerMotion(app) {
     );
   }
   app.get("/api/projects/:id/motion", (req, res) => {
-    projectOrThrow(req.params.id);
+    const current = nativeDeck(projectOrThrow(req.params.id));
     res.json(
-      all("motion")
-        .filter((d) => d.projectId === req.params.id)
-        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-        .map(publicDeck),
+      [
+        ...(current ? [current] : []),
+        ...all("motion")
+          .filter((d) => d.projectId === req.params.id)
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+      ].map(publicDeck),
     );
   });
   app.post("/api/projects/:id/motion", async (req, res) => {
@@ -300,6 +303,7 @@ export function registerMotion(app) {
     p.playbackMode = mode;
     p.choreography = sequence;
     p.reviewed = req.body.reviewed === true;
+    if (d.native) return res.json(publicDeck(saveNativePage(d, p.id)));
     save(d);
     res.json(publicDeck(d));
   });
@@ -310,6 +314,7 @@ export function registerMotion(app) {
     const p = d.pages.find((p) => p.id === req.params.pageId);
     if (!p?.history?.length) throw new Error("没有可撤销的已保存版本");
     Object.assign(p, p.history.pop());
+    if (d.native) return res.json(publicDeck(saveNativePage(d, p.id)));
     save(d);
     res.json(publicDeck(d));
   });
@@ -320,6 +325,8 @@ export function registerMotion(app) {
   app.post("/api/motion/:id/font", upload.single("font"), (req, res) => {
     const d = getDeck(req.params.id);
     idle(d);
+    if (d.native)
+      throw new Error("当前页面使用内置字体，请在画布中选择黑体或宋体");
     if (Number(req.body.revision) !== d.revision)
       throw Object.assign(new Error("演示已更新，请刷新后重试"), {
         status: 409,
@@ -422,6 +429,10 @@ export async function createMotion(projectId, input) {
   if (requested.some((sid) => !project.slides.some((s) => s.id === sid)))
     throw new Error("部分页面已不存在，请重新选择");
   const selected = project.slides.filter((s) => requested.includes(s.id));
+  if (selected.some((s) => s.layered))
+    throw new Error(
+      "这些页面已有独立文字，请直接打开「编辑文字与动效」，无需再次生成或拆分",
+    );
   const layered = input.sourceMode === "layered";
   if (
     input.sourceMode != null &&

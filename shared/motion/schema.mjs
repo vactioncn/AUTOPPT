@@ -1,4 +1,4 @@
-// This independent scene format never mutates the source project or its PPT export.
+// Shared layer format for independent legacy decks and native project pages.
 export const MOTION_VERSION = 1;
 export const FONTS = {
   sans: "Noto Sans SC Variable",

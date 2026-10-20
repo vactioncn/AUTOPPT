@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { asset } from "./api";
 import { Button, Modal } from "./components";
 import { SceneView } from "./SceneView";
+import { LayeredView } from "./LayeredView";
 import { BackgroundMusicControls } from "./BackgroundMusicControls";
 import { presenterVideo } from "./presenter-types";
 import { speechAudio } from "./speech-types";
@@ -139,6 +140,8 @@ export function RehearsalPlayer({
               title="动态演示预览"
               src={`/api/motion/${run.motion!.id}/html?preview=1&pageId=${piece.page.id}`}
             />
+          ) : slide?.layered ? (
+            <LayeredView page={slide.layered} label={piece.page.title} />
           ) : slide?.scene ? (
             <SceneView scene={slide.scene} label={piece.page.title} />
           ) : slide?.image ? (

@@ -1,3 +1,4 @@
+import { layoutFixture } from "./fixtures/layered.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, mkdtempSync, rmSync } from "node:fs";
@@ -140,10 +141,22 @@ test(
     const requests = [];
     let fail = false;
     globalThis.fetch = async (url, options) => {
+      if (url.endsWith("/chat/completions")) {
+        const body = JSON.parse(options.body);
+        const system = body.messages[0].content;
+        const result = system.includes("版式设计师")
+          ? layoutFixture(
+              JSON.parse(body.messages[1].content[0].text).displayText,
+            )
+          : { hasText: false, detail: "fixture" };
+        return Response.json({
+          choices: [{ message: { content: JSON.stringify(result) } }],
+        });
+      }
       assert.equal(
         url,
         "http://127.0.0.1:1/v1/images/generations",
-        "no text or paid model calls",
+        "only fixture provider calls",
       );
       requests.push(JSON.parse(options.body));
       if (fail)
@@ -194,7 +207,12 @@ test(
     };
     let job = await wait(enqueue("render", "project", { slideIds: ["s84"] }));
     assert.equal(job.status, "completed", job.error);
-    assert.match(requests.at(-1).prompt, /微型页码（显示为 84），右上角/);
+    assert.equal(
+      get("project", "project").slides[83].layered.layers.find(
+        (l) => l.id === "page-number",
+      ).text,
+      "84",
+    );
     assert.match(requests.at(-1).prompt, /流程编号 01 \/ 02 \/ 03/);
     assert.equal(get("project", "project").slides[83].plan.pageNumber, 84);
     assert.equal(get("style", style.id).rules, style.rules);
@@ -207,7 +225,12 @@ test(
     fail = false;
     job = await wait(retry(job.id));
     assert.equal(job.status, "completed", job.error);
-    assert.match(requests.at(-1).prompt, /微型页码（显示为 86），右上角/);
+    assert.equal(
+      get("project", "project")
+        .slides.find((s) => s.id === "s85")
+        .layered.layers.find((l) => l.id === "page-number").text,
+      "86",
+    );
     const completed = get("project", "project").slides.find(
       (s) => s.id === "s85",
     );

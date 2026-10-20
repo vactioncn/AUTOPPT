@@ -38,7 +38,12 @@ export function publishRehearsalNarration(run, pages = run.pages) {
       status: "ready",
       sourceFingerprint: createHash("sha256")
         .update(
-          JSON.stringify({ image: p.image, scene: p.scene, notes: p.notes }),
+          JSON.stringify({
+            image: p.image,
+            scene: p.scene,
+            notes: p.notes,
+            ...(p.layered ? { layered: p.layered } : {}),
+          }),
         )
         .digest("hex"),
       clips: p.clips.map((c) => ({

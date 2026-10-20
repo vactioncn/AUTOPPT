@@ -17,6 +17,7 @@ export function projectArea(value?: string): ProjectArea {
 export type PresentationRecord = {
   id: string;
   sourceMode?: string;
+  native?: boolean;
   createdAt?: string;
   revision?: number;
   sourceRevision: number;
@@ -34,7 +35,7 @@ export function currentEditablePresentation(
   return records
     .filter(
       (record) =>
-        (!preferredId || record.id === preferredId) &&
+        (record.native || !preferredId || record.id === preferredId) &&
         record.sourceMode === "layered" &&
         record.status === "ready" &&
         record.sourceRevision === project.revision &&
@@ -45,7 +46,11 @@ export function currentEditablePresentation(
             page.status === "ready" && page.id === project.slides[i]?.id,
         ),
     )
-    .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))[0];
+    .sort(
+      (a, b) =>
+        Number(!!b.native) - Number(!!a.native) ||
+        (b.createdAt || "").localeCompare(a.createdAt || ""),
+    )[0];
 }
 export const isWorking = (status: string) =>
   ["queued", "running"].includes(status);

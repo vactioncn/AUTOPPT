@@ -1,3 +1,4 @@
+import { layoutFixture, fontPackFixture } from "./fixtures/layered.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, readFileSync, mkdirSync } from "node:fs";
@@ -27,6 +28,7 @@ test(
   { timeout: 120000 },
   async (t) => {
     const dir = mkdtempSync(path.join(tmpdir(), "autoppt-image-test-"));
+    await fontPackFixture(dir);
     const sys = defaultSystem({
       rules: "清晰的细字体和蓝色线条",
       colors: ["#f7f7f3", "#20272b", "#284fa3"],
@@ -123,7 +125,11 @@ test(
         (c) => c.type === "image_url",
       ).length;
       let output;
-      if (
+      if (system.includes("版式设计师")) {
+        output = layoutFixture(JSON.parse(user).displayText);
+      } else if (system.includes("检查这张演讲底图")) {
+        output = { hasText: false, detail: "fixture" };
+      } else if (
         system.includes("风格规范整理师") ||
         system.includes("演讲页面设计师")
       ) {
@@ -296,6 +302,7 @@ test(
           PORT: String(port),
           NODE_ENV: "production",
           AUTOPPT_DATA_DIR: dir,
+          AUTOPPT_PPTX_FONT_DIR: dir,
         },
         stdio: ["ignore", "pipe", "pipe"],
       });
@@ -669,7 +676,7 @@ test(
     assert(!imageRequests[0].prompt.includes(text));
     assert(
       project.slides[0].plan.screenCopy.displayText.every((text) =>
-        imageRequests[0].prompt.includes(text),
+        !imageRequests[0].prompt.includes(text),
       ),
     );
     assert.equal(
@@ -1171,7 +1178,7 @@ test(
     );
     assert(imageRequests.every((r) => !r.prompt.includes("不要自行补写")));
     assert(imageRequests.every((r) => !r.prompt.includes("【输出规格】")));
-    assert(imageRequests.every((r) => r.prompt.includes("DETAIL LABEL")));
+    assert(imageRequests.every((r) => r.prompt.includes("DETAIL LABEL") || r.prompt.includes("本次分层规则")));
     assert(imageRequests.every((r) => !r.prompt.includes("savedObservations")));
     assert(
       imageRequests.every(
@@ -2967,9 +2974,7 @@ test(
     assert(
       edit.prompt
         .replace(/\r\n/g, "\n")
-        .startsWith(
-          materialSlide.plan.styleRules.replace(/\r\n/g, "\n") + "\n\n",
-        ),
+        .includes(materialSlide.plan.styleRules.replace(/\r\n/g, "\n")),
     );
     assert.match(edit.prompt, /先结合本页文案判断每张附件的作用/);
     assert.match(edit.prompt, /照片或实物：/);

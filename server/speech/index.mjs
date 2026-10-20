@@ -413,10 +413,16 @@ export function registerSpeech(app) {
         title: s.plan?.title || `第 ${index + 1} 页`,
         image: s.image,
         scene: s.scene || null,
+        ...(s.layered ? { layered: s.layered } : {}),
         notes,
         sourceFingerprint: createHash("sha256")
           .update(
-            JSON.stringify({ image: s.image, scene: s.scene, notes: s.notes }),
+            JSON.stringify({
+              image: s.image,
+              scene: s.scene,
+              notes: s.notes,
+              ...(s.layered ? { layered: s.layered } : {}),
+            }),
           )
           .digest("hex"),
         spokenText,

@@ -8,6 +8,7 @@ import {
 } from "@phosphor-icons/react";
 import { asset } from "./api";
 import { SceneView } from "./SceneView";
+import { LayeredView } from "./LayeredView";
 import { BackgroundMusicControls } from "./BackgroundMusicControls";
 import type { Project } from "./types";
 import "./standard-presentation.css";
@@ -104,7 +105,9 @@ export function StandardPresentation({
       </header>
       <div className={`standard-stage ${notes ? "with-notes" : ""}`}>
         <div className="standard-image">
-          {slide?.image ? (
+          {slide?.layered ? (
+            <LayeredView page={slide.layered} label={title} />
+          ) : slide?.image ? (
             <img src={asset(slide.image)} alt={title} />
           ) : slide?.scene ? (
             <SceneView scene={slide.scene} label={title} />

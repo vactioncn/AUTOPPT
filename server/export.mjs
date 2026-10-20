@@ -6,6 +6,7 @@ import { assetPath } from "./store.mjs";
 import { renderSceneSvg } from "../shared/slides.mjs";
 import { speakerNotes, exportManuscript } from "./manuscript.mjs";
 import { screenImage } from "./image-storage.mjs";
+import { exportLayeredPptx } from "./motion/pptx.mjs";
 
 const WIDTH = 40 / 3;
 const HEIGHT = 7.5;
@@ -34,6 +35,10 @@ export async function exportBundle(project, options) {
 }
 
 export async function pageImage(page) {
+  if (page.layered)
+    throw new Error(
+      "此页已有独立文字，请使用可编辑页面预览或导出，不能仅导出底图",
+    );
   // Match preview source priority. Retained web scenes are flattened once.
   const data = page.scene
     ? await sharp(
@@ -75,6 +80,26 @@ export async function exportPresentation(project, { allowStale = false } = {}) {
       { status: 409 },
     );
 
+  if (project.slides.some((s) => s.layered)) {
+    const pages = [];
+    for (const s of project.slides)
+      pages.push({
+        id: s.id,
+        status: "ready",
+        width: 1600,
+        height: 900,
+        layers: [],
+        background: s.image,
+        ...s.layered,
+        ...(!s.layered ? { raster: await pageImage(s) } : {}),
+        source: { notes: speakerNotes(s) },
+      });
+    return exportLayeredPptx({
+      title: project.title,
+      sourceMode: "layered",
+      pages,
+    });
+  }
   const pptx = new pptxgen();
   pptx.layout = "LAYOUT_WIDE";
   pptx.author = "AutoPPT";

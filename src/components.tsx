@@ -1,4 +1,5 @@
 import { SceneView } from "./SceneView";
+import { LayeredView } from "./LayeredView";
 import {
   useEffect,
   useRef,
@@ -148,7 +149,9 @@ export function SlideImage({
       className={`slide-image ${slide.image || slide.scene ? "has-image" : "placeholder"}`}
       onClick={onClick}
     >
-      {slide.scene ? (
+      {slide.layered ? (
+        <LayeredView page={slide.layered} label={slide.plan?.title} />
+      ) : slide.scene ? (
         <SceneView
           scene={slide.scene}
           label={slide.plan?.title || "演讲页面"}

@@ -45,7 +45,7 @@ export async function* motionHtmlChunks(
       "utf8",
     ),
     embeddedFonts(
-      staticMode ? selected.map(() => ({ layers: [] })) : selected,
+      selected.map((p) => p.layered || (staticMode ? { layers: [] } : p)),
       deck.customFont,
       managed || preview,
     ),
@@ -80,7 +80,9 @@ export async function* motionHtmlChunks(
     );
   for (const p of selected) {
     const n = narration ? matchNarrationPage(narration, p, !staticMode) : null;
-    const still = staticMode ? await pageImage(p) : null;
+    const layered = p.layered || (!staticMode ? p : null);
+    const still =
+      (!layered && staticMode) || p.scene ? await pageImage(p) : null;
     let background;
     if (still) {
       // Share the screen JPEG profile with PPT export. Hold only the current
@@ -92,13 +94,13 @@ export async function* motionHtmlChunks(
       }));
       background = assets.get(key);
     } else {
-      yield* image(p.background);
-      background = assets.get(`image:${p.background}`);
+      yield* image(layered.background);
+      background = assets.get(`image:${layered.background}`);
     }
     if (compare && p.source.image) yield* image(p.source.image);
     const layers = [];
-    if (!staticMode)
-      for (const l of p.layers) {
+    if (layered)
+      for (const l of layered.layers) {
         if (l.type === "image") {
           yield* image(l.asset);
           layers.push({ ...l, asset: assets.get(`image:${l.asset}`) });
@@ -106,18 +108,20 @@ export async function* motionHtmlChunks(
       }
     const page = {
       id: p.id,
-      choreography: p.choreography || "custom",
-      playbackMode: preview
-        ? "whole"
-        : p.playbackMode || (deck.sourceMode === "layered" ? "natural" : null),
+      choreography: layered?.choreography || "custom",
+      playbackMode:
+        preview || staticMode
+          ? "whole"
+          : p.playbackMode ||
+            (deck.sourceMode === "layered" ? "natural" : null),
       number: p.number,
       title: p.title,
       original: compare ? assets.get(`image:${p.source.image}`) : null,
       notes: includeNotes
         ? (n?.spokenText ?? (staticMode ? p.notes : p.source.notes))
         : "",
-      width: still?.width || p.width,
-      height: still?.height || p.height,
+      width: still?.width || layered.width,
+      height: still?.height || layered.height,
       background,
       layers,
       clips: n

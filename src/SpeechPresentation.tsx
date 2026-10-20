@@ -16,6 +16,7 @@ import {
 } from "../shared/speech-text.mjs";
 import { Button, Field } from "./components";
 import { SceneView } from "./SceneView";
+import { LayeredView } from "./LayeredView";
 import { failureAdvice } from "../shared/job-feedback.mjs";
 import type { Project } from "./types";
 import {
@@ -627,7 +628,9 @@ export function SpeechPresentation({
       <div className="speech-body">
         <main className="speech-stage-area">
           <div className="speech-stage">
-            {page?.scene ? (
+            {page?.layered ? (
+              <LayeredView page={page.layered} label={page.title} />
+            ) : page?.scene ? (
               <SceneView scene={page.scene} label={page.title} />
             ) : page?.image ? (
               <img src={asset(page.image)} alt={page.title} />

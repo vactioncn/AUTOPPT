@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { asset } from "./api";
 import { Button, Modal } from "./components";
 import { SceneView } from "./SceneView";
+import { LayeredView } from "./LayeredView";
 import type { Project } from "./types";
 import { presenterVideo, type PresenterGeneration } from "./presenter-types";
 export function PresenterPlayer({
@@ -39,7 +40,9 @@ export function PresenterPlayer({
       onClose={onClose}
     >
       <div className="presenter-player-stage project-presenter-canvas">
-        {slide?.scene ? (
+        {slide?.layered ? (
+          <LayeredView page={slide.layered} label={piece.page.title} />
+        ) : slide?.scene ? (
           <SceneView scene={slide.scene} label={piece.page.title} />
         ) : slide?.image ? (
           <img src={asset(slide.image)} alt={piece.page.title} />

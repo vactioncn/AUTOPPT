@@ -147,6 +147,7 @@ export function snapshot(slide) {
     plan: slide.plan,
     image: slide.image,
     scene: slide.scene,
+    ...(slide.layered ? { layered: slide.layered } : {}),
     styleId: slide.styleId,
     planStyle: slide.planStyle,
     imageStyle: slide.imageStyle,

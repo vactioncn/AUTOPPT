@@ -182,6 +182,7 @@ export type ContentAttachment = {
   height: number;
 };
 export type Version = {
+  layered?: LayeredPage | null;
   attachments?: ContentAttachment[];
   id: string;
   createdAt: string;
@@ -196,7 +197,31 @@ export type Version = {
   reviewError?: string | null;
   stale: boolean;
 };
+export type LayeredPage = {
+  width: number;
+  height: number;
+  background: string;
+  layers: {
+    id: string;
+    type: "text" | "image";
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    rotation?: number;
+    text?: string;
+    asset?: string;
+    font?: "sans" | "serif";
+    fontSize?: number;
+    fontWeight?: number;
+    color?: string;
+    lineHeight?: number;
+    letterSpacing?: number;
+    align?: "left" | "center" | "right";
+  }[];
+};
 export type Slide = {
+  layered?: LayeredPage | null;
   attachments?: ContentAttachment[];
   pendingAttachments?: ContentAttachment[];
   id: string;
@@ -436,6 +461,7 @@ export type ProjectSummary = {
   wordCount: number;
   cover?: string;
   coverScene?: Scene;
+  coverLayered?: LayeredPage;
 };
 export type Job = {
   uncertain?: boolean;

@@ -1,4 +1,4 @@
-import type { Scene } from "./types";
+import type { LayeredPage, Scene } from "./types";
 import type { SpeechOptions } from "../shared/speech.mjs";
 export type Voice = {
   id: string;
@@ -12,6 +12,7 @@ export type SpeechConnection = {
   hasKey: boolean;
 };
 export type NarrationPage = {
+  layered?: LayeredPage | null;
   id: string;
   number: number;
   title: string;

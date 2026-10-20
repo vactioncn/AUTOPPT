@@ -271,6 +271,7 @@ app.get("/api/bootstrap", (req, res) => {
         batchCount: p.batches.length,
         cover: p.slides.find((s) => s.image)?.image,
         coverScene: p.slides.find((s) => s.scene)?.scene,
+        coverLayered: p.slides.find((s) => s.image || s.scene)?.layered,
         wordCount: p.slides.reduce((n, s) => n + s.notes.trim().length, 0),
       }))
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
@@ -563,6 +564,7 @@ app.patch("/api/projects/:id/slides/:sid", (req, res) => {
     s.stale = true;
     delete s.pendingPlan;
     delete s.pendingPlanStyle;
+    delete s.pendingLayered;
     if (p.proposal?.sourceIds.includes(s.id)) p.proposal = null;
     p.undo = null;
     saveProject(p);
@@ -633,6 +635,7 @@ app.post("/api/projects/:id/render", (req, res) => {
     const slide = p.slides.find((s) => s.id === sid);
     delete slide.pendingPlan;
     delete slide.pendingPlanStyle;
+    delete slide.pendingLayered;
     slide.pendingAttachments = attachmentSnapshots[sid];
   }
   saveProject(p);
@@ -689,6 +692,7 @@ app.post("/api/projects/:id/slides/:sid/restore", (req, res) => {
     plan: v.plan,
     image: v.image,
     scene: v.scene || null,
+    layered: v.layered || null,
     styleId: v.styleId,
     planStyle: v.planStyle,
     imageStyle: v.imageStyle,
@@ -700,6 +704,7 @@ app.post("/api/projects/:id/slides/:sid/restore", (req, res) => {
   });
   delete s.pendingPlan;
   delete s.pendingPlanStyle;
+  delete s.pendingLayered;
   delete s.pendingAttachments;
   if (p.proposal?.sourceIds.includes(s.id)) p.proposal = null;
   p.undo = null;

@@ -3,6 +3,7 @@ import type { Project } from "./types";
 import { Modal, Button } from "./components";
 import { api, asset } from "./api";
 import { SceneView } from "./SceneView";
+import { LayeredView } from "./LayeredView";
 import { visualReviewReason } from "../shared/visual-review.mjs";
 import "./review-help.css";
 export function VisualReview({
@@ -47,7 +48,9 @@ export function VisualReview({
           return (
             <article className="visual-review-item" key={slide.id}>
               <div className="visual-review-preview">
-                {slide.scene ? (
+                {slide.layered ? (
+                  <LayeredView page={slide.layered} label={`第 ${number} 页`} />
+                ) : slide.scene ? (
                   <SceneView scene={slide.scene} label={`第 ${number} 页`} />
                 ) : slide.image ? (
                   <img src={asset(slide.image)} alt={`第 ${number} 页画面`} />

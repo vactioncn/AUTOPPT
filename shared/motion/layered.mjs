@@ -34,12 +34,16 @@ export function validateLayout(raw, displayText) {
       throw new Error("排版字重不受支持");
   }
   const layers = validateLayers(
-    raw.texts.map((t) => ({
-      ...t,
-      id: `text-${t.copyIndex}`,
-      type: "text",
-      fit: false,
-    })),
+    // Preserve the copy order for exports and later edits even if the model
+    // emits its layout entries in a different spatial order.
+    [...raw.texts]
+      .sort((a, b) => a.copyIndex - b.copyIndex)
+      .map((t) => ({
+        ...t,
+        id: `text-${t.copyIndex}`,
+        type: "text",
+        fit: false,
+      })),
     1600,
     900,
   );

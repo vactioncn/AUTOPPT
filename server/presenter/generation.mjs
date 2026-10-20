@@ -34,7 +34,14 @@ const uuid = (v) =>
   /^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(v);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 export const pageStamp = (slide) =>
-  hash(JSON.stringify([slide.image, slide.scene || null, speakerNotes(slide)]));
+  hash(
+    JSON.stringify([
+      slide.image,
+      slide.scene || null,
+      speakerNotes(slide),
+      ...(slide.layered ? [slide.layered] : []),
+    ]),
+  );
 export const textClip = (text, imageHash, speech, index = 0) => ({
   index,
   text,

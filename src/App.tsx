@@ -13,6 +13,7 @@ import { useAccount, AccountFooter, AccountPage } from "./Account";
 import { DeleteItem } from "./DeleteItem";
 import { NewProject, type NewProjectDraft } from "./NewProject";
 import { SceneView } from "./SceneView";
+import { LayeredView } from "./LayeredView";
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Trash,
@@ -669,7 +670,9 @@ function ProjectHome({
               <article className="project-card-wrap" key={p.id}>
                 <button className="project-card" onClick={() => onOpen(p.id)}>
                   <div className="project-cover">
-                    {p.coverScene ? (
+                    {p.coverLayered ? (
+                      <LayeredView page={p.coverLayered} label={p.title} />
+                    ) : p.coverScene ? (
                       <SceneView scene={p.coverScene} label={p.title} />
                     ) : p.cover ? (
                       <img src={asset(p.cover)} alt={p.title} />

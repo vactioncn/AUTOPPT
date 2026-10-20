@@ -49,6 +49,8 @@ const assetKeys = new Set([
   "image",
   "filename",
   "background",
+  "candidateBackground",
+  "rejectedBackground",
   "asset",
   "cover",
   "ref",
@@ -64,6 +66,7 @@ const idKeys = new Set([
   "styleId",
   "batchId",
   "slideId",
+  "pageNumberLayerId",
   "slideIds",
   "batchIds",
   "sourceIds",
@@ -158,6 +161,7 @@ function remapSnapshots(records, remap) {
         image: value.image,
         scene: value.scene,
         notes: value.notes,
+        ...(value.layered ? { layered: value.layered } : {}),
       };
       fingerprints.set(
         hash(JSON.stringify(snapshot)),
@@ -306,6 +310,26 @@ function validateRecords(records, projectId) {
         !Array.isArray(v.refs))
     )
       throw new Error("风格记录无效");
+    // Validate native layers in current pages, narration snapshots and history.
+    function checkLayered(value) {
+      if (!value || typeof value !== "object") return;
+      if (value.layered) {
+        const page = value.layered;
+        validateLayers(page.layers, page.width, page.height);
+        if (!imageName(page.background))
+          throw new Error("独立文字页面的底图引用无效");
+        if (
+          page.layers.some(
+            (l) =>
+              l.type === "text" &&
+              (l.fit || !["sans", "serif"].includes(l.font)),
+          )
+        )
+          throw new Error("独立文字页面必须使用内置字体与自然字号");
+      }
+      Object.values(value).forEach(checkLayered);
+    }
+    checkLayered(v);
     if (kind === "motion") {
       if (!Array.isArray(v.pages) || v.pages.length > 500)
         throw new Error("动态页面数量无效");

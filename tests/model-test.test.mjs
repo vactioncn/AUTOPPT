@@ -6,238 +6,110 @@ import { fork } from "node:child_process";
 import { mkdtempSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import sharp from "sharp";
-import { testConnectionConfig, testModel } from "../server/model-test.mjs";
+import { testConnectionConfig, testConnection } from "../server/model-test.mjs";
 
 const config = {
-  baseUrl: "https://provider.example/v1",
-  model: "real-model",
+  baseUrl: "https://custom.example/v1",
   apiKey: "synthetic-private-key",
 };
 const json = (body, status = 200) =>
   new Response(JSON.stringify(body), { status });
-const completion = (model = config.model) => ({
-  model,
-  choices: [{ message: { content: '{"ok":true}' } }],
-});
 
-test("draft testing preserves settings and cannot forward a saved key to a changed endpoint", () => {
-  const before = structuredClone(config);
+test("connection drafts do not require a model name, save settings, or forward saved keys to another endpoint", () => {
+  const saved = { ...config, model: "my-custom-alias" };
+  const before = structuredClone(saved);
   assert.deepEqual(
-    testConnectionConfig(config, { ...config, apiKey: "", model: "a-typo" }),
-    { ...config, model: "a-typo" },
+    testConnectionConfig(saved, { ...saved, apiKey: "", model: "" }),
+    config,
   );
-  assert.deepEqual(config, before);
+  assert.deepEqual(saved, before);
   for (const draft of [
-    { ...config, model: " " },
-    { ...config, baseUrl: "oops" },
-    { ...config, baseUrl: "https://a:b@provider.example/v1" },
-    { ...config, baseUrl: "https://provider.example/v1?key=secret" },
-    { ...config, baseUrl: "https://other.example/v1", apiKey: "" },
-    { ...config, clearKey: true },
+    { ...saved, baseUrl: "oops" },
+    { ...saved, baseUrl: "https://a:b@custom.example/v1" },
+    { ...saved, baseUrl: "https://custom.example/v1?key=secret" },
+    { ...saved, baseUrl: "https://other.example/v1", apiKey: "" },
+    { ...saved, clearKey: true },
   ])
-    assert.throws(() => testConnectionConfig(config, draft));
+    assert.throws(() => testConnectionConfig(saved, draft));
 });
 
-test("catalog HTTP 200 does not pass missing models, malformed lists or HTML", async () => {
-  let calls = 0;
-  for (const data of [
+test("custom API connection succeeds independently of catalog contents and never sends a model or generation request", async () => {
+  for (const body of [
+    { data: [{ id: "another-model" }] },
     { data: [] },
-    { data: [{ id: "some-other-model" }] },
-    {},
-    { data: [{ name: config.model }] },
+    { models: ["private-alias"] },
+    { service: "ready" },
   ]) {
-    const result = await testModel("text", config, {
+    let calls = 0;
+    const result = await testConnection(config, {
       fetchImpl: async (url, init) => {
         calls++;
         assert.equal(url, config.baseUrl + "/models");
         assert.equal(init.method, "GET");
         assert.equal(init.body, undefined);
-        return json(data);
+        assert.equal(init.headers.Authorization, "Bearer " + config.apiKey);
+        return json(body);
       },
     });
-    assert.equal(result.ok, false);
-    assert.equal(result.status, "unverified");
+    assert.equal(calls, 1);
+    assert.equal(result.ok, true);
+    assert.equal(result.status, "connected");
+    assert.equal(result.responseKind, "json");
+    assert.equal(result.modelFound, undefined);
+    assert.equal(result.invocationSucceeded, undefined);
   }
-  assert.equal(calls, 4);
-  const listed = await testModel("image", config, {
-    fetchImpl: async () => json({ data: [{ id: config.model }] }),
-  });
-  assert.equal(listed.status, "listed");
-  assert.equal(listed.invocationSucceeded, undefined);
-  await assert.rejects(
-    testModel("text", config, {
-      fetchImpl: async () => new Response("<html>login</html>"),
-    }),
-    /不是有效 JSON/,
-  );
 });
 
-test("actual tests require confirmation, send exactly the supplied model, and never retry", async () => {
-  let count = 0;
-  const fetchImpl = async (_url, init) => {
-    count++;
-    const body = JSON.parse(init.body);
-    assert.equal(body.model, "arbitrary-invalid-name");
-    assert.equal(body.response_format.type, "json_object");
-    return json(
-      { error: { code: "model_not_found", message: config.apiKey } },
-      404,
-    );
-  };
-  await assert.rejects(
-    testModel("text", config, { mode: "invocation", fetchImpl }),
-    /先确认/,
-  );
-  assert.equal(count, 0);
-  await assert.rejects(
-    testModel(
-      "text",
-      { ...config, model: "arbitrary-invalid-name" },
-      { mode: "invocation", confirmed: true, fetchImpl },
-    ),
-    (error) => {
-      assert.match(error.message, /没有找到指定模型/);
-      assert(!error.message.includes(config.apiKey));
-      return true;
-    },
-  );
-  assert.equal(count, 1);
-  for (const status of [401, 403, 429, 503]) {
+test("an HTML response proves only reachability and is explicitly described as such", async () => {
+  const result = await testConnection(config, {
+    fetchImpl: async () => new Response("<html>Gateway home</html>"),
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.responseKind, "other");
+  assert.match(result.message, /只.*地址可访问/);
+  assert.match(result.message, /网页或非 JSON/);
+  assert.doesNotMatch(result.message, /模型.*通过|密钥.*有效|生成.*成功/);
+});
+
+test("HTTP errors and explicit API errors remain failures without leaking responses or retrying", async () => {
+  for (const status of [401, 403, 404, 429, 500, 503]) {
     let attempts = 0;
     await assert.rejects(
-      testModel("text", config, {
-        mode: "invocation",
-        confirmed: true,
+      testConnection(config, {
         fetchImpl: async () => {
           attempts++;
-          return json({ error: { message: config.apiKey } }, status);
+          return new Response(config.apiKey, { status });
         },
       }),
+      (error) => {
+        assert.match(error.message, new RegExp(String(status)));
+        assert(!error.message.includes(config.apiKey));
+        return true;
+      },
     );
     assert.equal(attempts, 1);
   }
-});
-
-test("text evidence rejects empty/error/non-JSON bodies and distinguishes model identity", async () => {
-  const options = { mode: "invocation", confirmed: true };
-  for (const data of [
-    {},
-    { error: { message: "bad" } },
-    { choices: [{ message: { content: "hello" } }] },
-    { choices: [{ message: { content: '{"ok":false}' } }] },
-  ])
+  for (const body of [
+    { error: { message: config.apiKey } },
+    { success: false, message: config.apiKey },
+  ]) {
     await assert.rejects(
-      testModel("text", config, {
-        ...options,
-        fetchImpl: async () => json(data),
-      }),
+      testConnection(config, { fetchImpl: async () => json(body) }),
+      (error) => {
+        assert(!error.message.includes(config.apiKey));
+        return true;
+      },
     );
-  const success = await testModel("text", config, {
-    ...options,
-    fetchImpl: async () => json(completion()),
-  });
-  assert.equal(success.status, "verified");
-  assert.equal(success.sample.text, '{"ok":true}');
-  for (const model of ["actual-other-model", "", config.apiKey]) {
-    const result = await testModel("text", config, {
-      ...options,
-      fetchImpl: async () => json(completion(model)),
-    });
-    assert.equal(result.status, "unverified");
-    assert.equal(result.ok, false);
-    assert.equal(result.invocationSucceeded, true);
-    assert(!JSON.stringify(result).includes(config.apiKey));
   }
 });
 
-test("images must decode, have the PPT aspect and opaque pixels; a URL alone never proves success", async () => {
-  const png = await sharp({
-    create: { width: 160, height: 90, channels: 3, background: "#ffffff" },
-  })
-    .png()
-    .toBuffer();
-  const image = {
-    model: config.model,
-    data: [{ b64_json: png.toString("base64") }],
-  };
-  const options = { mode: "invocation", confirmed: true };
-  const valid = await testModel("image", config, {
-    ...options,
-    fetchImpl: async (url, init) => {
-      assert.equal(url, config.baseUrl + "/images/generations");
-      const body = JSON.parse(init.body);
-      assert.equal(body.model, config.model);
-      assert.equal(body.size, "2560x1440");
-      assert.equal(body.n, 1);
-      return json(image);
-    },
-  });
-  assert.equal(valid.status, "verified");
-  assert.equal(valid.sample.width, 160);
-  assert.match(valid.sample.image, /^data:image\/jpeg;base64,/);
-  for (const data of [
-    {},
-    { data: [{ b64_json: "aW52YWxpZA==" }] },
-    { data: [{ url: "http://local/image.png" }] },
-  ])
-    await assert.rejects(
-      testModel("image", config, {
-        ...options,
-        fetchImpl: async () => json(data),
-      }),
-    );
-  const square = await sharp({
-    create: { width: 100, height: 100, channels: 3, background: "white" },
-  })
-    .png()
-    .toBuffer();
+test("timeouts fail and do not retry", async () => {
+  let attempts = 0;
   await assert.rejects(
-    testModel("image", config, {
-      ...options,
-      fetchImpl: async () =>
-        json({ data: [{ b64_json: square.toString("base64") }] }),
-    }),
-    /16:9/,
-  );
-  const transparent = await sharp({
-    create: {
-      width: 160,
-      height: 90,
-      channels: 4,
-      background: { r: 0, g: 0, b: 0, alpha: 0 },
-    },
-  })
-    .png()
-    .toBuffer();
-  await assert.rejects(
-    testModel("image", config, {
-      ...options,
-      fetchImpl: async () =>
-        json({ data: [{ b64_json: transparent.toString("base64") }] }),
-    }),
-    /透明/,
-  );
-  await assert.rejects(
-    testModel("image", config, {
-      ...options,
-      fetchImpl: async () =>
-        json({ data: [{ url: "https://cdn.example/image.png" }] }),
-      download: async () => ({ status: 403 }),
-    }),
-    /无法下载/,
-  );
-});
-
-test("a timed-out attempt cannot become success or automatically repeat", async () => {
-  let calls = 0;
-  await assert.rejects(
-    testModel("text", config, {
-      mode: "invocation",
-      confirmed: true,
+    testConnection(config, {
       timeoutMs: 5,
       fetchImpl: async (_url, { signal }) => {
-        calls++;
+        attempts++;
         await new Promise((resolve, reject) => {
           const timer = setTimeout(resolve, 100);
           signal.addEventListener(
@@ -249,42 +121,38 @@ test("a timed-out attempt cannot become success or automatically repeat", async 
             { once: true },
           );
         });
-        return json(completion());
+        return json({});
       },
     }),
-    /测试超时/,
+    /连接超时/,
   );
-  assert.equal(calls, 1);
+  assert.equal(attempts, 1);
 });
 
 test(
-  "real settings HTTP route validates drafts without changing saved credentials and protects legacy clients",
+  "settings API tests custom names without saving drafts, charging, or altering the configured request path",
   { timeout: 30000 },
   async () => {
     const calls = [];
     const provider = http.createServer(async (req, res) => {
       const chunks = [];
       for await (const chunk of req) chunks.push(chunk);
-      const body = chunks.length ? JSON.parse(Buffer.concat(chunks)) : null;
-      calls.push({ method: req.method, path: req.url, body });
+      calls.push({
+        method: req.method,
+        path: req.url,
+        body: Buffer.concat(chunks).toString(),
+      });
       assert.equal(req.headers.authorization, "Bearer synthetic-route-key");
       res.setHeader("Content-Type", "application/json");
-      if (req.url === "/v1/models")
-        res.end(JSON.stringify({ data: [{ id: "available-model" }] }));
-      else if (body?.model === "available-model")
-        res.end(JSON.stringify(completion("available-model")));
-      else {
-        res.statusCode = 404;
-        res.end(JSON.stringify({ error: { code: "model_not_found" } }));
-      }
+      res.end(JSON.stringify({ data: [{ id: "unrelated-listed-name" }] }));
     });
     provider.listen(0, "127.0.0.1");
     await once(provider, "listening");
-    const dir = mkdtempSync(path.join(tmpdir(), "jianghao-model-test-"));
+    const dir = mkdtempSync(path.join(tmpdir(), "jianghao-connection-test-"));
     const saved = {
       text: {
-        baseUrl: `http://127.0.0.1:${provider.address().port}/v1`,
-        model: "saved-typo",
+        baseUrl: `http://127.0.0.1:${provider.address().port}/custom/api`,
+        model: "private-alias",
         apiKey: "synthetic-route-key",
       },
     };
@@ -304,51 +172,45 @@ test(
     child.stderr.resume();
     try {
       const [{ port }] = await once(child, "message");
-      const origin = `http://127.0.0.1:${port}`;
       const post = (body) =>
-        fetch(origin + "/api/settings/test", {
+        fetch(`http://127.0.0.1:${port}/api/settings/test`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
-      const legacy = await post({ kind: "text" });
-      assert.equal(legacy.status, 422);
-      assert.equal((await legacy.json()).ok, false);
-      const draft = { ...saved.text, apiKey: "", model: "available-model" };
-      const listed = await (
-        await post({ kind: "text", mode: "catalog", connection: draft })
-      ).json();
-      assert.equal(listed.status, "listed");
+      for (const mode of [undefined, "connection"]) {
+        const response = await post({
+          kind: "text",
+          mode,
+          connection: {
+            ...saved.text,
+            apiKey: "",
+            model: "unsaved-custom-name",
+          },
+        });
+        assert.equal(response.status, 200);
+        assert.equal((await response.json()).status, "connected");
+      }
       const before = calls.length;
-      assert.notEqual(
-        (await post({ kind: "text", mode: "invocation", connection: draft }))
+      assert.equal((await post({ kind: "text", mode: "catalog" })).status, 400);
+      assert.equal(
+        (await post({ kind: "text", mode: "invocation", confirmed: true }))
           .status,
-        200,
+        400,
       );
       assert.equal(calls.length, before);
-      const generated = await (
-        await post({
-          kind: "text",
-          mode: "invocation",
-          confirmed: true,
-          connection: draft,
-        })
-      ).json();
-      assert.equal(generated.status, "verified");
-      assert.equal(calls.at(-1).path, "/v1/chat/completions");
-      assert.equal(calls.at(-1).body.model, "available-model");
-      const rejected = await post({
-        kind: "text",
-        mode: "invocation",
-        confirmed: true,
-        connection: { ...draft, model: "any-nonsense" },
-      });
-      assert.notEqual(rejected.status, 200);
-      assert.equal(calls.at(-1).body.model, "any-nonsense");
+      assert.equal(calls.length, 2);
+      for (const call of calls)
+        assert.deepEqual(call, {
+          method: "GET",
+          path: "/custom/api/models",
+          body: "",
+        });
       assert.deepEqual(readFileSync(settingsPath), original);
       assert.equal(
-        (await (await fetch(origin + "/api/settings")).json()).text.model,
-        "saved-typo",
+        (await (await fetch(`http://127.0.0.1:${port}/api/settings`)).json())
+          .text.model,
+        "private-alias",
       );
     } finally {
       child.kill("SIGTERM");

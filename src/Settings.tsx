@@ -6,11 +6,10 @@ import {
   EyeSlash,
   Info,
   FloppyDisk,
-  WarningCircle,
 } from "@phosphor-icons/react";
 import type { Settings, Connection } from "./types";
 import { api, post } from "./api";
-import { Button, Field, Status, Modal } from "./components";
+import { Button, Field, Status } from "./components";
 import { SpeechSettings } from "./SpeechSettings";
 import { PresenterSettings } from "./PresenterSettings";
 import "./settings.css";
@@ -125,8 +124,8 @@ export function SettingsPage({
         <details className="settings-protocol-help">
           <summary>接口填写说明</summary>
           <p>
-            使用 OpenAI 兼容接口，地址填到
-            /v1。更换服务地址后，请重新填写对应密钥。风格参考图只用于提炼风格，不直接用于出图。
+            支持自建的 OpenAI 兼容接口。填写服务方提供的 API
+            基础地址和模型名称或别名。更换服务地址后，请重新填写对应密钥。
           </p>
         </details>
       </div>
@@ -178,34 +177,23 @@ function ConnectionForm({
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [result, setResult] = useState<{
-      status: "listed" | "unverified" | "verified";
       message: string;
-      requestedModel: string;
-      checkedAt: string;
-      sample?: {
-        text?: string;
-        image?: string;
-        width?: number;
-        height?: number;
-      };
-    } | null>(null),
-    [confirmTest, setConfirmTest] = useState(false);
+      responseKind: "json" | "other";
+    } | null>(null);
   const update = (key: string, value: string) => {
     setForm((f) => ({ ...f, [key]: value }));
     setResult(null);
     setError("");
   };
-  const test = async (mode: "catalog" | "invocation") => {
-    setConfirmTest(false);
+  const test = async () => {
     setBusy(true);
     setError("");
     setResult(null);
     try {
       const response = await post("/settings/test", {
         kind,
-        mode,
+        mode: "connection",
         connection: form,
-        confirmed: mode === "invocation",
       });
       setResult(response);
     } catch (e) {
@@ -258,7 +246,7 @@ function ConnectionForm({
         <div className="settings-fields">
           <Field
             label="接口地址"
-            hint="填到 /v1 这一层，无需添加具体接口路径。"
+            hint="填写服务方提供的 API 基础地址，常见以 /v1 结尾。"
           >
             <input
               disabled={busy}
@@ -268,7 +256,10 @@ function ConnectionForm({
               spellCheck={false}
             />
           </Field>
-          <Field label="模型名称">
+          <Field
+            label="模型名称"
+            hint="使用你的 API 中配置的名称或别名，不做名称核验。"
+          >
             <input
               disabled={busy}
               value={form.model}
@@ -326,12 +317,9 @@ function ConnectionForm({
           </p>
         )}
         <div className="connection-form-actions">
-          <Button onClick={() => test("catalog")} disabled={busy}>
-            检查连接与名称
+          <Button onClick={test} disabled={busy}>
+            测试连接
             <ArrowRight size={16} />
-          </Button>
-          <Button onClick={() => setConfirmTest(true)} disabled={busy}>
-            实际调用测试
           </Button>
           <Button variant="primary" onClick={() => save()} loading={busy}>
             <FloppyDisk size={16} />
@@ -341,7 +329,7 @@ function ConnectionForm({
         <p className="settings-test-help" role={busy ? "status" : undefined}>
           {busy
             ? "正在处理，请等待本次结果。"
-            : "测试当前输入，不自动保存。列表检查不会生成内容；实际调用可能计费。"}
+            : "仅检查接口连接，不核验模型名、不调用生成，也不自动保存。"}
         </p>
       </details>
       {error && (
@@ -350,66 +338,17 @@ function ConnectionForm({
         </p>
       )}
       {result && (
-        <div
-          className="model-test-result"
-          data-status={result.status}
-          role="status"
-        >
+        <div className="model-test-result" role="status">
           <p>
-            {result.status === "verified" ? (
-              <CheckCircle size={18} />
-            ) : result.status === "listed" ? (
-              <Info size={18} />
-            ) : (
-              <WarningCircle size={18} />
-            )}
+            <CheckCircle size={18} />
             <strong>
-              {result.status === "verified"
-                ? "实际调用通过"
-                : result.status === "listed"
-                  ? "模型名称已核对 · 尚未实际调用"
-                  : "未通过模型验证"}
+              {result.responseKind === "json"
+                ? "接口连接成功"
+                : "服务地址已连通"}
             </strong>
           </p>
           <p>{result.message}</p>
-          <p className="settings-test-evidence">
-            本次测试：{result.requestedModel} ·{" "}
-            {new Date(result.checkedAt).toLocaleTimeString("zh-CN")}
-          </p>
-          {result.sample?.text && <code>{result.sample.text}</code>}
-          {result.sample?.image && (
-            <img
-              src={result.sample.image}
-              alt={`本次测试实际返回的图片，${result.sample.width} × ${result.sample.height}`}
-            />
-          )}
         </div>
-      )}
-      {confirmTest && (
-        <Modal
-          title="实际调用测试"
-          subtitle="仅测试当前输入，配置不会自动保存。"
-          onClose={() => setConfirmTest(false)}
-        >
-          <p>
-            请求模型：<strong>{form.model}</strong>
-          </p>
-          <p>
-            {kind === "text"
-              ? "向内容接口发送一次短请求，核对是否返回有效 JSON。"
-              : "向图片接口发送一次 2560 × 1440、高质量、不透明底图请求，核对实际返回的图片。"}
-            这会使用服务额度，可能计费，不会自动重试。
-          </p>
-          <p>
-            仅发送固定测试内容，不发送已有项目或讲稿。结果用于本次核对，不写入项目。
-          </p>
-          <div className="connection-form-actions">
-            <Button onClick={() => setConfirmTest(false)}>取消</Button>
-            <Button variant="primary" onClick={() => test("invocation")}>
-              确认并发送一次测试
-            </Button>
-          </div>
-        </Modal>
       )}
     </section>
   );

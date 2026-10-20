@@ -4,10 +4,8 @@ import {
   registerUsage,
   recoverUsage,
   usageMiddleware,
-  trackUsage,
-  withUsage,
 } from "./usage/index.mjs";
-import { testConnectionConfig, testModel } from "./model-test.mjs";
+import { testConnectionConfig, testConnection } from "./model-test.mjs";
 import {
   designOptions,
   expandAudience,
@@ -1163,22 +1161,19 @@ app.put("/api/settings", (req, res) => {
   res.json(updateSettings(req.body));
 });
 app.post("/api/settings/test", async (req, res) => {
-  const { kind, mode, confirmed, connection } = req.body;
+  const { kind, mode, connection } = req.body;
   if (!["text", "image"].includes(kind))
     throw new Error("请选择内容或图片服务。");
+  if (mode === "catalog")
+    throw new Error(
+      "这页是旧版设置。请保存当前输入后刷新，再使用简化后的“测试连接”。",
+    );
+  if (mode && mode !== "connection")
+    throw new Error(
+      "此处已恢复为仅测试连接，不执行生成。请刷新设置页后使用“测试连接”。",
+    );
   const config = testConnectionConfig(settings()[kind], connection);
-  const result = await testModel(kind, config, {
-    mode,
-    confirmed,
-    meter: (body, run) =>
-      withUsage({ feature: "model-test" }, () =>
-        trackUsage(config, kind, body, run),
-      ),
-  });
-  // Old frontends used a green check for every HTTP 200 response.
-  if (!mode && !result.ok)
-    return res.status(422).json({ ...result, error: result.message });
-  res.json(result);
+  res.json(await testConnection(config));
 });
 registerMotion(app);
 registerSpeech(app);

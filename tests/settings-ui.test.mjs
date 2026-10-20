@@ -252,7 +252,7 @@ test(
     await text.getByText("修改连接配置", { exact: true }).click();
     const beforeTest = readFileSync(path.join(dir, "settings.json"), "utf8");
     await text.getByLabel("模型名称").fill("unsaved-test-model");
-    await text.getByRole("button", { name: "检查连接与名称" }).click();
+    await text.getByRole("button", { name: "测试连接" }).click();
     await expect(text.getByRole("alert")).toContainText("模拟连接失败");
     assert.equal(
       readFileSync(path.join(dir, "settings.json"), "utf8"),

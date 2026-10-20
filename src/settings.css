@@ -83,8 +83,7 @@
 .settings-page .connection-form-actions {
   flex-wrap: wrap;
 }
-.settings-test-help,
-.settings-test-evidence {
+.settings-test-help {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.7;
@@ -105,17 +104,8 @@
 .model-test-result svg {
   flex-shrink: 0;
 }
-.model-test-result[data-status="verified"] > p:first-child {
+.model-test-result > p:first-child {
   color: #36512c;
-}
-.model-test-result[data-status="unverified"] > p:first-child {
-  color: #8a3f23;
-}
-.model-test-result img {
-  display: block;
-  margin-top: 12px;
-  width: min(100%, 480px);
-  border-radius: 8px;
 }
 .settings-maintenance {
   margin-top: 16px;

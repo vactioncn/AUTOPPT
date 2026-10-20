@@ -249,7 +249,7 @@ The confirmed public identity is **讲好 · AI 演讲工作台 · 从一份讲�
 
 The current source also unifies the product display name, workbench headers, menus and shared mark as 讲好. App and workspace body text now use `Jianghao Sans` with DM Sans and system fallbacks; their established studio palette, layout, type sizes and control dimensions remain. The installed `/Applications/AutoPPT.app` has not been replaced or restarted by this source update. Its filename, data paths and project-package identifiers remain AutoPPT.
 
-The local “分层制作 · 试用” surface extends this same working identity: a complete slide canvas with direct text editing, compact labeled controls and explicit save state. Its authored text and background keep the presentation’s own style. This is a scoped source-workbench extension; implementation and validation boundaries remain in `.impeccable/layered-speech.md`, `docs/分层演讲-制作与编辑试用.md` and `docs/分层演讲-画布编辑与动效编排.md`.
+The local “编辑文字与动效” surface extends this same working identity: a complete slide canvas with direct text editing, compact labeled controls and explicit save state. Its authored text and background keep the presentation’s own style. This is a scoped source-workbench extension; implementation and validation boundaries remain in `.impeccable/layered-speech.md`, `docs/分层演讲-制作与编辑试用.md` and `docs/分层演讲-画布编辑与动效编排.md`.
 
 ## Colors
 
@@ -419,7 +419,7 @@ The current workflow produces images and exposes single-image download and proje
 
 ### Layered Presentation Trial
 
-“分层制作 · 试用” opens an independent local presentation record. The editor reuses the shared buttons, labeled white fields, fine borders and warm working surfaces. A darker local terracotta marks selected pages, disclosure headings, inspector focus and canvas selection outlines/handles; the canvas caret inherits the authored text color. This supporting treatment does not recolor the authored slide or replace the global action color. Interface text retains the working type ramp; slide fonts, sizes, colors and spacing belong to the presentation.
+“编辑文字与动效” opens an independent local presentation record. The editor reuses the shared buttons, labeled white fields, fine borders and warm working surfaces. A darker local terracotta marks selected pages, disclosure headings, inspector focus and canvas selection outlines/handles; the canvas caret inherits the authored text color. This supporting treatment does not recolor the authored slide or replace the global action color. Interface text retains the working type ramp; slide fonts, sizes, colors and spacing belong to the presentation.
 
 Click the actual main text to type, select, insert line breaks or paste plain text in place. Input echoes retain the focused node and caret; composition guards defer external updates during IME input. Named SVG handles move the layer or resize its text area, with scale-compensated targets kept inside the canvas edges. Handle arrow keys adjust one canvas unit, or ten with Shift. Moving or resizing changes geometry while preserving the chosen font size and natural glyph shapes. Artistic lettering already in the background remains artwork.
 
@@ -560,3 +560,10 @@ The primary action leads to installation instructions, with an explicitly labele
 ## Hosted rehearsal controls — 2026-10-11
 
 The hosted rehearsal view keeps voice, speed and current-page manuscript in one compact form. Current-page trial and whole-project generation share a sticky top operation bar, with visible page and scope. Expression, trial length, existing narration and manual saving remain in a native disclosure. Long manuscript text scrolls within its field; on small screens the form precedes the preview. These values are scoped to hosted rehearsal, retain the warm studio palette and shared primitives, and do not change native App controls or existing settings. The Operate brief and validation boundaries are recorded in `.impeccable/rehearsal-web-layout.md`.
+
+
+### Production to rehearsal continuity (2026-10-20)
+
+Rehearsal has one primary action, “开始演练”. A real saved first-page preview and the playback source sit beside it. “编辑文字与动效” belongs to the production area; closing the editor leaves the user there. The player can return to that editor, and reopening rehearsal reads the saved record. Selected versions are remembered per project in the browser; incomplete, stale or reordered versions are not silently substituted with another editable deck.
+
+AI narration and its existing records use one collapsed “AI 口播与配音（可选）” disclosure. Active work remains visible in its summary. Legacy picture extraction stays in compatibility settings, not the primary flow. Screen copy, speaker notes and narrated text remain separate. The warm workbench identity, action color, fonts and shared controls are unchanged; mobile stacks the preview and actions.

@@ -16,10 +16,37 @@ export function projectArea(value?: string): ProjectArea {
 // Read-only projections of existing endpoints; these are not new saved states.
 export type PresentationRecord = {
   id: string;
+  sourceMode?: string;
+  createdAt?: string;
+  revision?: number;
   sourceRevision: number;
   status: string;
   pages: { id: string; status: string; reviewed?: boolean }[];
 };
+
+// Rehearsal must show the same complete saved PPT that the editor opens.
+// Never silently substitute a partial, reordered or out-of-date snapshot.
+export function currentEditablePresentation(
+  project: Pick<Project, "revision" | "slides">,
+  records: PresentationRecord[],
+  preferredId = "",
+) {
+  return records
+    .filter(
+      (record) =>
+        (!preferredId || record.id === preferredId) &&
+        record.sourceMode === "layered" &&
+        record.status === "ready" &&
+        record.sourceRevision === project.revision &&
+        record.pages.length > 0 &&
+        record.pages.length === project.slides.length &&
+        record.pages.every(
+          (page, i) =>
+            page.status === "ready" && page.id === project.slides[i]?.id,
+        ),
+    )
+    .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))[0];
+}
 export const isWorking = (status: string) =>
   ["queued", "running"].includes(status);
 export const completePresentation = (record: PresentationRecord) =>

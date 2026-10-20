@@ -69,6 +69,7 @@ import {
 } from "./api";
 import { SceneView } from "./SceneView";
 import { StandardPresentation } from "./StandardPresentation";
+import { PptRehearsal } from "./PptRehearsal";
 import type {
   Project,
   Style,
@@ -97,6 +98,7 @@ import {
   projectAreas,
   projectJourney,
   projectPrimaryAction,
+  currentEditablePresentation,
   type JourneyAction,
   type ProjectArea,
 } from "./project-journey";
@@ -198,7 +200,28 @@ export function Workspace({
     "play",
   );
   const [visualReviewOpen, setVisualReviewOpen] = useState(false);
-  const records = usePresentationRecords(id, speechAvailable, motionAvailable);
+  const [recordRefresh, setRecordRefresh] = useState(0);
+  const records = usePresentationRecords(
+    id,
+    speechAvailable,
+    motionAvailable,
+    recordRefresh,
+  );
+  const [rehearsing, setRehearsing] = useState<{ deckId: string } | null>(null);
+  const [motionDeckId, setMotionDeckId] = useState("");
+  const [preferredPpt, setPreferredPpt] = useState({
+    projectId: "",
+    deckId: "",
+  });
+  useEffect(() => {
+    let deckId = "";
+    try {
+      deckId = localStorage.getItem(`jianghao-current-ppt:${id}`) || "";
+    } catch {
+      /* The session still remembers the choice. */
+    }
+    setPreferredPpt({ projectId: id, deckId });
+  }, [id]);
   const [insertion, setInsertion] = useState<{
     afterSlideId: string | null;
   } | null>(null);
@@ -464,6 +487,21 @@ export function Workspace({
         )}
       </div>
     );
+  const editablePpt = currentEditablePresentation(
+    project,
+    records.dynamic.records,
+    preferredPpt.projectId === id ? preferredPpt.deckId : "",
+  );
+  const editPpt = () => {
+    setMotionMode("layered");
+    setMotionDeckId(
+      (preferredPpt.projectId === id && preferredPpt.deckId) ||
+        editablePpt?.id ||
+        "",
+    );
+    onAreaChange("studio");
+    setMotionOpen(true);
+  };
   const activeJobs = jobs.filter((j) => active(j.status));
   const busy = activeJobs[0];
   const previewJob = jobs.find(
@@ -979,11 +1017,27 @@ export function Workspace({
           records={records}
           capabilities={capabilities}
           selectedCount={selected.length}
+          editablePpt={editablePpt}
+          pptLoading={
+            motionAvailable && !records.dynamic.loaded && !records.dynamic.error
+          }
+          pptError={records.dynamic.error}
+          hasEditableHistory={records.dynamic.records.some(
+            (record) => record.sourceMode === "layered",
+          )}
+          onStart={() => setRehearsing({ deckId: editablePpt?.id || "" })}
+          onOriginal={() => setRehearsing({ deckId: "" })}
+          onEditPpt={motionAvailable ? editPpt : undefined}
           onSpeech={(prepare) => {
             setSpeechInitialPanel(prepare ? "text" : "play");
             setSpeechOpen(true);
           }}
-          onMotion={() => setMotionOpen(true)}
+          onMotion={() => {
+            setMotionMode("extract");
+            setMotionDeckId("");
+            onAreaChange("studio");
+            setMotionOpen(true);
+          }}
           onSettings={onSettings}
           onStudio={() =>
             followAction({
@@ -1043,14 +1097,7 @@ export function Workspace({
           </div>
           <div className="studio-topbar-actions">
             {motionAvailable && !!project.slides.length && (
-              <Button
-                onClick={() => {
-                  setMotionMode("layered");
-                  setMotionOpen(true);
-                }}
-              >
-                分层制作 · 试用
-              </Button>
+              <Button onClick={editPpt}>编辑文字与动效</Button>
             )}
             {(!!project.slides.length || !!project.batches.length) &&
               !composerOpen &&
@@ -1908,14 +1955,40 @@ export function Workspace({
       {motionOpen && (
         <MotionPresentation
           initialMode={motionMode}
+          initialDeckId={motionDeckId}
           project={project}
           selected={selected}
-          onClose={() => {
+          onClose={(deckId) => {
             setMotionOpen(false);
-            onAreaChange("rehearsal");
+            if (deckId) {
+              setPreferredPpt({ projectId: id, deckId });
+              try {
+                localStorage.setItem(`jianghao-current-ppt:${id}`, deckId);
+              } catch {
+                /* Keep the choice in this session. */
+              }
+            }
+            setRecordRefresh((value) => value + 1);
           }}
         />
       )}
+      {rehearsing &&
+        (rehearsing.deckId ? (
+          <PptRehearsal
+            deckId={rehearsing.deckId}
+            title={project.title}
+            onClose={() => setRehearsing(null)}
+            onEdit={() => {
+              setRehearsing(null);
+              editPpt();
+            }}
+          />
+        ) : (
+          <StandardPresentation
+            project={project}
+            onClose={() => setRehearsing(null)}
+          />
+        ))}
       {exportOpen && (
         <ExportDialog
           hosted={hosted}

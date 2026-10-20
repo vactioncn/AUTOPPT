@@ -30,6 +30,7 @@ export function usePresentationRecords(
   id: string,
   speech: boolean,
   motion: boolean,
+  refreshKey = 0,
 ) {
   const [narration, setNarration] = useState<RecordsState>(emptyRecords);
   const [dynamic, setDynamic] = useState<RecordsState>(emptyRecords);
@@ -86,7 +87,7 @@ export function usePresentationRecords(
       alive = false;
       clearTimeout(timer);
     };
-  }, [id, speech, motion]);
+  }, [id, speech, motion, refreshKey]);
   return { narration, dynamic, voice };
 }
 type Presentations = ReturnType<typeof usePresentationRecords>;

@@ -100,15 +100,17 @@ export function MotionPresentation({
   project,
   selected,
   initialMode = "extract",
+  initialDeckId = "",
   onClose,
 }: {
   project: Project;
   selected: string[];
   initialMode?: "extract" | "layered";
-  onClose: () => void;
+  initialDeckId?: string;
+  onClose: (deckId?: string) => void;
 }) {
   const [decks, setDecks] = useState<Deck[]>([]),
-    [deckId, setDeckId] = useState(""),
+    [deckId, setDeckId] = useState(initialDeckId),
     [deck, setDeck] = useState<Deck | null>(null);
   const [sourceMode, setSourceMode] = useState(initialMode);
   const [sequenceDraft, setSequenceDraft] = useState<string | null>(null);
@@ -140,11 +142,14 @@ export function MotionPresentation({
     const data = await api<Deck[]>(`/projects/${project.id}/motion`);
     setDecks(data);
     const current =
-      data.find((d) => d.id === deckId) || (!deckId ? data[0] : null);
+      data.find((d) => d.id === deckId) ||
+      (!deckId
+        ? data.find((d) => (d.sourceMode || "extract") === initialMode)
+        : null);
     setDeck(current || null);
     if (!deckId && current) setDeckId(current.id);
-    if (!data.length) setCreating(true);
-  }, [project.id, deckId]);
+    if (!current) setCreating(true);
+  }, [project.id, deckId, initialMode]);
   useEffect(() => {
     let alive = true;
     const poll = () => {
@@ -322,7 +327,7 @@ export function MotionPresentation({
       setError("有尚未保存的校准，请先保存或撤销修改后关闭。");
       return;
     }
-    onClose();
+    onClose(deck?.sourceMode === "layered" ? deck.id : undefined);
   };
   const playerUrl = deck
     ? motionHtmlUrl(deck.id, html.notes, html.narration)
@@ -388,8 +393,8 @@ export function MotionPresentation({
   );
   return (
     <Modal
-      title="分层演讲"
-      subtitle="底图与文字分别保存，改字、排版、按自己的节奏讲述。"
+      title="编辑 PPT · 文字与动效"
+      subtitle="在画面上直接改字，调整排版与动效。保存后，到演练中心开始讲。"
       wide
       onClose={close}
     >
@@ -401,9 +406,9 @@ export function MotionPresentation({
         )}
         <div className="motion-topbar">
           {decks.length > 0 && (
-            <Field label="已保存的演示">
+            <Field label="已保存的 PPT 版本">
               <select
-                aria-label="已保存的动态演示"
+                aria-label="已保存的 PPT 版本"
                 value={creating ? "new" : deckId}
                 disabled={dirtyValue}
                 onChange={(e) => {
@@ -420,7 +425,9 @@ export function MotionPresentation({
                 {decks.map((d) => (
                   <option key={d.id} value={d.id}>
                     {new Date(d.createdAt).toLocaleString("zh-CN")} ·{" "}
-                    {d.pages.length} 页 · {statuses[d.status] || d.status}
+                    {d.pages.length} 页 ·{" "}
+                    {d.sourceMode === "layered" ? "可编辑文字" : "旧版提取"} ·{" "}
+                    {statuses[d.status] || d.status}
                   </option>
                 ))}
                 <option value="new">创建新的演示</option>
@@ -462,12 +469,12 @@ export function MotionPresentation({
               <FilmStrip size={36} />
               <h3>
                 {sourceMode === "layered"
-                  ? "先设计文字，再生成底图"
+                  ? "制作可编辑的 PPT"
                   : "把已经完成的画面，变成可讲述的网页"}
               </h3>
               <p>
                 {sourceMode === "layered"
-                  ? "使用当前讲稿和风格，生成新的分层演示。正文始终可修改，原项目与历史画面保持原样。"
+                  ? "按当前讲稿和风格制作底图与独立文字，完成后可直接改字、调整动效。已有图片页不会自动转换；本次另存为可编辑版本。"
                   : "保留原图构图，识别文字与可动元素，复杂交叠元素留作背景。"}
               </p>
             </div>

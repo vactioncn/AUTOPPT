@@ -8,7 +8,7 @@ The user approved implementing background + editable main text, simple presentat
 
 ## This milestone
 
-- A visible “分层制作 · 试用” entry on the local production toolbar. New independent motion records snapshot manuscript/style/copy; original projects are not rewritten.
+- A visible “编辑文字与动效” entry on the local production toolbar. New independent motion records snapshot manuscript/style/copy; original projects are not rewritten.
 - Generation plans text and placement before drawing a text-free background and checking residual text. Original style rules guide free composition. No generic fixed-layout template.
 - Main editor: click/select text, edit, choose built-in font, fixed size, weight, color, spacing. Playback presets: natural, semantic steps, whole/static. Geometry and effect sequence are disclosed. Overflow blocks saving layered text; never silently shrink or distort.
 - Saving and undo do not call models. A managed player pauses and requests the current page in the editor; saving updates that player while retaining its step. Screen text never silently replaces manuscript or narration.
@@ -29,3 +29,10 @@ Primary sources: src/MotionPresentation.tsx, src/motion.css, src/Workspace.tsx, 
 The required captures are desktop 1280×720 and mobile 390×844. A full-width viewport is a desktop editing surface; mobile uses a horizontal page sequence and stacks preview and fields. The original five-style artwork is pre-existing evidence, not new generated imagery in this task.
 
 Fonts and colors inherit the app's DESIGN.md. Local typography in the slide canvas belongs to the authored presentation, not the UI type ramp. No standalone visual mockup, quality-bar challenger or new surface world was selected for this scoped extension.
+
+
+## Production / rehearsal follow-up
+
+- “编辑文字与动效” is the production entry. Close stays in production; explicit rehearsal opens the complete saved layered PPT with the selected project revision and page order.
+- Rehearsal starts with a real cover, source description and “开始演练”. AI narration and legacy records are optional disclosures. Screen text and narration text remain separate.
+- This does not migrate old image pages, switch the general image pipeline by default, install the App, or claim PPTX native animation. Validate the saved-edit-to-playback round trip in a new isolated fixture and retain the previous workspaces.

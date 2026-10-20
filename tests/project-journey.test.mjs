@@ -14,9 +14,12 @@ const { outputText } = ts.transpileModule(source, {
     module: ts.ModuleKind.ESNext,
   },
 });
-const { projectArea, projectJourney, projectPrimaryAction } = await import(
-  `data:text/javascript,${encodeURIComponent(outputText)}`
-);
+const {
+  projectArea,
+  projectJourney,
+  projectPrimaryAction,
+  currentEditablePresentation,
+} = await import(`data:text/javascript,${encodeURIComponent(outputText)}`);
 
 const project = (slides = []) => ({
   revision: 7,
@@ -189,4 +192,53 @@ test("failed pages with existing artwork require review while missing artwork st
       "查看导出检查",
     );
   }
+});
+
+test("rehearsal and editor share only a complete current editable PPT", () => {
+  const p = project(slides);
+  const ready = {
+    ...presentation(),
+    id: "ready",
+    sourceMode: "layered",
+    createdAt: "2026-10-20T10:00:00Z",
+  };
+  const newer = { ...ready, id: "newer", createdAt: "2026-10-20T11:00:00Z" };
+  const invalid = [
+    { ...newer, status: "running" },
+    { ...newer, status: "failed" },
+    { ...newer, sourceMode: "extract" },
+    { ...newer, sourceRevision: 6 },
+    { ...newer, pages: newer.pages.slice(0, 1) },
+    { ...newer, pages: [...newer.pages].reverse() },
+    {
+      ...newer,
+      pages: [
+        { id: "p1", status: "ready" },
+        { id: "p2", status: "failed" },
+      ],
+    },
+    { ...newer, pages: [] },
+  ];
+  for (const record of invalid) {
+    assert.equal(currentEditablePresentation(p, [record]), undefined);
+    assert.equal(currentEditablePresentation(p, [record, ready])?.id, "ready");
+  }
+  const records = [ready, newer];
+  assert.equal(currentEditablePresentation(p, records)?.id, "newer");
+  assert.equal(currentEditablePresentation(p, records, "ready")?.id, "ready");
+  assert.equal(currentEditablePresentation(p, records, "missing"), undefined);
+  assert.equal(
+    currentEditablePresentation(
+      p,
+      [{ ...ready, status: "partial" }, newer],
+      "ready",
+    ),
+    undefined,
+  );
+  assert.deepEqual(
+    records.map((r) => r.id),
+    ["ready", "newer"],
+    "selection must not mutate stored order",
+  );
+  assert.equal(currentEditablePresentation(project(), [ready]), undefined);
 });

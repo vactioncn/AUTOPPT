@@ -6,10 +6,11 @@ import {
   EyeSlash,
   Info,
   FloppyDisk,
+  WarningCircle,
 } from "@phosphor-icons/react";
 import type { Settings, Connection } from "./types";
 import { api, post } from "./api";
-import { Button, Field, Status } from "./components";
+import { Button, Field, Status, Modal } from "./components";
 import { SpeechSettings } from "./SpeechSettings";
 import { PresenterSettings } from "./PresenterSettings";
 import "./settings.css";
@@ -176,15 +177,47 @@ function ConnectionForm({
     [visible, setVisible] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
-    [result, setResult] = useState("");
+    [result, setResult] = useState<{
+      status: "listed" | "unverified" | "verified";
+      message: string;
+      requestedModel: string;
+      checkedAt: string;
+      sample?: {
+        text?: string;
+        image?: string;
+        width?: number;
+        height?: number;
+      };
+    } | null>(null),
+    [confirmTest, setConfirmTest] = useState(false);
   const update = (key: string, value: string) => {
     setForm((f) => ({ ...f, [key]: value }));
-    setResult("");
+    setResult(null);
+    setError("");
   };
-  const save = async (test = false) => {
+  const test = async (mode: "catalog" | "invocation") => {
+    setConfirmTest(false);
     setBusy(true);
     setError("");
-    setResult("");
+    setResult(null);
+    try {
+      const response = await post("/settings/test", {
+        kind,
+        mode,
+        connection: form,
+        confirmed: mode === "invocation",
+      });
+      setResult(response);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const save = async () => {
+    setBusy(true);
+    setError("");
+    setResult(null);
     try {
       const data = await api<Settings>("/settings", {
         method: "PUT",
@@ -193,13 +226,8 @@ function ConnectionForm({
       setForm({ ...data[kind], apiKey: "" });
       setSaved(data[kind]);
       await refresh();
-      if (test) {
-        const r = await post("/settings/test", { kind });
-        setResult(r.message);
-      } else {
-        setExpanded(false);
-        notify("模型设置已保存在本机。");
-      }
+      setExpanded(false);
+      notify("模型设置已保存在本机。保存不代表测试通过。");
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -298,15 +326,23 @@ function ConnectionForm({
           </p>
         )}
         <div className="connection-form-actions">
-          <Button onClick={() => save(true)} loading={busy}>
-            保存并测试连接
+          <Button onClick={() => test("catalog")} disabled={busy}>
+            检查连接与名称
             <ArrowRight size={16} />
+          </Button>
+          <Button onClick={() => setConfirmTest(true)} disabled={busy}>
+            实际调用测试
           </Button>
           <Button variant="primary" onClick={() => save()} loading={busy}>
             <FloppyDisk size={16} />
             保存设置
           </Button>
         </div>
+        <p className="settings-test-help" role={busy ? "status" : undefined}>
+          {busy
+            ? "正在处理，请等待本次结果。"
+            : "测试当前输入，不自动保存。列表检查不会生成内容；实际调用可能计费。"}
+        </p>
       </details>
       {error && (
         <p className="error-text" role="alert">
@@ -314,10 +350,66 @@ function ConnectionForm({
         </p>
       )}
       {result && (
-        <p className="test-result" role="status">
-          <CheckCircle size={17} />
-          {result}
-        </p>
+        <div
+          className="model-test-result"
+          data-status={result.status}
+          role="status"
+        >
+          <p>
+            {result.status === "verified" ? (
+              <CheckCircle size={18} />
+            ) : result.status === "listed" ? (
+              <Info size={18} />
+            ) : (
+              <WarningCircle size={18} />
+            )}
+            <strong>
+              {result.status === "verified"
+                ? "实际调用通过"
+                : result.status === "listed"
+                  ? "模型名称已核对 · 尚未实际调用"
+                  : "未通过模型验证"}
+            </strong>
+          </p>
+          <p>{result.message}</p>
+          <p className="settings-test-evidence">
+            本次测试：{result.requestedModel} ·{" "}
+            {new Date(result.checkedAt).toLocaleTimeString("zh-CN")}
+          </p>
+          {result.sample?.text && <code>{result.sample.text}</code>}
+          {result.sample?.image && (
+            <img
+              src={result.sample.image}
+              alt={`本次测试实际返回的图片，${result.sample.width} × ${result.sample.height}`}
+            />
+          )}
+        </div>
+      )}
+      {confirmTest && (
+        <Modal
+          title="实际调用测试"
+          subtitle="仅测试当前输入，配置不会自动保存。"
+          onClose={() => setConfirmTest(false)}
+        >
+          <p>
+            请求模型：<strong>{form.model}</strong>
+          </p>
+          <p>
+            {kind === "text"
+              ? "向内容接口发送一次短请求，核对是否返回有效 JSON。"
+              : "向图片接口发送一次 2560 × 1440、高质量、不透明底图请求，核对实际返回的图片。"}
+            这会使用服务额度，可能计费，不会自动重试。
+          </p>
+          <p>
+            仅发送固定测试内容，不发送已有项目或讲稿。结果用于本次核对，不写入项目。
+          </p>
+          <div className="connection-form-actions">
+            <Button onClick={() => setConfirmTest(false)}>取消</Button>
+            <Button variant="primary" onClick={() => test("invocation")}>
+              确认并发送一次测试
+            </Button>
+          </div>
+        </Modal>
       )}
     </section>
   );

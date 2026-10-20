@@ -250,8 +250,15 @@ test(
       speechSettings,
     );
     await text.getByText("修改连接配置", { exact: true }).click();
-    await text.getByRole("button", { name: /保存并测试连接/ }).click();
+    const beforeTest = readFileSync(path.join(dir, "settings.json"), "utf8");
+    await text.getByLabel("模型名称").fill("unsaved-test-model");
+    await text.getByRole("button", { name: "检查连接与名称" }).click();
     await expect(text.getByRole("alert")).toContainText("模拟连接失败");
+    assert.equal(
+      readFileSync(path.join(dir, "settings.json"), "utf8"),
+      beforeTest,
+    );
+    await expect(text.getByLabel("模型名称")).toHaveValue("unsaved-test-model");
     await page.getByRole("tab", { name: "模型服务" }).focus();
     await page.keyboard.press("End");
     await expect(page.getByRole("tab", { name: "实验室" })).toHaveAttribute(

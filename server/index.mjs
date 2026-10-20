@@ -4,7 +4,10 @@ import {
   registerUsage,
   recoverUsage,
   usageMiddleware,
+  trackUsage,
+  withUsage,
 } from "./usage/index.mjs";
+import { testConnectionConfig, testModel } from "./model-test.mjs";
 import {
   designOptions,
   expandAudience,
@@ -1160,29 +1163,22 @@ app.put("/api/settings", (req, res) => {
   res.json(updateSettings(req.body));
 });
 app.post("/api/settings/test", async (req, res) => {
-  const kind = req.body.kind === "image" ? "image" : "text";
-  const s = settings()[kind];
-  if (!s.apiKey) throw new Error("还没有配置 API Key。");
-  let response;
-  try {
-    response = await fetch(s.baseUrl + "/models", {
-      headers: { Authorization: `Bearer ${s.apiKey}` },
-      signal: AbortSignal.timeout(20000),
-    });
-  } catch {
-    throw new Error("无法连接接口，请检查网络和地址。");
-  }
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok)
-    throw new Error(`连接失败（${response.status}），请检查地址和密钥。`);
-  const models = data.data?.map((m) => m.id) || [];
-  res.json({
-    ok: true,
-    modelFound: models.includes(s.model),
-    message: models.includes(s.model)
-      ? "接口连通，模型在可用列表中。"
-      : "接口连通，列表中未找到该模型；请确认模型名称。实际生成仍需单独验证。",
+  const { kind, mode, confirmed, connection } = req.body;
+  if (!["text", "image"].includes(kind))
+    throw new Error("请选择内容或图片服务。");
+  const config = testConnectionConfig(settings()[kind], connection);
+  const result = await testModel(kind, config, {
+    mode,
+    confirmed,
+    meter: (body, run) =>
+      withUsage({ feature: "model-test" }, () =>
+        trackUsage(config, kind, body, run),
+      ),
   });
+  // Old frontends used a green check for every HTTP 200 response.
+  if (!mode && !result.ok)
+    return res.status(422).json({ ...result, error: result.message });
+  res.json(result);
 });
 registerMotion(app);
 registerSpeech(app);

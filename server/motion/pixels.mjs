@@ -19,7 +19,7 @@ export function textRemoval(
   width,
   height,
   layer,
-  { smooth = false } = {},
+  { smooth = false, precise = false } = {},
 ) {
   const box = regionBox(
     layer,
@@ -59,7 +59,7 @@ export function textRemoval(
       const t =
         px.reduce((n, v, c) => n + (v - bg[c]) * direction[c], 0) / norm;
       return (
-        t > 0.07 &&
+        t > (precise ? 0.55 : 0.07) &&
         t < 1.15 &&
         distance(
           px,
@@ -302,7 +302,7 @@ export function textRemoval(
     // A single smooth backdrop can be restored across the complete text box.
     // This also removes pale outlines/shadows which are unlike the ink color.
     // Multi-color highlights keep the glyph-only mask to preserve their edges.
-    if (modes.length === 1) mask.fill(1);
+    if (modes.length === 1 && !precise) mask.fill(1);
   }
   return { box, mask, simple, pixels };
 }

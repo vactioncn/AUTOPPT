@@ -24,7 +24,10 @@ import {
 import { PLANNING_VERSION } from "./content-planning.mjs";
 import { DIRECT_PROMPT_MODE } from "./direct-image.mjs";
 import { snapshot, styleStamp } from "./core.mjs";
-import { generatePreservedPage } from "./motion/preserved.mjs";
+import {
+  generatePreservedPage,
+  refinePreservedBackground,
+} from "./motion/preserved.mjs";
 import { MANUSCRIPT_VERSION, spokenManuscript } from "./manuscript.mjs";
 import { runTrial } from "./trials.mjs";
 import { reusableScreenCopy } from "./screen-copy.mjs";
@@ -44,7 +47,7 @@ export function activeJob(projectId) {
 }
 // Publish the same page ownership to API consumers and mutation guards.
 export function jobSlideIds(j) {
-  if (j.type === "render")
+  if (["render", "background-repair"].includes(j.type))
     return j.payload.slideIds.filter(
       (id) => !j.payload.finishedIds?.includes(id),
     );
@@ -86,7 +89,7 @@ function assertSubmission(type, projectId, payload, exceptJobId = null) {
     );
   assertIdle(
     projectId,
-    type === "render"
+    ["render", "background-repair"].includes(type)
       ? payload.slideIds.filter((id) => !payload.finishedIds?.includes(id))
       : type === "proposal"
         ? payload.sourceIds
@@ -134,7 +137,7 @@ export function enqueue(type, projectId, payload = {}) {
   if (projectId) {
     assertSubmission(type, projectId, payload);
     const p = projectOrThrow(projectId);
-    if (type !== "inspect") {
+    if (!["inspect", "background-repair"].includes(type)) {
       payload.styleSnapshot = selectedStyle(p);
       payload.designOptions = designOptions(p.designOptions);
     }
@@ -182,7 +185,7 @@ export function retry(jobId, { acknowledgeUncertain = false } = {}) {
   if (j.projectId) {
     assertSubmission(j.type, j.projectId, j.payload, j.id);
     // A retry is a new attempt under the user's current choice, not the original job's style.
-    if (j.type !== "inspect") {
+    if (!["inspect", "background-repair"].includes(j.type)) {
       const p = projectOrThrow(j.projectId);
       j.payload.styleSnapshot = selectedStyle(p);
       j.payload.designOptions = designOptions(p.designOptions);
@@ -366,6 +369,10 @@ async function renderSlides(j, ids, signal, redesign = false) {
     const pageNumber = p.slides.findIndex((x) => x.id === sid) + 1;
     j.pageProgress.current = { id: sid, page: pageNumber };
     try {
+      const preserveSourceCopy =
+        !s.image &&
+        !s.scene &&
+        /^(?:上屏)?文案.*未通过.*未开始出图/u.test(s.error || "");
       s.status = "generating";
       s.error = null;
       saveProject(p);
@@ -412,6 +419,7 @@ async function renderSlides(j, ids, signal, redesign = false) {
             designOptions: choices,
             contentBrief: briefs[s.id],
             copyFeedback: j.payload.copyFeedback || "",
+            preserveSourceCopy,
             onProgress: (stage) =>
               progress(
                 j,
@@ -544,6 +552,49 @@ async function renderSlides(j, ids, signal, redesign = false) {
     );
 }
 async function run(j, signal) {
+  if (j.type === "background-repair") {
+    const sid = j.payload.slideIds[0];
+    const source = projectOrThrow(j.projectId).slides.find((s) => s.id === sid);
+    if (!source?.layered) throw new Error("这页还没有可修复的分层画面。");
+    // Page ownership prevents edits while this operation is active. On a later
+    // retry, don't reuse a patch made for a different original or geometry.
+    const key = JSON.stringify([
+      source.layered.originalImage,
+      source.layered.extractionAnalysis,
+    ]);
+    if (j.payload.repairSource !== key) {
+      j.payload.repairSource = key;
+      delete j.payload.extracted;
+    }
+    usageScope({ pageId: sid });
+    progress(j, "正在局部修复底图；当前画面仍可使用", 0, 1);
+    const layered = await refinePreservedBackground(
+      source.layered,
+      signal,
+      (stage) => progress(j, stage),
+      async (extracted) => {
+        j.payload.extracted = extracted;
+        put("job", j);
+      },
+      undefined,
+      j.payload.extracted,
+    );
+    signal.throwIfAborted();
+    const current = projectOrThrow(j.projectId);
+    const slide = current.slides.find((s) => s.id === sid);
+    if (
+      !slide ||
+      JSON.stringify(slide.layered) !== JSON.stringify(source.layered)
+    )
+      throw new Error("页面已改变，局部修复结果已保存，请重新载入。");
+    slide.versions.push(snapshot(slide));
+    slide.layered = layered;
+    slide.image = layered.background;
+    saveProject(current);
+    j.payload.finishedIds = [sid];
+    progress(j, "底图局部修复已保存，旧版保留在历史中", 1, 1);
+    return;
+  }
   if (j.type === "trial")
     return runTrial(j, signal, (stage) => progress(j, stage));
   if (j.type === "style") {

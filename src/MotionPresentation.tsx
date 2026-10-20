@@ -739,7 +739,9 @@ export function MotionPresentation({
                       </p>
                       {!!page.warnings?.length && (
                         <details className="motion-warnings">
-                          <summary>校对提示（{page.warnings.length}）</summary>
+                          <summary>
+                            可优化项（{page.warnings.length}）· 不影响编辑和播放
+                          </summary>
                           {page.warnings.map((w, i) => (
                             <p key={i}>{w}</p>
                           ))}
@@ -970,7 +972,13 @@ export function MotionPresentation({
                                   }
                                 />
                               </Field>
-                              {numeric("字距", "letterSpacing", -20, 100, 0.1)}
+                              {numeric(
+                                "字距",
+                                "letterSpacing",
+                                Math.min(-20, -(current.fontSize || 0) * 0.3),
+                                Math.max(100, (current.fontSize || 0) * 0.3),
+                                0.1,
+                              )}
                             </div>
                           </>
                         )}

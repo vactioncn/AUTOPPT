@@ -131,16 +131,16 @@ test("semantic context is sourced, independently reviewed and stays outside prim
     );
   }
   calls = 0;
-  await assert.rejects(
-    prepareScreenCopy(setup, async (_s, user) => {
-      if (!calls++) return candidate;
-      return {
-        ...reviewFixture(JSON.parse(user)),
-        semanticSupport: [{ sourceQuote: "第二层经营用户" }],
-      };
-    }),
-    /语义辅助/,
-  );
+  const recovered = await prepareScreenCopy(setup, async (_s, user) => {
+    if (!calls++) return candidate;
+    return {
+      ...reviewFixture(JSON.parse(user)),
+      semanticSupport: [{ sourceQuote: "第二层经营用户" }],
+    };
+  });
+  assert.deepEqual(recovered.semanticSupport, [support]);
+  assert.deepEqual(recovered.displayText, [question]);
+  assert.equal(recovered.review.status, "advisory");
 });
 
 test("removed excerpts stay removed while neutral optional expression preserves meaning", async () => {
@@ -209,7 +209,7 @@ test("independent review shortens a dense draft, preserves qualifiers and leaves
   assert.equal(final.review.status, "reviewed");
 });
 
-test("review cannot approve lost qualifiers, invented source evidence or repeated text", async () => {
+test("unreliable review retains sourced copy while repeated wording is advisory", async () => {
   for (const mutate of [
     (r) => {
       r.entries[0].text = r.entries[0].text.replace("20%", "120%");
@@ -225,19 +225,25 @@ test("review cannot approve lost qualifiers, invented source evidence or repeate
     },
   ]) {
     let n = 0;
-    await assert.rejects(
-      prepareScreenCopy(input, async (_s, user) => {
-        if (!n++) return draft();
-        const r = reviewed(JSON.parse(user));
-        mutate(r);
-        return r;
-      }),
-      /限定词|来源|重复/,
+    const copy = await prepareScreenCopy(input, async (_s, user) => {
+      if (!n++) return draft();
+      const r = reviewed(JSON.parse(user));
+      mutate(r);
+      return r;
+    });
+    assert.equal(n, 2);
+    assert(!copy.displayText.join("").includes("120%"));
+    assert(copy.displayText.join("").includes("仅试点门店"));
+    assert(copy.displayText.join("").includes("不是销售额增长"));
+    assert(!JSON.stringify(copy).includes("编造的原稿"));
+    assert(
+      copy.review.warnings.length ||
+        copy.review.changes.some((c) => c.includes("自动恢复")),
     );
   }
 });
 
-test("literal protection failures recover with cited original wording after one model repair", async () => {
+test("literal protection failures restore original wording without another model call", async () => {
   for (const [source, paraphrase, protectedText] of [
     [
       "哪些过去每天都在发生、但我们看不见的关键过程，今天值得被留下来？",
@@ -280,19 +286,19 @@ test("literal protection failures recover with cited original wording after one 
         };
       },
     );
-    assert.equal(calls, 3, "does not add another model request");
+    assert.equal(calls, 2, "does not add another model request");
     assert.deepEqual(
       copy.displayText,
       [source],
       "never releases the mismatched or altered claim",
     );
-    assert.equal(copy.review.repairAttempts, 1);
+    assert.equal(copy.review.repairAttempts, 0);
     assert(copy.review.changes.some((x) => x.includes("自动恢复对应原稿表达")));
     assert(reusableScreenCopy(copy, source));
   }
 });
 
-test("source restoration cannot bypass a failed fidelity review", async () => {
+test("uncertain fidelity falls back to original wording instead of failing the page", async () => {
   const source = "今天值得被留下来？";
   const candidate = {
     editScope: "composition",
@@ -302,8 +308,9 @@ test("source restoration cannot bypass a failed fidelity review", async () => {
     rationale: "保留提问",
   };
   let calls = 0;
-  await assert.rejects(
-    prepareScreenCopy({ ...input, notes: source }, async (_s, user) => {
+  const copy = await prepareScreenCopy(
+    { ...input, notes: source },
+    async (_s, user) => {
       if (!calls++) return candidate;
       const review = reviewFixture(JSON.parse(user));
       return {
@@ -311,26 +318,34 @@ test("source restoration cannot bypass a failed fidelity review", async () => {
         entries: [{ ...candidate.entries[0], text: "今天值得留下来？" }],
         checks: { ...review.checks, faithful: false },
       };
-    }),
-    /复核未通过/,
+    },
   );
+  assert.deepEqual(copy.displayText, [source]);
+  assert.equal(copy.review.sourceFallback, true);
+  assert.equal(copy.review.status, "advisory");
+  assert(reusableScreenCopy(copy, source));
 });
 
-test("failed readability or fidelity review stops before layout and suggests manual splitting", async () => {
+test("readability concerns preserve editable output and suggest optional splitting", async () => {
   let n = 0;
-  await assert.rejects(
-    prepareScreenCopy(input, async (_s, user) => {
-      if (!n++) return draft();
-      return {
-        ...reviewed(JSON.parse(user)),
-        checks: {
-          ...reviewFixture({ candidate: draft() }).checks,
-          readable: false,
-        },
-        splitSuggestion: "把试点数据和客服案例分成两页",
-      };
-    }),
-    /未开始出图.*分成两页/,
+  const copy = await prepareScreenCopy(input, async (_s, user) => {
+    if (!n++) return draft();
+    return {
+      ...reviewed(JSON.parse(user)),
+      checks: {
+        ...reviewFixture({ candidate: draft() }).checks,
+        readable: false,
+      },
+      splitSuggestion: "把试点数据和客服案例分成两页",
+    };
+  });
+  assert.equal(copy.review.status, "advisory");
+  assert(copy.review.warnings.includes("把试点数据和客服案例分成两页"));
+  assert.deepEqual(
+    copy.displayText,
+    draft()
+      .entries.slice(0, 2)
+      .map((e) => e.text),
   );
   assert.equal(n, 2);
   const bad = draft();
@@ -404,4 +419,57 @@ test("layout cannot reintroduce removed prose and cancellation does not start re
     { name: "AbortError" },
   );
   assert.equal(n, 1);
+});
+
+test("contrast can span two main blocks; missing hierarchy gets a default without rewriting", async () => {
+  const parts = [
+    "不是越来越多的人用宠物替代孩子",
+    "而是越来越多的人开始用对待家庭成员的方式对待宠物",
+  ];
+  const setup = {
+    ...input,
+    notes: parts.join("，") + "。",
+    brief: { relationship: "comparison" },
+  };
+  for (const role of ["main", "support"]) {
+    const candidate = {
+      editScope: "composition",
+      entries: parts.map((text) => ({ text, role, sourceQuote: text })),
+      mustKeep: [],
+      spokenOnly: [],
+      rationale: "一个对比观点，两个表达块",
+    };
+    let calls = 0;
+    const copy = await prepareScreenCopy(setup, async (_s, user) =>
+      !calls++ ? candidate : reviewFixture(JSON.parse(user)),
+    );
+    assert.deepEqual(copy.displayText, parts);
+    assert(copy.entries.some((e) => e.role === "main"));
+    assert.equal(calls, 2);
+  }
+});
+
+test("optional review outage and malformed editorial results retain usable copy; cancellation still stops", async () => {
+  let calls = 0;
+  const result = await prepareScreenCopy(input, async () => {
+    if (!calls++) return draft();
+    throw new Error("review unavailable");
+  });
+  assert.deepEqual(
+    result.displayText,
+    draft().entries.map((e) => e.text),
+  );
+  assert.equal(result.review.status, "advisory");
+  const malformed = await prepareScreenCopy(input, async () => ({}));
+  assert.deepEqual(malformed.displayText, [notes]);
+  const controller = new AbortController();
+  calls = 0;
+  await assert.rejects(
+    prepareScreenCopy({ ...input, signal: controller.signal }, async () => {
+      if (!calls++) return draft();
+      controller.abort();
+      throw controller.signal.reason;
+    }),
+    { name: "AbortError" },
+  );
 });

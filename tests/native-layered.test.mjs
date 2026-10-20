@@ -303,5 +303,37 @@ test(
     assert.equal(saved.slides[1].layered.layers[0].text, "从故事开始");
     assert.deepEqual(saved.slides[0], old);
     assert.deepEqual(events, ["image", "analysis", "analysis", "check"]);
+    const beforeRepair = structuredClone(saved.slides[1]);
+    await request(
+      "/projects/project/slides/new/repair-background",
+      { revision: 1 },
+      "POST",
+      409,
+    );
+    const repair = await request(
+      "/projects/project/slides/new/repair-background",
+      { revision: saved.revision },
+      "POST",
+      202,
+    );
+    assert.equal((await finished(repair.id)).status, "completed");
+    saved = await request("/projects/project");
+    assert.deepEqual(saved.slides[0], old);
+    assert.deepEqual(
+      saved.slides[1].layered.layers,
+      beforeRepair.layered.layers,
+    );
+    assert.equal(
+      saved.slides[1].layered.originalImage,
+      beforeRepair.layered.originalImage,
+    );
+    assert.equal(saved.slides[1].notes, beforeRepair.notes);
+    assert.equal(saved.slides[1].versions.at(-1).image, beforeRepair.image);
+    assert.equal(saved.slides[1].layered.qualityReview.status, "advisory");
+    assert.deepEqual(
+      events,
+      ["image", "analysis", "analysis", "check"],
+      "repair never regenerates the page or re-runs editorial models",
+    );
   },
 );

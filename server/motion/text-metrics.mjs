@@ -107,30 +107,40 @@ export async function calibrateText(layer, width, height) {
     Math.abs(b - layer.fontWeight) < Math.abs(a - layer.fontWeight) ? b : a,
   );
   const m = await textMetrics(layer.text, layer.font, fontWeight);
-  const fontSize = layer.h / (m.maxY - m.minY),
-    count = [...layer.text].length;
+  const count = [...layer.text].length;
+  // Generated lettering can be condensed. Forcing its height onto a wider
+  // bundled face with extreme negative tracking makes Chinese strokes collide.
+  // Fit the natural glyphs once within the original ink area, then freeze that
+  // size for editing; keep their vertical centre and the surrounding artwork.
+  const fontSize = Math.min(
+    layer.h / (m.maxY - m.minY),
+    layer.w / Math.max(0.1, m.maxX - m.minX - Math.max(0, count - 1) * 0.04),
+  );
   const spacing =
     count > 1 ? (layer.w - (m.maxX - m.minX) * fontSize) / (count - 1) : 0;
-  if (Math.abs(spacing) > fontSize * 0.3)
-    throw new Error("文字边界与实际字形不匹配，请重新识别文字位置");
+  const letterSpacing = Math.min(spacing, fontSize * 0.3);
   // Include the font's ascent/descent in the editing box; a shorter CSS line
   // box reports false overflow even when the visible ink fits exactly.
   const lineHeight = Math.max(1.2, m.ascent + m.descent);
   const baseline = (lineHeight - m.ascent - m.descent) / 2 + m.ascent;
+  const inkHeight = (m.maxY - m.minY) * fontSize;
   const x = Math.max(0, layer.x - m.minX * fontSize),
-    y = Math.max(0, layer.y - (baseline - m.maxY) * fontSize);
+    y = Math.max(
+      0,
+      layer.y + (layer.h - inkHeight) / 2 - (baseline - m.maxY) * fontSize,
+    );
   return {
     ...layer,
     x,
     y,
     w: Math.min(
       width - x,
-      Math.max(layer.w, m.advance * fontSize + count * spacing) + 3,
+      Math.max(layer.w, m.advance * fontSize + count * letterSpacing) + 3,
     ),
     h: Math.min(height - y, fontSize * lineHeight + 2),
     fontSize,
     fontWeight,
-    letterSpacing: spacing,
+    letterSpacing,
     lineHeight,
     align: "left",
     fit: false,

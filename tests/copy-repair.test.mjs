@@ -59,80 +59,64 @@ test("equivalent count notation passes while numeric magnitude, sign, units and 
   );
 });
 
-test("a review missing a qualifier gets one targeted repair and still needs review approval", async () => {
+test("missing qualifiers restore the cited wording locally with no paid repair loop", async () => {
   let calls = 0;
   const result = await prepareScreenCopy(input, async (_system, user) => {
-    const data = JSON.parse(user);
-    calls++;
-    if (calls === 1) return draft();
-    const review = reviewFixture(data);
-    if (calls === 2) review.entries[0].text = "部分试点门店效率提升20%";
-    else {
-      assert.equal(data.repair.issue.code, "missing-protection");
-      assert.equal(data.repair.issue.protectedText, "最高");
-      assert.match(data.repair.previousResult.entries[0].text, /效率提升/);
-    }
+    if (!calls++) return draft();
+    const review = reviewFixture(JSON.parse(user));
+    review.entries[0].text = "部分试点门店效率提升20%";
     return review;
   });
-  assert.equal(calls, 3);
-  assert.equal(result.review.repairAttempts, 1);
-  assert.match(result.displayText[0], /最高/);
+  assert.equal(calls, 2);
+  assert.equal(result.review.repairAttempts, 0);
+  assert.equal(result.displayText[0], draft().entries[0].sourceQuote);
 });
 
-test("unrecoverable repair preserves stage, original quote and candidate in the persisted error message", async () => {
+test("unreliable source references keep the last valid draft without failing the page", async () => {
   let calls = 0;
-  await assert.rejects(
-    prepareScreenCopy(input, async (_system, user) => {
-      calls++;
-      if (calls === 1) return draft();
-      const review = reviewFixture(JSON.parse(user));
-      review.entries[0].text = "门店效率提升20%";
-      review.entries[0].sourceQuote = "今天讲五个话题。";
-      return review;
-    }),
-    (error) => {
-      assert.match(error.message, /文案复核未通过（已自动修正一次）/);
-      assert.match(error.message, /对应来源引用：部分试点门店效率最高提升20%/);
-      assert.match(error.message, /候选上屏文案：门店效率提升20%/);
-      return true;
-    },
+  const result = await prepareScreenCopy(input, async (_system, user) => {
+    if (!calls++) return draft();
+    const review = reviewFixture(JSON.parse(user));
+    review.entries[0].text = "门店效率提升20%";
+    review.entries[0].sourceQuote = "今天讲五个话题。";
+    return review;
+  });
+  assert.deepEqual(
+    result.displayText,
+    draft().entries.map((e) => e.text),
   );
-  assert.equal(calls, 3);
+  assert.equal(calls, 2);
+  assert.equal(result.review.status, "advisory");
 });
 
-test("initial repair cannot bypass a valid protection by clearing the list", async () => {
+test("initial protection errors restore the source and retain the original protection through review", async () => {
   let calls = 0;
   const result = await prepareScreenCopy(input, async (_s, user) => {
-    calls++;
-    if (calls > 2) return reviewFixture(JSON.parse(user));
-    const raw = draft();
-    raw.entries[0].text = "门店效率提升20%";
-    if (calls === 2) raw.mustKeep = [];
-    return raw;
+    if (!calls++) {
+      const raw = draft();
+      raw.entries[0].text = "门店效率提升20%";
+      return raw;
+    }
+    const data = JSON.parse(user);
+    assert.deepEqual(data.candidate.mustKeep, draft().mustKeep);
+    return reviewFixture(data);
   });
-  assert.equal(calls, 3);
+  assert.equal(calls, 2);
   assert.deepEqual(result.mustKeep, draft().mustKeep);
   assert.deepEqual(result.displayText, [draft().entries[0].sourceQuote]);
 });
 
-test("source mismatch is distinct from missing copy and can be repaired", async () => {
+test("source mismatch falls back to the complete source rather than an invented summary", async () => {
   let calls = 0;
-  const result = await prepareScreenCopy(input, async (_system, user) => {
+  const result = await prepareScreenCopy(input, async () => {
     calls++;
-    const data = JSON.parse(user);
-    if (calls === 1) {
-      const raw = draft();
-      raw.mustKeep[0].sourceQuote = "部分试点，门店效率最高提升20%。";
-      return raw;
-    }
-    if (calls === 2) {
-      assert.equal(data.repair.issue.code, "protection-source");
-      return draft();
-    }
-    return reviewFixture(data);
+    const raw = draft();
+    raw.mustKeep[0].sourceQuote = "部分试点，门店效率最高提升20%。";
+    return raw;
   });
-  assert.equal(calls, 3);
-  assert.equal(result.review.repairAttempts, 1);
+  assert.equal(calls, 1);
+  assert.deepEqual(result.displayText, [notes]);
+  assert.equal(result.review.sourceFallback, true);
 });
 
 test("optional claim moved entirely to speech releases its own protection, but a retained claim cannot lose its conditions", async () => {
@@ -167,24 +151,9 @@ test("optional claim moved entirely to speech releases its own protection, but a
   assert.equal(retained.displayText[1], quote);
 });
 
-test("one repair budget is shared by both stages and abort does not trigger repair", async () => {
-  let calls = 0;
-  const recovered = await prepareScreenCopy(input, async (_s, user) => {
-    calls++;
-    if (calls === 1) {
-      const raw = draft();
-      raw.entries[0].text = "门店效率提升20%";
-      return raw;
-    }
-    if (calls === 2) return draft();
-    const review = reviewFixture(JSON.parse(user));
-    review.entries[0].text = "门店效率提升20%";
-    return review;
-  });
-  assert.deepEqual(recovered.displayText, [draft().entries[0].sourceQuote]);
-  assert.equal(calls, 3);
+test("cancellation never starts an editorial repair or fallback generation", async () => {
   const controller = new AbortController();
-  calls = 0;
+  let calls = 0;
   await assert.rejects(
     prepareScreenCopy({ ...input, signal: controller.signal }, async () => {
       calls++;
@@ -218,24 +187,17 @@ test("main and support roles reach image prompt without changing text or adding 
   );
 });
 
-test("a repaired draft is rejected when independent review still finds it unfaithful", async () => {
+test("fidelity concerns use exact source wording and remain advisory", async () => {
   let calls = 0;
-  await assert.rejects(
-    prepareScreenCopy(input, async (_system, user) => {
-      calls++;
-      if (calls === 1) {
-        const raw = draft();
-        raw.entries[0].text = "门店效率提升20%";
-        return raw;
-      }
-      if (calls === 2) return draft();
-      const result = reviewFixture(JSON.parse(user));
-      result.checks.faithful = false;
-      return result;
-    }),
-    /复核未通过/,
-  );
-  assert.equal(calls, 3);
+  const copy = await prepareScreenCopy(input, async (_system, user) => {
+    if (!calls++) return draft();
+    const result = reviewFixture(JSON.parse(user));
+    result.checks.faithful = false;
+    return result;
+  });
+  assert.deepEqual(copy.displayText, [notes]);
+  assert.equal(copy.review.status, "advisory");
+  assert.equal(calls, 2);
 });
 
 test("claim omission cannot release the main claim or hide an unqualified result in auxiliary excerpts", async () => {

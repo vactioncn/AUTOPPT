@@ -683,25 +683,30 @@ test(
       project.slides[0].plan.screenCopy.metrics.sourceCharacters,
       [...text].length,
     );
-    for (const kind of ["review"]) {
+    {
       const imageCount = imageCalls;
       rejectCopyReview = true;
-      const rejectedCopy = await req(
+      const advisoryJob = await req(
         `/projects/${id}/render`,
         { slideIds: [sid], redesign: true, copyFeedback: "重新提炼文字" },
         "POST",
         202,
       );
-      assert.equal((await poll(rejectedCopy)).status, "failed");
+      assert.equal((await poll(advisoryJob)).status, "completed");
       const preserved = await read();
-      assert.equal(imageCalls, imageCount);
+      assert.equal(imageCalls, imageCount + 1);
       assert.equal(preserved.slides[0].notes, text);
-      assert.equal(preserved.slides[0].image, originalImage);
       assert.equal(preserved.slides.length, 1);
-      assert.match(
-        preserved.slides[0].error,
-        kind === "review" ? /文案复核.*未开始出图/ : /排版改动/,
+      assert.equal(preserved.slides[0].error, null);
+      assert.equal(
+        preserved.slides[0].plan.screenCopy.review.status,
+        "advisory",
       );
+      const old = preserved.slides[0].versions.find(
+        (v) => v.image === originalImage,
+      );
+      assert(old, "original image remains recoverable");
+      await req(`/projects/${id}/slides/${sid}/restore`, { versionId: old.id });
     }
     // A failed image keeps the previous picture and the paid-for plan; retry reuses that plan.
     failImage = true;
@@ -2989,14 +2994,20 @@ test(
       assert.deepEqual(edit.files[i], original);
       assert.notDeepEqual(original, image);
     }
-    // Failed content review with new materials stops before image generation.
-    const savedImage = materialSlide.image;
+    // Editorial advice with new materials retains the original and still delivers a page.
+    let savedImage = materialSlide.image;
     const editsBeforeInvalid = editRequests.length;
     rejectCopyReview = true;
-    assert.equal((await rendered(attachmentIds.slice(0, 1))).status, "failed");
-    assert.equal(editRequests.length, editsBeforeInvalid);
-    assert.equal((await read()).slides[0].image, savedImage);
-    assert.equal((await read()).slides[0].pendingAttachments.length, 1);
+    assert.equal(
+      (await rendered(attachmentIds.slice(0, 1))).status,
+      "completed",
+    );
+    assert.equal(editRequests.length, editsBeforeInvalid + 1);
+    const advisory = (await read()).slides[0];
+    assert(advisory.versions.some((v) => v.image === savedImage));
+    assert.equal(advisory.attachments.length, 1);
+    assert.equal(advisory.plan.screenCopy.review.status, "advisory");
+    savedImage = advisory.image;
     // No silent fallback to text-only if the provider rejects image edits; retry keeps material bytes.
     failImage = true;
     const failedJob = await rendered(attachmentIds.slice(0, 2));

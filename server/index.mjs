@@ -650,6 +650,22 @@ app.post("/api/projects/:id/render", (req, res) => {
     }),
   );
 });
+app.post("/api/projects/:id/slides/:sid/repair-background", (req, res) => {
+  const p = projectOrThrow(req.params.id);
+  if (req.body.revision !== p.revision)
+    throw Object.assign(new Error("项目已更新，请重新载入后再修复。"), {
+      status: 409,
+    });
+  const s = p.slides.find((s) => s.id === req.params.sid);
+  if (
+    !s?.layered?.originalImage ||
+    !s.layered.extractionAnalysis?.layers?.length
+  )
+    throw new Error("这页缺少原图文字位置，无法局部修复。");
+  res
+    .status(202)
+    .json(safeJob(enqueue("background-repair", p.id, { slideIds: [s.id] })));
+});
 app.post("/api/projects/:id/slides/:sid/inspect", (req, res) =>
   res.status(410).json({ error: "风格对比检查已停用。" }),
 );

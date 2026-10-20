@@ -70,7 +70,12 @@ export function validateLayers(input, width, height) {
         align: ["left", "center", "right"].includes(layer.align)
           ? layer.align
           : "left",
-        letterSpacing: number(layer.letterSpacing ?? 0, -20, 100, "字距"),
+        letterSpacing: number(
+          layer.letterSpacing ?? 0,
+          Math.min(-20, -layer.fontSize * 0.3),
+          Math.max(100, layer.fontSize * 0.3),
+          "字距",
+        ),
         lineHeight: number(layer.lineHeight ?? 1.2, 0.8, 3, "行距"),
         fit: layer.fit !== false,
       };

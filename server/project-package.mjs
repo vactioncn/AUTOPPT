@@ -52,6 +52,7 @@ const assetKeys = new Set([
   "background",
   "candidateBackground",
   "rejectedBackground",
+  "recoveredBackground",
   "asset",
   "cover",
   "ref",

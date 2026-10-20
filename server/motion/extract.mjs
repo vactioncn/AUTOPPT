@@ -96,7 +96,12 @@ export async function extractLayers(
   signal,
   onProgress,
   repair = repairBackground,
-  { lossless = false, textOnly = false, forceRepair = false } = {},
+  {
+    lossless = false,
+    textOnly = false,
+    forceRepair = false,
+    precise = false,
+  } = {},
 ) {
   if (textOnly && analysis.layers.some((l) => l.type !== "text"))
     throw new Error("正文分层只允许局部去字，不能移除照片或插画");
@@ -187,6 +192,7 @@ export async function extractLayers(
     if (layer.type === "text") {
       const removal = textRemoval(data, width, height, layer, {
           smooth: textOnly,
+          precise,
         }),
         b = removal.box;
       for (let y = 0; y < b.height; y++)

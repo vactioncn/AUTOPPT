@@ -1,6 +1,7 @@
 // Display membership must survive completion; lock ownership intentionally does not.
 export function productionTargetIds(job, project) {
-  if (job.type === "render") return job.payload.slideIds || [];
+  if (["render", "background-repair"].includes(job.type))
+    return job.payload.slideIds || [];
   if (job.type === "append")
     return (
       project?.batches.find((b) => b.id === job.payload.batchId)?.slideIds || []

@@ -132,17 +132,6 @@ test("text-only extraction keeps patterned artwork pixel-identical even when the
       };
     },
   };
-  await assert.rejects(
-    generatePreservedPage(
-      work,
-      null,
-      () => {},
-      () => {},
-      models,
-    ),
-    /检查未返回有效结果/,
-  );
-  assert.equal(work.originalImage, "original.png");
   const completed = await generatePreservedPage(
     work,
     null,
@@ -150,38 +139,91 @@ test("text-only extraction keeps patterned artwork pixel-identical even when the
     () => {},
     models,
   );
-  assert.deepEqual(counts, { image: 1, analysis: 1, extract: 2, check: 3 });
+  assert.deepEqual(counts, { image: 1, analysis: 1, extract: 1, check: 1 });
   assert.equal(completed.originalImage, "original.png");
   assert.equal(completed.layers[0].fit, false);
-  const emptyMaskWork = structuredClone(work);
-  delete emptyMaskWork.extracted;
-  delete emptyMaskWork.preservationCheck;
-  emptyMaskWork.forceRepair = false;
-  let emptyChecks = 0;
+  assert.equal(completed.qualityReview.status, "advisory");
+  assert(completed.warnings.includes("residue"));
+  assert.equal(work.extracted.background, result.background);
+  await generatePreservedPage(
+    work,
+    null,
+    () => {},
+    () => {},
+    models,
+  );
+  assert.deepEqual(counts, { image: 1, analysis: 1, extract: 1, check: 1 });
+
+  const legacy = structuredClone(work);
+  delete legacy.extracted;
+  delete legacy.preservationCheck;
+  legacy.rejectedBackground = result.background;
+  legacy.forceRepair = true;
+  const resumed = await generatePreservedPage(
+    legacy,
+    null,
+    () => {},
+    () => {},
+    models,
+  );
+  assert.equal(resumed.background, result.background);
+  assert.equal(resumed.recoveredBackground, result.background);
+  assert.equal(resumed.qualityReview.status, "advisory");
+  assert.deepEqual(
+    counts,
+    { image: 1, analysis: 1, extract: 1, check: 1 },
+    "legacy withheld assets resume with zero model calls",
+  );
+
+  for (const check of [
+    async () => ({}),
+    async () => {
+      throw new Error("review unavailable");
+    },
+  ]) {
+    const next = structuredClone(work);
+    delete next.preservationCheck;
+    const page = await generatePreservedPage(
+      next,
+      null,
+      () => {},
+      () => {},
+      { ...models, jsonModel: check },
+    );
+    assert.equal(page.background, result.background);
+    assert.equal(page.qualityReview.status, "advisory");
+    assert(page.warnings.length);
+  }
+  const aborted = new AbortController();
+  const next = structuredClone(work);
+  delete next.preservationCheck;
   await assert.rejects(
     generatePreservedPage(
-      emptyMaskWork,
-      null,
+      next,
+      aborted.signal,
       () => {},
       () => {},
       {
         ...models,
-        extractLayers: async () => ({
-          background: result.background,
-          usedRepair: false,
-        }),
         jsonModel: async () => {
-          emptyChecks++;
-          return { mainTextRemoved: false, nonTextPreserved: true };
+          aborted.abort();
+          throw aborted.signal.reason;
         },
       },
     ),
-    /未通过原图对照/,
+    { name: "AbortError" },
   );
-  assert.equal(
-    emptyChecks,
-    2,
-    "empty masks cannot cause unbounded model refinements",
+  const missing = structuredClone(work);
+  missing.extracted.background = "missing.png";
+  await assert.rejects(
+    generatePreservedPage(
+      missing,
+      null,
+      () => {},
+      () => {},
+      models,
+    ),
+    /ENOENT/,
   );
   await assert.rejects(
     extractLayers(
@@ -232,4 +274,31 @@ test("calibration uses bundled variable font outlines and freezes editable natur
     w: 508,
     h: 124,
   });
+});
+
+test("condensed generated titles fit natural glyphs without overlapping Chinese strokes", async () => {
+  const { calibrateText } = await import("../server/motion/text-metrics.mjs");
+  const { validateLayers } = await import("../shared/motion/schema.mjs");
+  const layer = {
+    id: "title",
+    type: "text",
+    text: "用对待家庭成员的方式",
+    x: 840,
+    y: 462,
+    w: 785,
+    h: 98,
+    fontSize: 100,
+    font: "sans",
+    fontWeight: 700,
+    color: "#000000",
+  };
+  const calibrated = await calibrateText(layer, 1672, 941);
+  assert(calibrated.fontSize < layer.fontSize);
+  assert(calibrated.letterSpacing >= -calibrated.fontSize * 0.04001);
+  assert.doesNotThrow(() => validateLayers([calibrated], 1672, 941));
+  assert(Math.abs(calibrated.letterSpacing) <= calibrated.fontSize * 0.3);
+  assert.throws(
+    () => validateLayers([{ ...calibrated, letterSpacing: -1000 }], 1672, 941),
+    /字距/,
+  );
 });

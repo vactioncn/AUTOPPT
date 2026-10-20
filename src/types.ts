@@ -155,7 +155,8 @@ export type Plan = {
     semanticSupport?: { sourceQuote: string; attachmentId?: string }[];
     rationale: string;
     review: {
-      status: "reviewed";
+      status: "reviewed" | "advisory";
+      warnings?: string[];
       draftCharacters: number;
       reason: string;
       changes: string[];
@@ -198,6 +199,13 @@ export type Version = {
   stale: boolean;
 };
 export type LayeredPage = {
+  extractionAnalysis?: { layers: unknown[] };
+  originalImage?: string;
+  warnings?: string[];
+  qualityReview?: {
+    status: "checked" | "advisory";
+    detail: string;
+  };
   width: number;
   height: number;
   background: string;

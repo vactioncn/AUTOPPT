@@ -1691,12 +1691,51 @@ export function Workspace({
                           <span className="page-state warning">
                             讲稿已改 · 待核对
                           </span>
+                        ) : s.layered?.qualityReview?.status === "advisory" ? (
+                          <span className="page-state warning">
+                            已生成 · 待校对
+                          </span>
                         ) : s.image || s.scene ? (
                           <CheckCircle className="ready-check" size={17} />
                         ) : (
                           <span className="page-state warning">待制作</span>
                         )}
                       </div>
+                      {(s.layered?.qualityReview?.status === "advisory" ||
+                        s.plan?.screenCopy?.review?.status === "advisory") && (
+                        <details className="motion-warnings">
+                          <summary>可优化项 · 不影响编辑和播放</summary>
+                          {(
+                            s.layered?.warnings ||
+                            s.plan?.screenCopy?.review?.warnings ||
+                            []
+                          ).map((warning, i) => (
+                            <p key={i}>{warning}</p>
+                          ))}
+                          {s.layered?.extractionAnalysis && !hosted && (
+                            <>
+                              <Button
+                                disabled={pageBusy(s.id)}
+                                onClick={() =>
+                                  run(
+                                    () =>
+                                      post(
+                                        `/projects/${id}/slides/${s.id}/repair-background`,
+                                        { revision: project.revision },
+                                      ),
+                                    "开始局部修复，当前画面和文字保留",
+                                  )
+                                }
+                              >
+                                局部优化底图
+                              </Button>
+                              <p>
+                                只处理原图去字区域，调用图片编辑接口；旧底图保留在历史版本。
+                              </p>
+                            </>
+                          )}
+                        </details>
+                      )}
                       {(s.stale ||
                         s.status === "error" ||
                         (!s.image && !s.scene)) && (

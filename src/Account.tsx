@@ -31,6 +31,7 @@ type Account = {
   hosted: boolean;
   user: User | null;
   modelReady?: boolean;
+  layeredReady?: boolean;
   signupImageCredits?: number;
   modelStatusUnknown?: boolean;
   supportEmail?: string;

@@ -337,6 +337,7 @@ app.get("/api/account", (req, res) => {
     hosted: true,
     user,
     modelReady: modelsReady(),
+    layeredReady: process.env.AUTOPPT_LAYERED_ENABLED === "1",
     speechReady: !!providers.speech.apiKey,
     signupImageCredits: accounts.signupImageCredits,
     ...websiteSupport,

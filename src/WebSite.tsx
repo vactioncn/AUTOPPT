@@ -29,6 +29,7 @@ import "./brand.css";
 
 export type SiteAccount = {
   hosted?: boolean;
+  layeredReady?: boolean;
   user: { name: string } | null;
   signupImageCredits?: number;
   supportEmail?: string;
@@ -489,7 +490,9 @@ function Home({
         <p className="web-caption">
           {local
             ? "本机版新生成的页面保留照片与设计，把主要文字作为独立图层呈现。"
-            : "网页版先生成完整画面；分层制作与画布改字仍在本机版提供。"}
+            : account?.layeredReady
+              ? "新页面保留原风格画面，正文独立可编辑；文字与动效在制作台直接调整。"
+              : "此服务器尚未启用分层制作与画布改字，请联系管理员升级。"}
           完整逐字稿保留在讲稿与 PPTX 备注中。
         </p>
       </section>
@@ -575,7 +578,9 @@ function Home({
         <p className="web-caption">
           {local
             ? "已分层页面导出为底图加可编辑文字；配置完整字体包后可内嵌字体。历史整图页沿用原画面，原稿与原图保留。"
-            : "网页版新生成页仍按整页图片导出。画布改字、分层制作与动效编辑目前在本机版提供，服务器版尚未开放这些入口。"}
+            : account?.layeredReady
+              ? "新生成页可编辑文字、调整动效。PPTX 保留独立文本框并内嵌字体；动效使用网页或 HTML 播放。已有整图和历史版本保留。"
+              : "此服务器尚未启用画布改字与动效编辑，请联系管理员升级。已有项目与素材保留。"}
         </p>
       </section>
       <section className="web-faq">

@@ -1250,8 +1250,7 @@ export function Workspace({
               </p>
               <Button
                 onClick={() => {
-                  setSpeechInitialPanel("play");
-                  setSpeechOpen(true);
+                  setRehearsing({ deckId: editablePpt?.id || "" });
                 }}
                 disabled={!speechAvailable}
               >

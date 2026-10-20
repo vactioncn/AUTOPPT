@@ -167,6 +167,10 @@ test(
     });
     const cookie = login.headers.get("set-cookie").split(";")[0];
     const owner = (await login.json()).user;
+    assert.equal(
+      (await (await request("/api/account", { cookie })).json()).layeredReady,
+      true,
+    );
     const invite = await (
       await request("/api/admin/invites", { cookie, body: {} })
     ).json();

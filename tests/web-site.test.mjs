@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { publicPage, workspaceTarget } from "../shared/web-routes.mjs";
+import {
+  publicPage,
+  visiblePublicPage,
+  workspaceTarget,
+} from "../shared/web-routes.mjs";
 import {
   supportConfig,
   renderWebsiteShell,
@@ -81,4 +85,15 @@ test("public metadata uses configured domain, excludes invitations and has no pr
   assert(!sitemap.includes("register"));
   assert(!sitemap.includes("login"));
   assert(!sitemap.includes("api"));
+});
+
+test("local and hosted use one public site without capturing local workspace entry", () => {
+  assert.equal(visiblePublicPage("/", "", false), null);
+  assert.equal(visiblePublicPage("/", "", true), "website");
+  for (const hosted of [false, true]) {
+    assert.equal(visiblePublicPage("/website", "", hosted), "website");
+    assert.equal(visiblePublicPage("/", "#intro", hosted), "website");
+    assert.equal(visiblePublicPage("/support", "", hosted), "support");
+    assert.equal(visiblePublicPage("/", "#project/123/studio", hosted), null);
+  }
 });

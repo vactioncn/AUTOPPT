@@ -40,9 +40,8 @@ import { Workspace } from "./Workspace";
 import { projectArea } from "./project-journey";
 import { StyleLibrary } from "./StyleLibrary";
 import { SettingsPage, type SettingsSection } from "./Settings";
-import { Introduction } from "./Introduction";
 import { WorkspaceNavigation } from "./WorkspaceNavigation";
-import { publicPage, navigateWeb } from "../shared/web-routes.mjs";
+import { visiblePublicPage, navigateWeb } from "../shared/web-routes.mjs";
 import { VersionWorkspace } from "./VersionWorkspace";
 import {
   frontendBuildInfo,
@@ -60,7 +59,7 @@ export default function App() {
   const account = useAccount();
   const [data, setData] = useState<Bootstrap | null>(null),
     [route, setRoute] = useState(
-      account.hosted && publicPage(location.pathname, location.hash)
+      visiblePublicPage(location.pathname, location.hash, account.hosted)
         ? "projects"
         : location.hash.slice(1) || "projects",
     ),
@@ -92,7 +91,7 @@ export default function App() {
     refresh();
     const timer = setInterval(refresh, 2500);
     const hash = () => {
-      if (account.hosted && publicPage(location.pathname, location.hash))
+      if (visiblePublicPage(location.pathname, location.hash, account.hosted))
         return;
       const next = location.hash.slice(1) || "projects";
       if (next !== "styles") {
@@ -121,8 +120,7 @@ export default function App() {
       setStyleRepair(false);
     }
     if (!["intro", "help"].includes(to)) previousRoute.current = to;
-    if (account.hosted) navigateWeb("/#" + to);
-    else location.hash = to;
+    navigateWeb("/#" + to);
     setRoute(to);
   };
   const create = (styleId = DEFAULT_STYLE_ID, restoreDraft = false) => {
@@ -147,6 +145,8 @@ export default function App() {
     contentRoute.split("/")[2] || (account.hosted ? "studio" : "overview"),
   );
   useEffect(() => {
+    if (visiblePublicPage(location.pathname, location.hash, account.hosted))
+      return;
     document.title = `${BRAND.name} · ${route.startsWith("new") ? "开始制作" : route.startsWith("project/") ? data?.projects.find((p) => p.id === route.split("/")[1])?.title || "我的演讲" : route === "styles" ? "风格库" : "我的演讲"}`;
   }, [account.hosted, route, data?.projects]);
   const notify = (text: string) => setToast(text);
@@ -234,19 +234,9 @@ export default function App() {
                 {data.styles.filter((s) => !s.deletedAt).length}
               </span>
             </button>
-            <button
-              className={route === "intro" ? "active" : ""}
-              onClick={() => go("intro")}
-            >
+            <button onClick={() => navigateWeb("/website")}>
               <Info size={20} />
-              产品介绍
-            </button>
-            <button
-              className={route === "help" ? "active" : ""}
-              onClick={() => go("help")}
-            >
-              <Info size={20} />
-              使用帮助
+              官网与帮助
             </button>
             {!account.hosted && (
               <button
@@ -341,12 +331,6 @@ export default function App() {
           <div className="connection-banner" role="alert">
             {consistency.message}
           </div>
-        )}
-        {route === "intro" && (
-          <Introduction
-            onHelp={() => go("help")}
-            onBack={() => go(previousRoute.current)}
-          />
         )}
         {route === "help" && (
           <>

@@ -608,6 +608,10 @@ app.get(websitePaths, (req, res) => {
       ),
     );
 });
+app.get(["/intro", "/intro/", "/intro/index.html"], (req, res) =>
+  res.redirect(302, "/website"),
+);
+app.get("/intro/help.html", (req, res) => res.redirect(302, "/support"));
 app.use(express.static(path.join(root, "dist"), { dotfiles: "deny" }));
 // Only the administrator's imported site playlist is public, for the homepage
 // demo as well as playback. User uploads and project assets remain below auth.

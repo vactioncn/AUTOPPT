@@ -1237,6 +1237,10 @@ app.use((err, req, res, next) => {
         : err.message || "操作失败，请重试。",
   });
 });
+app.get(["/intro", "/intro/", "/intro/index.html"], (req, res) =>
+  res.redirect(302, "/website"),
+);
+app.get("/intro/help.html", (req, res) => res.redirect(302, "/support"));
 if (process.env.NODE_ENV === "production") {
   if (!process.env.AUTOPPT_WORKER_TOKEN) {
     const frontend = frontendRelease(root, buildInfo);

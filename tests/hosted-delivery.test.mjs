@@ -115,6 +115,13 @@ test("deployment preflight validates required settings without revealing secrets
         { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
       );
     assert.match(run(), /检查通过/);
+    writeFileSync(
+      path.join(deploy, ".env"),
+      env.replace("ppt.fixture.invalid", "ppt.example.com"),
+    );
+    assert.throws(run, /Command failed/);
+    assert.match(run("--preview"), /仅适用于 preview.sh/);
+    writeFileSync(path.join(deploy, ".env"), env);
     const music = path.join(root, "music"),
       id = "a".repeat(24);
     mkdirSync(music);

@@ -15,6 +15,12 @@ export function publicPage(pathname = "/", hash = "") {
   if (!route || route === "intro" || route === "web-content") return "website";
   return pages.has(route) ? route : null;
 }
+// Local root opens the workspace; explicit public links use the same site as hosted.
+export function visiblePublicPage(pathname = "/", hash = "", hosted = false) {
+  if (!hosted && (pathname === "/" || pathname === "/index.html") && !hash)
+    return null;
+  return publicPage(pathname, hash);
+}
 export function workspaceTarget(value) {
   if (typeof value !== "string") return "projects";
   const route = value.replace(/^#/, "");

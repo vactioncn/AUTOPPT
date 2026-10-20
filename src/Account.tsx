@@ -13,7 +13,7 @@ import "./account.css";
 import { WebSite } from "./WebSite";
 import { BrandLockup } from "./BrandLockup";
 import {
-  publicPage,
+  visiblePublicPage,
   navigateWeb,
   workspaceTarget,
 } from "../shared/web-routes.mjs";
@@ -67,7 +67,7 @@ export function AccountGate({ children }: { children: ReactNode }) {
   }, []);
   const hosted =
     account?.hosted || (!account && frontendBuildInfo.runtimeMode === "hosted");
-  const page = publicPage(url.path, url.hash);
+  const page = visiblePublicPage(url.path, url.hash, !!hosted);
   if (!page) lastWorkspaceRoute.current = workspaceTarget(url.hash);
   if (account?.user && !page) {
     workspaceUser.current = account.user.id;
@@ -165,7 +165,19 @@ export function AccountGate({ children }: { children: ReactNode }) {
     );
   return (
     <Context.Provider value={account}>
-      <div key="local">{children}</div>
+      {page && (
+        <WebSite
+          page={page === "login" || page === "register" ? "website" : page}
+          account={account}
+          error={error}
+          onRetry={refresh}
+          onAuthenticated={refresh}
+          returnTo={lastWorkspaceRoute.current}
+        />
+      )}
+      <div key="local" hidden={!!page}>
+        {children}
+      </div>
     </Context.Provider>
   );
 }

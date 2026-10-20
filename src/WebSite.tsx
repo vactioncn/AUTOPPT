@@ -21,10 +21,14 @@ import { STYLE_SHOWCASE } from "../shared/style-showcase.mjs";
 import "./website.css";
 import { BRAND } from "../shared/brand.mjs";
 import { BrandLockup } from "./BrandLockup";
+import { Help } from "./Help";
+import type { Bootstrap } from "./types";
+import { api } from "./api";
 import { NarrationExample } from "./NarrationExample";
 import "./brand.css";
 
 export type SiteAccount = {
+  hosted?: boolean;
   user: { name: string } | null;
   signupImageCredits?: number;
   supportEmail?: string;
@@ -92,6 +96,7 @@ export function WebSite({
       terms: "使用说明",
       notfound: "页面未找到",
     };
+    const previousTitle = document.title;
     document.title =
       page === "website" ? BRAND.title : `${titles[page]} · ${BRAND.name}`;
     const icon = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
@@ -104,13 +109,16 @@ export function WebSite({
       description.content = BRAND.description;
     icon?.setAttribute("href", "/brand/mark.svg");
     return () => {
+      document.title = previousTitle;
       if (previousIcon) icon?.setAttribute("href", previousIcon);
       if (description && previousDescription !== undefined)
         description.content = previousDescription;
     };
   }, [page]);
   const next = workspaceTarget(returnTo);
-  const enter = account?.user
+  const local = account?.hosted === false;
+  const canEnter = local || !!account?.user;
+  const enter = canEnter
     ? "/#" + next
     : "/login" +
       (next === "projects" ? "" : "?next=" + encodeURIComponent(next));
@@ -149,10 +157,8 @@ export function WebSite({
           >
             使用帮助
           </WebLink>
-          <WebLink href={enter}>
-            {account?.user ? "进入工作区" : "登录"}
-          </WebLink>
-          {!account?.user && (
+          <WebLink href={enter}>{canEnter ? "返回工作台" : "登录"}</WebLink>
+          {!canEnter && (
             <WebLink className="btn primary" href="/register">
               邀请注册 <ArrowRight size={16} />
             </WebLink>
@@ -162,6 +168,8 @@ export function WebSite({
       <main id="web-content">
         {page === "website" ? (
           <Home account={account} enter={enter} />
+        ) : page === "support" ? (
+          <Support account={account} />
         ) : page === "login" || page === "register" ? (
           <Access
             key={page}
@@ -191,7 +199,7 @@ export function WebSite({
             工作区 <ArrowRight size={15} />
           </WebLink>
         </nav>
-        <small>网页版 · 邀请制</small>
+        <small>{local ? "本机工作区" : "网页版 · 邀请制"}</small>
       </footer>
     </div>
   );
@@ -315,6 +323,8 @@ function Home({
   account: SiteAccount | null;
   enter: string;
 }) {
+  const local = account?.hosted === false;
+  const canEnter = local || !!account?.user;
   const scrollTo = (id: string) =>
     document.getElementById(id)?.scrollIntoView({ block: "start" });
   return (
@@ -334,9 +344,9 @@ function Home({
           <div className="web-actions">
             <WebLink
               className="btn primary"
-              href={account?.user ? enter : "/register"}
+              href={canEnter ? enter : "/register"}
             >
-              {account?.user ? "继续我的演讲" : "用邀请码开始"}
+              {canEnter ? "继续我的演讲" : "用邀请码开始"}
               <ArrowRight size={18} />
             </WebLink>
             <button
@@ -477,8 +487,10 @@ function Home({
           </figure>
         </div>
         <p className="web-caption">
-          导出 PPTX
-          时，完整逐字稿写入演讲者备注；每页画面以整张图片呈现，文字与图形不能单独编辑。
+          {local
+            ? "本机版新生成的页面保留照片与设计，把主要文字作为独立图层呈现。"
+            : "网页版先生成完整画面；分层制作与画布改字仍在本机版提供。"}
+          完整逐字稿保留在讲稿与 PPTX 备注中。
         </p>
       </section>
       <section
@@ -561,18 +573,22 @@ function Home({
           </div>
         </dl>
         <p className="web-caption">
-          PPTX
-          每页为一张完整图片，文字与图形不能单独编辑。已有项目、图片与讲稿保留。
+          {local
+            ? "已分层页面导出为底图加可编辑文字；配置完整字体包后可内嵌字体。历史整图页沿用原画面，原稿与原图保留。"
+            : "网页版新生成页仍按整页图片导出。画布改字、分层制作与动效编辑目前在本机版提供，服务器版尚未开放这些入口。"}
         </p>
       </section>
       <section className="web-faq">
         <h2>开始前，你可能想知道</h2>
-        <FAQ title="如何获得账号？">
-          目前采用邀请制。向管理员获取 6
-          位数字邀请码，创建账号即可进入独立工作区。已有账号可以直接登录。
+        <FAQ title={local ? "如何开始使用？" : "如何获得账号？"}>
+          {local
+            ? "本机工作区无需注册。打开设置，配置内容和图片服务，再用一小段讲稿试做。"
+            : "目前采用邀请制。向管理员获取 6 位数字邀请码，创建账号即可进入独立工作区。已有账号可以直接登录。"}
         </FAQ>
         <FAQ title="我需要配置图片模型吗？">
-          网页版由管理员统一配置内容和图片服务，你只需要准备讲稿。生成图片消耗账号额度，编辑文字和导出不消耗图片额度。
+          {local
+            ? "本机版在设置中连接自己的内容和图片接口；生成会使用相应供应商额度。"
+            : "网页版由管理员统一配置内容和图片服务，你只需要准备讲稿。生成图片消耗账号额度，编辑讲稿和导出不消耗图片额度。"}
         </FAQ>
         <FAQ title="作品展示里的风格都能直接使用吗？">
           这里的四组作品均由内置精品风格实际生成，新账号都可以直接使用。每组展示三种不同的页面表达，也可以上传参考图创建自己的风格；生成结果会随内容和模型而变化。
@@ -593,11 +609,8 @@ function Home({
           一起准备好。
         </h2>
         <p>{BRAND.tagline}</p>
-        <WebLink
-          className="btn primary"
-          href={account?.user ? enter : "/register"}
-        >
-          {account?.user ? "进入我的工作区" : "我有邀请码，开始制作"}
+        <WebLink className="btn primary" href={canEnter ? enter : "/register"}>
+          {canEnter ? "进入我的工作区" : "我有邀请码，开始制作"}
           <ArrowRight size={18} />
         </WebLink>
       </section>
@@ -880,6 +893,42 @@ function Access({
     </section>
   );
 }
+function Support({ account }: { account: SiteAccount | null }) {
+  const local = account?.hosted === false;
+  const [data, setData] = useState<Bootstrap>();
+  useEffect(() => {
+    if (!local && !account?.user) return;
+    let active = true;
+    api<Bootstrap>("/bootstrap")
+      .then((value) => {
+        if (active) setData(value);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [local, account?.user]);
+  return (
+    <div className="web-support">
+      <Help
+        data={data}
+        hosted={!local}
+        guideLabel="工作区诊断与新手引导"
+        onBack={() => navigateWeb("/website")}
+        onSettings={local ? () => navigateWeb("/#settings") : undefined}
+        onGuide={
+          local || account?.user ? () => navigateWeb("/#help") : undefined
+        }
+      />
+      {!local && (
+        <div className="web-reading">
+          <h2 id="access">账号与服务支持</h2>
+          <Contact account={account} />
+        </div>
+      )}
+    </div>
+  );
+}
 function Reading({
   page,
   account,
@@ -905,50 +954,7 @@ function Reading({
         <ArrowLeft size={17} />
         返回官网
       </WebLink>
-      {page === "support" ? (
-        <>
-          <h1>准备好讲稿，就可以开始。</h1>
-          <p className="web-reading-lead">从注册到交付，在这里找到下一步。</p>
-          <h2>第一次使用</h2>
-          <ol>
-            <li>
-              向管理员获取邀请码，在{" "}
-              <WebLink href="/register">邀请注册</WebLink>{" "}
-              创建账号。已有账号直接 <WebLink href="/login">登录</WebLink>。
-            </li>
-            <li>
-              点击“用我的讲稿开始”，粘贴讲稿、选择风格，再生成第一张画面。
-            </li>
-            <li>提交时先试做一页。检查文字和画面，满意后生成剩余页面。</li>
-            <li>逐页调整并在“交付”导出 PPTX、Markdown 讲稿或图片。</li>
-          </ol>
-          <h2 id="access">邀请码、账号和密码</h2>
-          <FAQ title="还没有邀请码，或邀请码不能使用？">
-            邀请码由管理员发放，默认有效期 7
-            天且只能使用一次。已用、过期或被撤销时，请向管理员申请新码。创建成功后用账号和密码登录。
-          </FAQ>
-          <FAQ title="忘记密码怎么办？">
-            联系邀请你的管理员，提供注册账号名。管理员核对身份后重置密码，你再用新密码登录并在“账号与额度”修改。此版本未接入邮件验证码或自助重置服务。
-          </FAQ>
-          <FAQ title="注册时使用邮箱，会收到邮件吗？">
-            邮箱可以作为账号名，当前不会发送验证邮件。请保存你的账号名和密码。
-          </FAQ>
-          <h2>生成与额度</h2>
-          <FAQ title="图片额度是怎样计算的？">
-            成功生成一张图片使用 1
-            张额度，包括风格试做和重新生成。额度不足时，仍可编辑讲稿、保存草稿、查看已有画面和导出。更多额度请联系管理员。
-          </FAQ>
-          <FAQ title="生成很久、失败或网络中断怎么办？">
-            先查看任务状态。未完成的页面可以继续生成；如果结果待核对，请先检查已有图片并请管理员核对用量，再决定重试。不要重复提交同一任务。
-          </FAQ>
-          <FAQ title="导出的 PPT 文字能单独编辑吗？">
-            PPTX
-            每页是一张完整图片，保留该页完整讲稿作为演讲者备注。若要改画面文字，请在项目里修改并重新生成。
-          </FAQ>
-          <h2>需要帮助</h2>
-          <Contact account={account} />
-        </>
-      ) : page === "privacy" ? (
+      {page === "privacy" ? (
         <>
           <h1>数据与隐私说明</h1>
           <p className="web-reading-lead">说明这一版如何保存和使用你的内容。</p>
@@ -992,8 +998,8 @@ function Reading({
           </p>
           <h2>模型生成与交付</h2>
           <p>
-            生成结果取决于所配置的模型服务，可能存在文字、数据或画面误差。请在演讲或发布前核对内容。PPTX
-            使用整页图片，完整讲稿写入备注。
+            生成结果取决于所配置的模型服务，可能存在文字、数据或画面误差。请在演讲或发布前核对内容。已分层页面的
+            PPTX 保留独立文字与底图，历史整图页保持原样，完整讲稿写入备注。
           </p>
           <h2>内容与使用权限</h2>
           <p>

@@ -194,24 +194,15 @@ export function WorkspaceNavigation({
         <div className="workspace-nav-bottom">
           <nav aria-label="支持与管理">
             <button
-              aria-label="使用帮助"
-              title="使用帮助"
-              aria-current={route === "help" ? "page" : undefined}
-              onClick={() => visit("help")}
-            >
-              <Question size={20} />
-              <span>使用帮助</span>
-            </button>
-            <button
-              aria-label="官网介绍"
-              title="官网介绍"
+              aria-label="官网与帮助"
+              title="官网与帮助"
               onClick={() => {
                 navigateWeb("/website");
                 setOpen(false);
               }}
             >
               <Globe size={20} />
-              <span>官网介绍</span>
+              <span>官网与帮助</span>
             </button>
             {user?.role === "admin" && (
               <button

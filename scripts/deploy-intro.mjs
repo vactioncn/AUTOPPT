@@ -191,8 +191,8 @@ if (
   process.argv[1] &&
   path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 ) {
-  main(process.argv.slice(2)).catch((error) => {
-    console.error(`发布未完成：${error.message}`);
-    process.exitCode = 1;
-  });
+  console.error(
+    "旧版静态介绍页发布入口已停用。请用 npm run package:web 构建统一官网与工作台的服务器部署包，按 docs/网页版部署交付.md 部署；当前命令不会上传文件。",
+  );
+  process.exitCode = 1;
 }

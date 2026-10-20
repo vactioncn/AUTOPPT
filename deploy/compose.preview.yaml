@@ -1,0 +1,20 @@
+# Private server acceptance before a domain is available.
+# Reuses the production app and data volume; no public web listener.
+services:
+  app:
+    extends:
+      file: compose.yaml
+      service: app
+    environment:
+      AUTOPPT_PUBLIC_URL: http://127.0.0.1:4318
+      AUTOPPT_TRUST_PROXY: '0'
+    ports: ['127.0.0.1:4318:4318']
+secrets:
+  admin_password:
+    file: ./secrets/admin_password
+  text_key:
+    file: ./secrets/text_key
+  image_key:
+    file: ./secrets/image_key
+volumes:
+  autoppt_data:

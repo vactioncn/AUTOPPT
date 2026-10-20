@@ -12,14 +12,17 @@ export function Help({
   onBack,
   onSettings,
   onGuide,
+  guideLabel = "重新查看新手引导",
+  hosted = data?.buildInfo?.runtimeMode === "hosted",
 }: {
-  data: Bootstrap;
+  data?: Bootstrap;
+  hosted?: boolean;
+  guideLabel?: string;
   onBack: () => void;
-  onSettings: () => void;
-  onGuide: () => void;
+  onSettings?: () => void;
+  onGuide?: () => void;
 }) {
   const [query, setQuery] = useState("");
-  const hosted = data.buildInfo?.runtimeMode === "hosted";
   const sourceTopics = hosted ? hostedHelpTopics : helpTopics;
   const topics = sourceTopics
     .map((t) => ({
@@ -33,7 +36,7 @@ export function Help({
     <section className="page help-page" aria-label="使用帮助">
       <Button variant="ghost" onClick={onBack}>
         <ArrowLeft size={17} />
-        返回刚才的页面
+        返回
       </Button>
       <div className="page-heading">
         <div>
@@ -98,14 +101,18 @@ export function Help({
       {!topics.length && (
         <p role="status">没有找到对应问题，试试更短的关键词。</p>
       )}
-      <div className="help-actions">
-        <Button onClick={onSettings}>打开设置</Button>
-        <Button onClick={onGuide}>重新查看新手引导</Button>
-      </div>
-      <details className="help-diagnostics">
-        <summary>版本与工作区 · 连接问题排查</summary>
-        <VersionWorkspace data={data} />
-      </details>
+      {(onSettings || onGuide) && (
+        <div className="help-actions">
+          {onSettings && <Button onClick={onSettings}>打开设置</Button>}
+          {onGuide && <Button onClick={onGuide}>{guideLabel}</Button>}
+        </div>
+      )}
+      {data && (
+        <details className="help-diagnostics">
+          <summary>版本与工作区 · 连接问题排查</summary>
+          <VersionWorkspace data={data} />
+        </details>
+      )}
     </section>
   );
 }

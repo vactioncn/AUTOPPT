@@ -79,7 +79,7 @@ test("AccountGate does not submit account or error state after unmount during fe
                 ? { frontendBuildInfo: { runtimeMode: "local-browser" } }
                 : name.includes("web-routes")
                   ? {
-                      publicPage: () => "website",
+                      visiblePublicPage: () => null,
                       workspaceTarget: () => "projects",
                     }
                   : {},

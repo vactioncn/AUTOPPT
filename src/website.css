@@ -864,3 +864,21 @@
     opacity: 1;
   }
 }
+
+/* Public and in-workspace help share the same questions and search. */
+.web-support {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 32px 24px 72px;
+}
+.web-support .help-page {
+  padding: 0;
+}
+.web-support .web-reading {
+  padding: 32px 0 0;
+}
+@media (max-width: 600px) {
+  .web-support {
+    padding: 24px 20px 48px;
+  }
+}

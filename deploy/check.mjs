@@ -14,7 +14,9 @@ const values = Object.fromEntries(
 const problems = [];
 const speech = process.argv.includes("--speech");
 const music = process.argv.includes("--music");
+const preview = process.argv.includes("--preview");
 if (
+  !preview &&
   !/^(?!.*example)(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$/i.test(
     values.AUTOPPT_DOMAIN || "",
   )
@@ -123,5 +125,7 @@ if (problems.length) {
   process.exitCode = 1;
 } else
   console.log(
-    "部署配置检查通过（未调用模型，尚未验证 DNS、网络或供应商权限）。",
+    preview
+      ? "部署配置检查通过（仅适用于 preview.sh 回环地址验收；未调用模型，未验证公网或供应商权限）。"
+      : "部署配置检查通过（未调用模型，尚未验证 DNS、网络或供应商权限）。",
   );

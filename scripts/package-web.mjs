@@ -128,14 +128,20 @@ export async function packageWeb({
   );
   zip.file(
     prefix + "开始部署.md",
-    await zip
-      .file(
-        prefix +
-          (music.length
-            ? "docs/服务器部署操作手册.md"
-            : "docs/网页版部署交付.md"),
-      )
-      .async("string"),
+    (
+      await zip
+        .file(
+          prefix +
+            (music.length
+              ? "docs/服务器部署操作手册.md"
+              : "docs/网页版部署交付.md"),
+        )
+        .async("string")
+    ).replace(/(\[[^\]]*\]\()([^)\s]+)(\))/g, (link, start, target, end) =>
+      /^(?:[a-z][a-z\d+.-]*:|\/|#)/i.test(target)
+        ? link
+        : start + path.posix.join("docs", target) + end,
+    ),
   );
   for (const name of ["deploy/release.env.example", "开始部署.md"]) {
     const bytes = await zip.file(prefix + name).async("nodebuffer");

@@ -12,6 +12,7 @@
 
 - **[在线阅读安装与使用说明](https://github.com/vactioncn/AUTOPPT/blob/main/docs/同事安装与使用说明.md)**：查看安装、模型配置、首次测试和常见问题。
 - **[下载最新完整代码 ZIP](https://github.com/vactioncn/AUTOPPT/archive/refs/heads/main.zip)**：解压后按说明安装运行。
+- **[给 IT 的网页部署交付与准备清单](https://github.com/vactioncn/AUTOPPT/blob/main/docs/网页版部署交付.md)**：独立源码部署包、服务器资料、无域名验收、正式 HTTPS 与备份恢复。
 
 以上入口始终指向 `main` 分支的最新版本。
 

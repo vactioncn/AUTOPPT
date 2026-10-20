@@ -206,6 +206,11 @@ test("source package freezes a clean commit, hashes files, excludes local secret
       path.join(root, "deploy/.env.example"),
       "AUTOPPT_SIGNUP_IMAGE_CREDITS=20\n",
     );
+    const handoffLinks =
+      "[preview](无域名服务器验收.md) [root](../README.md) " +
+      "[web](https://example.com/help) [section](#start)\n";
+    for (const name of ["网页版部署交付.md", "服务器部署操作手册.md"])
+      writeFileSync(path.join(root, "docs", name), handoffLinks);
     git("init", "-q");
     git("add", "--", ...deploymentPaths);
     const commit = () =>
@@ -231,6 +236,13 @@ test("source package freezes a clean commit, hashes files, excludes local secret
       checkCRC32: true,
     });
     assert.equal(sha(readFileSync(result.output)), result.sha256);
+    const expectedLinks =
+      "[preview](docs/无域名服务器验收.md) [root](README.md) " +
+      "[web](https://example.com/help) [section](#start)\n";
+    assert.equal(
+      await zip.file("AutoPPT-Web/开始部署.md").async("string"),
+      expectedLinks,
+    );
     assert(
       !Object.keys(zip.files).some(
         (name) => name.includes("secrets") || name.includes(".local"),
@@ -260,6 +272,10 @@ test("source package freezes a clean commit, hashes files, excludes local secret
     });
     const completeManifest = JSON.parse(
       await completeZip.file("AutoPPT-Web/RELEASE.json").async("string"),
+    );
+    assert.equal(
+      await completeZip.file("AutoPPT-Web/开始部署.md").async("string"),
+      expectedLinks,
     );
     assert.equal(completeManifest.musicIncluded, true);
     assert.equal(completeManifest.musicTracks.length, 1);

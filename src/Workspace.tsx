@@ -1980,7 +1980,11 @@ export function Workspace({
             onClose={() => setRehearsing(null)}
             onEdit={() => {
               setRehearsing(null);
-              editPpt();
+              // Return to the version being played, even if another finishes meanwhile.
+              setMotionMode("layered");
+              setMotionDeckId(rehearsing.deckId);
+              onAreaChange("studio");
+              setMotionOpen(true);
             }}
           />
         ) : (

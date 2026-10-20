@@ -1,3 +1,4 @@
+import { backgroundPrompt } from "../shared/motion/layered.mjs";
 import { trackUsage } from "./usage/index.mjs";
 import {
   meteredImage,
@@ -345,7 +346,9 @@ async function generateImageOutput(plan, style, signal, attachments = []) {
     plan.styleRules !== style.rules
   )
     throw new Error("风格已变化，请用当前风格重新生成。");
-  const prompt = imagePrompt(plan);
+  const prompt = plan.layeredLayout
+    ? backgroundPrompt(plan)
+    : imagePrompt(plan);
   plan.imageRequest = {
     providerOrigin: new URL(config.baseUrl).origin,
     model: config.model,

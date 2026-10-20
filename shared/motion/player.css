@@ -280,3 +280,8 @@ button:disabled {
     display: none !important;
   }
 }
+
+.preview #toolbar,
+.preview #progress {
+  display: none;
+}

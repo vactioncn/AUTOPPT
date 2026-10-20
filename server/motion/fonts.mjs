@@ -10,7 +10,7 @@ function matches(range, points) {
     return points.some((c) => c >= lo && c <= hi);
   });
 }
-export async function embeddedFonts(pages, customFont) {
+export async function embeddedFonts(pages, customFont, full = false) {
   let css = "",
     licenses = [];
   for (const [font, pkg] of [
@@ -26,14 +26,14 @@ export async function embeddedFonts(pages, customFont) {
       )
       .map((l) => l.text)
       .join("");
-    if (!content) continue;
+    if (!content && !full) continue;
     const points = [...new Set([...content].map((c) => c.codePointAt(0)))];
     const entry = require.resolve(`@fontsource-variable/${pkg}/index.css`),
       dir = path.dirname(entry);
     const source = await readFile(entry, "utf8");
     for (const face of source.match(/@font-face\s*\{[^}]+\}/g) || []) {
       const range = face.match(/unicode-range:\s*([^;]+);/)?.[1];
-      if (range && !matches(range, points)) continue;
+      if (!full && range && !matches(range, points)) continue;
       const url = face.match(/url\(([^)]+)\)/)?.[1]?.replace(/['"]/g, "");
       if (!url) continue;
       const bytes = await readFile(path.resolve(dir, url));

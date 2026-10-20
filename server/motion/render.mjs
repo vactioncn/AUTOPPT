@@ -19,6 +19,7 @@ export async function* motionHtmlChunks(
   deck,
   {
     preview = false,
+    managed = false,
     pageId = null,
     includeNotes = true,
     compare = false,
@@ -45,6 +46,7 @@ export async function* motionHtmlChunks(
     embeddedFonts(
       staticMode ? selected.map(() => ({ layers: [] })) : selected,
       deck.customFont,
+      managed,
     ),
   ]);
   const payload = json({
@@ -52,10 +54,13 @@ export async function* motionHtmlChunks(
     pages: [],
     preview,
     staticMode,
+    managed: managed && !preview,
+    deckId: deck.id,
+    layered: deck.sourceMode === "layered",
     narration: narration ? { voiceName: narration.voiceName } : null,
     audio: {},
   });
-  yield `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: blob:; media-src data: blob:; font-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'none'; base-uri 'none'; form-action 'none'"><title>${escape(deck.title)}</title><style>${fonts.css}\n${css}</style></head><body class="${preview ? "preview" : ""}"><main id="viewport" aria-label="演讲画面"><div id="stage"></div></main><img id="original" hidden alt="原图对照"><div id="blackout" hidden></div><aside id="notes" hidden aria-label="演讲备注"></aside><nav id="overview" hidden aria-label="页面总览"><button id="close-overview">关闭总览</button></nav><nav id="toolbar" aria-label="播放控制"><button id="previous" title="← ↑ Page Up">上一页</button><span id="counter" aria-live="polite"></span><button id="next" title="→ ↓ 空格 Page Down">下一页</button><button id="replay" title="R">重播</button><button id="steps" aria-pressed="false">整页播放</button><button id="autoplay" aria-pressed="false" title="P">自动播放</button><select id="interval" aria-label="自动播放间隔"><option value="5">5 秒</option><option value="10" selected>10 秒</option><option value="20">20 秒</option><option value="30">30 秒</option></select><button id="motion" class="secondary" aria-pressed="true">动效</button><button id="show-overview" class="secondary" title="G">总览</button><button id="show-notes" class="secondary" title="N" ${includeNotes ? "" : "hidden"}>备注</button><button id="compare" class="secondary" ${compare ? "" : "hidden"}>原图</button><button id="fullscreen" title="F">全屏</button></nav><div id="speech-status" role="status" hidden></div><div id="speech-gate" hidden><div><h1>开始这场演讲</h1><p id="speech-gate-message">点击一次后，口播将自动播放并翻页。</p><button id="speech-start">开始演讲</button></div></div><audio id="speech-audio" preload="auto"></audio><div id="progress"></div><div id="loading">正在加载画面与字体…</div><script type="application/json" id="deck-data">${payload}</script>`;
+  yield `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: blob:; media-src data: blob:; font-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'none'; base-uri 'none'; form-action 'none'"><title>${escape(deck.title)}</title><style>${fonts.css}\n${css}</style></head><body class="${preview ? "preview" : ""}"><main id="viewport" aria-label="演讲画面"><div id="stage"></div></main><img id="original" hidden alt="原图对照"><div id="blackout" hidden></div><aside id="notes" hidden aria-label="演讲备注"></aside><nav id="overview" hidden aria-label="页面总览"><button id="close-overview">关闭总览</button></nav><nav id="toolbar" aria-label="播放控制"><button id="previous" title="← ↑ Page Up">上一页</button><span id="counter" aria-live="polite"></span><button id="next" title="→ ↓ 空格 Page Down">下一页</button><button id="replay" title="R">重播</button><button id="steps" aria-pressed="false">整页播放</button><button id="autoplay" aria-pressed="false" title="P">自动播放</button><select id="interval" aria-label="自动播放间隔"><option value="5">5 秒</option><option value="10" selected>10 秒</option><option value="20">20 秒</option><option value="30">30 秒</option></select><button id="motion" class="secondary" aria-pressed="true">动效</button><button id="show-overview" class="secondary" title="G">总览</button><button id="show-notes" class="secondary" title="N" ${includeNotes ? "" : "hidden"}>备注</button><button id="compare" class="secondary" ${compare ? "" : "hidden"}>原图</button><button id="edit-page" hidden>暂停改字</button><button id="fullscreen" title="F">全屏</button></nav><div id="speech-status" role="status" hidden></div><div id="speech-gate" hidden><div><h1>开始这场演讲</h1><p id="speech-gate-message">点击一次后，口播将自动播放并翻页。</p><button id="speech-start">开始演讲</button></div></div><audio id="speech-audio" preload="auto"></audio><div id="progress"></div><div id="loading">正在加载画面与字体…</div><script type="application/json" id="deck-data">${payload}</script>`;
   const assets = new Map(),
     audio = {};
   let sequence = 0;
@@ -89,7 +94,7 @@ export async function* motionHtmlChunks(
       yield* image(p.background);
       background = assets.get(`image:${p.background}`);
     }
-    if (compare) yield* image(p.source.image);
+    if (compare && p.source.image) yield* image(p.source.image);
     const layers = [];
     if (!staticMode)
       for (const l of p.layers) {
@@ -100,6 +105,9 @@ export async function* motionHtmlChunks(
       }
     const page = {
       id: p.id,
+      playbackMode: preview
+        ? "whole"
+        : p.playbackMode || (deck.sourceMode === "layered" ? "natural" : null),
       number: p.number,
       title: p.title,
       original: compare ? assets.get(`image:${p.source.image}`) : null,

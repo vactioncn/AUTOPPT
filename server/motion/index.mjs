@@ -1,3 +1,6 @@
+import { exportLayeredPptx } from "./pptx.mjs";
+import { generateLayeredPage } from "./layered.mjs";
+import { playbackMode } from "../../shared/motion/layered.mjs";
 import { withUsage } from "../usage/index.mjs";
 import {
   withModelRequestProgress,
@@ -99,6 +102,32 @@ async function drain() {
           d.progress = `第 ${p.number} 页：识别文字与可动元素`;
           save(d);
           try {
+            if (d.sourceMode === "layered") {
+              const result = await withUsage(
+                {
+                  projectId: d.projectId,
+                  pageId: p.id,
+                  taskId: d.id,
+                  feature: "分层页面制作",
+                },
+                () =>
+                  withRecovery(d, () =>
+                    generateLayeredPage(
+                      p,
+                      signal,
+                      (message) => {
+                        d.progress = `第 ${p.number} 页：${message}`;
+                        save(d);
+                      },
+                      () => save(d),
+                    ),
+                  ),
+              );
+              signal.throwIfAborted();
+              Object.assign(p, result, { status: "ready", reviewed: false });
+              save(d);
+              continue;
+            }
             if (!p.analysis) {
               p.analysis = await withUsage(
                 {
@@ -184,11 +213,9 @@ export function recoverMotion() {
 export function registerMotion(app) {
   if (process.env.AUTOPPT_WORKER_TOKEN) {
     app.use(["/api/projects/:id/motion", "/api/motion"], (req, res) =>
-      res
-        .status(403)
-        .json({
-          error: "邀请制网页版第一版暂不提供动态演示；已有项目素材保留。",
-        }),
+      res.status(403).json({
+        error: "邀请制网页版第一版暂不提供动态演示；已有项目素材保留。",
+      }),
     );
   }
   app.get("/api/projects/:id/motion", (req, res) => {
@@ -247,8 +274,36 @@ export function registerMotion(app) {
       throw new Error("不能添加或替换已分离的图片图层");
     if (layers.some((l) => l.font === "custom") && !d.customFont)
       throw new Error("请先导入原稿字体");
+    const mode = playbackMode(
+      req.body.playbackMode ?? p.playbackMode ?? "natural",
+    );
+    if (
+      d.sourceMode === "layered" &&
+      layers.some((l) => l.type === "text" && l.fit)
+    )
+      throw new Error("分层正文使用原始字号，不支持拉伸拟合");
+    p.history = [
+      ...(p.history || []),
+      {
+        layers: p.layers,
+        playbackMode: p.playbackMode || "natural",
+        reviewed: p.reviewed,
+        at: now(),
+      },
+    ].slice(-20);
     p.layers = layers;
+    p.playbackMode = mode;
     p.reviewed = req.body.reviewed === true;
+    save(d);
+    res.json(publicDeck(d));
+  });
+  app.post("/api/motion/:id/pages/:pageId/undo", (req, res) => {
+    const d = getDeck(req.params.id);
+    idle(d);
+    revision(d, req);
+    const p = d.pages.find((p) => p.id === req.params.pageId);
+    if (!p?.history?.length) throw new Error("没有可撤销的已保存版本");
+    Object.assign(p, p.history.pop());
     save(d);
     res.json(publicDeck(d));
   });
@@ -297,10 +352,21 @@ export function registerMotion(app) {
       .type("html")
       .send(
         await renderMotionHtml(
-          { ...d, pages: [{ ...p, layers }] },
+          { ...d, pages: [{ ...p, layers, playbackMode: "whole" }] },
           { preview: true, compare: true, includeNotes: false },
         ),
       );
+  });
+  app.get("/api/motion/:id/pptx", async (req, res) => {
+    const d = getDeck(req.params.id);
+    idle(d);
+    const data = await exportLayeredPptx(d);
+    res.attachment(exportFilename(d.title).replace(/\.pptx$/, "-可编辑.pptx"));
+    res
+      .type(
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      )
+      .send(data);
   });
   app.get("/api/motion/:id/html", async (req, res) => {
     const d = getDeck(req.params.id),
@@ -316,6 +382,7 @@ export function registerMotion(app) {
           d,
           {
             preview,
+            managed: req.query.edit === "1",
             pageId,
             includeNotes: req.query.notes === "1",
             compare: preview,
@@ -349,7 +416,13 @@ export async function createMotion(projectId, input) {
   if (requested.some((sid) => !project.slides.some((s) => s.id === sid)))
     throw new Error("部分页面已不存在，请重新选择");
   const selected = project.slides.filter((s) => requested.includes(s.id));
-  const missing = selected.filter((s) => !s.image && !s.scene);
+  const layered = input.sourceMode === "layered";
+  if (
+    input.sourceMode != null &&
+    !["layered", "extract"].includes(input.sourceMode)
+  )
+    throw new Error("制作方式无效");
+  const missing = layered ? [] : selected.filter((s) => !s.image && !s.scene);
   if (missing.length)
     throw new Error(`所选页面中有 ${missing.length} 页尚未生成图片`);
   const config = settings();
@@ -357,6 +430,34 @@ export async function createMotion(projectId, input) {
     throw new Error("请先配置内容分析与图片生成模型；复杂背景需要图片编辑接口");
   const pages = [];
   for (const s of selected) {
+    if (layered) {
+      const style = get("style", project.styleId || s.styleId);
+      if (!style?.rules?.trim()) throw new Error("请先选择并保存页面风格");
+      if (!s.notes?.trim()) throw new Error("分层制作需要先保存讲稿");
+      const source = {
+        image: s.image || null,
+        notes: s.notes,
+        plan: s.plan || null,
+        style: structuredClone(style),
+        attachments: structuredClone(s.attachments || []),
+        designOptions: project.designOptions,
+        context: `演讲：${project.title}；第 ${project.slides.indexOf(s) + 1} 页`,
+        stale: !!s.stale,
+        displayText: s.plan?.displayText || [],
+      };
+      source.fingerprint = createHash("sha256")
+        .update(JSON.stringify(source))
+        .digest("hex");
+      pages.push({
+        id: s.id,
+        number: project.slides.indexOf(s) + 1,
+        title: s.plan?.title || `第 ${project.slides.indexOf(s) + 1} 页`,
+        status: "pending",
+        source,
+        layers: [],
+      });
+      continue;
+    }
     let image = s.image;
     if (s.scene) {
       const stored = await pageImage(s);
@@ -393,12 +494,13 @@ export async function createMotion(projectId, input) {
       layers: [],
     });
   }
-  for (const page of input.reuse === true ? pages : []) {
+  for (const page of input.reuse === true && !layered ? pages : []) {
     const ready = all("motion")
       .filter(
         (d) =>
           d.projectId === project.id &&
           d.version === MOTION_VERSION &&
+          d.sourceMode !== "layered" &&
           !d.customFont,
       )
       .flatMap((d) => d.pages)
@@ -428,6 +530,7 @@ export async function createMotion(projectId, input) {
     version: MOTION_VERSION,
     projectId: project.id,
     sourceRevision: project.revision,
+    sourceMode: layered ? "layered" : "extract",
     title: project.title,
     createdAt: now(),
     status: "queued",

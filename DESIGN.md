@@ -249,6 +249,8 @@ The confirmed public identity is **讲好 · AI 演讲工作台 · 从一份讲�
 
 The current source also unifies the product display name, workbench headers, menus and shared mark as 讲好. App and workspace body text now use `Jianghao Sans` with DM Sans and system fallbacks; their established studio palette, layout, type sizes and control dimensions remain. The installed `/Applications/AutoPPT.app` has not been replaced or restarted by this source update. Its filename, data paths and project-package identifiers remain AutoPPT.
 
+The local “分层制作 · 试用” surface extends this same working identity: a complete slide preview, compact labeled controls and explicit save state. Its authored text and background keep the presentation’s own style. This is a scoped source-workbench extension; implementation and validation boundaries remain in `.impeccable/layered-speech.md` and `docs/分层演讲-制作与编辑试用.md`.
+
 ## Colors
 
 ### Primary
@@ -316,6 +318,14 @@ The digital-presenter settings pair a saved-avatar library (240px) with a flexib
 On mobile, bulk actions and toasts sit above the bottom navigation. The home illustration is hidden, page selection controls stay visible, and the style chooser retains two columns. Dialogs remain scrollable within the viewport.
 
 **The Preview First Rule.** Preserve the complete generated image and reveal secondary controls through detail views and disclosures as space contracts.
+
+### Layered Presentation Trial
+
+The local motion workbench uses a wide dialog, with a page rail, flexible complete preview and compact inspector. The desktop grid uses 120px / flexible / 250px columns; at 1500px and above the side columns become 130px and 275px. Inspector height is bounded by the viewport (`min(730px, calc(100dvh - 295px))`). Its white fields sit on a warm opaque surface, divided from save actions by a fine rule. At desktop widths of at least 1000px and heights at most 800px, the preview scales down proportionally to keep nearby controls within reach.
+
+At 950px and below the inspector moves beneath the preview and releases its height constraint. At 600px and below the workbench stacks, the page rail becomes a horizontal sequence, and toolbar actions wrap. These are local editing-surface breakpoints, not replacements for the App shell’s breakpoints.
+
+**The Bounded Edit Loop Rule.** Keep playback actions in the top toolbar and save/undo in an opaque, non-scrolling inspector footer. On desktop, only the field body scrolls; the playback-mode and layer selectors stay above it. On narrow screens, release the inspector height and let fields follow the preview in normal document flow.
 
 ### Public Brand Layout — 2026-10-12
 
@@ -405,7 +415,19 @@ Preview and project generation share quiet records separated by fine borders. Ea
 
 Page frames show the complete generated image, with historical web scenes preserved for viewing and labeled as historical. Missing results display a text-and-icon placeholder with separate waiting, generating and incomplete messages. Selection appears as a terracotta outline, with bulk actions in a floating dark olive bar. Opening a page reveals the large preview, PNG download, navigation, manual splitting and redesign controls, plus separate tabs for manuscript, design and versions. The redesign form uses the whole saved style without a template or visual-direction selector. When a content brief is available, the design tab shows “这一页要表达什么” and “为什么这样表现” before the detailed plan. Saved notes and a page awaiting redesign remain distinct states; version restoration is an explicit action.
 
-The current workflow produces images and exposes single-image download and project PPTX export. The workspace header has an “导出 PPT” action. Its dialog explains that each page is one complete image with the latest saved manuscript in speaker notes, preserving page order and image proportions. Missing pages, unsegmented batches and active jobs block download with an explanation. Changed manuscripts show an explicit current-image/latest-notes download label. Historical scenes flatten into a single PNG for export. Element editing remains paused.
+The current workflow produces images and exposes single-image download and project PPTX export. The workspace header has an “导出 PPT” action. Its dialog explains that each page is one complete image with the latest saved manuscript in speaker notes, preserving page order and image proportions. Missing pages, unsegmented batches and active jobs block download with an explanation. Changed manuscripts show an explicit current-image/latest-notes download label. Historical scenes flatten into a single PNG for export. Element editing remains outside this ordinary image workflow; the separate local layered trial is described below.
+
+### Layered Presentation Trial
+
+“分层制作 · 试用” opens an independent local presentation record. The editor reuses the shared buttons, labeled white fields, fine borders and warm working surfaces. A darker local terracotta marks selected pages, disclosure headings, carets and keyboard focus; this supporting treatment does not recolor the authored slide or replace the global action color. Interface text retains the working type ramp; slide fonts, sizes, colors and spacing belong to the presentation.
+
+Clicking canvas text or selecting a named layer selects the content shown in the same editing controls. Text, built-in font, supported weight, size, color and tracking are directly available. Geometry, effect, step, delay and duration live in the native “位置与出场顺序” disclosure. “自然出场”, “逐步讲述 · 点击下一步” and “整页静态” are saved per page; page and full-deck playback actions remain in the top toolbar and are disabled while edits are unsaved.
+
+**The Natural Text Rule.** Preserve natural glyph shapes and the explicitly chosen font size. For layered text, wait for font/layout checks and block saving on overflow; explain the correction beside the save action instead of silently shrinking or stretching text.
+
+The stable action footer holds the primary save action, overflow/status text, and either draft undo or the last-save undo when available. The managed player’s “暂停改字” pauses playback and opens the matching editor page. Saving refreshes that player without discarding the current page or speaking step; the speaker chooses when to continue. The status copy explicitly distinguishes screen text from the manuscript and existing narration. Offline playback has no workbench-edit action.
+
+This extension does not turn the ordinary image workflow into an element editor. The full generation path is mock-tested; the five-style trial reuses existing artwork in an isolated workspace. This design record makes no screenshot-review, live-model-quality, installed-App or cross-system PowerPoint acceptance claim; those results belong in the linked trial documentation.
 
 ### Content Attachments
 
@@ -509,12 +531,13 @@ Actual samples in test project `76279902-8efb-4e61-ade7-3595a836670e` are black 
 - **Do** keep page-only changes, candidate rule revisions and formal-style promotion visibly separate.
 - **Do** keep the full manuscript accessible alongside condensed page text, with manual split/merge previews and version history available on demand.
 - **Do** keep hosted website and workspace layout values scoped, preserve named navigation in the icon rail, and associate account-format help with its field.
+- **Do** keep layered editing’s scrollable fields, persistent save/undo footer and top playback actions distinct; preserve natural text geometry and explicit overflow feedback.
 
 ### Don't:
 
 - **Don't** present missing results, failed pages or stale previews as newly completed output.
 - **Don't** let the application palette substitute for the user’s saved output style or let that style recolor application controls.
-- **Don't** reintroduce template or visual-direction pickers, generic layout galleries or element editing into the current image workflow. PPTX export must remain complete images with speaker notes.
+- **Don't** reintroduce template or visual-direction pickers, generic layout galleries or element editing into the ordinary image workflow. Its PPTX export remains complete images with speaker notes; editable text belongs to the explicit, independently saved layered trial.
 - **Don't** reintroduce style-reference image selection, reference comparison or automatic deviation review into the finalized trial and production flows; content attachments have their own explicit material input.
 - **Don't** treat choosing a history result as saving its candidate rules to the formal style.
 - **Don't** treat reviewed image samples or a successful interface review as a general guarantee of output quality or reference-style fidelity.

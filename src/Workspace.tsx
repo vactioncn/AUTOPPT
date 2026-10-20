@@ -217,6 +217,7 @@ export function Workspace({
     [proposalSubmitting, setProposalSubmitting] = useState(false),
     [showScript, setShowScript] = useState(false),
     [motionOpen, setMotionOpen] = useState(false),
+    [motionMode, setMotionMode] = useState<"extract" | "layered">("extract"),
     [redesignOpen, setRedesignOpen] = useState(false),
     [exportOpen, setExportOpen] = useState<ExportFormat | null>(null),
     [reportOpen, setReportOpen] = useState(false),
@@ -1041,6 +1042,16 @@ export function Workspace({
             </p>
           </div>
           <div className="studio-topbar-actions">
+            {motionAvailable && !!project.slides.length && (
+              <Button
+                onClick={() => {
+                  setMotionMode("layered");
+                  setMotionOpen(true);
+                }}
+              >
+                分层制作 · 试用
+              </Button>
+            )}
             {(!!project.slides.length || !!project.batches.length) &&
               !composerOpen &&
               !showFirstResult &&
@@ -1896,6 +1907,7 @@ export function Workspace({
       )}
       {motionOpen && (
         <MotionPresentation
+          initialMode={motionMode}
           project={project}
           selected={selected}
           onClose={() => {

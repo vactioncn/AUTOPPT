@@ -164,6 +164,7 @@
     document.getElementById("motion").hidden = true;
     document.getElementById("steps").hidden = true;
   }
+  let fontLoadFailed = false;
   const canvas = document.createElement("canvas"),
     ctx = canvas.getContext("2d");
   const button = (id, fn) =>
@@ -188,6 +189,10 @@
     return Math.max(0, ...deck.pages[index].layers.map((l) => l.step));
   }
   function updateCounter() {
+    document.getElementById("next").textContent =
+      incremental && step < maxStep() ? "下一步" : "下一页";
+    document.getElementById("previous").textContent =
+      incremental && step > 0 ? "上一步" : "上一页";
     counter.textContent = `${index + 1} / ${deck.pages.length}${incremental ? " · " + allSteps().filter((s) => s <= step).length + " / " + allSteps().length + " 步" : ""}`;
     document.getElementById("previous").disabled = index === 0 && step === 0;
     document.getElementById("next").disabled =
@@ -211,13 +216,21 @@
       ];
     return [{ opacity: 0 }, { opacity: 1 }];
   }
-  function reveal() {
+  function reveal(animate = true) {
     cancelAnimations();
     current.querySelectorAll(".layer").forEach((node, i) => {
       const l = deck.pages[index].layers[i],
         visible = !incremental || l.step <= step;
       node.hidden = !visible;
-      if (!visible || l.effect === "none" || !motion || reduced.matches) return;
+      if (
+        !animate ||
+        deck.preview ||
+        !visible ||
+        l.effect === "none" ||
+        !motion ||
+        reduced.matches
+      )
+        return;
       if (incremental && l.step < step) return;
       const order = allSteps().indexOf(l.step);
       animations.push(
@@ -270,6 +283,45 @@
       span.style.whiteSpace = "pre-wrap";
     }
   }
+  function inspectLayout() {
+    if (!deck.preview) return;
+    const issues = fontLoadFailed ? ["字体未能加载，请重新打开预览"] : [];
+    for (const l of deck.pages[index].layers) {
+      if (l.type !== "text" || l.fit) continue;
+      const node = [...current.querySelectorAll(".layer")]
+        .find((n) => n.dataset.id === l.id)
+        ?.querySelector(".text");
+      if (node && (node.scrollHeight > l.h + 2 || node.scrollWidth > l.w + 2))
+        issues.push(l.label || l.text.slice(0, 16));
+    }
+    parent.postMessage(
+      {
+        type: "motion-check",
+        pageId: deck.pages[index].id,
+        layers: JSON.stringify(
+          deck.pages[index].layers.map(({ asset, ...l }) => l),
+        ),
+        issues,
+      },
+      "*",
+    );
+  }
+  function applyMode() {
+    const mode = deck.preview ? "whole" : deck.pages[index].playbackMode;
+    // Old decks keep the presenter's manual mode when moving between pages.
+    if (!mode) return;
+    incremental = mode === "steps" && !deck.narration;
+    motion = mode !== "whole" && !deck.staticMode && !deck.preview;
+    document.getElementById("steps").textContent = incremental
+      ? "逐步讲述"
+      : "整页播放";
+    document
+      .getElementById("steps")
+      .setAttribute("aria-pressed", String(incremental));
+    document
+      .getElementById("motion")
+      .setAttribute("aria-pressed", String(motion));
+  }
   function render(animate = true, direction = 1) {
     cancelAnimations();
     const p = deck.pages[index];
@@ -319,8 +371,9 @@
     notes.textContent = p.notes || "本页没有演讲备注。";
     const original = document.getElementById("original");
     original.src = mediaSource(p.original);
-    reveal();
-    if (animate && motion && !reduced.matches)
+    reveal(animate);
+    inspectLayout();
+    if (!deck.preview && animate && motion && !reduced.matches)
       animations.push(
         scene.animate(
           [
@@ -346,6 +399,7 @@
     audioKey = "";
     finished = false;
     index = next;
+    applyMode();
     step = incremental ? 0 : maxStep();
     render(true, direction);
     speechProgress();
@@ -353,6 +407,7 @@
     return true;
   }
   function advance() {
+    if (editing) return false;
     if (incremental && step < maxStep()) {
       step = allSteps().find((s) => s > step);
       reveal();
@@ -361,6 +416,7 @@
     return go(index + 1);
   }
   function back() {
+    if (editing) return;
     if (incremental && step > 0) {
       step = [0, ...allSteps()].filter((s) => s < step).pop() || 0;
       reveal();
@@ -391,6 +447,7 @@
     document.getElementById("autoplay").setAttribute("aria-pressed", "false");
   }
   function play() {
+    if (editing) return;
     if (deck.narration) {
       if (narrating) {
         stop();
@@ -477,6 +534,63 @@
       .setAttribute("aria-pressed", String(motion));
     reveal();
   });
+  const editButton = document.getElementById("edit-page");
+  let editing = false;
+  if (deck.managed && window.opener) {
+    editButton.hidden = false;
+    editButton.onclick = () => {
+      if (editing) {
+        editing = false;
+        editButton.textContent = "暂停改字";
+        showControls();
+        return;
+      }
+      stop();
+      animations.forEach((a) => a.finish());
+      editing = true;
+      editButton.textContent = "等待保存 · 点击取消";
+      window.opener.postMessage(
+        {
+          type: "motion-edit",
+          deckId: deck.deckId,
+          pageId: deck.pages[index].id,
+        },
+        location.origin,
+      );
+      window.opener.focus();
+    };
+    window.addEventListener("message", async (e) => {
+      if (
+        e.source !== window.opener ||
+        e.origin !== location.origin ||
+        e.data?.type !== "motion-saved" ||
+        e.data.deckId !== deck.deckId
+      )
+        return;
+      const p = deck.pages.find((p) => p.id === e.data.pageId);
+      if (!p || !editing) return;
+      p.layers = e.data.layers;
+      p.playbackMode = e.data.playbackMode;
+      await Promise.all(
+        p.layers
+          .filter((l) => l.type === "text")
+          .map((l) =>
+            document.fonts.load(
+              `${l.fontWeight} 16px "${fonts[l.font]}"`,
+              l.text,
+            ),
+          ),
+      );
+      applyMode();
+      render(false);
+      editing = false;
+      editButton.textContent = "暂停改字";
+      speechProgress(
+        deck.narration ? "画面已更新 · 已有口播保持原样，点击开始口播继续" : "",
+      );
+      showControls();
+    });
+  }
   button("fullscreen", () => {
     (document.fullscreenElement
       ? document.exitFullscreen()
@@ -593,7 +707,9 @@
   }
   await Promise.all(
     [...fontGroups].map(([font, characters]) =>
-      document.fonts.load(font, [...characters].join("")).catch(() => {}),
+      document.fonts.load(font, [...characters].join("")).catch(() => {
+        fontLoadFailed = true;
+      }),
     ),
   );
   await Promise.all(
@@ -615,7 +731,8 @@
       ),
   );
   document.getElementById("loading").remove();
-  render(false);
+  applyMode();
+  render(!deck.preview);
   speechProgress();
   showControls();
   window.__motionReady = true;

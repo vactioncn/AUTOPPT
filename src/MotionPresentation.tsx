@@ -14,7 +14,7 @@ import {
   FilmStrip,
   Plus,
 } from "@phosphor-icons/react";
-import { api, asset, patch, post } from "./api";
+import { api, asset, patch, post, downloadFile } from "./api";
 import { Button, Field, Modal } from "./components";
 import type { Project } from "./types";
 import "./motion.css";
@@ -57,11 +57,15 @@ type MotionPage = {
   reviewed?: boolean;
   summary?: string;
   usedRepair?: boolean;
+  background?: string;
+  playbackMode?: string;
+  history?: unknown[];
 };
 type Deck = {
   id: string;
   title: string;
   sourceRevision: number;
+  sourceMode?: string;
   revision: number;
   createdAt: string;
   status: string;
@@ -74,7 +78,7 @@ const active = (d: Deck | null) =>
 const statuses: Record<string, string> = {
   pending: "待转换",
   running: "转换中",
-  ready: "已转换",
+  ready: "已完成",
   failed: "失败",
   partial: "部分完成",
   queued: "排队中",
@@ -93,15 +97,26 @@ const effects: Record<string, string> = {
 export function MotionPresentation({
   project,
   selected,
+  initialMode = "extract",
   onClose,
 }: {
   project: Project;
   selected: string[];
+  initialMode?: "extract" | "layered";
   onClose: () => void;
 }) {
   const [decks, setDecks] = useState<Deck[]>([]),
     [deckId, setDeckId] = useState(""),
     [deck, setDeck] = useState<Deck | null>(null);
+  const [sourceMode, setSourceMode] = useState(initialMode);
+  const [modeDraft, setModeDraft] = useState<string | null>(null);
+  const [layoutCheck, setLayoutCheck] = useState<{
+    pageId: string;
+    layers: string;
+    issues: string[];
+  } | null>(null);
+  const player = useRef<Window | null>(null);
+  const [editingPlayback, setEditingPlayback] = useState(false);
   const [creating, setCreating] = useState(false),
     [scope, setScope] = useState(selected.length ? "selected" : "all"),
     [error, setError] = useState(""),
@@ -110,7 +125,7 @@ export function MotionPresentation({
   const [draft, setDraft] = useState<Layer[] | null>(null),
     [baseRevision, setBaseRevision] = useState(0),
     [layerId, setLayerId] = useState(""),
-    [compare, setCompare] = useState(true);
+    [compare, setCompare] = useState(initialMode !== "layered");
   const [previewHtml, setPreviewHtml] = useState<string | undefined>(undefined);
   const html = useHtmlExportOptions(project.id);
   const frame = useRef<HTMLIFrameElement>(null),
@@ -138,7 +153,8 @@ export function MotionPresentation({
   }, [refresh]);
   const page = deck?.pages.find((p) => p.id === pageId) || deck?.pages[0];
   const dirtyValue =
-    !!draft && JSON.stringify(draft) !== JSON.stringify(page?.layers);
+    (!!draft && JSON.stringify(draft) !== JSON.stringify(page?.layers)) ||
+    (modeDraft !== null && modeDraft !== (page?.playbackMode || "natural"));
   dirty.current = dirtyValue;
   useEffect(() => {
     if (!draft || !deck || !page) {
@@ -184,13 +200,33 @@ export function MotionPresentation({
     const listener = (e: MessageEvent) => {
       if (
         e.source === frame.current?.contentWindow &&
+        e.data?.type === "motion-check"
+      )
+        setLayoutCheck(e.data);
+      if (
+        e.source === player.current &&
+        e.origin === location.origin &&
+        e.data?.type === "motion-edit" &&
+        e.data.deckId === deck?.id
+      ) {
+        if (dirty.current) {
+          setError("播放已暂停。请先保存或撤销当前输入，再选择播放中的页面。");
+          return;
+        }
+        setPageId(e.data.pageId);
+        setDraft(null);
+        setModeDraft(null);
+        setEditingPlayback(true);
+      }
+      if (
+        e.source === frame.current?.contentWindow &&
         e.data?.type === "motion-select"
       )
         setLayerId(e.data.id);
     };
     window.addEventListener("message", listener);
     return () => window.removeEventListener("message", listener);
-  }, []);
+  }, [deck?.id]);
   const changePage = (id: string) => {
     if (dirtyValue) {
       setError("请先保存当前校准，或点击撤销修改，再切换页面。");
@@ -198,6 +234,7 @@ export function MotionPresentation({
     }
     setPageId(id);
     setDraft(null);
+    setModeDraft(null);
     setLayerId("");
     setError("");
   };
@@ -217,24 +254,41 @@ export function MotionPresentation({
     scope === "selected"
       ? project.slides.filter((s) => selected.includes(s.id))
       : project.slides;
-  const missing = chosen.filter((s) => !s.image && !s.scene);
+  const missing =
+    sourceMode === "layered" ? [] : chosen.filter((s) => !s.image && !s.scene);
   const ready = deck?.pages.filter((p) => p.status === "ready").length || 0;
   const layers = draft || page?.layers || [];
+  const layered = deck?.sourceMode === "layered";
+  const signature = JSON.stringify(layers.map(({ asset: _asset, ...l }) => l));
+  const checkReady =
+    !!layoutCheck &&
+    layoutCheck.pageId === page?.id &&
+    layoutCheck.layers === signature;
+  const overflow = checkReady && layoutCheck ? layoutCheck.issues : [];
+  const openPlayer = (onePage = false) => {
+    if (!deck) return;
+    player.current = window.open(
+      playerUrl + "&edit=1" + (onePage ? `&pageId=${page?.id}` : ""),
+      `jianghao-play-${deck.id}`,
+    );
+    setEditingPlayback(false);
+  };
   const current =
     layers.find((l) => l.id === layerId) ||
     layers.find((l) => l.type === "text") ||
     layers[0];
   const update = (value: Partial<Layer>) => {
     if (!current || !deck) return;
-    if (!draft) setBaseRevision(deck.revision);
+    if (!draft && modeDraft === null) setBaseRevision(deck.revision);
     const next = layers.map((l) =>
       l.id === current.id ? { ...l, ...value } : l,
     );
     setDraft(next);
-    frame.current?.contentWindow?.postMessage(
-      { type: "motion-update", layers: next },
-      "*",
-    );
+    if (!layered)
+      frame.current?.contentWindow?.postMessage(
+        { type: "motion-update", layers: next },
+        "*",
+      );
   };
   const close = () => {
     if (dirtyValue) {
@@ -253,13 +307,33 @@ export function MotionPresentation({
   const save = () =>
     run(async () => {
       if (!deck || !page) return;
+      if (layered && (!checkReady || overflow.length))
+        throw new Error(
+          overflow.length
+            ? "文字超出了文本框，请缩短内容、调大文本框或手动调整字号。"
+            : "正在核对排版，请稍后保存。",
+        );
       const next = await patch<Deck>(`/motion/${deck.id}/pages/${page.id}`, {
-        revision: draft ? baseRevision : deck.revision,
+        revision: draft || modeDraft !== null ? baseRevision : deck.revision,
         layers,
+        playbackMode: modeDraft || page.playbackMode || "natural",
         reviewed: true,
       });
       setDeck(next);
       setDraft(null);
+      setModeDraft(null);
+      const saved = next.pages.find((p) => p.id === page.id)!;
+      player.current?.postMessage(
+        {
+          type: "motion-saved",
+          deckId: next.id,
+          pageId: page.id,
+          layers: saved.layers,
+          playbackMode: saved.playbackMode,
+        },
+        location.origin,
+      );
+      if (editingPlayback) setEditingPlayback(false);
     });
   const numeric = (
     label: string,
@@ -281,8 +355,8 @@ export function MotionPresentation({
   );
   return (
     <Modal
-      title="动态 HTML 演示"
-      subtitle="分离文字与画面，让讲述按自己的节奏展开。转换结果独立保存。"
+      title="分层演讲"
+      subtitle="底图与文字分别保存，改字、排版、按自己的节奏讲述。"
       wide
       onClose={close}
     >
@@ -321,25 +395,60 @@ export function MotionPresentation({
             </Field>
           )}
           {!creating && (
-            <Button
-              disabled={dirtyValue || active(deck)}
-              onClick={() => setCreating(true)}
-            >
-              <Plus />
-              新建转换
-            </Button>
+            <div className="motion-topbar-actions">
+              <Button
+                disabled={dirtyValue || active(deck)}
+                onClick={() => setCreating(true)}
+              >
+                <Plus />
+                新建演示
+              </Button>
+              {deck && (
+                <>
+                  <Button
+                    disabled={!page || page.status !== "ready" || dirtyValue}
+                    onClick={() => openPlayer(true)}
+                  >
+                    播放本页
+                  </Button>
+                  <Button
+                    disabled={ready !== deck?.pages.length || dirtyValue}
+                    onClick={() => openPlayer()}
+                  >
+                    <Play />
+                    播放全部
+                  </Button>
+                </>
+              )}
+            </div>
           )}
         </div>
         {creating ? (
           <section className="motion-create">
             <div className="motion-intro">
               <FilmStrip size={36} />
-              <h3>把已经完成的画面，变成可讲述的网页</h3>
+              <h3>
+                {sourceMode === "layered"
+                  ? "先设计文字，再生成底图"
+                  : "把已经完成的画面，变成可讲述的网页"}
+              </h3>
               <p>
-                保留原图构图，文字还原为
-                HTML；可分离的照片、插图和图形独立出现，复杂交叠元素留作背景。
+                {sourceMode === "layered"
+                  ? "使用当前讲稿和风格，生成新的分层演示。正文始终可修改，原项目与历史画面保持原样。"
+                  : "保留原图构图，识别文字与可动元素，复杂交叠元素留作背景。"}
               </p>
             </div>
+            <Field label="制作方式">
+              <select
+                value={sourceMode}
+                onChange={(e) =>
+                  setSourceMode(e.target.value as "layered" | "extract")
+                }
+              >
+                <option value="layered">底图 + 可编辑文字（试用）</option>
+                <option value="extract">从已有图片分离图层</option>
+              </select>
+            </Field>
             <div className="motion-scope" role="group" aria-label="转换范围">
               <button
                 className={scope === "all" ? "chosen" : ""}
@@ -360,11 +469,15 @@ export function MotionPresentation({
             <div className="motion-explain">
               <p>
                 <strong>转换与校准</strong>{" "}
-                每页调用一次视觉分析；复杂背景可能再调用一次图片编辑。费用由当前模型服务收取，转换可停止并继续。播放、调整动效与下载不调用模型。
+                {sourceMode === "layered"
+                  ? "每页先提炼文案和设计版式，再生成无字底图并检查。使用当前配置的内容与图片模型，会产生模型费用；支持停止和继续。"
+                  : "每页调用视觉分析，复杂背景可能调用图片编辑。使用当前模型服务，转换可停止并继续。"}{" "}
+                改字、调整动效与下载不调用模型。
               </p>
               <p>
-                字号、字重、颜色和位置从原图估计，内嵌字体保证离线显示一致。特殊字体可导入
-                WOFF2；生成后请对照原图校对，再用于正式演讲。
+                {sourceMode === "layered"
+                  ? "内置黑体与宋体，固定字号和文字位置。长文字会提示溢出，请校对后用于正式演讲。首次使用建议只选一页测试。"
+                  : "原图字体只能估计，特殊字体可导入 WOFF2；生成后请对照校对。"}
               </p>
             </div>
             {missing.length > 0 && (
@@ -373,7 +486,7 @@ export function MotionPresentation({
                 页没有图片。请补齐，或关闭窗口后只勾选已完成的页面。
               </p>
             )}
-            {chosen.some((s) => s.stale) && (
+            {sourceMode !== "layered" && chosen.some((s) => s.stale) && (
               <p className="export-notice">
                 部分讲稿修改后图片尚未更新。本次会转换当前保存的图片。
               </p>
@@ -392,6 +505,7 @@ export function MotionPresentation({
                       `/projects/${project.id}/motion`,
                       {
                         revision: project.revision,
+                        sourceMode,
                         slideIds: chosen.map((s) => s.id),
                       },
                     );
@@ -403,7 +517,7 @@ export function MotionPresentation({
                   })
                 }
               >
-                转换 {chosen.length} 页
+                {sourceMode === "layered" ? "制作" : "转换"} {chosen.length} 页
               </Button>
             </div>
           </section>
@@ -453,7 +567,12 @@ export function MotionPresentation({
                       className={p.id === page?.id ? "chosen" : ""}
                       onClick={() => changePage(p.id)}
                     >
-                      <img src={asset(p.source.image)} alt="" />
+                      {(p.source.image || p.background) && (
+                        <img
+                          src={asset(p.source.image || p.background!)}
+                          alt=""
+                        />
+                      )}
                       <span>
                         第 {p.number} 页{" "}
                         <small>
@@ -472,19 +591,21 @@ export function MotionPresentation({
                         <strong>
                           第 {page.number} 页 · {page.title}
                         </strong>
-                        <label>
-                          <input
-                            type="checkbox"
-                            checked={compare}
-                            onChange={(e) => setCompare(e.target.checked)}
-                          />
-                          原图对照
-                        </label>
+                        {page.source.image && (
+                          <label>
+                            <input
+                              type="checkbox"
+                              checked={compare}
+                              onChange={(e) => setCompare(e.target.checked)}
+                            />
+                            原图对照
+                          </label>
+                        )}
                       </div>
                       <div
                         className={`motion-previews ${compare ? "split" : ""}`}
                       >
-                        {compare && (
+                        {compare && page.source.image && (
                           <figure>
                             <figcaption>原图</figcaption>
                             <img
@@ -494,9 +615,7 @@ export function MotionPresentation({
                           </figure>
                         )}
                         <figure>
-                          <figcaption>
-                            HTML 还原 · 点击文字可选中校准
-                          </figcaption>
+                          <figcaption>点击画面中的文字即可修改</figcaption>
                           <iframe
                             key={`${deck.id}-${page.id}`}
                             ref={frame}
@@ -549,6 +668,21 @@ export function MotionPresentation({
                 </section>
                 {page?.status === "ready" && current && (
                   <aside className="motion-inspector">
+                    <Field label="播放方式">
+                      <select
+                        value={modeDraft || page.playbackMode || "natural"}
+                        disabled={busy || active(deck)}
+                        onChange={(e) => {
+                          if (!draft && modeDraft === null)
+                            setBaseRevision(deck.revision);
+                          setModeDraft(e.target.value);
+                        }}
+                      >
+                        <option value="natural">自然出场</option>
+                        <option value="steps">逐步讲述 · 点击下一步</option>
+                        <option value="whole">整页静态</option>
+                      </select>
+                    </Field>
                     <Field label="图层">
                       <select
                         aria-label="选择动态图层"
@@ -563,109 +697,187 @@ export function MotionPresentation({
                         ))}
                       </select>
                     </Field>
-                    <fieldset disabled={busy || active(deck)}>
-                      {current.type === "text" && (
-                        <>
-                          <Field label="文字">
-                            <textarea
-                              value={current.text}
-                              onChange={(e) => update({ text: e.target.value })}
-                            />
-                          </Field>
-                          <Field label="字体">
-                            <select
-                              value={current.font}
-                              onChange={(e) => update({ font: e.target.value })}
-                            >
-                              <option value="sans">
-                                思源黑体 / Noto Sans SC
-                              </option>
-                              <option value="serif">
-                                思源宋体 / Noto Serif SC
-                              </option>
-                              {deck.customFont && (
-                                <option value="custom">
-                                  原稿字体 · {deck.customFont.name}
-                                </option>
-                              )}
-                            </select>
-                          </Field>
-                          <label className="motion-check">
-                            <input
-                              type="checkbox"
-                              checked={!!current.fit}
-                              onChange={(e) =>
-                                update({ fit: e.target.checked })
-                              }
-                            />
-                            按原图字形边界拟合
-                          </label>
-                          <p className="detail-help">
-                            开启时按原图边界匹配宽高。手动调字号时会关闭拟合。
-                          </p>
-                          <div className="motion-fields">
-                            <Field label="字号">
-                              <input
-                                type="number"
-                                min="4"
-                                max={page.height}
-                                value={current.fontSize}
+                    <div className="motion-fields-scroll">
+                      <fieldset disabled={busy || active(deck)}>
+                        {current.type === "text" && (
+                          <>
+                            <Field label="文字">
+                              <textarea
+                                value={current.text}
+                                onChange={(e) =>
+                                  update({ text: e.target.value })
+                                }
+                              />
+                            </Field>
+                            <Field label="字体">
+                              <select
+                                value={current.font}
                                 onChange={(e) =>
                                   update({
-                                    fontSize: Number(e.target.value),
-                                    fit: false,
+                                    font: e.target.value,
+                                    fontWeight:
+                                      e.target.value === "serif"
+                                        ? current.fontWeight! >= 600
+                                          ? 600
+                                          : 400
+                                        : current.fontWeight! >= 600
+                                          ? 700
+                                          : current.fontWeight === 300
+                                            ? 300
+                                            : 400,
                                   })
                                 }
-                              />
+                              >
+                                <option value="sans">
+                                  思源黑体 / Noto Sans SC
+                                </option>
+                                <option value="serif">
+                                  思源宋体 / Noto Serif SC
+                                </option>
+                                {deck.customFont && (
+                                  <option value="custom">
+                                    原稿字体 · {deck.customFont.name}
+                                  </option>
+                                )}
+                              </select>
                             </Field>
-                            {numeric("字重", "fontWeight", 100, 900, 100)}
-                            <Field label="颜色">
-                              <input
-                                type="color"
-                                value={current.color}
-                                onChange={(e) =>
-                                  update({ color: e.target.value })
-                                }
-                              />
-                            </Field>
-                            {numeric("字距", "letterSpacing", -20, 100, 0.1)}
+                            {!layered && (
+                              <label className="motion-check">
+                                <input
+                                  type="checkbox"
+                                  checked={!!current.fit}
+                                  onChange={(e) =>
+                                    update({ fit: e.target.checked })
+                                  }
+                                />
+                                按原图字形边界拟合
+                              </label>
+                            )}
+                            <p className="detail-help">
+                              {layered
+                                ? "正文使用固定字号。超出边界时提示，不会自动缩小或拉伸。"
+                                : "开启时按原图边界匹配宽高。手动调字号时会关闭拟合。"}
+                            </p>
+                            <div className="motion-fields">
+                              <Field label="字号">
+                                <input
+                                  type="number"
+                                  min="4"
+                                  max={page.height}
+                                  value={Number(current.fontSize?.toFixed(1))}
+                                  onChange={(e) =>
+                                    update({
+                                      fontSize: Number(e.target.value),
+                                      fit: false,
+                                    })
+                                  }
+                                />
+                              </Field>
+                              {layered ? (
+                                <Field label="字重">
+                                  <select
+                                    value={current.fontWeight}
+                                    onChange={(e) =>
+                                      update({
+                                        fontWeight: Number(e.target.value),
+                                      })
+                                    }
+                                  >
+                                    {(current.font === "serif"
+                                      ? [400, 600]
+                                      : [300, 400, 700]
+                                    ).map((w) => (
+                                      <option key={w} value={w}>
+                                        {w === 300
+                                          ? "纤细"
+                                          : w === 400
+                                            ? "常规"
+                                            : "加粗"}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </Field>
+                              ) : (
+                                numeric("字重", "fontWeight", 100, 900, 100)
+                              )}
+                              <Field label="颜色">
+                                <input
+                                  type="color"
+                                  value={current.color}
+                                  onChange={(e) =>
+                                    update({ color: e.target.value })
+                                  }
+                                />
+                              </Field>
+                              {numeric("字距", "letterSpacing", -20, 100, 0.1)}
+                            </div>
+                          </>
+                        )}
+                        <details className="motion-advanced">
+                          <summary>位置与出场顺序</summary>
+                          <div className="motion-fields">
+                            {numeric("横坐标", "x", 0, page.width)}
+                            {numeric("纵坐标", "y", 0, page.height)}
+                            {numeric("宽度", "w", 1, page.width)}
+                            {numeric("高度", "h", 1, page.height)}
                           </div>
-                        </>
+                          <p className="detail-help">
+                            移动文字只调整排版，底图保持不变。
+                          </p>
+                          <Field label="出场动效">
+                            <select
+                              value={current.effect}
+                              onChange={(e) =>
+                                update({ effect: e.target.value })
+                              }
+                            >
+                              {Object.entries(effects).map(([v, t]) => (
+                                <option key={v} value={v}>
+                                  {t}
+                                </option>
+                              ))}
+                            </select>
+                          </Field>
+                          <div className="motion-fields">
+                            {numeric("讲述步骤", "step", 0, 30)}
+                            {numeric("延迟 ms", "delay", 0, 3000, 50)}
+                            {numeric("时长 ms", "duration", 100, 3000, 50)}
+                          </div>
+                        </details>
+                      </fieldset>
+                    </div>
+                    <div className="motion-save-actions">
+                      {overflow.length > 0 && (
+                        <p className="error-text" role="alert">
+                          文字超出边界：{overflow.join("、")}
+                          。请缩短内容、扩大文本框或调整字号。
+                        </p>
                       )}
-                      <div className="motion-fields">
-                        {numeric("横坐标", "x", 0, page.width)}
-                        {numeric("纵坐标", "y", 0, page.height)}
-                        {numeric("宽度", "w", 1, page.width)}
-                        {numeric("高度", "h", 1, page.height)}
-                      </div>
-                      <p className="detail-help">
-                        移动图层不会重修底图；底图清理范围以初次识别为准。
-                      </p>
-                      <Field label="出场动效">
-                        <select
-                          value={current.effect}
-                          onChange={(e) => update({ effect: e.target.value })}
-                        >
-                          {Object.entries(effects).map(([v, t]) => (
-                            <option key={v} value={v}>
-                              {t}
-                            </option>
-                          ))}
-                        </select>
-                      </Field>
-                      <div className="motion-fields">
-                        {numeric("讲述步骤", "step", 0, 30)}
-                        {numeric("延迟 ms", "delay", 0, 3000, 50)}
-                        {numeric("时长 ms", "duration", 100, 3000, 50)}
-                      </div>
-                      <Button variant="primary" loading={busy} onClick={save}>
+                      {editingPlayback && (
+                        <p className="detail-help" role="status">
+                          播放已暂停。保存后回到播放窗口继续；讲稿与已有口播保持原样。
+                        </p>
+                      )}
+                      <Button
+                        variant="primary"
+                        loading={busy}
+                        disabled={
+                          busy ||
+                          active(deck) ||
+                          (layered && (!checkReady || !!overflow.length))
+                        }
+                        onClick={save}
+                      >
                         <CheckCircle />
-                        保存并标记已校对
+                        {editingPlayback
+                          ? "保存并更新播放页"
+                          : "保存并标记已校对"}
                       </Button>
                       {dirtyValue && (
                         <Button
                           onClick={() => {
                             setDraft(null);
+                            setModeDraft(null);
                             setError("");
                             if (frame.current) frame.current.src = previewUrl;
                           }}
@@ -673,7 +885,22 @@ export function MotionPresentation({
                           撤销修改
                         </Button>
                       )}
-                    </fieldset>
+                      {!!page.history?.length && !dirtyValue && (
+                        <Button
+                          onClick={() =>
+                            run(async () => {
+                              const next = await post<Deck>(
+                                `/motion/${deck.id}/pages/${page.id}/undo`,
+                                { revision: deck.revision },
+                              );
+                              setDeck(next);
+                            })
+                          }
+                        >
+                          撤销上次保存
+                        </Button>
+                      )}
+                    </div>
                   </aside>
                 )}
               </div>
@@ -719,25 +946,22 @@ export function MotionPresentation({
                       }}
                     />
                   </label>
-                  <Button
-                    disabled={!page || page.status !== "ready" || dirtyValue}
-                    onClick={() =>
-                      window.open(
-                        playerUrl + `&pageId=${page?.id}`,
-                        "_blank",
-                        "noopener",
-                      )
-                    }
-                  >
-                    播放本页
-                  </Button>
-                  <Button
-                    disabled={ready !== deck.pages.length || dirtyValue}
-                    onClick={() => window.open(playerUrl, "_blank", "noopener")}
-                  >
-                    <Play />
-                    播放全部
-                  </Button>
+                  {layered && (
+                    <Button
+                      loading={busy}
+                      disabled={ready !== deck.pages.length || dirtyValue}
+                      onClick={() =>
+                        run(() =>
+                          downloadFile(
+                            `/motion/${deck.id}/pptx`,
+                            "讲好-可编辑.pptx",
+                          ),
+                        )
+                      }
+                    >
+                      下载可编辑 PPTX
+                    </Button>
+                  )}
                   <Button
                     variant="primary"
                     loading={busy}
@@ -753,6 +977,12 @@ export function MotionPresentation({
                   </Button>
                 </div>
               </div>
+              {layered && (
+                <p className="detail-help">
+                  PPTX 保留底图、可编辑文字与内嵌字体；这一版动效在 HTML
+                  中播放。画面文字与讲稿分别保存，改字不会自动重录口播。
+                </p>
+              )}
               <p className="detail-help">
                 {
                   deck.pages.filter((p) => p.status === "ready" && !p.reviewed)

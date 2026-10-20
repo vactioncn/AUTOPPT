@@ -3,7 +3,7 @@ dialog.modal.wide:has(.motion-studio) {
   max-width: 96vw;
 }
 .motion-studio {
-  --motion-accent: #315df5;
+  --motion-accent: #94543f;
 }
 .motion-topbar {
   display: flex;
@@ -27,12 +27,12 @@ dialog.modal.wide:has(.motion-studio) {
   color: var(--motion-accent);
 }
 .motion-intro h3 {
-  font-size: 25px;
+  font-size: 24px;
   margin: 16px 0 10px;
 }
 .motion-intro p,
 .motion-explain {
-  color: var(--muted, #69707d);
+  color: var(--muted, var(--muted));
   line-height: 1.8;
 }
 .motion-scope {
@@ -47,7 +47,7 @@ dialog.modal.wide:has(.motion-studio) {
   align-items: flex-start;
   gap: 10px;
   padding: 23px;
-  border: 1px solid #dfe3ea;
+  border: 1px solid var(--line);
   border-radius: 12px;
   background: white;
   text-align: left;
@@ -57,13 +57,13 @@ dialog.modal.wide:has(.motion-studio) {
 .motion-scope > button.chosen {
   border-color: var(--motion-accent);
   box-shadow: inset 0 0 0 1px var(--motion-accent);
-  background: #f6f8ff;
+  background: #faf6f0;
 }
 .motion-scope strong {
   font-size: 17px;
 }
 .motion-scope span {
-  color: #79818e;
+  color: #62655b;
   font-size: 13px;
 }
 .motion-scope button:disabled {
@@ -80,7 +80,7 @@ dialog.modal.wide:has(.motion-studio) {
   align-items: center;
   justify-content: space-between;
   padding: 16px 18px;
-  background: #f4f6fa;
+  background: #f5f1e9;
   border-radius: 12px;
   margin-bottom: 16px;
 }
@@ -91,7 +91,7 @@ dialog.modal.wide:has(.motion-studio) {
 }
 .motion-progress span {
   font-size: 12px;
-  color: #79818e;
+  color: #62655b;
 }
 .motion-workbench {
   display: grid;
@@ -109,7 +109,7 @@ dialog.modal.wide:has(.motion-studio) {
 }
 .motion-pages > button {
   padding: 5px;
-  border: 1px solid #e4e7ec;
+  border: 1px solid var(--line);
   border-radius: 8px;
   background: #fff;
   text-align: left;
@@ -133,7 +133,7 @@ dialog.modal.wide:has(.motion-studio) {
 }
 .motion-pages small {
   display: block;
-  color: #9298a1;
+  color: #62655b;
   margin-top: 4px;
 }
 .motion-canvas {
@@ -149,7 +149,7 @@ dialog.modal.wide:has(.motion-studio) {
 }
 .motion-canvas-heading label {
   white-space: nowrap;
-  color: #79818e;
+  color: #62655b;
 }
 .motion-previews {
   display: grid;
@@ -160,9 +160,9 @@ dialog.modal.wide:has(.motion-studio) {
   min-width: 0;
 }
 .motion-previews figcaption {
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: 0.02em;
-  color: #858d9b;
+  color: #62655b;
   margin: 0 0 6px;
 }
 .motion-previews img,
@@ -172,7 +172,7 @@ dialog.modal.wide:has(.motion-studio) {
   aspect-ratio: 16/9;
   object-fit: contain;
   border: 0;
-  background: #16181c;
+  background: var(--ink);
   border-radius: 6px;
 }
 .motion-previews.split {
@@ -180,7 +180,7 @@ dialog.modal.wide:has(.motion-studio) {
 }
 .motion-warnings {
   font-size: 12px;
-  color: #727985;
+  color: var(--muted);
   line-height: 1.6;
   margin-top: 12px;
 }
@@ -194,7 +194,7 @@ dialog.modal.wide:has(.motion-studio) {
   flex-direction: column;
   gap: 18px;
   justify-content: center;
-  color: #79818e;
+  color: #62655b;
   font-size: 14px;
   text-align: center;
 }
@@ -204,8 +204,8 @@ dialog.modal.wide:has(.motion-studio) {
   opacity: 0.65;
 }
 .motion-inspector {
-  background: #f7f8fa;
-  border: 1px solid #e6e8ee;
+  background: #f5f1e9;
+  border: 1px solid var(--line);
   border-radius: 10px;
   padding: 12px;
   max-height: 730px;
@@ -242,7 +242,7 @@ dialog.modal.wide:has(.motion-studio) {
   gap: 0 10px;
 }
 .motion-inspector .detail-help {
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.5;
   margin: 8px 0 12px;
 }
@@ -261,14 +261,14 @@ dialog.modal.wide:has(.motion-studio) {
   gap: 18px;
   align-items: center;
   justify-content: space-between;
-  border-top: 1px solid #e6e8ee;
+  border-top: 1px solid var(--line);
   padding-top: 20px;
   margin-top: 22px;
 }
 .motion-footer small {
   display: block;
-  color: #9298a1;
-  font-size: 11px;
+  color: #62655b;
+  font-size: 12px;
   margin-top: 7px;
 }
 .motion-footer-actions {
@@ -292,7 +292,7 @@ dialog.modal.wide:has(.motion-studio) {
 .motion-studio .error-text {
   padding: 12px;
   border-radius: 6px;
-  background: #fff0f0;
+  background: var(--wash);
 }
 .motion-studio .dialog-actions {
   margin-top: 22px;
@@ -345,5 +345,131 @@ dialog.modal.wide:has(.motion-studio) {
   }
   .motion-intro h3 {
     font-size: 20px;
+  }
+}
+
+.motion-advanced {
+  margin: 12px 0;
+}
+.motion-advanced summary {
+  cursor: pointer;
+  padding: 8px 0;
+  color: var(--motion-accent);
+  font-weight: 600;
+}
+.motion-inspector textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+
+.modal:has(.motion-studio) > .modal-heading {
+  margin-bottom: 12px;
+  padding-bottom: 0;
+}
+.motion-topbar {
+  margin: 0 0 12px;
+  align-items: center;
+}
+.motion-topbar .field {
+  margin-bottom: 0;
+}
+.motion-progress {
+  padding: 10px 14px;
+  margin-bottom: 12px;
+}
+.motion-progress > div {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.motion-inspector {
+  max-height: min(650px, calc(100vh - 240px));
+}
+.motion-pages {
+  max-height: min(650px, calc(100vh - 240px));
+}
+.motion-studio ::selection {
+  background: var(--wash);
+  color: var(--ink);
+}
+.motion-studio textarea,
+.motion-studio input {
+  caret-color: var(--motion-accent);
+}
+.motion-studio :focus-visible {
+  outline: 2px solid var(--motion-accent);
+  outline-offset: 3px;
+}
+@media (max-width: 950px) {
+  .motion-inspector {
+    max-height: none;
+  }
+}
+@media (max-width: 600px) {
+  .motion-topbar {
+    align-items: end;
+  }
+  .motion-progress > div {
+    gap: 6px;
+  }
+  .motion-pages {
+    max-height: 120px;
+  }
+}
+
+/* Keep the edit/save loop within one bounded inspector on desktop. */
+.motion-topbar {
+  flex-wrap: wrap;
+}
+.motion-topbar-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.motion-inspector {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: min(730px, calc(100dvh - 295px));
+  max-height: calc(100dvh - 295px);
+}
+.motion-inspector > .field {
+  flex: 0 0 auto;
+}
+.motion-fields-scroll {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 4px 8px 0;
+}
+.motion-save-actions {
+  flex: 0 0 auto;
+  background: #f5f1e9;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+}
+.motion-save-actions .btn {
+  margin-top: 6px;
+}
+.motion-save-actions .detail-help,
+.motion-save-actions .error-text {
+  margin: 6px 0;
+}
+@media (min-width: 1000px) and (max-height: 800px) {
+  .motion-previews iframe,
+  .motion-previews img {
+    width: min(100%, calc((100dvh - 420px) * 16 / 9));
+    margin-inline: auto;
+  }
+}
+@media (max-width: 950px) {
+  .motion-inspector {
+    height: auto;
+    max-height: none;
+  }
+  .motion-fields-scroll {
+    flex: 0 0 auto;
+    overflow: visible;
   }
 }

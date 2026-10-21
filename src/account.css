@@ -228,6 +228,25 @@
   gap: 12px;
   margin-bottom: 4px;
 }
+.account-page .admin-image-concurrency {
+  margin-bottom: 20px;
+}
+.admin-concurrency-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+.admin-concurrency-controls .field {
+  width: 160px;
+  max-width: 100%;
+  margin: 0;
+}
+.admin-concurrency-activity {
+  margin: 0;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
 .admin-model-card h3 {
   margin: 0;
   font-size: 18px;

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, post } from "./api";
 import { Button, Field } from "./components";
+import { AdminImageConcurrency } from "./AdminImageConcurrency";
 
 type Kind = "text" | "image";
 type Connection = { baseUrl: string; model: string; hasKey: boolean };
@@ -29,6 +30,7 @@ export function AdminModels() {
           为全站设置文本与图片模型。现有连接已自动读取，API Key 留空即可保留。
         </p>
       </div>
+      <AdminImageConcurrency />
       {error && (
         <p className="account-error" role="alert">
           {error}
@@ -53,7 +55,7 @@ export function AdminModels() {
         </div>
       )}
       <p className="admin-models-footnote">
-        保存后供后续任务使用；有生成任务时暂不能更换配置。测试连接只检查接口是否可访问，不生成内容，也不核验模型名称。
+        模型连接保存后供后续任务使用；有生成任务时暂不能更换模型连接。测试连接只检查接口是否可访问，不生成内容，也不核验模型名称。
       </p>
     </section>
   );

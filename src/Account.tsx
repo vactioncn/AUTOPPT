@@ -388,6 +388,8 @@ type AdminData = {
   pending: Entry[];
   limits: {
     concurrency: number;
+    imageConcurrency: number;
+    otherConcurrency: number;
     dailyCalls: number;
     perUserCalls: number;
     maxWorkers: number;
@@ -436,9 +438,10 @@ function AdminPanel() {
         刷新管理信息
       </Button>
       <p>
-        模型：{data.modelReady ? "已配置" : "尚未配置"} · 全站模型并发{" "}
-        {data.limits.concurrency} · 每日最多 {data.limits.dailyCalls} 次模型调用
-        · 每人每日 {data.limits.perUserCalls} 次
+        模型：{data.modelReady ? "已配置" : "尚未配置"} · 全站图片并发{" "}
+        {data.limits.imageConcurrency} · 文本与语音并发{" "}
+        {data.limits.otherConcurrency} · 每日最多 {data.limits.dailyCalls}{" "}
+        次模型调用 · 每人每日 {data.limits.perUserCalls} 次
       </p>
       <Button
         loading={busy}

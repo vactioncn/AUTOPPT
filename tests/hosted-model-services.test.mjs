@@ -205,6 +205,8 @@ test(
     try {
       await start();
       await req("/admin/models", { status: 401 });
+      await req("/admin/image-concurrency", { status: 401 });
+      await req("/admin/image-concurrency", { body: {}, status: 401 });
       const { cookie: admin } = await req("/account/login", {
         body: { name: "admin", password: "test-password" },
       });
@@ -218,6 +220,26 @@ test(
         },
       });
       await req("/admin/models", { cookie: member, status: 403 });
+      await req("/admin/image-concurrency", { cookie: member, status: 403 });
+      await req("/admin/image-concurrency", {
+        cookie: member,
+        body: {},
+        status: 403,
+      });
+      const limit = (await req("/admin/image-concurrency", { cookie: admin }))
+        .data;
+      assert.equal(limit.imageConcurrency, 2);
+      await req("/admin/image-concurrency", {
+        cookie: admin,
+        body: { revision: 0, imageConcurrency: 3 },
+        from: "https://other.example",
+        status: 403,
+      });
+      await req("/admin/image-concurrency", {
+        cookie: admin,
+        body: { revision: 0, imageConcurrency: 1.5 },
+        status: 400,
+      });
       await req("/admin/models/text", {
         cookie: member,
         body: {},
@@ -258,6 +280,28 @@ test(
         body: { description: "mock busy request" },
       });
       await inProvider;
+      const changedLimit = (
+        await req("/admin/image-concurrency", {
+          cookie: admin,
+          body: { revision: 0, imageConcurrency: 4 },
+        })
+      ).data;
+      assert.equal(
+        changedLimit.imageConcurrency,
+        4,
+        "live setting must not require stopping an active worker",
+      );
+      assert.equal(changedLimit.otherConcurrency, 2);
+      assert.equal(
+        (await req("/admin", { cookie: admin })).data.activity.modelCalls,
+        1,
+        "save must not interrupt an active request",
+      );
+      await req("/admin/image-concurrency", {
+        cookie: admin,
+        body: { revision: 0, imageConcurrency: 5 },
+        status: 409,
+      });
       await req("/admin/models/text", {
         cookie: admin,
         body: draft,
@@ -309,6 +353,15 @@ test(
       await stop();
       await start();
       snapshot = (await req("/admin/models", { cookie: admin })).data;
+      assert.equal(
+        (await req("/admin/image-concurrency", { cookie: admin })).data
+          .imageConcurrency,
+        4,
+      );
+      assert.equal(
+        (await req("/admin", { cookie: admin })).data.limits.imageConcurrency,
+        4,
+      );
       assert.equal(snapshot.text.model, "text-after");
       assert.equal(snapshot.image.model, "image-after");
       assert.equal(

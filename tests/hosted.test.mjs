@@ -706,7 +706,8 @@ test(
         (await request("/api/account", undefined, first)).data.user.balance,
         149,
       );
-      // A saturated global model slot queues another user's request instead of failing it.
+      // A saturated image slot queues another user; raising the live admin limit
+      // starts that exact queued request without retrying or duplicating a charge.
       hold = true;
       const before = imageCount;
       const one = await trial();
@@ -715,8 +716,32 @@ test(
         await new Promise((r) => setTimeout(r, 30));
       assert.equal(imageCount, before + 1);
       assert.equal(gates.length, 1);
+      for (let i = 0; i < 100; i++) {
+        const state = (
+          await request("/api/admin/image-concurrency", undefined, admin)
+        ).data;
+        if (state.waitingImages === 1) break;
+        if (i === 99) assert.fail("second image was not queued");
+        await new Promise((r) => setTimeout(r, 30));
+      }
+      const liveLimit = (
+        await request("/api/admin/image-concurrency", undefined, admin)
+      ).data;
+      await request(
+        "/api/admin/image-concurrency",
+        { revision: liveLimit.revision, imageConcurrency: 2 },
+        admin,
+      );
+      for (let i = 0; i < 100 && gates.length < 2; i++)
+        await new Promise((r) => setTimeout(r, 30));
+      assert.equal(
+        gates.length,
+        2,
+        "raising the limit must drain an existing queued image immediately",
+      );
+      assert.equal(imageCount, before + 2);
       hold = false;
-      gates.shift()();
+      while (gates.length) gates.shift()();
       assert.equal((await poll(one.jobId)).status, "completed");
       for (let i = 0; i < 100; i++) {
         const j = (await request("/api/jobs", undefined, second)).data.find(

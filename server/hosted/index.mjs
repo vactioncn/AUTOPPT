@@ -17,6 +17,7 @@ import { registerBackgroundMusic } from "../background-music.mjs";
 import { acquireLock } from "./process-lock.mjs";
 import { hostedSpeechConfig } from "./speech-config.mjs";
 import { ModelServices } from "./model-services.mjs";
+import { ModelConcurrency } from "./model-concurrency.mjs";
 import {
   usesTokenHubImage,
   prepareTokenHubImageRequest,
@@ -80,6 +81,9 @@ const secret = (name) =>
     ? readFileSync(process.env[`${name}_FILE`], "utf8").trim()
     : process.env[name] || "";
 const modelServices = new ModelServices(dir);
+const modelConcurrency = new ModelConcurrency(dir, {
+  initialConcurrency: maxCalls,
+});
 const providers = modelServices.providers;
 providers.speech = hostedSpeechConfig(process.env, secret);
 if (!accounts.db.prepare("SELECT id FROM users LIMIT 1").get()) {
@@ -94,49 +98,7 @@ const workerTokens = new Map();
 let gatewayBase;
 let shuttingDown = false;
 let changingModels = false;
-let calls = 0;
-const queue = [];
 const speechPacing = createSpeechRequestPolicy();
-async function modelSlot(res) {
-  if (calls < maxCalls) {
-    calls++;
-    return;
-  }
-  if (queue.length >= 80) fail("等待生成的任务较多，请稍后继续。", 429);
-  await new Promise((resolve, reject) => {
-    const item = {
-      run: () => {
-        cleanup();
-        calls++;
-        resolve();
-      },
-    };
-    const cleanup = () => {
-      clearTimeout(timer);
-      res.off("close", closed);
-      const i = queue.indexOf(item);
-      if (i >= 0) queue.splice(i, 1);
-    };
-    const closed = () => {
-      cleanup();
-      reject(Object.assign(new Error("请求已取消。"), { status: 499 }));
-    };
-    const timer = setTimeout(() => {
-      cleanup();
-      reject(
-        Object.assign(new Error("等待模型服务超时，请稍后继续任务。"), {
-          status: 429,
-        }),
-      );
-    }, 540000);
-    res.once("close", closed);
-    queue.push(item);
-  });
-}
-function releaseSlot() {
-  calls--;
-  queue[0]?.run();
-}
 
 const fail = (message, status = 400) => {
   throw Object.assign(new Error(message), { status });
@@ -377,6 +339,8 @@ app.get("/api/admin", (req, res) =>
     speechReady: !!providers.speech.apiKey,
     limits: {
       concurrency: maxCalls,
+      imageConcurrency: modelConcurrency.imageConcurrency,
+      otherConcurrency: modelConcurrency.otherConcurrency,
       dailyCalls,
       perUserCalls,
       maxWorkers,
@@ -385,13 +349,22 @@ app.get("/api/admin", (req, res) =>
       userSpeechChars,
     },
     activity: {
-      modelCalls: calls,
-      waiting: queue.length,
+      modelCalls: modelConcurrency.active,
+      waiting: modelConcurrency.waiting,
+      imageCalls: modelConcurrency.running.image,
+      waitingImages: modelConcurrency.public().waitingImages,
       workspaces: workers.size,
     },
   }),
 );
 app.get("/api/admin/models", (req, res) => res.json(modelServices.public()));
+app.get("/api/admin/image-concurrency", (req, res) =>
+  res.json(modelConcurrency.public()),
+);
+app.post("/api/admin/image-concurrency", (req, res) => {
+  if (shuttingDown) fail("服务正在维护，请稍后重试。", 503);
+  res.json(modelConcurrency.save(req.body));
+});
 app.post("/api/admin/models/:kind/test", async (req, res) => {
   accounts.limit(`model-test:${req.user.id}`, 12, 60000);
   const config = modelServices.candidate(req.params.kind, req.body);
@@ -403,7 +376,7 @@ app.post("/api/admin/models/:kind", async (req, res) => {
     fail("模型配置正在更新，请稍后重试。", 409);
   changingModels = true;
   try {
-    if (calls || queue.length)
+    if (modelConcurrency.active || modelConcurrency.waiting)
       fail("有任务正在使用模型，请等待全站任务完成后再保存。", 409);
     const current = [...workers.values()];
     for (const w of current) {
@@ -519,7 +492,7 @@ app.post("/internal/model/:kind/{*route}", async (req, res) => {
   const day = new Date().toISOString().slice(0, 10);
   accounts.limit(`model:global:${day}`, dailyCalls, 86400000);
   accounts.limit(`model:${u.id}:${day}`, perUserCalls, 86400000);
-  await modelSlot(res);
+  const releaseSlot = await modelConcurrency.acquire(kind, res);
   const disconnected = new AbortController();
   const abortSpeech = () => {
     if (kind === "speech") disconnected.abort();

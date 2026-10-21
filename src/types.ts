@@ -284,6 +284,14 @@ export type GeneratedStyle = {
   colors: string[];
   rules: string;
 };
+export type StyleExample = {
+  id: string;
+  title: string;
+  expression: string;
+  image: string;
+  pageId?: string;
+  number?: string;
+};
 export type Style = {
   updatedAt?: string;
   canUse?: boolean;
@@ -294,14 +302,9 @@ export type Style = {
   catalogAvailable?: boolean;
   publishedAt?: string | null;
   publishedTrialIds?: string[];
-  examples?: {
-    id: string;
-    title: string;
-    expression: string;
-    image: string;
-    pageId?: string;
-    number?: string;
-  }[];
+  examples?: StyleExample[];
+  sampleExamples?: StyleExample[];
+  samplePreview?: boolean;
   autoName?: boolean;
   analysisContext?: StyleContext;
   cover?: string;

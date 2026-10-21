@@ -1,7 +1,7 @@
 import { HOSTED_BUILTIN_STYLE_IDS, offeredStyles } from "./styles.mjs";
 
-// Browse the same published presentation in both roles. Editing still targets
-// the administrator's source, so opening a gallery never changes saved data.
+// Both roles share the gallery. Administrators can preview completed draft
+// samples immediately; customers continue to browse only published snapshots.
 export function styleLibraryEntries(
   styles,
   { canManage = false, hosted = false } = {},
@@ -23,8 +23,18 @@ export function styleLibraryEntries(
       const manageStyle = canManage
         ? sources.get(style.catalogSourceId || style.id)
         : undefined;
+      const samples = manageStyle?.sampleExamples || [];
+      const preview =
+        samples.length > 0 &&
+        (!style.catalogSourceId ||
+          samples.length !== style.examples?.length ||
+          samples.some(
+            (sample, index) => sample.id !== style.examples[index]?.id,
+          ));
       return {
-        style,
+        style: preview
+          ? { ...manageStyle, examples: samples, samplePreview: true }
+          : style,
         manageStyle,
         unpublished: !!(
           hosted &&

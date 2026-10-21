@@ -9,6 +9,7 @@ import {
   customerStyle,
   styleAccess,
 } from "./style-access.mjs";
+import { styleSamplePreviews } from "./style-sample-preview.mjs";
 import { createHash } from "node:crypto";
 import { presentationProgress } from "../shared/first-picture.mjs";
 import {
@@ -271,6 +272,11 @@ if (process.env.AUTOPPT_DESKTOP_TOKEN)
   );
 app.get("/api/bootstrap", (req, res) => {
   const jobs = all("job");
+  const styles = all("style");
+  const managesStyles = canManageStyles(req);
+  const samplePreviews = managesStyles
+    ? styleSamplePreviews(styles, all("trial"), jobs)
+    : new Map();
   const workingProjects = new Set(
     jobs
       .filter((j) => ["queued", "running"].includes(j.status))
@@ -295,10 +301,13 @@ app.get("/api/bootstrap", (req, res) => {
         wordCount: p.slides.reduce((n, s) => n + s.notes.trim().length, 0),
       }))
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
-    styles: all("style")
+    styles: styles
       .map((style) =>
-        canManageStyles(req)
-          ? catalogStatus(withStyleVersion(style))
+        managesStyles
+          ? catalogStatus({
+              ...withStyleVersion(style),
+              sampleExamples: samplePreviews.get(style.id) || [],
+            })
           : customerStyle(style),
       )
       .sort(

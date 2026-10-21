@@ -171,7 +171,7 @@ test(
       path.join(dir, "users", adminUser.id, "autoppt.sqlite"),
     );
     const trialIds = STYLE_SAMPLE_PAGES.map((page) => `example-${page.id}`);
-    for (const [index, page] of STYLE_SAMPLE_PAGES.entries())
+    for (const [index, page] of STYLE_SAMPLE_PAGES.entries()) {
       db.prepare("INSERT INTO records VALUES (?,?,?)").run(
         "trial",
         trialIds[index],
@@ -189,6 +189,27 @@ test(
           createdAt: new Date().toISOString(),
         }),
       );
+      if (index === 6) {
+        const ownDraft = (await bootstrap(admin)).styles.find(
+          (s) => s.id === draftId,
+        );
+        assert.equal(ownDraft.sampleExamples.length, 7);
+        assert.deepEqual(
+          ownDraft.sampleExamples.map((e) => e.pageId),
+          STYLE_SAMPLE_PAGES.slice(0, 7).map((p) => p.id),
+        );
+        assert(!ownDraft.examples?.length);
+        const customerBeforePublish = await bootstrap(member);
+        assert(
+          !customerBeforePublish.styles.some(
+            (s) => s.id === draftId || s.catalogSourceId === draftId,
+          ),
+        );
+        assert(
+          customerBeforePublish.styles.every((s) => !("sampleExamples" in s)),
+        );
+      }
+    }
     db.close();
     for (const invalid of [
       [trialIds[0]],
@@ -487,16 +508,16 @@ test(
           .click();
         const publishing = page.getByRole("region", { name: "样例与发布" });
         await publishing.getByText("已发布", { exact: true }).waitFor();
-        await publishing.getByText("查看八页样例与版本", { exact: true }).click();
+        await publishing
+          .getByText("查看八页样例与版本", { exact: true })
+          .click();
         assert.equal(
           await page
             .getByRole("combobox", { name: "选择封面页样例" })
             .inputValue(),
           trialIds[0],
         );
-        await page
-          .getByRole("button", { name: "一键更新发布" })
-          .click();
+        await page.getByRole("button", { name: "一键更新发布" }).click();
         await publishing
           .getByText("风格与八页样例已发布，客户刷新风格库即可看到。", {
             exact: true,

@@ -85,3 +85,38 @@ test("unpublished styles remain in the admin library without a second catalog or
   assert.equal(local.length, 2);
   assert(local.every((e) => !e.unpublished && e.manageStyle));
 });
+
+test("administrators browse partial draft samples immediately while customers keep published samples", () => {
+  const samples = [{ id: "one" }, { id: "two" }];
+  const source = { id: "draft", rules: "private", sampleExamples: samples };
+  const before = structuredClone(source);
+  const [draft] = styleLibraryEntries([source], {
+    canManage: true,
+    hosted: true,
+  });
+  assert.deepEqual(draft.style.examples, samples);
+  assert.equal(draft.style.samplePreview, true);
+  assert.equal(draft.manageStyle, source);
+  assert.equal(draft.unpublished, true);
+  const published = {
+    id: "catalog-draft",
+    catalogSourceId: "draft",
+    examples: [{ id: "old-public" }],
+  };
+  const [admin] = styleLibraryEntries([source, published], {
+    canManage: true,
+    hosted: true,
+  });
+  const [customer] = styleLibraryEntries([published], { hosted: true });
+  assert.deepEqual(admin.style.examples, samples);
+  assert.equal(admin.style.id, source.id);
+  assert.equal(customer.style, published);
+  assert.equal(customer.style.samplePreview, undefined);
+  assert.deepEqual(source, before);
+  const current = { ...published, examples: samples };
+  assert.equal(
+    styleLibraryEntries([source, current], { canManage: true, hosted: true })[0]
+      .style,
+    current,
+  );
+});

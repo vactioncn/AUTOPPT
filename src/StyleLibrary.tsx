@@ -158,6 +158,10 @@ export function StyleLibrary({
                   <span>
                     {styleExamples(s).length} 个效果示例
                     {unpublished && " · 未发布"}
+                    {!unpublished &&
+                      s.samplePreview &&
+                      hosted &&
+                      " · 样例更新待发布"}
                   </span>
                 </div>
                 <p>{styleDescription(s)}</p>

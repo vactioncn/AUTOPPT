@@ -5,6 +5,8 @@ export function styleLibraryEntries<
     catalogSourceId?: string;
     catalogHidden?: boolean;
     publishedAt?: string | null;
+    examples?: { id: string }[];
+    sampleExamples?: { id: string }[];
   },
 >(
   styles: T[],

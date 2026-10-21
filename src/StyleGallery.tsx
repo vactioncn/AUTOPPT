@@ -40,13 +40,14 @@ export function styleExamples(style: Style): GalleryExample[] {
   const showcase = STYLE_SHOWCASE.find(
     (item) => item.styleId === (style.catalogSourceId || style.id),
   );
-  // A complete published suite replaces the built-in suite, never appends to it.
+  // A partial administrator suite is browsable too. Keep canonical page
+  // numbers and manuscripts even when a middle page has not finished yet.
   const published = style.examples || [];
-  const complete = STYLE_SAMPLE_PAGES.every((page) =>
+  const standardPages = STYLE_SAMPLE_PAGES.filter((page) =>
     published.some((example) => example.pageId === page.id),
   );
-  const examples: GalleryExample[] = complete
-    ? STYLE_SAMPLE_PAGES.map((page) => {
+  const examples: GalleryExample[] = standardPages.length
+    ? standardPages.map((page) => {
         const example = published.find(
           (example) => example.pageId === page.id,
         )!;
@@ -126,13 +127,11 @@ export function StyleGallery({
   onTest?: () => void;
 }) {
   const examples = styleExamples(style);
-  const [index, setIndex] = useState(() =>
-    Math.max(
-      0,
-      examples.findIndex((example) => example.id === initialExampleId),
-    ),
+  const [selectedId, setSelectedId] = useState(initialExampleId);
+  const currentIndex = Math.max(
+    0,
+    examples.findIndex((example) => example.id === selectedId),
   );
-  const currentIndex = Math.min(index, Math.max(0, examples.length - 1));
   const current = examples[currentIndex];
   const strip = useRef<HTMLDivElement>(null);
   const back = useRef<HTMLButtonElement>(null);
@@ -140,7 +139,9 @@ export function StyleGallery({
   const canUse = !!(style.canUse || style.rules?.trim());
   const step = (delta: number) => {
     if (examples.length > 1)
-      setIndex((currentIndex + delta + examples.length) % examples.length);
+      setSelectedId(
+        examples[(currentIndex + delta + examples.length) % examples.length].id,
+      );
   };
 
   useEffect(() => {
@@ -256,6 +257,14 @@ export function StyleGallery({
             <p className="style-gallery-full-name">{style.name}</p>
           )}
           <p className="style-gallery-description">{styleDescription(style)}</p>
+          {style.samplePreview && (
+            <p className="style-gallery-use-hint" role="status">
+              已生成 {examples.length} / 8 页样例，可直接浏览。
+              {style.catalogAvailable
+                ? "发布后客户才会看到这些样例。"
+                : "已有页面会保留，其他页面完成后自动出现。"}
+            </p>
+          )}
           <Button
             variant="primary"
             className="style-gallery-use"
@@ -305,7 +314,7 @@ export function StyleGallery({
                 aria-pressed={currentIndex === i}
                 aria-label={`${example.number || String(i + 1).padStart(2, "0")} ${example.expression}：${example.title}`}
                 title={example.title}
-                onClick={() => setIndex(i)}
+                onClick={() => setSelectedId(example.id)}
               >
                 <img src={example.thumbnail} alt="" loading="lazy" />
                 <span>

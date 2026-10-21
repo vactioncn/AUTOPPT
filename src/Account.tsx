@@ -19,6 +19,7 @@ import {
   workspaceTarget,
 } from "../shared/web-routes.mjs";
 import { frontendBuildInfo } from "./diagnostics";
+import { invitationMessage } from "../shared/invitation-message.mjs";
 type User = {
   id: string;
   name: string;
@@ -390,6 +391,7 @@ type AdminData = {
     concurrency: number;
     imageConcurrency: number;
     otherConcurrency: number;
+    signupImageCredits: number;
     dailyCalls: number;
     perUserCalls: number;
     maxWorkers: number;
@@ -404,7 +406,12 @@ function AdminPanel() {
     key: string;
   } | null>(null);
   const [data, setData] = useState<AdminData | null>(null),
-    [code, setCode] = useState(""),
+    [invitation, setInvitation] = useState<{
+      code: string;
+      expires: number;
+    } | null>(null),
+    [inviteFeedback, setInviteFeedback] = useState(""),
+    [copyFailed, setCopyFailed] = useState(false),
     [message, setMessage] = useState(""),
     [busy, setBusy] = useState(false),
     [selected, setSelected] = useState(""),
@@ -431,6 +438,27 @@ function AdminPanel() {
     }
   };
   if (!data) return <p>{message || "读取管理信息…"}</p>;
+  const code = invitation?.code || "";
+  const inviteText = invitation
+    ? invitationMessage({
+        origin: location.origin,
+        ...invitation,
+        signupImageCredits: data.limits.signupImageCredits,
+      })
+    : "";
+  const copyInvite = async (value: string, success: string) => {
+    setCopyFailed(false);
+    setInviteFeedback("");
+    try {
+      await navigator.clipboard.writeText(value);
+      setInviteFeedback(success);
+    } catch {
+      setCopyFailed(true);
+      setInviteFeedback(
+        "暂时无法自动复制，请在下方文案预览中选中文字后手动复制。",
+      );
+    }
+  };
   return (
     <section className="account-admin">
       <h2>内部使用管理</h2>
@@ -448,7 +476,9 @@ function AdminPanel() {
         onClick={() =>
           act(async () => {
             const i = await post("/admin/invites");
-            setCode(i.code);
+            setInvitation({ code: i.code, expires: i.expires });
+            setInviteFeedback("");
+            setCopyFailed(false);
           })
         }
       >
@@ -461,29 +491,55 @@ function AdminPanel() {
             天，每个码可注册一个账号。请复制保存，离开后不再展示。
           </p>
           <input aria-label="新邀请码" readOnly value={code} />
-          <Button
-            onClick={() =>
-              act(async () => {
-                await navigator.clipboard.writeText(code);
-                setMessage("邀请码已复制。");
-              })
-            }
-          >
-            复制邀请码
-          </Button>
-          <Button
-            variant="secondary"
-            onClick={() =>
-              act(async () => {
-                await navigator.clipboard.writeText(
+          <div className="invite-copy-actions">
+            <Button
+              variant="primary"
+              disabled={busy}
+              onClick={() =>
+                void copyInvite(
+                  inviteText,
+                  "邀请文案已复制，可直接发给受邀人。",
+                )
+              }
+            >
+              复制邀请文案
+            </Button>
+            <Button
+              disabled={busy}
+              onClick={() => void copyInvite(code, "邀请码已复制。")}
+            >
+              仅复制邀请码
+            </Button>
+            <Button
+              disabled={busy}
+              onClick={() =>
+                void copyInvite(
                   `${location.origin}/register?invite=${encodeURIComponent(code)}`,
-                );
-                setMessage("邀请链接已复制，接收者打开即可填写账号。");
-              })
-            }
-          >
-            复制邀请链接
-          </Button>
+                  "注册链接已复制，打开后会自动填入邀请码。",
+                )
+              }
+            >
+              仅复制注册链接
+            </Button>
+          </div>
+          {inviteFeedback && (
+            <p
+              className={copyFailed ? "account-error" : "invite-copy-success"}
+              role={copyFailed ? "alert" : "status"}
+            >
+              {inviteFeedback}
+            </p>
+          )}
+          <details className="invite-preview" open={copyFailed || undefined}>
+            <summary>预览邀请文案</summary>
+            <textarea
+              aria-label="邀请文案预览"
+              readOnly
+              rows={12}
+              value={inviteText}
+              onFocus={(e) => e.currentTarget.select()}
+            />
+          </details>
         </div>
       )}
       {message && (

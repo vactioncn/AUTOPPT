@@ -143,6 +143,32 @@
   max-width: 240px;
   margin-bottom: 10px;
 }
+.invite-copy-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.invite-copy-success {
+  color: #48613c;
+}
+.account-page .invite-preview {
+  padding: 14px 0 0;
+  border-bottom: 0;
+}
+.invite-preview textarea {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid #d8ddcf;
+  border-radius: 8px;
+  background: #fff;
+  color: #293023;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.7;
+  resize: vertical;
+}
 .account-login input,
 .account-page input,
 .account-page select {

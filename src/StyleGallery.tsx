@@ -93,11 +93,15 @@ export function StyleGallery({
   onClose,
   initialExampleId,
   onUse,
+  onManage,
+  onTest,
 }: {
   style: Style;
   initialExampleId?: string;
   onClose: () => void;
   onUse: () => void;
+  onManage?: () => void;
+  onTest?: () => void;
 }) {
   const examples = styleExamples(style);
   const standardSuite =
@@ -211,6 +215,15 @@ export function StyleGallery({
       </div>
       <footer className="style-gallery-footer">
         <p>画面会随你的内容重新设计。</p>
+        {onManage && <Button onClick={onManage}>高级设置</Button>}
+        {onTest && (
+          <Button
+            disabled={!style.canUse && !style.rules?.trim()}
+            onClick={onTest}
+          >
+            试做一页
+          </Button>
+        )}
         <Button
           variant="primary"
           disabled={!style.canUse && !style.rules?.trim()}

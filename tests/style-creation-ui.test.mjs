@@ -294,6 +294,7 @@ test(
       .getByRole("button", { name: "查看风格", exact: true })
       .click();
     await expect(page.locator(".rules-text")).toBeHidden();
+    await page.getByRole("button", { name: "高级设置", exact: true }).click();
     await page.getByText("调整视觉风格（可选）", { exact: true }).click();
     await expect(page.getByLabel("风格调整要求")).toHaveValue(
       "保留纸张的真实感",
@@ -303,7 +304,6 @@ test(
       countBeforeDraft,
       "Saving a visual draft must not call a model",
     );
-    await page.getByText("高级设置", { exact: true }).click();
     await page
       .getByRole("button", { name: "重新提炼风格", exact: true })
       .click();

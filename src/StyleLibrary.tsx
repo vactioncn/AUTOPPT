@@ -1,12 +1,10 @@
 import { PageNumberHelp } from "./PageNumberHelp";
-import { DeleteItem } from "./DeleteItem";
 import { useEffect, useState, useRef, useId } from "react";
 import {
   Plus,
   ArrowRight,
   UploadSimple,
   Image as ImageIcon,
-  Palette,
   SpinnerGap,
   CheckCircle,
   ArrowClockwise,
@@ -25,12 +23,13 @@ import { StyleVersions } from "./StyleVersions";
 import { StyleAnalysis } from "./StyleAnalysis";
 import { StyleContextFields } from "./StyleContextFields";
 import { StylePromptResults } from "./StylePromptResults";
-import { DEFAULT_STYLE_ID } from "../shared/styles.mjs";
+import { styleLibraryEntries } from "../shared/style-library.mjs";
 import { StylePublishing } from "./StylePublishing";
 import { StyleGallery, styleExamples, styleDescription } from "./StyleGallery";
 import "./style-detail.css";
 export function StyleLibrary({
   canManage = false,
+  hosted = false,
   promptRepair = false,
   onReturn,
   urlImportAvailable,
@@ -41,6 +40,7 @@ export function StyleLibrary({
   onUse,
 }: {
   canManage?: boolean;
+  hosted?: boolean;
   promptRepair?: boolean;
   onReturn?: (styleId?: string) => void;
   urlImportAvailable: boolean;
@@ -50,9 +50,11 @@ export function StyleLibrary({
   notify: (s: string) => void;
   onUse: (id: string) => void;
 }) {
-  const [deleting, setDeleting] = useState<Style | null>(null);
+  const [managing, setManaging] = useState(false);
+  const [expandSettings, setExpandSettings] = useState(false);
   const [detailExample, setDetailExample] = useState<string>();
   const openDetail = (id: string, exampleId?: string) => {
+    setManaging(false);
     setDetailExample(exampleId);
     setDetail(id);
   };
@@ -64,11 +66,16 @@ export function StyleLibrary({
     setCreate(canManage && promptRepair);
     if (!promptRepair) setRepairedStyle(undefined);
   }, [promptRepair, canManage]);
-  const visibleStyles = styles.filter(
-    (s) => !s.deletedAt && !(canManage && s.catalogSourceId),
+  const entries = styleLibraryEntries(styles, { canManage, hosted });
+  const detailSourceId =
+    styles.find((style) => style.id === detail)?.catalogSourceId || detail;
+  const selectedEntry = entries.find(
+    (entry) =>
+      entry.style.id === detail || entry.manageStyle?.id === detailSourceId,
   );
-  const selected = visibleStyles.find((s) => s.id === detail);
-  const studioStyle = visibleStyles.find((s) => s.id === studio);
+  const selected = selectedEntry?.style;
+  const managed = managing ? selectedEntry?.manageStyle : undefined;
+  const studioStyle = styles.find((s) => !s.deletedAt && s.id === studio);
   if (canManage && studioStyle)
     return (
       <StyleStudio
@@ -84,25 +91,10 @@ export function StyleLibrary({
       {onReturn && (
         <Button onClick={() => onReturn(repairedStyle)}>返回新建演讲</Button>
       )}
-      {canManage && deleting && (
-        <DeleteItem
-          kind="style"
-          id={deleting.id}
-          name={deleting.name}
-          onClose={() => setDeleting(null)}
-          onDeleted={refresh}
-        />
-      )}
       <div className="page-heading">
         <div>
-          <h1>
-            {canManage ? "把喜欢的，变成你的风格。" : "选一种喜欢的风格。"}
-          </h1>
-          <p>
-            {!canManage
-              ? "看看同一种风格的不同表达，找到适合你这场演讲的画面。"
-              : "从参考图建立视觉风格，再用于你的不同演讲项目。"}
-          </p>
+          <h1>选一种喜欢的风格。</h1>
+          <p>看看同一种风格的不同表达，找到适合你这场演讲的画面。</p>
         </div>
         {canManage && (
           <Button variant="primary" onClick={() => setCreate(true)}>
@@ -111,36 +103,13 @@ export function StyleLibrary({
           </Button>
         )}
       </div>
-      {canManage && (
-        <div className="styles-explainer">
-          <div className="reference-mini">
-            <div />
-            <div />
-            <div>
-              <Palette size={28} weight="light" />
-            </div>
-          </div>
-          <div>
-            <h2>用提示词、图片或网址，建立自己的风格库</h2>
-            <p>
-              分析参考图背后的设计系统，生成同源但不同形的完整提示词；不同风格分别提炼。
-              <br />
-              用现成示例或自己的内容试做；使用统一文案单独生成风格封面。
-            </p>
-          </div>
-          <Button onClick={() => setCreate(true)}>
-            <UploadSimple size={17} />
-            添加风格
-          </Button>
-        </div>
-      )}
       <div className="section-heading">
         <h2>
-          风格库 <span>{String(visibleStyles.length).padStart(2, "0")}</span>
+          风格库 <span>{String(entries.length).padStart(2, "0")}</span>
         </h2>
         <span className="muted">跨项目使用，持续积累</span>
       </div>
-      {!visibleStyles.length && (
+      {!entries.length && (
         <section className="onboarding-card" aria-label="风格库空状态">
           <h2>{canManage ? "从第一个风格开始" : "风格库正在准备中"}</h2>
           <p>
@@ -155,21 +124,9 @@ export function StyleLibrary({
           )}
         </section>
       )}
-      <div
-        className={`style-library-grid${!canManage ? " customer-style-grid" : ""}`}
-      >
-        {visibleStyles.map((s) => (
+      <div className="style-library-grid style-library-gallery">
+        {entries.map(({ style: s, unpublished }) => (
           <article className="style-card" key={s.id}>
-            {canManage && (
-              <button
-                className="card-delete"
-                aria-label={`删除风格：${s.name}`}
-                onClick={() => setDeleting(s)}
-              >
-                <Trash size={16} />
-                删除
-              </button>
-            )}
             <button
               className="style-cover-button"
               aria-label={`浏览风格封面：${s.name}`}
@@ -181,19 +138,12 @@ export function StyleLibrary({
               <div>
                 <h3>{s.name}</h3>
                 <span>
-                  {!canManage
-                    ? `${styleExamples(s).length} 个效果示例`
-                    : s.id === DEFAULT_STYLE_ID
-                      ? "默认风格"
-                      : s.builtin
-                        ? "内置起始风格"
-                        : s.refs.length
-                          ? `${s.refs.length} 张参考图`
-                          : "提示词风格"}
+                  {styleExamples(s).length} 个效果示例
+                  {unpublished && " · 未发布"}
                 </span>
               </div>
-              <p>{canManage ? s.description : styleDescription(s)}</p>
-              {!canManage && (
+              <p>{styleDescription(s)}</p>
+              {!!styleExamples(s).length && (
                 <div className="style-card-examples">
                   {styleExamples(s)
                     .slice(0, 3)
@@ -250,7 +200,11 @@ export function StyleLibrary({
             await refresh();
             if (promptRepair && onReturn) setRepairedStyle(s.id);
             else if (promptRepair) onUse(s.id);
-            else setDetail(s.id);
+            else {
+              setExpandSettings(false);
+              setManaging(true);
+              setDetail(s.id);
+            }
             notify(
               s.status === "ready"
                 ? "风格提示词已原样保存，可以直接试做。"
@@ -259,48 +213,69 @@ export function StyleLibrary({
           }}
         />
       )}
-      {selected && !canManage && (
+      {selected && !managed && (
         <StyleGallery
           key={selected.id}
           initialExampleId={detailExample}
           style={selected}
           onClose={() => setDetail(null)}
+          onManage={
+            selectedEntry?.manageStyle
+              ? () => {
+                  setExpandSettings(true);
+                  setManaging(true);
+                }
+              : undefined
+          }
+          onTest={
+            selectedEntry?.manageStyle
+              ? () => {
+                  setDetail(null);
+                  setStudio(selectedEntry.manageStyle!.id);
+                }
+              : undefined
+          }
           onUse={() => {
             setDetail(null);
             onUse(selected.id);
           }}
         />
       )}
-      {selected && canManage && (
+      {managed && canManage && (
         <StyleDetail
-          key={selected.id}
-          style={selected}
-          onClose={() => setDetail(null)}
+          key={managed.id}
+          style={managed}
+          expandSettings={expandSettings}
+          onBack={() => setManaging(false)}
+          onClose={() => {
+            setManaging(false);
+            setDetail(null);
+          }}
           refresh={refresh}
           notify={notify}
           analyzing={
             jobs.some(
               (j) =>
                 j.type === "style" &&
-                j.styleId === selected.id &&
+                j.styleId === managed.id &&
                 active(j.status),
-            ) || selected.status === "analyzing"
+            ) || managed.status === "analyzing"
           }
           analysisStage={
             jobs.find(
               (j) =>
                 j.type === "style" &&
-                j.styleId === selected.id &&
+                j.styleId === managed.id &&
                 active(j.status),
             )?.stage
           }
           onUse={() => {
             setDetail(null);
-            onUse(selected.id);
+            onUse(managed.id);
           }}
           onTest={() => {
             setDetail(null);
-            setStudio(selected.id);
+            setStudio(managed.id);
           }}
         />
       )}
@@ -715,6 +690,8 @@ function CreateStyle({
 }
 function StyleDetail({
   style,
+  expandSettings = false,
+  onBack,
   onClose,
   refresh,
   notify,
@@ -724,6 +701,8 @@ function StyleDetail({
   onTest,
 }: {
   style: Style;
+  expandSettings?: boolean;
+  onBack: () => void;
   onClose: () => void;
   refresh: () => Promise<void>;
   notify: (s: string) => void;
@@ -1000,7 +979,7 @@ function StyleDetail({
               </div>
             )}
             {style.error && <p className="error-text">{style.error}</p>}
-            <details className="style-advanced">
+            <details className="style-advanced" open={expandSettings}>
               <summary>高级设置</summary>
               <p className="detail-help">
                 供需要精细调整的人使用，日常选风格与试做无需修改。
@@ -1202,6 +1181,9 @@ function StyleDetail({
         )}
         <div className="modal-actions">
           <div className="style-detail-secondary-actions">
+            <Button onClick={onBack} disabled={busy || editing}>
+              返回效果预览
+            </Button>
             <Button
               variant="ghost"
               disabled={busy || analyzing}

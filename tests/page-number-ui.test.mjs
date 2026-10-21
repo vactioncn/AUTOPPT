@@ -46,6 +46,7 @@ test(
           .locator(".style-card")
           .filter({ has: page.getByRole("heading", { name, exact: true }) });
         await card.getByRole("button", { name: "查看风格" }).click();
+        await page.getByRole("button", { name: "高级设置", exact: true }).click();
         const help = page
           .getByRole("dialog")
           .getByText(

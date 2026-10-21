@@ -54,6 +54,7 @@ import {
   defaultStyleId,
   offeredStyles,
 } from "../shared/styles.mjs";
+import { styleLibraryEntries } from "../shared/style-library.mjs";
 
 export default function App() {
   const account = useAccount();
@@ -191,7 +192,9 @@ export default function App() {
           route={route}
           currentId={currentId}
           projects={data.projects}
-          styleCount={offered.length}
+          styleCount={
+            styleLibraryEntries(data.styles, { hosted: account.hosted }).length
+          }
           go={go}
           onCreate={() => create()}
         />
@@ -426,6 +429,7 @@ export default function App() {
           ) : contentRoute === "styles" ? (
             <StyleLibrary
               canManage={!account.hosted || account.user?.role === "admin"}
+              hosted={account.hosted}
               promptRepair={styleRepair}
               onReturn={
                 creationDraft

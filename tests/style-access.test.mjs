@@ -391,6 +391,9 @@ test(
           .getByRole("button", { name: "查看风格", exact: true })
           .click();
         await page
+          .getByRole("button", { name: "高级设置", exact: true })
+          .click();
+        await page
           .getByText("已发布 · 管理客户样例", { exact: true })
           .waitFor();
         await page.getByText("已发布 · 管理客户样例", { exact: true }).click();

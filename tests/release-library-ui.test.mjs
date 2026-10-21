@@ -39,7 +39,7 @@ test(
       const errors = [];
       page.on("pageerror", (e) => errors.push(e.message));
       await page.goto(`http://127.0.0.1:${port}/#styles`);
-      await page.getByRole("heading", { name: "全部风格 13" }).waitFor();
+      await page.getByRole("heading", { name: "风格库 13" }).waitFor();
       assert.equal(await page.locator(".style-card").count(), 13);
       for (const style of RELEASE_STYLES) {
         const card = page

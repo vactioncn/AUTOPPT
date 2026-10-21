@@ -17,6 +17,12 @@ import { registerBackgroundMusic } from "../background-music.mjs";
 import { acquireLock } from "./process-lock.mjs";
 import { hostedSpeechConfig } from "./speech-config.mjs";
 import { ModelServices } from "./model-services.mjs";
+import {
+  usesTokenHubImage,
+  prepareTokenHubImageRequest,
+  normalizeTokenHubImageResponse,
+  tokenHubFailureDiagnostic,
+} from "./tokenhub-image.mjs";
 import { testConnection } from "../model-test.mjs";
 import { createSpeechRequestPolicy } from "../speech/request-policy.mjs";
 import {
@@ -557,18 +563,34 @@ app.post("/internal/model/:kind/{*route}", async (req, res) => {
         );
       });
     }
+    const tokenHubImage = kind === "image" && usesTokenHubImage(config);
+    let imageRequest;
+    if (tokenHubImage) {
+      try {
+        imageRequest = await prepareTokenHubImageRequest({
+          route,
+          body: req.body,
+          contentType: req.headers["content-type"],
+          model: config.model,
+        });
+      } catch (error) {
+        if (error.status === 400) accounts.finish(u.id, lease, "failed");
+        throw error;
+      }
+    }
     if (kind === "image") accounts.dispatch(u.id, lease);
     const upstream = () => {
       if (kind === "speech" && res.destroyed)
         throw new Error("语音请求已取消。");
       accounts.active(u.id);
-      return fetch(config.baseUrl + route, {
+      return fetch(config.baseUrl + (imageRequest?.route || route), {
         method: "POST",
         headers: {
           Authorization: `Bearer ${config.apiKey}`,
-          "Content-Type": req.headers["content-type"],
+          "Content-Type":
+            imageRequest?.contentType || req.headers["content-type"],
         },
-        body: req.body,
+        body: imageRequest?.body || req.body,
         signal: AbortSignal.any([
           AbortSignal.timeout(600000),
           disconnected.signal,
@@ -576,13 +598,38 @@ app.post("/internal/model/:kind/{*route}", async (req, res) => {
         redirect: "error",
       });
     };
-    const response =
+    let response =
       kind === "speech"
         ? await speechPacing(config.providerId, upstream, {
             signal: disconnected.signal,
           })
         : await upstream();
+    if (tokenHubImage)
+      response = await normalizeTokenHubImageResponse(response);
     if (!response.ok) {
+      if (tokenHubImage) {
+        try {
+          console.error(
+            "[tokenhub-image]",
+            JSON.stringify(
+              await tokenHubFailureDiagnostic(
+                response,
+                imageRequest,
+                config.apiKey,
+              ),
+            ),
+          );
+        } catch {
+          console.error(
+            "[tokenhub-image]",
+            JSON.stringify({
+              status: response.status,
+              route: imageRequest.route,
+              diagnostic: "unavailable",
+            }),
+          );
+        }
+      }
       if (kind === "image")
         accounts.finish(
           u.id,

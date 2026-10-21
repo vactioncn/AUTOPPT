@@ -1,4 +1,5 @@
-FROM node:24-bookworm-slim AS build
+ARG AUTOPPT_NODE_IMAGE=node:24-bookworm-slim
+FROM ${AUTOPPT_NODE_IMAGE} AS build
 WORKDIR /app
 ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1
 COPY package*.json ./
@@ -9,7 +10,7 @@ ARG AUTOPPT_BUILD_TIME
 ENV AUTOPPT_BUILD_GIT_SHA=$AUTOPPT_BUILD_GIT_SHA AUTOPPT_BUILD_TIME=$AUTOPPT_BUILD_TIME AUTOPPT_RUNTIME_MODE=hosted
 RUN npm run build && npm prune --omit=dev
 
-FROM node:24-bookworm-slim
+FROM ${AUTOPPT_NODE_IMAGE}
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=4318 AUTOPPT_HOSTED_DATA_DIR=/data
 WORKDIR /app
 COPY --from=build --chown=node:node /app/package*.json ./

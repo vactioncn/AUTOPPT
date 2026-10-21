@@ -17,3 +17,7 @@ test-results
 .agents
 .codex
 .impeccable
+AutoPPTweb-codex*
+.deploy
+*.tar.gz
+tokenhub-adapter*.zip

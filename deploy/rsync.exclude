@@ -1,0 +1,36 @@
+# Excluded entries are also protected from deletion on the receiver.
+.git/
+.codegraph/
+.agents/
+.codex/
+.aws/
+.ssh/
+.deploy/
+.env
+.env.*
+secrets/
+node_modules/
+/dist/
+/build-info.json
+/release/
+/.local/
+/.hosted/
+/music/
+/backups/
+/logs/
+/test-results/
+/tokenhub-adapter*.zip
+/deploy/tokenhub-adapter*.zip
+.DS_Store
+*.tsbuildinfo
+__pycache__/
+*.pyc
+.impeccable/
+.harness/
+/AutoPPTweb-codex*/
+*.tar.gz
+/RELEASE.json
+/开始部署.md
+# Preserve the existing verified font pack, which is not stored in Git.
+/deploy/fonts/*.fntdata
+/deploy/fonts/manifest.json

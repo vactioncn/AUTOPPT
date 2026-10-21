@@ -19,3 +19,7 @@ deploy/fonts/manifest.json
 
 __pycache__/
 *.pyc
+
+# Colleague's old release is reference material and contains private settings.
+/AutoPPTweb-codex*/
+/AutoPPTweb-codex*.tar.gz

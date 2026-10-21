@@ -32,6 +32,10 @@
 
 ## 下载与使用说明
 
+现有正式服务器使用 [讲好网页版](https://aippt.pinguo.cn)。维护者先验证并提交当前代码，再运行 `bash scripts/deploy-server.sh --dry-run` 核对上传范围，最后运行 `bash scripts/deploy-server.sh` 发布；详见[一键发布](docs/一键发布.md)。脚本只发布已提交代码，保留线上配置、模型密钥、字体及原数据卷，检查任务空闲后备份并更新应用。旧 `AutoPPTweb-codex/` 目录仅作参考，不参与上传或构建。本机日常入口仍为 `http://localhost:51927`。
+
+已合并服务器现有的 TokenHub 混元 `hy-image-v3.5-preview` 适配；它将整图生成和参考图请求转换为该服务的接口格式，其余模型继续使用原协议。Nginx 部署沿用服务器镜像源，通用 Docker 部署仍默认使用官方 Node 镜像。发布检查不调用收费模型，真实生成效果需单独验证。
+
 - **[在线阅读安装与使用说明](https://github.com/vactioncn/AUTOPPT/blob/main/docs/同事安装与使用说明.md)**：查看安装、模型配置、首次测试和常见问题。
 - **[下载最新完整代码 ZIP](https://github.com/vactioncn/AUTOPPT/archive/refs/heads/main.zip)**：解压后按说明安装运行。
 - **[给 IT 的网页部署交付与准备清单](https://github.com/vactioncn/AUTOPPT/blob/main/docs/网页版部署交付.md)**：独立源码部署包、服务器资料、无域名验收、正式 HTTPS 与备份恢复。

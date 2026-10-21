@@ -1,0 +1,20 @@
+# Host-installed Nginx terminates HTTPS and proxies to this loopback port.
+# Use this file on its own, rather than merging it with compose.yaml.
+services:
+  app:
+    extends:
+      file: compose.yaml
+      service: app
+    build:
+      args:
+        AUTOPPT_NODE_IMAGE: ${AUTOPPT_NODE_IMAGE:-mirror.camera360.com/base/node:24-bookworm-slim}
+    ports: ['127.0.0.1:${AUTOPPT_APP_PORT:-14318}:4318']
+secrets:
+  admin_password:
+    file: ./secrets/admin_password
+  text_key:
+    file: ./secrets/text_key
+  image_key:
+    file: ./secrets/image_key
+volumes:
+  autoppt_data:

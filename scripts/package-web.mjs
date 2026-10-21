@@ -31,6 +31,7 @@ export const deploymentPaths = [
   "docs/网页版网站与导航改造.md",
   "docs/网页版语音演练.md",
   "docs/服务器部署操作手册.md",
+  "docs/一键发布.md",
   "docs/讲好产品介绍-八页标准样例稿.md",
   "docs/八页标准风格样例验收.md",
 ];

@@ -1,5 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import {
+  STYLE_WRITING_EXAMPLES,
+  writingExampleSources,
+} from "../server/style-writing-examples.mjs";
 import {
   createStyleFromReferences,
   checkedCreation,
@@ -10,6 +15,7 @@ import {
 import {
   observationsFixture,
   creationFixture,
+  legacyCreationFixture,
 } from "./fixtures/style-creation.mjs";
 
 const style = {
@@ -19,7 +25,7 @@ const style = {
 };
 
 test("generated section headings are emitted once without deleting body text", () => {
-  const fixture = creationFixture();
+  const fixture = legacyCreationFixture();
   const expected = checkedCreation(fixture);
   for (const prefix of [
     (title) => `${title}。`,
@@ -64,7 +70,7 @@ test("style creation observes every reference before authoring a complete indepe
   assert.deepEqual(style, original);
   assert.equal(calls.length, 2);
   assert.deepEqual(calls[0].refs, style.refs);
-  assert.deepEqual(calls[1].refs, []);
+  assert.deepEqual(calls[1].refs, style.refs);
   assert.deepEqual(
     calls[1].data.observations.referenceProfiles.map((p) => p.ref),
     style.refs,
@@ -79,10 +85,15 @@ test("style creation observes every reference before authoring a complete indepe
   assert.equal(result.referenceProfiles[1].ref, "second.png");
   assert.deepEqual(result.styleAnalysis.sharedTraits[0].references, [1, 2]);
   assert.deepEqual(result.colors, ["#F4EBDD", "#513B30", "#B94535"]);
-  assert.match(result.rules, /二、风格定义/);
-  assert.match(result.rules, /十九、最终效果标准/);
-  assert.match(result.rules, /统一的是设计 DNA，不是版式模板/);
-  assert.match(result.rules, /【四级风格规则】/);
+  assert.match(result.rules, /暖纸与透明笔触的视觉世界/);
+  assert.match(result.rules, /最终效果标准/);
+  assert.deepEqual(
+    result.styleAnalysis.styles[0].writingExamples,
+    writingExampleSources,
+  );
+  assert.deepEqual(calls[1].data.writingExamples, STYLE_WRITING_EXAMPLES);
+  assert.equal(calls[1].data.template, undefined);
+  assert(!result.rules.includes("【每页生成底线】"));
   assert.equal(result.styleAnalysis.styles[0].rules, result.rules);
   assert(!result.rules.includes(result.styleAnalysis.direction));
   assert(!result.rules.includes("新瑞士主义"));
@@ -129,14 +140,14 @@ test("incomplete observations never reach style authoring", async () => {
 test("missing sections, superficial rules and malformed colors cannot replace a saved style", async () => {
   for (const mutate of [
     (r) => {
-      delete r.sections.imagery;
+      r.sections[8] = null;
     },
     (r) => {
-      r.sections.variation = "每页不同";
+      r.sections[9].body = "每页不同";
     },
     (r) => {
-      for (const key of Object.keys(r.sections))
-        r.sections[key] = "抽象泛泛的风格描述".repeat(6);
+      for (const section of r.sections)
+        section.body = "抽象泛泛的风格描述".repeat(2);
     },
     (r) => {
       r.colors = "#FFFFFF";
@@ -159,7 +170,7 @@ test("missing sections, superficial rules and malformed colors cannot replace a 
           return out;
         },
       }),
-      /新风格的设计规范不完整/,
+      /设计规范不完整|精品母版.*不完整/,
     );
     assert.deepEqual(style, original);
   }
@@ -237,11 +248,16 @@ test("mixed systems author independent prompts with isolated visual evidence and
         if (calls.length === 1) return observed;
         const output = creationFixture();
         output.nameCn = `独立风格${calls.length - 1}`;
+        output.sections[0].body += `这次只写${output.nameCn}的视觉规则。`;
         return output;
       },
     },
   );
   assert.equal(calls.length, 3);
+  assert.deepEqual(
+    calls.slice(1).map((c) => c.refs),
+    [["first.png"], ["second.png"]],
+  );
   assert.deepEqual(
     calls
       .slice(1)
@@ -384,4 +400,85 @@ test("optional context is bounded and supports multipart and JSON creation", () 
     { industry: "x".repeat(1001) },
   ])
     assert.throws(() => checkedStyleContext(input), /信息/);
+});
+
+test("every group receives all four exact approved prompts as writing examples", async () => {
+  const { HOSTED_BUILTIN_STYLE_IDS, DEFAULT_STYLE_ID } =
+    await import("../shared/styles.mjs");
+  const { RELEASE_STYLES } =
+    await import("../shared/builtin-style-catalog.mjs");
+  assert.deepEqual(
+    STYLE_WRITING_EXAMPLES.map((e) => e.id),
+    HOSTED_BUILTIN_STYLE_IDS,
+  );
+  for (const example of STYLE_WRITING_EXAMPLES) {
+    const file =
+      example.id === DEFAULT_STYLE_ID
+        ? "restrained-childhood-editorial.txt"
+        : RELEASE_STYLES.find((s) => s.id === example.id).promptFile;
+    assert.equal(
+      example.prompt,
+      readFileSync(
+        new URL(`../server/styles/${file}`, import.meta.url),
+        "utf8",
+      ).trim(),
+    );
+  }
+  const observed = observationsFixture(2);
+  observed.relation = "mixed";
+  observed.groups = [1, 2].map((n) => ({
+    references: [n],
+    rationale: "各组视觉语言不同，应独立写作，不混合原图证据。",
+  }));
+  observed.referenceProfiles[0].layoutEvidence = {
+    hierarchy: "标题与正文层级清楚，比例是估计而非测量。",
+    retain: ["保留图像叙事与文字解释的分工。"],
+  };
+  let n = 0;
+  const result = await createStyleFromReferences(style, "", {
+    callModel: async (_system, user, refs) => {
+      if (++n === 1) return observed;
+      const data = JSON.parse(user);
+      assert.deepEqual(data.writingExamples, STYLE_WRITING_EXAMPLES);
+      assert.deepEqual(refs, [style.refs[n - 2]]);
+      assert.equal(data.template, undefined);
+      if (n === 2)
+        assert.deepEqual(
+          data.observations.referenceProfiles[0].layoutEvidence,
+          observed.referenceProfiles[0].layoutEvidence,
+        );
+      const out = creationFixture();
+      out.sections[0].body += `本组独立编号${n}仅用于测试。`;
+      return out;
+    },
+  });
+  assert.equal(n, 3);
+  for (const candidate of result.styleAnalysis.styles) {
+    assert.deepEqual(candidate.writingExamples, writingExampleSources);
+    assert(!candidate.rules.includes("【每页生成底线】"));
+    for (const example of STYLE_WRITING_EXAMPLES)
+      assert(!candidate.rules.includes(example.prompt));
+  }
+});
+
+test("style-specific chapters preserve their own names and order without a fixed mother template", () => {
+  for (const count of [12, 24, 27]) {
+    const out = creationFixture();
+    out.sections = Array.from({ length: count }, (_, i) => ({
+      title: `专属设计章节 ${i + 1}`,
+      body: out.sections[i % out.sections.length].body.repeat(2),
+    }));
+    const result = checkedCreation(out);
+    let previous = -1;
+    for (const section of out.sections) {
+      const index = result.rules.indexOf(section.title);
+      assert(index > previous);
+      previous = index;
+    }
+    assert(!result.rules.includes("【四级风格规则】"));
+  }
+  const duplicate = creationFixture();
+  duplicate.sections[1].title = duplicate.sections[0].title;
+  assert.throws(() => checkedCreation(duplicate), /设计规范不完整/);
+  assert.equal(sectionBody("材质 [A+B]\n透明叠色", "材质 [A+B]"), "透明叠色");
 });

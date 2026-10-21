@@ -260,6 +260,7 @@ export type StyleContext = {
   avoid?: string;
 };
 export type GeneratedStyle = {
+  writingExamples?: { id: string; name: string; sha256: string }[];
   id: string;
   references: number[];
   rationale: string;

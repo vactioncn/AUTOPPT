@@ -44,7 +44,7 @@ export function observationsFixture(count = 1) {
   };
 }
 
-export function creationFixture() {
+export function legacyCreationFixture() {
   return {
     nameCn: "暖纸水彩叙事编辑风",
     nameEn: "Warm Paper Watercolor Editorial",
@@ -111,4 +111,34 @@ export function creationFixture() {
         "出图前检查这页的主要含义是否清楚、必要文字是否足够易读、纸面与笔触是否仍有自然感、朱红是否只在需要处聚焦，以及主体是否真正服务内容。再看相邻页面有没有机械重复相同骨架。最终应远看抓住重点、近看有手作细节；这些是设计检查要求，实际生成效果仍需看图确认。",
     },
   };
+}
+
+export function creationFixture() {
+  const result = legacyCreationFixture();
+  const titles = {
+    role: "角色与风格定位",
+    identity: "暖纸与透明笔触的视觉世界",
+    principle: "让手绘温度承载叙事",
+    content: "先理解内容再组织画面",
+    mood: "气质与情绪",
+    color: "暖纸色彩与朱红强调",
+    typography: "字体与阅读层级",
+    composition: "构图与阅读空间",
+    imagery: "透明水彩的叙事语言",
+    texture: "纸张与颜料边缘",
+    graphics: "轮廓与信息图形",
+    data: "真实数据表达",
+    details: "微型编辑细节",
+    variation: "跨页变化与节奏",
+    pageTypes: "内容类型的表达",
+    context: "受众与使用语境",
+    avoid: "容易偏离的方向",
+    checks: "生成前判断",
+    standard: "最终效果标准",
+  };
+  result.sections = Object.entries(titles).map(([key, title]) => ({
+    title,
+    body: result.sections[key],
+  }));
+  return result;
 }

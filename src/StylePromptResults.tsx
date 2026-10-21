@@ -82,6 +82,13 @@ export function StylePromptResults({
       </div>
       <details className="studio-rule-details">
         <summary>查看风格判断与提炼要点</summary>
+        {!!candidate.writingExamples?.length && (
+          <p className="detail-help">
+            写作参考：
+            {candidate.writingExamples.map((item) => item.name).join("、")}。
+            沿用精品提示词的框架与描述深度，具体视觉规则依据本组参考图。
+          </p>
+        )}
         <p className="detail-help">{style.styleAnalysis?.relationReason}</p>
         {!!style.styleAnalysis?.excludedReferences?.length && (
           <p className="detail-help">

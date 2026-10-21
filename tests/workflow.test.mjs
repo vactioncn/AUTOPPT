@@ -203,7 +203,7 @@ test(
         output = { ends: [1, n].filter((x, i, a) => !i || x !== a[i - 1]) };
       } else if (
         system.includes("视觉设计总监") ||
-        system.includes("## AutoPPT 结构化输出约定") ||
+        system.includes("## 输出约定：参考四份精品样例") ||
         system.includes("演讲设计系统设计师")
       ) {
         calls.push({ type: "system", refs, user });
@@ -428,11 +428,11 @@ test(
     );
     assert.equal(style.referenceProfiles.length, 1);
     assert.equal(style.styleAnalysis.version, 2);
-    assert.match(style.rules, /十九、最终效果标准/);
+    assert.match(style.rules, /最终效果标准/);
     const creationCalls = calls.filter((c) => c.type === "system");
     assert.deepEqual(
       creationCalls.map((c) => c.refs),
-      [1, 0],
+      [1, 1],
     );
     assert.equal(
       JSON.parse(creationCalls[1].user).observations.referenceProfiles[0].ref,

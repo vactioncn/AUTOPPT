@@ -61,6 +61,7 @@ test(
       if (mixed && !observing && input.group.references.includes(2)) {
         creation.nameCn = "第二组暖纸叙事风";
         creation.nameEn = "Second Independent Editorial";
+        creation.sections[0].body += "此处采用第二组的独立暖纸叙事风格。";
       }
       const output = observing
         ? observation
@@ -197,7 +198,7 @@ test(
       .getByRole("button", { name: "分析视觉风格", exact: true })
       .click();
     await expect(
-      page.getByText("第2步：生成风格 A 的完整提示词（1 / 1）", {
+      page.getByText("第2步：参考四套精品提示词，编写新风格（1 / 1）", {
         exact: true,
       }),
     ).toBeVisible({ timeout: 15000 });
@@ -215,10 +216,9 @@ test(
     ).toBeVisible({ timeout: 15000 });
     await expect(page.locator(".rules-text")).toBeHidden();
     await page.getByText("高级设置", { exact: true }).click();
-    await expect(page.locator(".rules-text")).toContainText(
-      "十九、最终效果标准",
-      { timeout: 15000 },
-    );
+    await expect(page.locator(".rules-text")).toContainText("最终效果标准", {
+      timeout: 15000,
+    });
     await expect(page.getByText("核心视觉 DNA", { exact: true })).toHaveCount(
       0,
     );
@@ -237,9 +237,9 @@ test(
       .getByRole("button", { name: "复制完整提示词", exact: true })
       .click();
     const copied = await page.evaluate(() => navigator.clipboard.readText());
-    assert.match(copied, /【风格锁定】/);
-    assert.match(copied, /【四级风格规则】/);
-    assert.match(copied, /没有数据，不伪造数据图表/);
+    assert.match(copied, /一、先理解内容，再设计/);
+    assert(!copied.includes("【每页生成底线】"));
+    assert.match(copied, /真实数据/);
     await page.getByRole("tab", { name: "分析记录", exact: true }).click();
     await page.getByText("查看风格判断与提炼要点", { exact: true }).click();
     await expect(page.getByText("核心视觉 DNA", { exact: true })).toBeVisible();
@@ -255,7 +255,7 @@ test(
     ).toBeVisible();
     assert.deepEqual(
       requests.map((r) => r.count),
-      [1, 0],
+      [1, 1],
     );
     for (const [name, width, height] of [
       ["desktop", 1440, 1050],

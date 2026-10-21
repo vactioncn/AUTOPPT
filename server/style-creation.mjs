@@ -1,5 +1,9 @@
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
+import {
+  STYLE_WRITING_EXAMPLES,
+  writingExampleSources,
+} from "./style-writing-examples.mjs";
 
 const prompt = (name) =>
   readFileSync(new URL(`./prompts/${name}.md`, import.meta.url), "utf8").trim();
@@ -154,6 +158,30 @@ export function checkedObservations(out, refs) {
       observed: profile.observed,
       inferred: profile.inferred,
       ref: refs[i],
+      ...(profile.layoutEvidence &&
+      typeof profile.layoutEvidence === "object" &&
+      !Array.isArray(profile.layoutEvidence)
+        ? {
+            layoutEvidence: Object.fromEntries(
+              [
+                "canvas",
+                "hierarchy",
+                "areas",
+                "whitespace",
+                "alignment",
+                "imageText",
+                "adapt",
+                "retain",
+              ]
+                .filter((key) =>
+                  key === "retain"
+                    ? texts(profile.layoutEvidence[key], 1, 20)
+                    : text(profile.layoutEvidence[key], 1, 6000),
+                )
+                .map((key) => [key, profile.layoutEvidence[key]]),
+            ),
+          }
+        : {}),
     };
   });
   const sharedTraits = out.sharedTraits.map((entry) => {
@@ -181,7 +209,9 @@ export function checkedObservations(out, refs) {
 
 // Strip model-authored repeated headings only, never rewrite user-authored rules.
 export function sectionBody(value, title) {
-  const name = title.replace(/^[一二三四五六七八九十]+、/, "");
+  const name = title
+    .replace(/^[一二三四五六七八九十]+、/, "")
+    .replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const heading = new RegExp(
     `^\\s*(?:#{1,6}\\s*)?(?:\\*\\*|__)?(?:第?[一二三四五六七八九十百\\d]+(?:[、.．)）:：]|章|节)?\\s*)?${name}(?:\\*\\*|__)?(?:[。:：.．]\\s*|[ \\t]*\\r?\\n+|$)`,
   );
@@ -193,6 +223,7 @@ export function sectionBody(value, title) {
   }
 }
 export function checkedCreation(out) {
+  const dynamic = Array.isArray(out?.sections);
   const fail = () => {
     throw new Error(
       "新风格的设计规范不完整，请重新分析；需要完整章节、视觉 DNA、四级规则与锁定语句。",
@@ -213,20 +244,39 @@ export function checkedCreation(out) {
       texts(out.styleModel[key], 1, 12),
     ) ||
     !out.sections ||
-    !STYLE_SECTIONS.every(([key]) =>
-      text(out.sections[key], key === "role" ? 12 : 40),
-    ) ||
+    (!dynamic &&
+      !STYLE_SECTIONS.every(([key]) =>
+        text(out.sections[key], key === "role" ? 12 : 40),
+      )) ||
     !Array.isArray(out.colors) ||
     out.colors.length < 2 ||
     out.colors.length > 8 ||
     !out.colors.every((c) => typeof c === "string" && /^#[a-f\d]{6}$/i.test(c))
   )
     fail();
-  const chapters = STYLE_SECTIONS.map(([key, title]) => {
-    const body = sectionBody(out.sections[key], title);
-    if (!text(body, key === "role" ? 12 : 40)) fail();
-    return `${title}\n\n${body}`;
-  }).join("\n\n");
+  let chapters;
+  if (dynamic) {
+    if (!out.sections.length || out.sections.length > 40) fail();
+    const seen = new Set();
+    chapters = Array.from(out.sections)
+      .map((section) => {
+        if (!text(section?.title, 1, 100) || !text(section?.body, 12)) fail();
+        const title = section.title.trim();
+        if (seen.has(title)) fail();
+        seen.add(title);
+        const body = sectionBody(section.body, title);
+        if (!text(body, 12)) fail();
+        return `────────────────\n${title}\n────────────────\n\n${body}`;
+      })
+      .join("\n\n");
+  } else {
+    // Historical structured responses remain readable. Saved prompts are never rewritten.
+    chapters = STYLE_SECTIONS.map(([key, title]) => {
+      const body = sectionBody(out.sections[key], title);
+      if (!text(body, key === "role" ? 12 : 40)) fail();
+      return `${title}\n\n${body}`;
+    }).join("\n\n");
+  }
   if (chapters.length < 1800) fail();
   const styleModel = Object.fromEntries(
     ["mustKeep", "flexible", "rare", "forbidden"].map((key) => [
@@ -242,7 +292,9 @@ export function checkedCreation(out) {
   ]
     .map(([key, label]) => `${label}：\n${styleModel[key].join("\n")}`)
     .join("\n\n");
-  const rules = `【风格锁定】\n${out.lockSentences.map((s) => s.trim()).join("\n")}\n\n【风格定义】\n${out.nameCn.trim()} / ${out.nameEn.trim()}\n${out.description.trim()}\n${out.boundary.trim()}\n\n【四级风格规则】\n${modelText}\n\n${chapters}\n\n${generationBaselines}`;
+  const rules = dynamic
+    ? chapters
+    : `【风格锁定】\n${out.lockSentences.map((s) => s.trim()).join("\n")}\n\n【风格定义】\n${out.nameCn.trim()} / ${out.nameEn.trim()}\n${out.description.trim()}\n${out.boundary.trim()}\n\n【四级风格规则】\n${modelText}\n\n${chapters}\n\n${generationBaselines}`;
   if (rules.length > 30000) fail();
   return {
     nameCn: out.nameCn.trim(),
@@ -289,7 +341,7 @@ export async function createStyleFromReferences(
   // Publish only after all groups pass validation; failed/cancelled calls retain the saved style.
   for (const [index, group] of observations.groups.entries()) {
     progress(
-      `第2步：生成风格 ${String.fromCharCode(65 + index)} 的完整提示词（${index + 1} / ${observations.groups.length}）`,
+      `第2步：参考四套精品提示词，编写新风格（${index + 1} / ${observations.groups.length}）`,
     );
     const groupObservations = {
       summary: group.rationale,
@@ -312,13 +364,18 @@ export async function createStyleFromReferences(
           context: analysisContext,
           group,
           observations: groupObservations,
+          writingExamples: STYLE_WRITING_EXAMPLES,
         }),
-        [],
+        group.references.map((n) => refs[n - 1]),
         signal,
       ),
     );
     signal?.throwIfAborted();
-    styles.push({ ...group, ...created });
+    styles.push({
+      ...group,
+      ...created,
+      writingExamples: writingExampleSources,
+    });
   }
   const selected = styles[0];
   const { referenceProfiles, ...analysis } = observations;

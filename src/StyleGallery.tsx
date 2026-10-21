@@ -29,6 +29,7 @@ export function styleDescription(style: Style) {
 
 type GalleryExample = {
   id: string;
+  pageId?: string;
   title: string;
   expression: string;
   src: string;
@@ -53,6 +54,7 @@ export function styleExamples(style: Style): GalleryExample[] {
         )!;
         return {
           id: example.id,
+          pageId: page.id,
           title: page.title,
           expression: page.type,
           number: page.number,
@@ -70,6 +72,7 @@ export function styleExamples(style: Style): GalleryExample[] {
       : showcase && !style.catalogSourceId
         ? STYLE_SAMPLE_PAGES.map((page) => ({
             id: `${showcase.id}-${page.id}`,
+            pageId: page.id,
             title: page.title,
             expression: page.type,
             number: page.number,
@@ -115,33 +118,50 @@ export function StyleGallery({
   style,
   onClose,
   initialExampleId,
+  onExampleChange,
   onUse,
   onManage,
   onTest,
 }: {
   style: Style;
   initialExampleId?: string;
+  onExampleChange?: (pageId: string) => void;
   onClose: () => void;
   onUse: () => void;
   onManage?: () => void;
   onTest?: () => void;
 }) {
   const examples = styleExamples(style);
-  const [selectedId, setSelectedId] = useState(initialExampleId);
+  const [selectedId, setSelectedId] = useState(() => {
+    const initial =
+      examples.find(
+        (example) =>
+          example.id === initialExampleId ||
+          example.pageId === initialExampleId,
+      ) || examples[0];
+    return initial?.pageId || initial?.id;
+  });
   const currentIndex = Math.max(
     0,
-    examples.findIndex((example) => example.id === selectedId),
+    examples.findIndex(
+      (example) => (example.pageId || example.id) === selectedId,
+    ),
   );
   const current = examples[currentIndex];
+  const currentKey = current?.pageId || current?.id;
+  useEffect(() => {
+    if (currentKey) onExampleChange?.(currentKey);
+  }, [currentKey, onExampleChange]);
   const strip = useRef<HTMLDivElement>(null);
   const back = useRef<HTMLButtonElement>(null);
   const title = shortStyleNames[style.name] || style.name;
   const canUse = !!(style.canUse || style.rules?.trim());
   const step = (delta: number) => {
-    if (examples.length > 1)
-      setSelectedId(
-        examples[(currentIndex + delta + examples.length) % examples.length].id,
-      );
+    if (examples.length > 1) {
+      const next =
+        examples[(currentIndex + delta + examples.length) % examples.length];
+      setSelectedId(next.pageId || next.id);
+    }
   };
 
   useEffect(() => {
@@ -314,7 +334,7 @@ export function StyleGallery({
                 aria-pressed={currentIndex === i}
                 aria-label={`${example.number || String(i + 1).padStart(2, "0")} ${example.expression}：${example.title}`}
                 title={example.title}
-                onClick={() => setSelectedId(example.id)}
+                onClick={() => setSelectedId(example.pageId || example.id)}
               >
                 <img src={example.thumbnail} alt="" loading="lazy" />
                 <span>

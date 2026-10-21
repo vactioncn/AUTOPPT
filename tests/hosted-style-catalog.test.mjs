@@ -7,6 +7,26 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { HOSTED_BUILTIN_STYLE_IDS, offeredStyles } from "../shared/styles.mjs";
 
+test("published custom styles appear once in creation; existing source selections remain usable", () => {
+  const source = { id: "private", rules: "private current rules" };
+  const published = {
+    id: "catalog-private",
+    catalogSourceId: source.id,
+    rules: "approved rules",
+  };
+  const before = structuredClone([source, published]);
+  assert.deepEqual(offeredStyles([source, published], true), [published]);
+  assert.deepEqual(offeredStyles([source, published], true, source.id), [
+    source,
+    published,
+  ]);
+  assert.deepEqual(
+    offeredStyles([source, { ...published, catalogHidden: true }], true),
+    [source],
+  );
+  assert.deepEqual([source, published], before);
+});
+
 test("web choices keep four curated identities, private styles and only the current legacy choice", () => {
   const styles = [
     { id: "bold", name: "数字聚焦", builtin: true, rules: "用户原文" },

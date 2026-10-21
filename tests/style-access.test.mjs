@@ -11,6 +11,7 @@ import { DatabaseSync } from "node:sqlite";
 import { chromium } from "playwright-core";
 import sharp from "sharp";
 import { offeredStyles, defaultStyleId } from "../shared/styles.mjs";
+import { styleLibraryEntries } from "../shared/style-library.mjs";
 import {
   STYLE_SAMPLE_PAGES,
   STYLE_SAMPLE_VERSION,
@@ -129,6 +130,7 @@ test(
       ["/styles/from-url", "POST"],
       [`/styles/${styleId}/trials`, "POST"],
       [`/styles/${styleId}/trials`, "GET"],
+      [`/styles/${styleId}/samples/cover`, "PATCH"],
       [`/styles/${styleId}/versions`, "GET"],
       [`/styles/${styleId}/versions/old/restore`, "POST"],
       [`/styles/${styleId}/publish`, "POST"],
@@ -210,7 +212,75 @@ test(
         );
       }
     }
+    const oldPoint = JSON.parse(
+      db
+        .prepare("SELECT data FROM records WHERE kind='trial' AND id=?")
+        .get(trialIds[1]).data,
+    );
+    const newerPoint = {
+      ...oldPoint,
+      id: "newer-point",
+      createdAt: "2099-01-01T00:00:00Z",
+    };
+    db.prepare("INSERT INTO records VALUES (?,?,?)").run(
+      "trial",
+      newerPoint.id,
+      JSON.stringify(newerPoint),
+    );
     db.close();
+    const sampleUrl = `/styles/${draftId}/samples/point`;
+    const pick = {
+      fingerprint: styleStamp(created.style).fingerprint,
+      expectedTrialId: newerPoint.id,
+      trialId: oldPoint.id,
+    };
+    await request(sampleUrl, {
+      cookie: admin,
+      method: "PATCH",
+      body: { ...pick, fingerprint: "stale" },
+      status: 409,
+    });
+    await request(sampleUrl, {
+      cookie: admin,
+      method: "PATCH",
+      body: { ...pick, trialId: trialIds[0] },
+      status: 400,
+    });
+    await request(sampleUrl, { cookie: admin, method: "PATCH", body: pick });
+    await request(sampleUrl, {
+      cookie: admin,
+      method: "PATCH",
+      body: { ...pick, trialId: newerPoint.id },
+      status: 409,
+    });
+    const savedChoice = (await bootstrap(admin)).styles.find(
+      (s) => s.id === draftId,
+    );
+    assert.equal(savedChoice.sampleExamples[1].id, oldPoint.id);
+    assert.equal(savedChoice.rules, created.style.rules);
+    assert.equal(styleStamp(savedChoice).fingerprint, pick.fingerprint);
+    const reread = await (
+      await request(`/styles/${draftId}/trials`, { cookie: admin })
+    ).json();
+    assert.deepEqual(reread.preferredIds, [oldPoint.id]);
+    const jobsBeforeReuse = (await bootstrap(admin)).jobs;
+    const reused = await (
+      await request(`/styles/${draftId}/trials`, {
+        cookie: admin,
+        method: "POST",
+        body: {
+          samplePageId: "cover",
+          sampleFingerprint: pick.fingerprint,
+          reuseExisting: true,
+        },
+      })
+    ).json();
+    assert.equal(reused.id, trialIds[0]);
+    assert.deepEqual(
+      (await bootstrap(admin)).jobs,
+      jobsBeforeReuse,
+      "Retrying fill must not queue another paid image",
+    );
     for (const invalid of [
       [trialIds[0]],
       [...trialIds].reverse(),
@@ -233,6 +303,22 @@ test(
     assert(published?.canUse);
     assert(!JSON.stringify(after).includes(secret));
     assert.equal(published.examples.length, 8);
+    const adminEntries = styleLibraryEntries((await bootstrap(admin)).styles, {
+      canManage: true,
+      hosted: true,
+    });
+    const approvedEntry = adminEntries.find(
+      (entry) => entry.manageStyle?.id === draftId,
+    );
+    assert.equal(approvedEntry.style.samplePreview, undefined);
+    assert.deepEqual(
+      approvedEntry.style.examples.map((e) => e.id),
+      trialIds,
+    );
+    assert(
+      after.styles.every((s) => !("sampleChoices" in s)),
+      "Private selection metadata stays with the administrator",
+    );
     assert.deepEqual(
       published.examples.map((page) => page.pageId),
       STYLE_SAMPLE_PAGES.map((page) => page.id),

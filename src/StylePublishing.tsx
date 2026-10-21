@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, asset, post, active } from "./api";
+import { api, asset, post, patch, active } from "./api";
 import { Button } from "./components";
 import type { Style, Trial } from "./types";
 import {
@@ -13,7 +13,7 @@ import {
 import "./style-publishing.css";
 import { HOSTED_BUILTIN_STYLE_IDS } from "../shared/styles.mjs";
 
-type Samples = { trials: Trial[]; fingerprint: string };
+type Samples = { trials: Trial[]; fingerprint: string; preferredIds: string[] };
 
 export function StylePublishing({
   style,
@@ -29,7 +29,7 @@ export function StylePublishing({
   onBusy?: (busy: boolean) => void;
 }) {
   const [samples, setSamples] = useState<Samples | null>(null);
-  const [preferred, setPreferred] = useState<string[]>([]);
+  const [savingChoice, setSavingChoice] = useState(false);
   const [running, setRunning] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [message, setMessage] = useState("");
@@ -67,16 +67,60 @@ export function StylePublishing({
 
   const fingerprint = samples?.fingerprint || "";
   const trials = samples?.trials || [];
-  const selected = sampleSelection(trials, fingerprint, preferred);
+  const selected = sampleSelection(
+    trials,
+    fingerprint,
+    samples?.preferredIds || [],
+  );
   const ready = selected.filter(Boolean).length;
   const pending = trials.find((trial) => active(trial.status));
   const unavailable =
-    disabled || publishing || !!pending || !samples || !style.rules?.trim();
+    disabled ||
+    publishing ||
+    savingChoice ||
+    !!pending ||
+    !samples ||
+    !style.rules?.trim();
   const waiting = !!pending;
   useEffect(() => {
-    onBusy?.(running || publishing || waiting);
+    onBusy?.(running || publishing || savingChoice || waiting);
     return () => onBusy?.(false);
-  }, [onBusy, running, publishing, waiting]);
+  }, [onBusy, running, publishing, savingChoice, waiting]);
+
+  const choose = async (
+    pageId: string,
+    trialId: string,
+    expectedTrialId: string,
+  ) => {
+    if (operation.current || unavailable || running) return;
+    operation.current = { stopped: false };
+    setSavingChoice(true);
+    setError("");
+    setMessage("正在保存样例选择…");
+    try {
+      await patch(`/styles/${style.id}/samples/${pageId}`, {
+        trialId,
+        expectedTrialId,
+        fingerprint,
+      });
+      // Fetch after the write so an older polling response cannot win the race.
+      await read();
+      await refresh();
+      if (mounted.current)
+        setMessage(
+          "样例选择已保存，效果预览会使用这一版本。发布后客户才会看到更新。",
+        );
+    } catch (e) {
+      if (mounted.current) {
+        setMessage("");
+        setError((e as Error).message);
+      }
+      await read().catch(() => {});
+    } finally {
+      operation.current = null;
+      if (mounted.current) setSavingChoice(false);
+    }
+  };
 
   const fill = async () => {
     if (operation.current || unavailable || ready === 8) return;
@@ -94,6 +138,7 @@ export function StylePublishing({
           post<Trial>(`/styles/${style.id}/trials`, {
             samplePageId: pageId,
             sampleFingerprint: expected,
+            reuseExisting: true,
           }),
         onPage: (page) => {
           if (mounted.current)
@@ -220,7 +265,7 @@ export function StylePublishing({
       <p className="detail-help">
         {ready < 8
           ? "按统一讲稿逐页补齐，只生成缺页，已有样例保留。每张成功出图使用 1 张图片额度。"
-          : "已自动选好每种页面的可用样例，也可以展开下方更换版本。"}
+          : "已选好每种页面的可用样例。更换版本会自动保存，并同步到效果预览。"}
         生成后不会自动发布。
       </p>
       {(running || pending) && (
@@ -306,13 +351,9 @@ export function StylePublishing({
                   <select
                     aria-label={`选择${page.type}样例`}
                     value={chosen?.id || ""}
-                    disabled={publishing || running || !choices.length}
+                    disabled={unavailable || running || !choices.length}
                     onChange={(event) =>
-                      setPreferred(
-                        selected.map((trial, i) =>
-                          i === index ? event.target.value : trial?.id || "",
-                        ),
-                      )
+                      void choose(page.id, event.target.value, chosen?.id || "")
                     }
                   >
                     {!choices.length && (

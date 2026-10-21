@@ -94,7 +94,7 @@ test("standalone payload contains only public intro files and resolves inside th
   assert.throws(() => prepareIntroduction(output), /必须为空/);
 });
 
-test("dry run invokes OSS on isolated payload, never deletes, cleans up and propagates upload failure", (t) => {
+test("retired static publishing refuses dry-run and real upload before invoking OSS", (t) => {
   const temp = fixture(t);
   const config = path.join(temp, "config");
   const binary = path.join(temp, "ossutil");
@@ -129,20 +129,12 @@ process.exit(Number(process.env.TEST_OSS_EXIT || 0));
   assert.notEqual(invoke("../bad").status, 0);
   assert(!existsSync(log));
   const result = invoke("autoppt-test");
-  assert.equal(result.status, 0, result.stderr);
-  const { args, files } = JSON.parse(readFileSync(log, "utf8"));
-  assert.equal(args[0], "sync");
-  assert.equal(args[2], "oss://turing-show/autoppt-test/");
-  assert(args.includes("--dry-run"));
-  assert(!args.includes("--delete"));
-  assert(files.includes("index.html") && !files.includes("package.json"));
-  assert(!existsSync(args[1]));
-  assert.match(result.stdout, /未上传或删除/);
-  assert.doesNotMatch(result.stdout, /部署成功/);
-  const failure = invoke("autoppt-test", "7");
-  assert.notEqual(failure.status, 0);
-  assert.match(failure.stderr, /退出码 7/);
-  assert.doesNotMatch(failure.stdout, /部署成功/);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /已停用/);
+  assert(
+    !existsSync(log),
+    "Retired command must never reach OSS, even with an available binary",
+  );
 });
 
 test("public verification checks directory entry, all assets and stale content", async (t) => {

@@ -700,8 +700,10 @@ test(
       assert.equal(preserved.slides[0].error, null);
       assert.equal(
         preserved.slides[0].plan.screenCopy.review.status,
-        "advisory",
+        "reviewed",
       );
+      assert.equal(preserved.slides[0].plan.screenCopy.review.repairAttempts, 1,
+        "A readability rejection is optimized once and accepted without discarding the page");
       const old = preserved.slides[0].versions.find(
         (v) => v.image === originalImage,
       );
@@ -3006,7 +3008,8 @@ test(
     const advisory = (await read()).slides[0];
     assert(advisory.versions.some((v) => v.image === savedImage));
     assert.equal(advisory.attachments.length, 1);
-    assert.equal(advisory.plan.screenCopy.review.status, "advisory");
+    assert.equal(advisory.plan.screenCopy.review.status, "reviewed");
+    assert.equal(advisory.plan.screenCopy.review.repairAttempts, 1);
     savedImage = advisory.image;
     // No silent fallback to text-only if the provider rejects image edits; retry keeps material bytes.
     failImage = true;

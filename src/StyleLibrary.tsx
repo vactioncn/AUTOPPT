@@ -239,8 +239,9 @@ export function StyleLibrary({
       </div>
       {selected && !managed && (
         <StyleGallery
-          key={selected.id}
+          key={selectedEntry?.manageStyle?.id || selected.id}
           initialExampleId={detailExample}
+          onExampleChange={setDetailExample}
           style={selected}
           onClose={closeGallery}
           onManage={

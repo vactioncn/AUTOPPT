@@ -275,7 +275,7 @@ app.get("/api/bootstrap", (req, res) => {
   const styles = all("style");
   const managesStyles = canManageStyles(req);
   const samplePreviews = managesStyles
-    ? styleSamplePreviews(styles, all("trial"), jobs)
+    ? styleSamplePreviews(styles.map(catalogStatus), all("trial"), jobs)
     : new Map();
   const workingProjects = new Set(
     jobs

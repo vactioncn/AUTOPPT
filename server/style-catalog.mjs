@@ -174,6 +174,12 @@ export function registerStyleCatalog(app) {
       .update(JSON.stringify(published))
       .digest("hex");
     save(published);
+    // Keep the gallery and the next visit to publishing on the exact approved
+    // versions, including when the admin intentionally chose an older image.
+    style.sampleChoices = Object.fromEntries(
+      examples.map((e) => [e.pageId, e.id]),
+    );
+    put("style", style);
     res.json({ published: true, style: catalogStatus(style) });
   });
   app.delete("/api/styles/:id/publish", (req, res) => {

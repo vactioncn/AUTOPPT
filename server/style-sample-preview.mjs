@@ -24,6 +24,9 @@ export function styleSamplePreviews(styles, trials, jobs) {
         sampleSelection(
           grouped.get(style.id) || [],
           styleStamp(style).fingerprint,
+          style.sampleChoices
+            ? Object.values(style.sampleChoices)
+            : style.publishedTrialIds || [],
         ).flatMap((trial, index) => {
           if (!trial) return [];
           const page = STYLE_SAMPLE_PAGES[index];

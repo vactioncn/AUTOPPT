@@ -48,6 +48,7 @@ export function StyleSampleMaker({
     post<Trial>(`/styles/${style.id}/trials`, {
       samplePageId: pageId,
       sampleFingerprint: expected,
+      reuseExisting: true,
     });
   const start = async (single = false) => {
     if (token.current || disabled || !fingerprint) return;

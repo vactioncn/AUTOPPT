@@ -49,11 +49,7 @@ import {
   resolveCapabilities,
 } from "./diagnostics";
 import { compareBuildInfo } from "../shared/diagnostics.mjs";
-import {
-  DEFAULT_STYLE_ID,
-  defaultStyleId,
-  offeredStyles,
-} from "../shared/styles.mjs";
+import { DEFAULT_STYLE_ID, defaultStyleId } from "../shared/styles.mjs";
 import { styleLibraryEntries } from "../shared/style-library.mjs";
 
 export default function App() {
@@ -79,7 +75,10 @@ export default function App() {
   );
   const informationRoute = ["intro", "help"].includes(route);
   const contentRoute = informationRoute ? previousRoute.current : route;
-  const offered = offeredStyles(data?.styles || [], account.hosted);
+  const offered = styleLibraryEntries(data?.styles || [], {
+    hosted: account.hosted,
+    canManage: !account.hosted || account.user?.role === "admin",
+  }).map((entry) => entry.style);
   const refresh = useCallback(async () => {
     try {
       setData(await api("/bootstrap"));

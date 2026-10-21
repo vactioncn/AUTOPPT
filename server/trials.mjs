@@ -11,6 +11,8 @@ import { saveStyleVersion } from "./style-versions.mjs";
 import { STYLE_COVER, STYLE_COVER_NOTES } from "../shared/style-demo.mjs";
 import { unifiedCoverPlan } from "./style-cover.mjs";
 import { standardSamplePlan } from "./style-sample-plan.mjs";
+import { sampleSelection } from "../shared/style-sample-sequence.mjs";
+import { catalogStatus } from "./style-catalog.mjs";
 import {
   STYLE_SAMPLE_PAGES,
   STYLE_SAMPLE_VERSION,
@@ -44,6 +46,63 @@ function assertStyleIdle(styleId) {
     );
 }
 export function registerTrials(app, { enqueue }) {
+  const samples = (style) => ({
+    fingerprint: styleStamp(style).fingerprint,
+    preferredIds: style.sampleChoices
+      ? Object.values(style.sampleChoices)
+      : catalogStatus(style).publishedTrialIds || [],
+    trials: all("trial")
+      .filter((t) => t.styleId === style.id)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .map((t) => {
+        const job = get("job", t.jobId);
+        return {
+          ...t,
+          status: job?.status || t.status,
+          stage: job?.stage,
+          error: job?.error || t.error,
+        };
+      }),
+  });
+  app.patch("/api/styles/:id/samples/:pageId", (req, res) => {
+    const style = availableStyle(req.params.id);
+    const pageIndex = STYLE_SAMPLE_PAGES.findIndex(
+      (page) => page.id === req.params.pageId,
+    );
+    if (pageIndex < 0 || style.catalogSourceId)
+      throw new Error("请选择原始风格的标准样例。");
+    const state = samples(style);
+    const current = sampleSelection(
+      state.trials,
+      state.fingerprint,
+      state.preferredIds,
+    )[pageIndex];
+    if (
+      req.body.fingerprint !== state.fingerprint ||
+      req.body.expectedTrialId !== (current?.id || "")
+    )
+      throw Object.assign(
+        new Error("样例或风格已在另一处更新，请查看当前结果后再选择。"),
+        { status: 409 },
+      );
+    const chosen = sampleSelection(
+      state.trials.filter((t) => t.id === req.body.trialId),
+      state.fingerprint,
+    )[pageIndex];
+    if (!chosen || !existsSync(assetPath(chosen.image)))
+      throw new Error("请选择当前风格已完成且图片可用的样例。");
+    // Selection metadata never changes the approved prompt or its version.
+    style.sampleChoices = {
+      ...Object.fromEntries(
+        state.trials
+          .filter((trial) => state.preferredIds.includes(trial.id))
+          .map((trial) => [trial.samplePageId, trial.id]),
+      ),
+      [req.params.pageId]: chosen.id,
+    };
+    put("style", style);
+    res.json(samples(style));
+  });
   app.post("/api/styles/:id/trials/:tid/cover", async (req, res) => {
     const style = availableStyle(req.params.id);
     const trial = trialFor(style.id, req.params.tid);
@@ -74,25 +133,10 @@ export function registerTrials(app, { enqueue }) {
   });
   app.get("/api/styles/:id/trials", (req, res) => {
     const style = availableStyle(req.params.id);
-    res.json({
-      fingerprint: styleStamp(style).fingerprint,
-      trials: all("trial")
-        .filter((t) => t.styleId === style.id)
-        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-        .map((t) => {
-          const job = get("job", t.jobId);
-          return {
-            ...t,
-            status: job?.status || t.status,
-            stage: job?.stage,
-            error: job?.error || t.error,
-          };
-        }),
-    });
+    res.json(samples(style));
   });
   app.post("/api/styles/:id/trials", (req, res) => {
     const style = availableStyle(req.params.id);
-    assertStyleIdle(style.id);
     const isCover = req.body.purpose === "cover";
     const sample =
       req.body.samplePageId &&
@@ -107,6 +151,28 @@ export function registerTrials(app, { enqueue }) {
         new Error("正式风格已改变，请刷新后再制作标准样例。"),
         { status: 409 },
       );
+    // Filling missing pages is retry-safe, even if the first response was lost
+    // or another tab finished the same page between reading and submitting.
+    // Explicit single-page re-generation does not set this flag.
+    if (sample && req.body.reuseExisting === true) {
+      const state = samples(style);
+      const existing = state.trials.find(
+        (trial) =>
+          trial.purpose === "standard-sample" &&
+          trial.samplePageId === sample.id &&
+          trial.sampleVersion === STYLE_SAMPLE_VERSION &&
+          trial.baseFingerprint === state.fingerprint &&
+          (["queued", "running"].includes(trial.status) ||
+            (trial.status === "completed" &&
+              trial.image &&
+              existsSync(assetPath(trial.image)))),
+      );
+      if (existing)
+        return res
+          .status(existing.status === "completed" ? 200 : 202)
+          .json(existing);
+    }
+    assertStyleIdle(style.id);
     const input = isCover
       ? { notes: STYLE_COVER_NOTES, rules: style.rules, mode: "baseline" }
       : sample

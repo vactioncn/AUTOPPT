@@ -70,6 +70,25 @@ test("partial saved samples are previewed in page order without changing styles 
     ]).get(style.id)[1].id,
     "newest-completed",
   );
+  const chosen = styleSamplePreviews(
+    [{ ...style, sampleChoices: { point: point.id } }],
+    candidates,
+    [{ id: "running-job", status: "running" }],
+  ).get(style.id);
+  assert.equal(
+    chosen[1].id,
+    point.id,
+    "The saved older choice must match publishing and gallery",
+  );
+  assert.equal(
+    styleSamplePreviews(
+      [{ ...style, publishedTrialIds: [point.id] }],
+      candidates,
+      [],
+    ).get(style.id)[1].id,
+    point.id,
+    "Existing published choices survive upgrading without rewriting stored styles",
+  );
   assert.equal(
     styleSamplePreviews([{ ...style, rules: "changed" }], trials, []).get(
       style.id,

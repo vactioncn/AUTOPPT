@@ -28,11 +28,19 @@ export function offeredStyles(styles, hosted = false, currentStyleId = "") {
       .map((s) => s.replacesStyleId)
       .filter(Boolean),
   );
+  const publishedSources = new Set(
+    available
+      .filter((s) => s.catalogSourceId && !s.catalogHidden)
+      .map((s) => s.catalogSourceId),
+  );
   return available
     .filter(
       (s) =>
         s.id === currentStyleId ||
-        (!s.catalogHidden && !s.projectOnly && !replaced.has(s.id)),
+        (!s.catalogHidden &&
+          !s.projectOnly &&
+          !replaced.has(s.id) &&
+          !publishedSources.has(s.id)),
     )
     .filter(
       (s) =>

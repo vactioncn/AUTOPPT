@@ -6,6 +6,7 @@ import {
   writeFileSync,
   rmSync,
   symlinkSync,
+  copyFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -141,7 +142,19 @@ test("production startup rejects mismatched, incomplete and symlinked frontend b
 });
 
 test("background launcher refuses to claim an old live backend is current, without stopping or replacing it", async () => {
-  const current = readBuildInfo();
+  // A user's selected Docker workspace must never affect or be started by this test.
+  const root = mkdtempSync(path.join(tmpdir(), "autoppt-launch-test-"));
+  for (const file of [
+    "scripts/start.mjs",
+    "scripts/primary-workspace.mjs",
+    "server/build-info.mjs",
+    "shared/diagnostics.mjs",
+  ]) {
+    mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
+    copyFileSync(new URL("../" + file, import.meta.url), path.join(root, file));
+  }
+  writeFileSync(path.join(root, "build-info.json"), JSON.stringify(a));
+  const current = readBuildInfo(root);
   let backend = {
     ...current,
     gitSha: current.gitSha === "b".repeat(40) ? a.gitSha : b.gitSha,
@@ -162,24 +175,35 @@ test("background launcher refuses to claim an old live backend is current, witho
   };
   try {
     await assert.rejects(
-      run(process.execPath, ["scripts/start.mjs"], { env, timeout: 10000 }),
+      run(process.execPath, [path.join(root, "scripts/start.mjs")], {
+        env,
+        timeout: 10000,
+      }),
       (e) => e.code === 1 && /旧发布/.test(e.stderr),
     );
     assert.equal(requests, 1);
     backend = current;
-    const ok = await run(process.execPath, ["scripts/start.mjs"], {
-      env,
-      timeout: 10000,
-    });
+    const ok = await run(
+      process.execPath,
+      [path.join(root, "scripts/start.mjs")],
+      {
+        env,
+        timeout: 10000,
+      },
+    );
     assert.match(ok.stdout, /已在运行/);
     assert.equal(requests, 2);
     backend = undefined;
     await assert.rejects(
-      run(process.execPath, ["scripts/start.mjs"], { env, timeout: 10000 }),
+      run(process.execPath, [path.join(root, "scripts/start.mjs")], {
+        env,
+        timeout: 10000,
+      }),
       (e) => e.code === 1 && /旧发布/.test(e.stderr),
     );
     assert.equal(server.listening, true);
   } finally {
     await new Promise((r) => server.close(r));
+    rmSync(root, { recursive: true, force: true });
   }
 });

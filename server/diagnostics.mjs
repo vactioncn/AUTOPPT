@@ -32,7 +32,7 @@ export function diagnostics(
       ),
       motionPresentation: capability(
         motionEnabled,
-        "此服务器尚未启用文字与动效编辑，请联系管理员部署完整版本；已有素材保留。",
+        "本次服务器版直接生成完整图片，暂不开放独立文字与动效编辑；已有素材保留。",
       ),
       localModelSettings: capability(
         !hosted,

@@ -654,7 +654,9 @@ export function RehearsalCenter({
             {editablePpt ? "使用已保存的文字与动效" : "使用制作台现有画面"}
           </p>
           <p className="rehearsal-start-help">
-            自己现场讲，点击即可开始。需要改字或调整动效时，回制作台修改。
+            {onEditPpt
+              ? "自己现场讲，点击即可开始。需要改字或调整动效时，回制作台修改。"
+              : "自己现场讲，点击即可开始。需要调整画面时，回制作台修改要求并重新生成。"}
           </p>
           {hasEditableHistory && !editablePpt && !pptLoading && !pptError && (
             <p className="rehearsal-note">

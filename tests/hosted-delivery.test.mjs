@@ -20,6 +20,10 @@ import { acquireLock } from "../server/hosted/process-lock.mjs";
 import { backupHosted, restoreHosted } from "../scripts/hosted-backup.mjs";
 import { deploymentPaths, packageWeb } from "../scripts/package-web.mjs";
 const sha = (bytes) => createHash("sha256").update(bytes).digest("hex");
+test("server release defaults to direct full-slide images", () => {
+  const compose = readFileSync("deploy/compose.yaml", "utf8");
+  assert.match(compose, /AUTOPPT_LAYERED_ENABLED:\s*'0'/);
+});
 test("offline backup restores accounts, sessions and user assets to a new volume without overwriting originals", async () => {
   const root = mkdtempSync(path.join(tmpdir(), "autoppt-backup-test-"));
   const source = path.join(root, "source"),

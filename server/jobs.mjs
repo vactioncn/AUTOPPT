@@ -429,6 +429,15 @@ async function renderSlides(j, ids, signal, redesign = false) {
         );
       }
       signal.throwIfAborted();
+      const directHostedImage =
+        process.env.AUTOPPT_WORKER_TOKEN &&
+        process.env.AUTOPPT_LAYERED_ENABLED !== "1";
+      if (directHostedImage && plan.layeredLayout) {
+        // A historical background-only plan must not turn a direct image into
+        // an empty backdrop. Leave saved versions untouched.
+        plan = { ...plan };
+        delete plan.layeredLayout;
+      }
       // Persist the proposed plan before image generation, without discarding the previous rendered version.
       stamp = styleStamp(style, plan);
       p = projectOrThrow(j.projectId);
@@ -454,33 +463,31 @@ async function renderSlides(j, ids, signal, redesign = false) {
         reusablePending && s.pendingLayered ? s.pendingLayered : {};
       layeredWork.layeredPlan = plan;
       layeredWork.source = { notes: s.notes, style, attachments };
-      // Existing hosted installations keep their path until the full release,
-      // including the editable canvas and font pack, is enabled.
-      const layered =
-        process.env.AUTOPPT_WORKER_TOKEN &&
-        process.env.AUTOPPT_LAYERED_ENABLED !== "1"
-          ? null
-          : await generatePreservedPage(
-              layeredWork,
-              signal,
-              (stage) =>
-                progress(
-                  j,
-                  `${stage} · 原第 ${pageNumber} 页`,
-                  completed,
-                  pending.length,
-                ),
-              () => {
-                signal.throwIfAborted();
-                const current = projectOrThrow(j.projectId);
-                const target = current.slides.find((page) => page.id === sid);
-                target.pendingPlan = plan;
-                // Keep credentials and duplicated source material out of the checkpoint.
-                const { source, ...saved } = layeredWork;
-                target.pendingLayered = saved;
-                saveProject(current);
-              },
-            );
+      // Hosted direct-image releases skip extraction and background repair.
+      // Existing saved layers and versions are never migrated by this switch.
+      const layered = directHostedImage
+        ? null
+        : await generatePreservedPage(
+            layeredWork,
+            signal,
+            (stage) =>
+              progress(
+                j,
+                `${stage} · 原第 ${pageNumber} 页`,
+                completed,
+                pending.length,
+              ),
+            () => {
+              signal.throwIfAborted();
+              const current = projectOrThrow(j.projectId);
+              const target = current.slides.find((page) => page.id === sid);
+              target.pendingPlan = plan;
+              // Keep credentials and duplicated source material out of the checkpoint.
+              const { source, ...saved } = layeredWork;
+              target.pendingLayered = saved;
+              saveProject(current);
+            },
+          );
       const image = layered
         ? layered.background
         : await generateImage(plan, style, signal, attachments);

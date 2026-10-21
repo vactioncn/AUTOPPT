@@ -252,6 +252,7 @@ test(
       const body = JSON.parse(Buffer.concat(chunks));
       res.setHeader("Content-Type", "application/json");
       if (req.url.includes("/images/")) {
+        assert.equal(req.url, "/v1/images/generations");
         imageCount++;
         if (hold) await new Promise((resolve) => gates.push(resolve));
         if (failStatus) {
@@ -322,6 +323,7 @@ test(
           AUTOPPT_SIGNUP_IMAGE_CREDITS: "100",
           AUTOPPT_PUBLIC_URL: origin,
           AUTOPPT_HOSTED_DATA_DIR: dir,
+          AUTOPPT_LAYERED_ENABLED: "0",
           AUTOPPT_ADMIN_PASSWORD_FILE: path.join(dir, "admin-password"),
           AUTOPPT_TEXT_BASE_URL: `http://127.0.0.1:${provider.address().port}/v1`,
           AUTOPPT_IMAGE_BASE_URL: `http://127.0.0.1:${provider.address().port}/v1`,
@@ -723,6 +725,7 @@ test(
         first,
       );
       assert.match(manuscript.data, /我们专注做好这一件事/);
+      const imagesBeforeRender = imageCount;
       const renderJob = (
         await request(
           `/api/projects/${p.id}/render`,
@@ -733,6 +736,14 @@ test(
       ).data;
       const rendered = await poll(renderJob.id);
       assert.equal(rendered.status, "completed", rendered.error);
+      const directPage = (
+        await request(`/api/projects/${p.id}`, undefined, first)
+      ).data.slides.find((s) => s.id === inserted.slideId);
+      assert(directPage.image);
+      assert.equal(directPage.layered, null);
+      assert.equal(directPage.scene, null);
+      assert.equal(directPage.plan.layeredLayout, undefined);
+      assert.equal(imageCount - imagesBeforeRender, 1);
       const presentation = await fetch(
         `${origin}/api/projects/${p.id}/export`,
         { headers: { Cookie: first } },
@@ -1265,9 +1276,13 @@ test("hosted worker requires authentication and explicit readiness before accept
         : /网页后台版本尚未同步/,
     );
   }
-  const readyResponse = await request(url, { ...body, text: "" }, {
-    "x-autoppt-model-ready": "1",
-  });
+  const readyResponse = await request(
+    url,
+    { ...body, text: "" },
+    {
+      "x-autoppt-model-ready": "1",
+    },
+  );
   assert.equal(readyResponse.status, 400);
   assert.match((await readyResponse.json()).error, /请先写下这一段逐字稿/);
   assert.equal(

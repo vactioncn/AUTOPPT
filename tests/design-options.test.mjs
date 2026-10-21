@@ -148,7 +148,7 @@ test("palette extraction requires exact source evidence and does not invent hex 
 });
 
 test("industry presets save in the existing schema without a model or shared-style mutation", () => {
-  assert.equal(new Set(AUDIENCE_PRESETS.map((p) => p.id)).size, 9);
+  assert.equal(new Set(AUDIENCE_PRESETS.map((p) => p.id)).size, 13);
   assert.equal(audiencePresetId(null), "none");
   assert.equal(audiencePreset("none"), null);
   for (const p of AUDIENCE_PRESETS) {

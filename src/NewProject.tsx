@@ -334,7 +334,7 @@ export function NewProject({
               这场演讲，面向谁？
             </h3>
             <p className="creation-help">
-              选择常用行业即可使用，也可以保持通用。只调整表达语境，保留讲稿原意。
+              选择常用行业或场景即可使用，也可以保持通用。只调整表达语境，保留讲稿原意。
             </p>
             <div
               className="audience-preset-grid"

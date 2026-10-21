@@ -140,7 +140,7 @@ export function StylePublishing({
       {loaded && (
         <p className="detail-help">
           已准备 {selected.filter(Boolean).length} / 8
-          页。缺少的页面可在“试做一页 → 讲好产品介绍 · 8 种标准样例”中生成。
+          页。缺少的页面可在“试做一页 → 制作标准样例”中逐页生成。
         </p>
       )}
       {error && <p role="alert">{error}</p>}

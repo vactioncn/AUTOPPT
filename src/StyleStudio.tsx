@@ -23,7 +23,7 @@ import { CopyReview } from "./CopyReview";
 import { TrialCopyPreview } from "./TrialCopyPreview";
 import { StyleVersions } from "./StyleVersions";
 import { STYLE_DEMOS, STYLE_COVER } from "../shared/style-demo.mjs";
-import { STYLE_SAMPLE_PAGES } from "../shared/style-sample-suite.mjs";
+import { StyleSampleMaker } from "./StyleSampleMaker";
 import "./style-studio.css";
 import { isSlideAspect } from "../shared/image-output.mjs";
 export function StyleStudio({
@@ -49,6 +49,8 @@ export function StyleStudio({
     initial.designOptions || emptyDesignOptions,
   );
   const [optionsBusy, setOptionsBusy] = useState(false);
+  const [sampleBusy, setSampleBusy] = useState(false);
+  const [fingerprint, setFingerprint] = useState("");
   const [loadedImage, setLoadedImage] = useState<{
     image: string;
     width: number;
@@ -78,8 +80,11 @@ export function StyleStudio({
     else localStorage.removeItem(key + ":pending");
   };
   const refresh = useCallback(async () => {
-    const d = await api<{ trials: Trial[] }>(`/styles/${style.id}/trials`);
+    const d = await api<{ trials: Trial[]; fingerprint: string }>(
+      `/styles/${style.id}/trials`,
+    );
     setTrials(d.trials);
+    setFingerprint(d.fingerprint);
     if (!hydrated.current) {
       hydrated.current = true;
       if (!initial.selectedId && !initial.notes && d.trials.length) {
@@ -121,7 +126,7 @@ export function StyleStudio({
   }, [key, notes, feedback, copyFeedback, rules, selectedId, choices]);
   const selected = trials.find((t) => t.id === selectedId),
     running = trials.find((t) => active(t.status)),
-    disabled = busy || optionsBusy || !!running || loading;
+    disabled = busy || optionsBusy || sampleBusy || !!running || loading;
   const imageSize =
     selected?.image && loadedImage?.image === selected.image
       ? loadedImage
@@ -246,6 +251,23 @@ export function StyleStudio({
           </Button>
         </section>
       </details>
+      <StyleSampleMaker
+        key={style.id}
+        style={style}
+        trials={trials}
+        fingerprint={fingerprint}
+        disabled={busy || optionsBusy || !!running || loading}
+        onBusy={setSampleBusy}
+        onTrial={(trial) => {
+          choose(trial);
+          setTrials((current) =>
+            current.some((item) => item.id === trial.id)
+              ? current.map((item) => (item.id === trial.id ? trial : item))
+              : [trial, ...current],
+          );
+          setPending(active(trial.status) ? trial.id : null);
+        }}
+      />
       {error && (
         <p className="error-text" role="alert">
           {error}
@@ -608,36 +630,6 @@ export function StyleStudio({
                   placeholder="粘贴一段完整的逐字稿，画面会提炼重点，原文保留。"
                 />
               </Field>
-              <details className="studio-examples">
-                <summary>讲好产品介绍 · 8 种标准样例</summary>
-                <p className="detail-help">
-                  同一篇讲稿，分别验证封面、观点、框架、数据、流程、对比、故事与行动。每次只生成所选的一页，完成后可在风格详情手动发布整套样例。
-                </p>
-                <div className="web-studio-actions" aria-label="八页标准样例">
-                  {STYLE_SAMPLE_PAGES.map((page) => (
-                    <Button
-                      key={page.id}
-                      disabled={disabled}
-                      onClick={() =>
-                        act(async () => {
-                          const trial = await post<Trial>(
-                            `/styles/${style.id}/trials`,
-                            { samplePageId: page.id },
-                          );
-                          setNotes(trial.notes);
-                          setRules(trial.styleSnapshot.rules);
-                          setFeedback("");
-                          setCopyFeedback("");
-                          setSelectedId(trial.id);
-                          setPending(trial.id);
-                        })
-                      }
-                    >
-                      生成 {page.number} {page.type}
-                    </Button>
-                  ))}
-                </div>
-              </details>
               <details className="studio-examples">
                 <summary>换一段示例</summary>
                 <div className="web-studio-actions" aria-label="示例文案">

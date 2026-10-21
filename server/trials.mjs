@@ -98,10 +98,24 @@ export function registerTrials(app, { enqueue }) {
       req.body.samplePageId &&
       STYLE_SAMPLE_PAGES.find((page) => page.id === req.body.samplePageId);
     if (req.body.samplePageId && !sample) throw new Error("标准样例页不存在。");
+    if (
+      sample &&
+      req.body.sampleFingerprint &&
+      req.body.sampleFingerprint !== styleStamp(style).fingerprint
+    )
+      throw Object.assign(
+        new Error("正式风格已改变，请刷新后再制作标准样例。"),
+        { status: 409 },
+      );
     const input = isCover
       ? { notes: STYLE_COVER_NOTES, rules: style.rules, mode: "baseline" }
       : sample
-        ? { notes: sampleSource(sample), rules: style.rules, mode: "baseline" }
+        ? {
+            notes: sampleSource(sample),
+            rules: style.rules,
+            mode: "baseline",
+            feedback: req.body.sampleFeedback,
+          }
         : req.body;
     const {
       notes,
@@ -305,6 +319,8 @@ export async function runTrial(job, signal, progress) {
       put("trial", t);
     } else if (t.purpose === "standard-sample") {
       t.plan = standardSamplePlan(t.styleSnapshot, t.samplePageId);
+      if (t.feedback)
+        t.plan.imageFeedback += `\n\n本页画面调整要求（保留统一上屏文案与正式风格）：\n${t.feedback}`;
       put("trial", t);
     } else if (
       !t.plan ||

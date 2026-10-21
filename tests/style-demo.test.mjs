@@ -235,12 +235,22 @@ test("unified covers lock copy, use saved style, publish only on success and kee
     responseMode = "success";
     put("style", { ...original, cover: generated.image });
     const beforeSampleCalls = calls.length;
+    assert.equal(
+      (
+        await post("/demo/trials", {
+          samplePageId: "cover",
+          sampleFingerprint: "stale",
+        })
+      ).status,
+      409,
+    );
     for (const page of STYLE_SAMPLE_PAGES) {
       const standard = await post("/demo/trials", {
         samplePageId: page.id,
         notes: "不能替换标准讲稿",
         rules: "不能替换正式风格",
         parentId: "invalid",
+        sampleFeedback: page.id === "data" ? "让图表更清楚" : "",
       });
       assert.equal(standard.status, 202);
       assert.equal(standard.body.notes, sampleSource(page));
@@ -251,6 +261,8 @@ test("unified covers lock copy, use saved style, publish only on success and kee
       const done = get("trial", standard.body.id);
       assert.equal(done.plan.pageNumber, Number(page.number));
       assert.deepEqual(done.plan.displayText, page.displayText);
+      if (page.id === "data")
+        assert.match(done.plan.imageFeedback, /让图表更清楚/);
       assert.equal(get("style", "demo").cover, generated.image);
     }
     assert.equal(

@@ -1,3 +1,9 @@
+import { createSampleBatches } from "./style-sample-batches.mjs";
+import {
+  sampleBatchActive,
+  activeSampleBatchCount,
+  sampleProgress,
+} from "./style-sample-state.mjs";
 import {
   syncStyleCatalog,
   withdrawStyle,
@@ -103,7 +109,7 @@ import {
   migrateManuscripts,
 } from "./manuscript-migration.mjs";
 
-import { registerTrials } from "./trials.mjs";
+import { registerTrials, createTrial } from "./trials.mjs";
 import { registerHtmlExport } from "./html-export.mjs";
 import { registerBackgroundMusic } from "./background-music.mjs";
 import { registerProjectPackages } from "./project-package.mjs";
@@ -255,7 +261,8 @@ app.get("/api/activity", (req, res) =>
       activeMotionCount() +
       activeSpeechCount() +
       activePresenterCount() +
-      activeAvatarCount(),
+      activeAvatarCount() +
+      activeSampleBatchCount(),
   }),
 );
 if (process.env.AUTOPPT_DESKTOP_TOKEN)
@@ -267,7 +274,8 @@ if (process.env.AUTOPPT_DESKTOP_TOKEN)
         activeMotionCount() +
         activeSpeechCount() +
         activePresenterCount() +
-        activeAvatarCount(),
+        activeAvatarCount() +
+        activeSampleBatchCount(),
     }),
   );
 app.get("/api/bootstrap", (req, res) => {
@@ -307,6 +315,7 @@ app.get("/api/bootstrap", (req, res) => {
           ? catalogStatus({
               ...withStyleVersion(style),
               sampleExamples: samplePreviews.get(style.id) || [],
+              sampleProgress: sampleProgress(style),
             })
           : customerStyle(style),
       )
@@ -1019,6 +1028,11 @@ app.post("/api/jobs/:id/cancel", (req, res) =>
   res.json(safeJob(cancel(req.params.id))),
 );
 registerTrials(app, { enqueue });
+const sampleBatches = createSampleBatches({
+  createTrial: (styleId, body, options) =>
+    createTrial(styleId, body, enqueue, options),
+});
+sampleBatches.register(app);
 registerStyleVersions(app);
 registerStyleCatalog(app);
 registerStyleImports(app, { dataDir, assetPath, put, id, now, enqueue });
@@ -1096,6 +1110,7 @@ app.patch("/api/styles/:id", async (req, res) => {
   const s = get("style", req.params.id);
   if (!s || s.deletedAt) throw new Error("风格不存在或已删除");
   if (
+    sampleBatchActive(s.id) ||
     all("job").some(
       (j) =>
         ["style", "trial"].includes(j.type) &&
@@ -1158,6 +1173,7 @@ app.delete("/api/styles/:id", (req, res) => {
   if (!s) throw Object.assign(new Error("风格不存在"), { status: 404 });
   if (
     s.status === "analyzing" ||
+    sampleBatchActive(s.id) ||
     all("job").some(
       (j) =>
         ["style", "trial"].includes(j.type) &&
@@ -1181,6 +1197,7 @@ app.post("/api/styles/:id/analyze", (req, res) => {
   if (!s.refs?.length)
     throw new Error("重新提炼需要参考图；也可以直接手动修改提示词。");
   if (
+    sampleBatchActive(s.id) ||
     all("job").some(
       (j) =>
         ["style", "trial"].includes(j.type) &&
@@ -1205,7 +1222,8 @@ app.post(
   async (req, res) => {
     const s = get("style", req.params.id);
     if (!s || s.deletedAt) throw new Error("风格不存在或已删除");
-    if (s.status === "analyzing") throw new Error("请等待当前提炼完成。");
+    if (s.status === "analyzing" || sampleBatchActive(s.id))
+      throw new Error("请等待当前提炼或样例补齐完成。");
     if (!req.files?.length) throw new Error("请选择参考图片。");
     if (s.refs.length + req.files.length > 12)
       throw new Error("每个风格最多保存 12 张参考图。");
@@ -1227,6 +1245,7 @@ app.post(
 app.get("/api/settings", (req, res) => res.json(publicSettings()));
 app.put("/api/settings", (req, res) => {
   if (
+    activeSampleBatchCount() ||
     activeMotionCount() ||
     activeSpeechCount() ||
     all("job").some((j) => ["queued", "running"].includes(j.status))
@@ -1317,6 +1336,8 @@ const listener = app.listen(port, "127.0.0.1", (error) => {
   // A second process must never mark the real server's jobs as interrupted.
   recoverUsage();
   recoverJobs();
+  sampleBatches.recover();
+  setInterval(() => sampleBatches.tick(), 750).unref();
   recoverMotion();
   recoverSpeech();
   recoverPresenters();

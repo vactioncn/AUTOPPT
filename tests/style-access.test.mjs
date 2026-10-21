@@ -125,6 +125,8 @@ test(
       [`/styles/${styleId}`, "PATCH"],
       [`/styles/${styleId}`, "DELETE"],
       [`/styles/${styleId}/analyze`, "POST"],
+      [`/styles/${styleId}/sample-batch`, "POST"],
+      [`/styles/${styleId}/sample-batch/pause`, "POST"],
       [`/styles/${styleId}/references`, "POST"],
       ["/style-imports", "POST"],
       ["/styles/from-url", "POST"],

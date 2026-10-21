@@ -1,3 +1,4 @@
+import { sampleBatchActive } from "./style-sample-state.mjs";
 import { DatabaseSync } from "node:sqlite";
 import { mkdirSync, copyFileSync, existsSync } from "node:fs";
 import path from "node:path";
@@ -99,6 +100,7 @@ export function registerStyleCatalog(app) {
     )
       return res.status(400).json({ error: "请先保存一个可用的原始风格。" });
     if (
+      sampleBatchActive(style.id) ||
       all("job").some(
         (j) =>
           ["style", "trial"].includes(j.type) &&

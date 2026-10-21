@@ -20,6 +20,11 @@ import {
 } from "../shared/style-sample-suite.mjs";
 import sharp from "sharp";
 import { isSlideAspect } from "../shared/image-output.mjs";
+import {
+  sampleBatchActive,
+  sampleTrials,
+  sampleProgress,
+} from "./style-sample-state.mjs";
 
 function availableStyle(key) {
   const style = get("style", key);
@@ -31,8 +36,9 @@ function trialFor(styleId, trialId) {
   if (!t || t.styleId !== styleId) throw new Error("试做版本不存在。");
   return t;
 }
-function assertStyleIdle(styleId) {
+function assertStyleIdle(styleId, allowBatch = false) {
   if (
+    (!allowBatch && sampleBatchActive(styleId)) ||
     all("job").some(
       (j) =>
         ["style", "trial"].includes(j.type) &&
@@ -45,25 +51,151 @@ function assertStyleIdle(styleId) {
       { status: 409 },
     );
 }
-export function registerTrials(app, { enqueue }) {
-  const samples = (style) => ({
-    fingerprint: styleStamp(style).fingerprint,
-    preferredIds: style.sampleChoices
-      ? Object.values(style.sampleChoices)
-      : catalogStatus(style).publishedTrialIds || [],
-    trials: all("trial")
-      .filter((t) => t.styleId === style.id)
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-      .map((t) => {
-        const job = get("job", t.jobId);
-        return {
-          ...t,
-          status: job?.status || t.status,
-          stage: job?.stage,
-          error: job?.error || t.error,
-        };
-      }),
+const samples = (style) => ({
+  fingerprint: styleStamp(style).fingerprint,
+  preferredIds: style.sampleChoices
+    ? Object.values(style.sampleChoices)
+    : catalogStatus(style).publishedTrialIds || [],
+  trials: sampleTrials(style.id),
+  progress: sampleProgress(style),
+});
+
+export function createTrial(
+  styleId,
+  body,
+  enqueue,
+  { allowBatch = false, onCreated } = {},
+) {
+  const style = availableStyle(styleId);
+  const isCover = body.purpose === "cover";
+  const sample =
+    body.samplePageId &&
+    STYLE_SAMPLE_PAGES.find((page) => page.id === body.samplePageId);
+  if (body.samplePageId && !sample) throw new Error("标准样例页不存在。");
+  if (
+    sample &&
+    body.sampleFingerprint &&
+    body.sampleFingerprint !== styleStamp(style).fingerprint
+  )
+    throw Object.assign(new Error("正式风格已改变，请刷新后再制作标准样例。"), {
+      status: 409,
+    });
+  // Filling missing pages is retry-safe, even if the first response was lost
+  // or another tab finished the same page between reading and submitting.
+  // Explicit single-page re-generation does not set this flag.
+  if (sample && body.reuseExisting === true) {
+    const state = samples(style);
+    const existing = state.trials.find(
+      (trial) =>
+        trial.purpose === "standard-sample" &&
+        trial.samplePageId === sample.id &&
+        trial.sampleVersion === STYLE_SAMPLE_VERSION &&
+        trial.baseFingerprint === state.fingerprint &&
+        (["queued", "running"].includes(trial.status) ||
+          (trial.status === "completed" &&
+            trial.image &&
+            existsSync(assetPath(trial.image)))),
+    );
+    if (existing) {
+      onCreated?.(existing);
+      return existing;
+    }
+  }
+  assertStyleIdle(style.id, allowBatch);
+  const input = isCover
+    ? { notes: STYLE_COVER_NOTES, rules: style.rules, mode: "baseline" }
+    : sample
+      ? {
+          notes: sampleSource(sample),
+          rules: style.rules,
+          mode: "baseline",
+          feedback: body.sampleFeedback,
+        }
+      : body;
+  const {
+    notes,
+    rules,
+    primaryRef = "",
+    mode = "baseline",
+    parentId,
+    purpose = "transfer",
+  } = input;
+  if (typeof notes !== "string" || !notes.trim() || notes.length > 20000)
+    throw new Error("请填写一页试做讲稿，最多 2 万字。");
+  if (typeof rules !== "string" || !rules.trim() || rules.length > 30000)
+    throw new Error("请填写试做的设计语言，最多 3 万字。");
+  if (!["baseline", "redesign", "refine"].includes(mode))
+    throw new Error("试做方式无效。");
+  const sourceTrial = parentId ? trialFor(style.id, parentId) : null;
+  const parent = sourceTrial?.purpose === "cover" ? null : sourceTrial;
+  if (
+    parent &&
+    (!(parent.image || parent.scene) ||
+      get("job", parent.jobId)?.status !== "completed")
+  )
+    throw new Error("请先完成上一版试做。");
+  const feedback = String(input.feedback || "")
+    .trim()
+    .slice(0, 10000);
+  const copyFeedback = String(input.copyFeedback || "")
+    .trim()
+    .slice(0, 10000);
+  const candidate = structuredClone(
+    parent?.engine === "image" ? parent.styleSnapshot : style,
+  );
+  candidate.rules = rules;
+  if (
+    parent?.engine === "image" &&
+    parent.baseFingerprint !== styleStamp(style).fingerprint &&
+    style.appliedTrialId !== parent.id
+  )
+    throw Object.assign(
+      new Error("正式风格已有变化，请点击“从正式风格重新开始”后再试做。"),
+      { status: 409 },
+    );
+  const t = {
+    id: id(),
+    styleId: style.id,
+    parentId: parent?.id || null,
+    notes,
+    feedback,
+    copyFeedback,
+    mode,
+    purpose: isCover ? "cover" : sample ? "standard-sample" : "transfer",
+    ...(isCover ? { coverVersion: STYLE_COVER.version } : {}),
+    ...(sample
+      ? { samplePageId: sample.id, sampleVersion: STYLE_SAMPLE_VERSION }
+      : {}),
+    layoutId: "",
+    engine: "image",
+    needsSystem: false,
+    calibrationVersion: 1,
+    primaryRef: "",
+    styleSnapshot: candidate,
+    designOptions: designOptions(
+      input.designOptions === undefined
+        ? parent?.designOptions
+        : input.designOptions,
+    ),
+    baseFingerprint: styleStamp(style).fingerprint,
+    plan: null,
+    image: null,
+    scene: null,
+    refined: false,
+    status: "queued",
+    createdAt: now(),
+  };
+  transaction(() => {
+    put("trial", t);
+    const job = enqueue("trial", null, { styleId: style.id, trialId: t.id });
+    t.jobId = job.id;
+    put("trial", t);
+    onCreated?.(t);
   });
+  return t;
+}
+
+export function registerTrials(app, { enqueue }) {
   app.patch("/api/styles/:id/samples/:pageId", (req, res) => {
     const style = availableStyle(req.params.id);
     const pageIndex = STYLE_SAMPLE_PAGES.findIndex(
@@ -136,133 +268,8 @@ export function registerTrials(app, { enqueue }) {
     res.json(samples(style));
   });
   app.post("/api/styles/:id/trials", (req, res) => {
-    const style = availableStyle(req.params.id);
-    const isCover = req.body.purpose === "cover";
-    const sample =
-      req.body.samplePageId &&
-      STYLE_SAMPLE_PAGES.find((page) => page.id === req.body.samplePageId);
-    if (req.body.samplePageId && !sample) throw new Error("标准样例页不存在。");
-    if (
-      sample &&
-      req.body.sampleFingerprint &&
-      req.body.sampleFingerprint !== styleStamp(style).fingerprint
-    )
-      throw Object.assign(
-        new Error("正式风格已改变，请刷新后再制作标准样例。"),
-        { status: 409 },
-      );
-    // Filling missing pages is retry-safe, even if the first response was lost
-    // or another tab finished the same page between reading and submitting.
-    // Explicit single-page re-generation does not set this flag.
-    if (sample && req.body.reuseExisting === true) {
-      const state = samples(style);
-      const existing = state.trials.find(
-        (trial) =>
-          trial.purpose === "standard-sample" &&
-          trial.samplePageId === sample.id &&
-          trial.sampleVersion === STYLE_SAMPLE_VERSION &&
-          trial.baseFingerprint === state.fingerprint &&
-          (["queued", "running"].includes(trial.status) ||
-            (trial.status === "completed" &&
-              trial.image &&
-              existsSync(assetPath(trial.image)))),
-      );
-      if (existing)
-        return res
-          .status(existing.status === "completed" ? 200 : 202)
-          .json(existing);
-    }
-    assertStyleIdle(style.id);
-    const input = isCover
-      ? { notes: STYLE_COVER_NOTES, rules: style.rules, mode: "baseline" }
-      : sample
-        ? {
-            notes: sampleSource(sample),
-            rules: style.rules,
-            mode: "baseline",
-            feedback: req.body.sampleFeedback,
-          }
-        : req.body;
-    const {
-      notes,
-      rules,
-      primaryRef = "",
-      mode = "baseline",
-      parentId,
-      purpose = "transfer",
-    } = input;
-    if (typeof notes !== "string" || !notes.trim() || notes.length > 20000)
-      throw new Error("请填写一页试做讲稿，最多 2 万字。");
-    if (typeof rules !== "string" || !rules.trim() || rules.length > 30000)
-      throw new Error("请填写试做的设计语言，最多 3 万字。");
-    if (!["baseline", "redesign", "refine"].includes(mode))
-      throw new Error("试做方式无效。");
-    const sourceTrial = parentId ? trialFor(style.id, parentId) : null;
-    const parent = sourceTrial?.purpose === "cover" ? null : sourceTrial;
-    if (
-      parent &&
-      (!(parent.image || parent.scene) ||
-        get("job", parent.jobId)?.status !== "completed")
-    )
-      throw new Error("请先完成上一版试做。");
-    const feedback = String(input.feedback || "")
-      .trim()
-      .slice(0, 10000);
-    const copyFeedback = String(input.copyFeedback || "")
-      .trim()
-      .slice(0, 10000);
-    const candidate = structuredClone(
-      parent?.engine === "image" ? parent.styleSnapshot : style,
-    );
-    candidate.rules = rules;
-    if (
-      parent?.engine === "image" &&
-      parent.baseFingerprint !== styleStamp(style).fingerprint &&
-      style.appliedTrialId !== parent.id
-    )
-      throw Object.assign(
-        new Error("正式风格已有变化，请点击“从正式风格重新开始”后再试做。"),
-        { status: 409 },
-      );
-    const t = {
-      id: id(),
-      styleId: style.id,
-      parentId: parent?.id || null,
-      notes,
-      feedback,
-      copyFeedback,
-      mode,
-      purpose: isCover ? "cover" : sample ? "standard-sample" : "transfer",
-      ...(isCover ? { coverVersion: STYLE_COVER.version } : {}),
-      ...(sample
-        ? { samplePageId: sample.id, sampleVersion: STYLE_SAMPLE_VERSION }
-        : {}),
-      layoutId: "",
-      engine: "image",
-      needsSystem: false,
-      calibrationVersion: 1,
-      primaryRef: "",
-      styleSnapshot: candidate,
-      designOptions: designOptions(
-        input.designOptions === undefined
-          ? parent?.designOptions
-          : input.designOptions,
-      ),
-      baseFingerprint: styleStamp(style).fingerprint,
-      plan: null,
-      image: null,
-      scene: null,
-      refined: false,
-      status: "queued",
-      createdAt: now(),
-    };
-    transaction(() => {
-      put("trial", t);
-      const job = enqueue("trial", null, { styleId: style.id, trialId: t.id });
-      t.jobId = job.id;
-      put("trial", t);
-    });
-    res.status(202).json(t);
+    const trial = createTrial(req.params.id, req.body, enqueue);
+    res.status(trial.status === "completed" ? 200 : 202).json(trial);
   });
   app.post("/api/styles/:id/trials/:tid/inspect", (req, res) =>
     res.status(410).json({ error: "风格对比检查已停用，请直接调整页面。" }),

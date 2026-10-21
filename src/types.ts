@@ -1,3 +1,14 @@
+export type SampleProgress = {
+  status: "idle" | "running" | "paused" | "failed" | "completed";
+  background: boolean;
+  done: number;
+  total: number;
+  currentPage: { id: string; number: string; type: string } | null;
+  currentStatus: string | null;
+  stage: string;
+  error: string;
+  uncertain: boolean;
+};
 export type DesignOptions = {
   audience: { description: string; brief: string } | null;
   palette: { name: string; instructions: string; colors: string[] } | null;
@@ -305,6 +316,7 @@ export type Style = {
   examples?: StyleExample[];
   sampleExamples?: StyleExample[];
   samplePreview?: boolean;
+  sampleProgress?: SampleProgress;
   autoName?: boolean;
   analysisContext?: StyleContext;
   cover?: string;

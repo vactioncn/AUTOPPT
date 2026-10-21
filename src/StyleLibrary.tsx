@@ -24,6 +24,7 @@ import { StyleAnalysis } from "./StyleAnalysis";
 import { StyleContextFields } from "./StyleContextFields";
 import { StylePromptResults } from "./StylePromptResults";
 import { styleLibraryEntries } from "../shared/style-library.mjs";
+import { StyleSampleProgress } from "./StyleSampleProgress";
 import { StylePublishing } from "./StylePublishing";
 import { StyleGallery, styleExamples, styleDescription } from "./StyleGallery";
 import "./style-detail.css";
@@ -143,7 +144,7 @@ export function StyleLibrary({
           </section>
         )}
         <div className="style-library-grid style-library-gallery">
-          {entries.map(({ style: s, unpublished }) => (
+          {entries.map(({ style: s, manageStyle, unpublished }) => (
             <article className="style-card" key={s.id}>
               <button
                 className="style-cover-button"
@@ -182,6 +183,23 @@ export function StyleLibrary({
                           />
                         </button>
                       ))}
+                  </div>
+                )}
+                {canManage && manageStyle?.sampleProgress && (
+                  <div className="style-card-sample-progress">
+                    <StyleSampleProgress
+                      progress={manageStyle.sampleProgress}
+                    />
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        openDetail(s.id);
+                        setManaging(true);
+                        setExpandSettings(false);
+                      }}
+                    >
+                      查看样例进度
+                    </Button>
                   </div>
                 )}
                 <div className="style-card-bottom">

@@ -1,19 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, asset, post, patch, active } from "./api";
 import { Button } from "./components";
-import type { Style, Trial } from "./types";
+import type { Style, Trial, SampleProgress } from "./types";
 import {
   STYLE_SAMPLE_PAGES,
   STYLE_SAMPLE_VERSION,
 } from "../shared/style-sample-suite.mjs";
-import {
-  runSampleSequence,
-  sampleSelection,
-} from "../shared/style-sample-sequence.mjs";
+import { sampleSelection } from "../shared/style-sample-sequence.mjs";
 import "./style-publishing.css";
+import { StyleSampleProgress } from "./StyleSampleProgress";
 import { HOSTED_BUILTIN_STYLE_IDS } from "../shared/styles.mjs";
 
-type Samples = { trials: Trial[]; fingerprint: string; preferredIds: string[] };
+type Samples = {
+  trials: Trial[];
+  fingerprint: string;
+  preferredIds: string[];
+  progress: SampleProgress;
+};
 
 export function StylePublishing({
   style,
@@ -30,14 +33,16 @@ export function StylePublishing({
 }) {
   const [samples, setSamples] = useState<Samples | null>(null);
   const [savingChoice, setSavingChoice] = useState(false);
-  const [running, setRunning] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [acknowledgeUncertain, setAcknowledgeUncertain] = useState(false);
+  const startRequest = useRef<string | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loadError, setLoadError] = useState("");
   const [showPages, setShowPages] = useState(false);
   const mounted = useRef(true);
-  const operation = useRef<{ stopped: boolean } | null>(null);
+  const operation = useRef(false);
   const requestNumber = useRef(0);
   const appliedRequest = useRef(0);
   const read = useCallback(async () => {
@@ -54,7 +59,6 @@ export function StylePublishing({
     mounted.current = true;
     return () => {
       mounted.current = false;
-      if (operation.current) operation.current.stopped = true;
     };
   }, []);
   useEffect(() => {
@@ -73,19 +77,22 @@ export function StylePublishing({
     samples?.preferredIds || [],
   );
   const ready = selected.filter(Boolean).length;
+  const progress = samples?.progress;
+  const running = !!progress?.background;
   const pending = trials.find((trial) => active(trial.status));
   const unavailable =
     disabled ||
     publishing ||
     savingChoice ||
+    submitting ||
     !!pending ||
     !samples ||
     !style.rules?.trim();
   const waiting = !!pending;
   useEffect(() => {
-    onBusy?.(running || publishing || savingChoice || waiting);
+    onBusy?.(running || submitting || publishing || savingChoice || waiting);
     return () => onBusy?.(false);
-  }, [onBusy, running, publishing, savingChoice, waiting]);
+  }, [onBusy, running, submitting, publishing, savingChoice, waiting]);
 
   const choose = async (
     pageId: string,
@@ -93,7 +100,7 @@ export function StylePublishing({
     expectedTrialId: string,
   ) => {
     if (operation.current || unavailable || running) return;
-    operation.current = { stopped: false };
+    operation.current = true;
     setSavingChoice(true);
     setError("");
     setMessage("正在保存样例选择…");
@@ -117,68 +124,70 @@ export function StylePublishing({
       }
       await read().catch(() => {});
     } finally {
-      operation.current = null;
+      operation.current = false;
       if (mounted.current) setSavingChoice(false);
     }
   };
 
   const fill = async () => {
-    if (operation.current || unavailable || ready === 8) return;
-    const current = { stopped: false };
-    operation.current = current;
-    setRunning(true);
+    if (
+      operation.current ||
+      running ||
+      disabled ||
+      submitting ||
+      publishing ||
+      savingChoice ||
+      !samples ||
+      !style.rules?.trim() ||
+      ready === 8
+    )
+      return;
+    operation.current = true;
+    setSubmitting(true);
     setError("");
-    setMessage("正在检查已有样例，只补齐缺少的页面…");
+    startRequest.current ||= crypto.randomUUID();
     try {
-      await runSampleSequence({
-        read,
+      await post(`/styles/${style.id}/sample-batch`, {
         fingerprint,
-        stopped: () => current.stopped,
-        create: (pageId, expected) =>
-          post<Trial>(`/styles/${style.id}/trials`, {
-            samplePageId: pageId,
-            sampleFingerprint: expected,
-            reuseExisting: true,
-          }),
-        onPage: (page) => {
-          if (mounted.current)
-            setMessage(`正在补齐第 ${page.number} 页 · ${page.type}`);
-        },
-        onTrial: (trial) => {
-          if (mounted.current)
-            setSamples(
-              (state) =>
-                state && {
-                  ...state,
-                  trials: state.trials.some((item) => item.id === trial.id)
-                    ? state.trials.map((item) =>
-                        item.id === trial.id ? trial : item,
-                      )
-                    : [trial, ...state.trials],
-                },
-            );
-        },
+        requestId: startRequest.current,
+        acknowledgeUncertain,
       });
-      if (mounted.current && !current.stopped) {
-        await read();
-        setMessage("八页样例已齐。查看效果后，点击“一键发布”即可让客户使用。");
-        setShowPages(true);
-      }
-    } catch (e) {
+      startRequest.current = null;
       if (mounted.current) {
-        setMessage("");
-        setError(
-          `${(e as Error).message} 已完成页面保留；处理后点击“补齐样例”继续。`,
+        setAcknowledgeUncertain(false);
+        setMessage(
+          "已交给后台逐页补齐。关闭详情、切换风格或刷新页面都可继续。",
         );
       }
+      await read();
+      await refresh();
+    } catch (e) {
+      if (mounted.current) setError((e as Error).message);
+      await read().catch(() => {});
     } finally {
-      operation.current = null;
-      if (mounted.current) setRunning(false);
+      operation.current = false;
+      if (mounted.current) setSubmitting(false);
+    }
+  };
+  const pause = async () => {
+    if (submitting) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      await post(`/styles/${style.id}/sample-batch/pause`, {});
+      await read();
+      await refresh();
+      if (mounted.current) setMessage("已暂停后续页面，当前页继续完成并保存。");
+    } catch (e) {
+      if (mounted.current) setError((e as Error).message);
+    } finally {
+      if (mounted.current) setSubmitting(false);
     }
   };
   const publish = async (publish: boolean) => {
-    if (operation.current || unavailable || (publish && ready !== 8)) return;
-    operation.current = { stopped: false };
+    if (operation.current || unavailable || running || (publish && ready !== 8))
+      return;
+    operation.current = true;
     setPublishing(true);
     setError("");
     setMessage("");
@@ -202,7 +211,7 @@ export function StylePublishing({
         await read().catch(() => {});
       }
     } finally {
-      operation.current = null;
+      operation.current = false;
       if (mounted.current) setPublishing(false);
     }
   };
@@ -215,11 +224,21 @@ export function StylePublishing({
         <h3>样例与发布</h3>
         <span>{style.publishedAt ? "已发布" : "尚未发布"}</span>
       </div>
-      <p className="style-publish-progress" aria-live="polite">
-        {samples
-          ? `已完成 ${ready} / 8 页${ready < 8 ? ` · 还缺 ${8 - ready} 页` : " · 可以发布"}`
-          : "正在读取已有样例…"}
-      </p>
+      {progress ? (
+        <StyleSampleProgress progress={progress} />
+      ) : (
+        <p>正在读取已有样例…</p>
+      )}
+      {progress?.uncertain && !running && (
+        <label className="sample-retry-confirm">
+          <input
+            type="checkbox"
+            checked={acknowledgeUncertain}
+            onChange={(e) => setAcknowledgeUncertain(e.target.checked)}
+          />
+          已核对上次请求，确认继续可能再次计费
+        </label>
+      )}
       {HOSTED_BUILTIN_STYLE_IDS.includes(style.id) && (
         <p className="detail-help">
           内置样例已公开。这里用于制作当前规则的新样例，原样例会保留。
@@ -227,21 +246,30 @@ export function StylePublishing({
       )}
       <div className="style-publish-actions">
         {running ? (
-          <Button
-            onClick={() => {
-              if (operation.current) operation.current.stopped = true;
-              setMessage("已暂停后续页面，已提交的当前页会继续完成并保存。");
-            }}
-          >
+          <Button onClick={pause} loading={submitting}>
             暂停补齐
           </Button>
         ) : (
           <Button
             variant={ready < 8 ? "primary" : "secondary"}
-            disabled={unavailable || ready === 8}
+            disabled={
+              disabled ||
+              publishing ||
+              savingChoice ||
+              submitting ||
+              !samples ||
+              !style.rules?.trim() ||
+              ready === 8 ||
+              (!!progress?.uncertain && !acknowledgeUncertain)
+            }
+            loading={submitting}
             onClick={fill}
           >
-            {ready === 8 ? "样例已齐" : pending ? "当前页制作中…" : "补齐样例"}
+            {ready === 8
+              ? "样例已齐"
+              : ["failed", "paused"].includes(progress?.status || "")
+                ? "继续补齐"
+                : "后台补齐样例"}
           </Button>
         )}
         <Button
@@ -268,9 +296,9 @@ export function StylePublishing({
           : "已选好每种页面的可用样例。更换版本会自动保存，并同步到效果预览。"}
         生成后不会自动发布。
       </p>
-      {(running || pending) && (
+      {running && (
         <p className="detail-help">
-          离开或刷新会暂停后续提交；当前页继续保存，回来可接着补齐。
+          关闭详情、切换风格或刷新页面后，后台仍会逐页补齐。可在风格库查看进度。
         </p>
       )}
       {disabled && (

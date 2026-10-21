@@ -1,3 +1,4 @@
+import { sampleBatchActive } from "./style-sample-state.mjs";
 import { createHash } from "node:crypto";
 import { all, get, put, id, now, transaction } from "./store.mjs";
 
@@ -143,6 +144,7 @@ export function registerStyleVersions(app) {
       throw new Error("请先加载当前版本记录，再恢复。");
     assertStyleVersion(style, req.body.expectedVersion);
     if (
+      sampleBatchActive(style.id) ||
       all("job").some(
         (j) =>
           ["style", "trial"].includes(j.type) &&

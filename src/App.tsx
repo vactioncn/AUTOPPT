@@ -1,4 +1,4 @@
-import { FirstPicture } from "./FirstPicture";
+import { HostedNewProject } from "./HostedNewProject";
 import { BRAND } from "../shared/brand.mjs";
 import { BrandLockup } from "./BrandLockup";
 import { UsagePage } from "./Usage";
@@ -382,18 +382,23 @@ export default function App() {
               />
             )}
           {account.hosted && contentRoute.split("/")[0] === "new" ? (
-            <FirstPicture
-              scope={onboardingScope}
-              key={account.user?.id}
+            <HostedNewProject
+              userId={account.user!.id}
+              key={`${account.user!.id}:${contentRoute}`}
               styles={offered}
-              creditsPerPage={capabilities.motionPresentation.enabled ? 2 : 1}
               initialStyle={contentRoute.split("/")[1]}
               example={contentRoute.split("/")[1] === "example"}
-              onCreated={(p, message) => {
+              onStyles={(draft) => {
+                setCreationDraft(draft);
+                setStyleRepair(true);
+                go("styles", true);
+              }}
+              onClose={() => go("projects")}
+              onCreated={(p) => {
                 void refresh();
                 onboarding.update({ workspace: "complete" });
                 go("project/" + p.id + "/studio");
-                notify(message);
+                notify("项目已创建，讲稿确认提交后才会生成画面。");
               }}
             />
           ) : currentId ? (
@@ -551,13 +556,13 @@ function ProjectHome({
           </h1>
           <p>
             {hosted
-              ? "放入讲稿，先看一页效果。满意后再做整份 PPT。"
+              ? "选好风格与内容倾向，再写讲稿，开始制作。"
               : "从一段逐字稿开始，把你的想法一步步变成演讲。"}
           </p>
           <div className={hosted ? "hosted-home-actions" : undefined}>
             <Button variant="primary" onClick={onCreate}>
               <Plus size={18} />
-              {hosted ? "用我的讲稿开始" : "新建演讲项目"}
+              {hosted ? "新建演讲" : "新建演讲项目"}
               <ArrowUpRight size={17} />
             </Button>
             {hosted && (

@@ -42,6 +42,9 @@ export function NewProject({
   onStyles,
   onClose,
   onCreated,
+  onDraftChange,
+  createProject,
+  retainedManuscript = false,
 }: {
   styles: Style[];
   initialStyle: string;
@@ -49,6 +52,13 @@ export function NewProject({
   onStyles: (draft: NewProjectDraft) => void;
   onClose: () => void;
   onCreated: (project: Project) => void;
+  onDraftChange?: (draft: NewProjectDraft) => void;
+  createProject?: (input: {
+    title: string;
+    styleId: string;
+    designOptions: DesignOptions;
+  }) => Promise<Project>;
+  retainedManuscript?: boolean;
 }) {
   const [step, setStep] = useState(1);
   const [title, setTitle] = useState(initialDraft?.title || "");
@@ -92,6 +102,9 @@ export function NewProject({
     audienceKind !== "custom" ||
     !!(customAudience.description.trim() && customAudience.brief.trim());
   const canContinue = !!title.trim() && !!selectedStyle;
+  useEffect(() => {
+    onDraftChange?.({ title, styleId, choices, audienceKind, customAudience });
+  }, [title, styleId, choices, audienceKind, customAudience, onDraftChange]);
   const chooseAudience = (kind: string) => {
     draft.current?.cancel();
     setCancelled(false);
@@ -169,7 +182,9 @@ export function NewProject({
     setError("");
     try {
       onCreated(
-        await post("/projects", { title, styleId, designOptions: choices }),
+        await (createProject || ((input) => post<Project>("/projects", input)))(
+          { title, styleId, designOptions: choices },
+        ),
       );
     } catch (e) {
       setError((e as Error).message);
@@ -203,6 +218,11 @@ export function NewProject({
           </li>
         </ol>
         <div ref={scroll} className="new-project-scroll">
+          {retainedManuscript && (
+            <p className="creation-help" role="status">
+              已保留之前的讲稿。创建后带入制作台，确认提交时才生成画面。
+            </p>
+          )}
           <div hidden={step !== 1}>
             <Field label="演讲主题">
               <input

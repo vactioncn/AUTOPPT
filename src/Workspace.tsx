@@ -1,5 +1,11 @@
 import { VisualReview } from "./VisualReview";
 import "./first-picture.css";
+import "./manuscript-composer.css";
+import {
+  MANUSCRIPT_SUBMISSION_LIMIT,
+  manuscriptLength,
+  manuscriptLimitError,
+} from "../shared/manuscript-input.mjs";
 import { BRAND } from "../shared/brand.mjs";
 import { JobFeedback } from "./JobFeedback";
 import { PageConcepts } from "./OnboardingUI";
@@ -262,8 +268,8 @@ export function Workspace({
   const focusComposer = () => {
     setComposerOpen(true);
     requestAnimationFrame(() => {
-      composer.current?.scrollIntoView({
-        block: "center",
+      composer.current?.closest(".composer")?.scrollIntoView({
+        block: "start",
         behavior: "instant",
       });
       composer.current?.focus({ preventScroll: true });
@@ -409,6 +415,7 @@ export function Workspace({
   };
   const submitDraft = async (rememberDirect = false) => {
     if (!draft.trim() || submitLock.current) return;
+    if (manuscriptLimitError(draft)) return;
     if (!modelsReady) {
       setGenerationDialog("models");
       return;
@@ -471,6 +478,7 @@ export function Workspace({
   };
   const add = () => {
     if (!draft.trim() || submitLock.current) return;
+    if (manuscriptLimitError(draft)) return;
     if (!modelsReady) {
       setGenerationDialog("models");
       return;
@@ -732,13 +740,15 @@ export function Workspace({
       element?.focus({ preventScroll: true });
     });
   };
+  const draftLength = manuscriptLength(draft);
+  const draftLimitError = manuscriptLimitError(draft);
   const composerPanel = (
     <section
       hidden={
         !composerOpen && (!!project.slides.length || !!project.batches.length)
       }
       aria-label="追加讲稿"
-      className={`composer ${!project.slides.length ? "first-composer" : ""}`}
+      className={`composer ${!project.slides.length ? "first-composer" : ""} ${!project.batches.length ? "composer-intro" : ""}`}
     >
       <div className="composer-heading">
         <div>
@@ -746,7 +756,9 @@ export function Workspace({
             {String(project.batches.length + 1).padStart(2, "0")}
           </span>
           <h3>
-            {project.batches.length ? "继续添加下一段" : "添加第一段逐字稿"}
+            {project.batches.length
+              ? "继续粘贴下一段逐字稿"
+              : "你只需要粘贴你演讲的逐字稿"}
           </h3>
         </div>
         {!!project.slides.length && (
@@ -761,12 +773,18 @@ export function Workspace({
               ? "正在保存草稿…"
               : draft
                 ? "草稿已保存"
-                : "可以先给一小段，满意后再继续"}
+                : "输入后自动保存草稿"}
         </span>
       </div>
       {!project.batches.length && !project.slides.length && (
-        <div className="composer-onboarding">
-          <p>粘贴约 100–500 字准备讲的话即可。</p>
+        <div className="composer-onboarding" id="manuscript-intro">
+          <p className="composer-instruction">
+            你准备怎么讲，就把要讲的话原样贴在这里。
+          </p>
+          <p>
+            <strong>「逐字稿」</strong>就是你上台时准备说的每一句话。
+            无需整理成大纲，也不用自己拆成 PPT 页面。
+          </p>
           {!draft.trim() && (
             <Button
               variant="ghost"
@@ -780,18 +798,23 @@ export function Workspace({
           )}
         </div>
       )}
+      <div className="composer-limit" id="manuscript-limit">
+        <strong>测试版 · 每次最多 5,000 字</strong>
+        <span>长稿可以分段粘贴，继续追加。</span>
+      </div>
       <textarea
         ref={composer}
         disabled={submitting}
         aria-label="添加逐字稿"
+        aria-describedby={`${!project.batches.length && !project.slides.length ? "manuscript-intro " : ""}manuscript-limit manuscript-count${draftLimitError ? " manuscript-limit-error" : ""}`}
+        aria-invalid={!!draftLimitError}
         value={draft}
         onChange={(e) => updateDraft(e.target.value)}
         placeholder={
           project.batches.length
             ? "接下来，你想讲什么？粘贴下一段逐字稿…"
-            : "把你准备讲的话放在这里。\n不需要整理格式，也不需要自己分成演示页面。"
+            : "例如：大家好，今天我想和大家聊聊……\n像你现场讲话一样，粘贴完整的话就可以了。"
         }
-        maxLength={200000}
         onKeyDown={(e) => {
           if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && !submitting) {
             e.preventDefault();
@@ -799,6 +822,15 @@ export function Workspace({
           }
         }}
       />
+      {draftLimitError && (
+        <p
+          className="composer-limit-error"
+          id="manuscript-limit-error"
+          role="alert"
+        >
+          {draftLimitError}
+        </p>
+      )}
       {!project.batches.length && !project.slides.length && (
         <p className="composer-save-help">
           草稿已保存不等于已生成，提交后才开始制作。
@@ -864,14 +896,22 @@ export function Workspace({
         </p>
       )}
       <div className="composer-footer">
-        <span>
-          {draft.length.toLocaleString()} 字
+        <span
+          id="manuscript-count"
+          className={draftLimitError ? "over-limit" : ""}
+        >
+          {draftLength.toLocaleString()} /{" "}
+          {MANUSCRIPT_SUBMISSION_LIMIT.toLocaleString()} 字（含标点与空格）
           <span className="composer-shortcut">⌘ Enter 提交</span>
         </span>
         <Button
           variant="primary"
           onClick={add}
-          disabled={!draft.trim() || (hosted && credits?.available === 0)}
+          disabled={
+            !draft.trim() ||
+            !!draftLimitError ||
+            (hosted && credits?.available === 0)
+          }
           loading={submitting}
         >
           {hosted
@@ -1911,7 +1951,7 @@ export function Workspace({
                 <span>你的第一段，会成为新的画面。</span>
               </div>
             </div>
-            <h2>先从一小段开始。</h2>
+            <h2>你负责讲，画面交给我们。</h2>
             <p>
               粘贴你的逐字稿，内容拆分、画面设计和图片生成，交给{BRAND.name}。
             </p>

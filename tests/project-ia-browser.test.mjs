@@ -1487,7 +1487,8 @@ test(
           ),
           "complete",
         );
-        await expect(page.locator(".composer")).toContainText("100–500");
+        await expect(page.locator(".composer")).toContainText("你只需要粘贴你演讲的逐字稿");
+        await expect(page.locator(".composer")).toContainText("每次最多 5,000 字");
         await expect(page.locator(".composer")).toContainText(
           "已保存不等于已生成",
         );

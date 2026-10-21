@@ -19,6 +19,7 @@ import {
 import { styleSamplePreviews } from "./style-sample-preview.mjs";
 import { createHash } from "node:crypto";
 import { presentationProgress } from "../shared/first-picture.mjs";
+import { manuscriptLimitError } from "../shared/manuscript-input.mjs";
 import {
   registerUsage,
   recoverUsage,
@@ -509,6 +510,10 @@ app.post("/api/projects/:id/batches", (req, res) => {
       .status(202)
       .json({ ...job, accepted: true, batchId: existing.id });
   }
+  if (typeof text !== "string" || !text.trim())
+    throw new Error("请先写下这一段逐字稿。");
+  const limitError = manuscriptLimitError(text);
+  if (limitError) throw new Error(limitError);
   // Worker authentication above makes this gateway-owned header trustworthy.
   // Fail closed for new work, but never block recovery of an accepted request.
   if (
@@ -524,10 +529,6 @@ app.post("/api/projects/:id/batches", (req, res) => {
       { status: 503 },
     );
   styleReady(p.styleId);
-  if (typeof text !== "string" || !text.trim())
-    throw new Error("请先写下这一段逐字稿。");
-  if (text.length > 200000)
-    throw new Error("单次最多支持 20 万字，请分段添加。");
   if (!spokenManuscript(text).trim())
     throw new Error("去掉 Markdown 标题后没有正文，请补充需要讲述的内容。");
   const batch = {

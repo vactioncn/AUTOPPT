@@ -14,6 +14,7 @@ import {
   LinkSimple,
   TextT,
   ArrowSquareOut,
+  Palette,
 } from "@phosphor-icons/react";
 import type { Style, Job, StyleContext } from "./types";
 import { api, post, patch, asset, active } from "./api";
@@ -26,7 +27,7 @@ import { StylePromptResults } from "./StylePromptResults";
 import { styleLibraryEntries } from "../shared/style-library.mjs";
 import { StyleSampleProgress } from "./StyleSampleProgress";
 import { StylePublishing } from "./StylePublishing";
-import { StyleGallery, styleExamples, styleDescription } from "./StyleGallery";
+import { StyleGallery, styleExamples } from "./StyleGallery";
 import "./style-detail.css";
 export function StyleLibrary({
   canManage = false,
@@ -146,68 +147,76 @@ export function StyleLibrary({
         <div className="style-library-grid style-library-gallery">
           {entries.map(({ style: s, manageStyle, unpublished }) => (
             <article className="style-card" key={s.id}>
+              <div className="style-card-identity">
+                <span>
+                  <Palette size={14} aria-hidden="true" />
+                  视觉风格
+                </span>
+                <div className="swatches" aria-label="风格配色">
+                  {s.colors.map((c, i) => (
+                    <span key={i} style={{ background: c }} title={c} />
+                  ))}
+                </div>
+              </div>
               <button
                 className="style-cover-button"
                 aria-label={`浏览风格封面：${s.name}`}
                 onClick={() => openDetail(s.id)}
               >
-                <StylePreview style={s} />
+                <StylePreview style={s} compact />
               </button>
               <div className="style-card-info">
-                <div>
-                  <h3>{s.name}</h3>
-                  <span>
-                    {styleExamples(s).length} 个效果示例
-                    {unpublished && " · 未发布"}
-                    {!unpublished &&
-                      s.samplePreview &&
-                      hosted &&
-                      " · 样例更新待发布"}
-                  </span>
-                </div>
-                <p>{styleDescription(s)}</p>
-                {!!styleExamples(s).length && (
-                  <div className="style-card-examples">
-                    {styleExamples(s)
-                      .slice(0, 3)
-                      .map((example) => (
-                        <button
-                          key={example.id}
-                          onClick={() => openDetail(s.id, example.id)}
-                          aria-label={`查看${s.name}：${example.title}`}
-                        >
-                          <img
-                            src={example.thumbnail || example.src}
-                            alt={example.title}
-                            loading="lazy"
-                          />
-                        </button>
-                      ))}
-                  </div>
-                )}
-                {canManage && manageStyle?.sampleProgress && (
-                  <div className="style-card-sample-progress">
-                    <StyleSampleProgress
-                      progress={manageStyle.sampleProgress}
-                    />
-                    <Button
-                      variant="ghost"
+                <h3 title={s.name}>{s.name}</h3>
+                {canManage &&
+                  manageStyle?.sampleProgress &&
+                  !["idle", "completed"].includes(
+                    manageStyle.sampleProgress.status,
+                  ) && (
+                    <div className="style-card-sample-progress">
+                      <StyleSampleProgress
+                        progress={manageStyle.sampleProgress}
+                      />
+                      <Button
+                        variant="ghost"
+                        onClick={() => {
+                          openDetail(s.id);
+                          setManaging(true);
+                          setExpandSettings(false);
+                        }}
+                      >
+                        查看样例进度
+                      </Button>
+                    </div>
+                  )}
+                <div className="style-card-bottom">
+                  {canManage && manageStyle?.sampleProgress ? (
+                    <button
+                      className="style-card-meta style-card-progress-link"
+                      aria-label={`查看${s.name}的样例进度`}
                       onClick={() => {
                         openDetail(s.id);
                         setManaging(true);
                         setExpandSettings(false);
                       }}
                     >
-                      查看样例进度
-                    </Button>
-                  </div>
-                )}
-                <div className="style-card-bottom">
-                  <div className="swatches">
-                    {s.colors.map((c, i) => (
-                      <span key={i} style={{ background: c }} title={c} />
-                    ))}
-                  </div>
+                      样例 {manageStyle.sampleProgress.done} /{" "}
+                      {manageStyle.sampleProgress.total}
+                      {unpublished && " · 未发布"}
+                      {!unpublished &&
+                        s.samplePreview &&
+                        hosted &&
+                        " · 待更新发布"}
+                    </button>
+                  ) : (
+                    <span className="style-card-meta">
+                      {styleExamples(s).length} 个样例
+                      {unpublished && " · 未发布"}
+                      {!unpublished &&
+                        s.samplePreview &&
+                        hosted &&
+                        " · 待更新发布"}
+                    </span>
+                  )}
                   {s.status === "analyzing" ? (
                     <Status>
                       <SpinnerGap className="spin" size={14} />

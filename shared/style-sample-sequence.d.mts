@@ -14,6 +14,11 @@ export function completedSample<T extends SampleTrial>(
   pageId: string,
   fingerprint: string,
 ): T | undefined;
+export function sampleSelection<T extends SampleTrial>(
+  trials: T[],
+  fingerprint: string,
+  preferredIds?: string[],
+): (T | undefined)[];
 export function runSampleSequence<T extends SampleTrial>(options: {
   read: () => Promise<{ trials: T[]; fingerprint: string }>;
   create: (pageId: string, fingerprint: string) => Promise<T>;

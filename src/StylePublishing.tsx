@@ -1,169 +1,337 @@
-import { useEffect, useState } from "react";
-import { api, asset, post } from "./api";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { api, asset, post, active } from "./api";
 import { Button } from "./components";
 import type { Style, Trial } from "./types";
 import {
   STYLE_SAMPLE_PAGES,
   STYLE_SAMPLE_VERSION,
 } from "../shared/style-sample-suite.mjs";
+import {
+  runSampleSequence,
+  sampleSelection,
+} from "../shared/style-sample-sequence.mjs";
+import "./style-publishing.css";
+import { HOSTED_BUILTIN_STYLE_IDS } from "../shared/styles.mjs";
+
+type Samples = { trials: Trial[]; fingerprint: string };
 
 export function StylePublishing({
   style,
   refresh,
   notify,
+  disabled = false,
+  onBusy,
 }: {
   style: Style;
   refresh: () => Promise<void>;
   notify: (message: string) => void;
+  disabled?: boolean;
+  onBusy?: (busy: boolean) => void;
 }) {
-  const [trials, setTrials] = useState<Trial[]>([]);
-  const [selected, setSelected] = useState<string[]>([]);
-  const [loaded, setLoaded] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [samples, setSamples] = useState<Samples | null>(null);
+  const [preferred, setPreferred] = useState<string[]>([]);
+  const [running, setRunning] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [loadError, setLoadError] = useState("");
+  const [showPages, setShowPages] = useState(false);
+  const mounted = useRef(true);
+  const operation = useRef<{ stopped: boolean } | null>(null);
+  const requestNumber = useRef(0);
+  const appliedRequest = useRef(0);
+  const read = useCallback(async () => {
+    const request = ++requestNumber.current;
+    const result = await api<Samples>(`/styles/${style.id}/trials`);
+    if (mounted.current && request > appliedRequest.current) {
+      appliedRequest.current = request;
+      setSamples(result);
+      setLoadError("");
+    }
+    return result;
+  }, [style.id]);
   useEffect(() => {
-    let cancelled = false;
-    api<{ trials: Trial[]; fingerprint: string }>(`/styles/${style.id}/trials`)
-      .then(({ trials, fingerprint }) => {
-        if (cancelled) return;
-        const available = trials.filter(
-          (t) =>
-            t.status === "completed" &&
-            t.image &&
-            t.purpose === "standard-sample" &&
-            t.sampleVersion === STYLE_SAMPLE_VERSION &&
-            t.baseFingerprint === fingerprint,
-        );
-        setTrials(available);
-        setSelected(
-          STYLE_SAMPLE_PAGES.map((page) => {
-            const choices = available.filter(
-              (trial) => trial.samplePageId === page.id,
-            );
-            return (
-              choices.find((trial) =>
-                style.publishedTrialIds?.includes(trial.id),
-              )?.id ||
-              choices[0]?.id ||
-              ""
-            );
-          }),
-        );
-        setLoaded(true);
-      })
-      .catch((e) => {
-        if (!cancelled) setError(e.message);
-      });
+    mounted.current = true;
     return () => {
-      cancelled = true;
+      mounted.current = false;
+      if (operation.current) operation.current.stopped = true;
     };
-  }, [style.id, style.updatedAt]);
-  const act = async (publish: boolean) => {
-    setBusy(true);
+  }, []);
+  useEffect(() => {
+    read().catch((e) => {
+      if (mounted.current) setLoadError(e.message);
+    });
+    const timer = setInterval(() => read().catch(() => {}), 1800);
+    return () => clearInterval(timer);
+  }, [read, style.updatedAt]);
+
+  const fingerprint = samples?.fingerprint || "";
+  const trials = samples?.trials || [];
+  const selected = sampleSelection(trials, fingerprint, preferred);
+  const ready = selected.filter(Boolean).length;
+  const pending = trials.find((trial) => active(trial.status));
+  const unavailable =
+    disabled || publishing || !!pending || !samples || !style.rules?.trim();
+  const waiting = !!pending;
+  useEffect(() => {
+    onBusy?.(running || publishing || waiting);
+    return () => onBusy?.(false);
+  }, [onBusy, running, publishing, waiting]);
+
+  const fill = async () => {
+    if (operation.current || unavailable || ready === 8) return;
+    const current = { stopped: false };
+    operation.current = current;
+    setRunning(true);
     setError("");
+    setMessage("正在检查已有样例，只补齐缺少的页面…");
+    try {
+      await runSampleSequence({
+        read,
+        fingerprint,
+        stopped: () => current.stopped,
+        create: (pageId, expected) =>
+          post<Trial>(`/styles/${style.id}/trials`, {
+            samplePageId: pageId,
+            sampleFingerprint: expected,
+          }),
+        onPage: (page) => {
+          if (mounted.current)
+            setMessage(`正在补齐第 ${page.number} 页 · ${page.type}`);
+        },
+        onTrial: (trial) => {
+          if (mounted.current)
+            setSamples(
+              (state) =>
+                state && {
+                  ...state,
+                  trials: state.trials.some((item) => item.id === trial.id)
+                    ? state.trials.map((item) =>
+                        item.id === trial.id ? trial : item,
+                      )
+                    : [trial, ...state.trials],
+                },
+            );
+        },
+      });
+      if (mounted.current && !current.stopped) {
+        await read();
+        setMessage("八页样例已齐。查看效果后，点击“一键发布”即可让客户使用。");
+        setShowPages(true);
+      }
+    } catch (e) {
+      if (mounted.current) {
+        setMessage("");
+        setError(
+          `${(e as Error).message} 已完成页面保留；处理后点击“补齐样例”继续。`,
+        );
+      }
+    } finally {
+      operation.current = null;
+      if (mounted.current) setRunning(false);
+    }
+  };
+  const publish = async (publish: boolean) => {
+    if (operation.current || unavailable || (publish && ready !== 8)) return;
+    operation.current = { stopped: false };
+    setPublishing(true);
+    setError("");
+    setMessage("");
     try {
       if (publish)
-        await post(`/styles/${style.id}/publish`, { trialIds: selected });
+        await post(`/styles/${style.id}/publish`, {
+          trialIds: selected.map((trial) => trial!.id),
+        });
       else await api(`/styles/${style.id}/publish`, { method: "DELETE" });
+      if (!mounted.current) return;
       await refresh();
-      notify(
-        publish
-          ? "风格与所选样例已发布，客户刷新风格库即可看到。"
-          : "已从客户风格库下架，已有项目仍可继续使用。",
-      );
+      const result = publish
+        ? "风格与八页样例已发布，客户刷新风格库即可看到。"
+        : "已从客户风格库下架，已有项目仍可继续使用。";
+      setMessage(result);
+      notify(result);
+      await read();
     } catch (e) {
-      setError((e as Error).message);
+      if (mounted.current) {
+        setError((e as Error).message);
+        await read().catch(() => {});
+      }
     } finally {
-      setBusy(false);
+      operation.current = null;
+      if (mounted.current) setPublishing(false);
     }
   };
   return (
-    <details className="style-publishing">
-      <summary>
-        {style.publishedAt ? "已发布 · 管理客户样例" : "发布到客户风格库"}
-      </summary>
-      <p className="detail-help">
-        用同一篇「讲好」介绍准备完整的 8 种页面，每种选 1
-        张再发布。客户会看到风格名称、简介、封面和这 8
-        张样例；保存或试做不会自动更新已发布版本。
+    <section
+      className="style-publishing style-publishing-panel"
+      aria-label="样例与发布"
+    >
+      <div className="style-publish-heading">
+        <h3>样例与发布</h3>
+        <span>{style.publishedAt ? "已发布" : "尚未发布"}</span>
+      </div>
+      <p className="style-publish-progress" aria-live="polite">
+        {samples
+          ? `已完成 ${ready} / 8 页${ready < 8 ? ` · 还缺 ${8 - ready} 页` : " · 可以发布"}`
+          : "正在读取已有样例…"}
       </p>
-      {loaded ? (
-        <div className="style-publish-examples">
-          {STYLE_SAMPLE_PAGES.map((page, index) => {
-            const choices = trials.filter(
-              (trial) => trial.samplePageId === page.id,
-            );
-            const chosen = choices.find(
-              (trial) => trial.id === selected[index],
-            );
-            return (
-              <label key={page.id}>
-                <span>
-                  {page.number} {page.type}
-                </span>
-                {chosen?.image ? (
-                  <img
-                    src={asset(chosen.image)}
-                    alt={`${page.type}：${page.title}`}
-                  />
-                ) : (
-                  <div className="style-publish-missing">
-                    请先生成这一页标准样例
-                  </div>
-                )}
-                <select
-                  aria-label={`选择${page.type}样例`}
-                  value={selected[index] || ""}
-                  disabled={busy || !choices.length}
-                  onChange={(event) =>
-                    setSelected(
-                      selected.map((id, i) =>
-                        i === index ? event.target.value : id,
-                      ),
-                    )
-                  }
-                >
-                  <option value="">尚未选择</option>
-                  {choices.map((trial, i) => (
-                    <option key={trial.id} value={trial.id}>
-                      {page.title} · 版本 {choices.length - i}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            );
-          })}
-        </div>
-      ) : (
-        <p className="detail-help">正在读取可选样例…</p>
-      )}
-      {loaded && (
+      {HOSTED_BUILTIN_STYLE_IDS.includes(style.id) && (
         <p className="detail-help">
-          已准备 {selected.filter(Boolean).length} / 8
-          页。缺少的页面可在“试做一页 → 制作标准样例”中逐页生成。
+          内置样例已公开。这里用于制作当前规则的新样例，原样例会保留。
         </p>
       )}
-      {error && <p role="alert">{error}</p>}
       <div className="style-publish-actions">
+        {running ? (
+          <Button
+            onClick={() => {
+              if (operation.current) operation.current.stopped = true;
+              setMessage("已暂停后续页面，已提交的当前页会继续完成并保存。");
+            }}
+          >
+            暂停补齐
+          </Button>
+        ) : (
+          <Button
+            variant={ready < 8 ? "primary" : "secondary"}
+            disabled={unavailable || ready === 8}
+            onClick={fill}
+          >
+            {ready === 8 ? "样例已齐" : pending ? "当前页制作中…" : "补齐样例"}
+          </Button>
+        )}
         <Button
-          disabled={
-            busy ||
-            !loaded ||
-            selected.length !== 8 ||
-            selected.some((id) => !id) ||
-            !style.rules
-          }
-          loading={busy}
-          onClick={() => act(true)}
+          variant={ready === 8 ? "primary" : "secondary"}
+          disabled={unavailable || running || ready !== 8}
+          loading={publishing}
+          onClick={() => publish(true)}
         >
-          {style.publishedAt ? "更新已发布风格与样例" : "确认发布给所有客户"}
+          {style.publishedAt ? "一键更新发布" : "一键发布"}
         </Button>
         {style.publishedAt && (
-          <Button disabled={busy} onClick={() => act(false)}>
+          <Button
+            variant="ghost"
+            disabled={unavailable || running}
+            onClick={() => publish(false)}
+          >
             从客户风格库下架
           </Button>
         )}
       </div>
-    </details>
+      <p className="detail-help">
+        {ready < 8
+          ? "按统一讲稿逐页补齐，只生成缺页，已有样例保留。每张成功出图使用 1 张图片额度。"
+          : "已自动选好每种页面的可用样例，也可以展开下方更换版本。"}
+        生成后不会自动发布。
+      </p>
+      {(running || pending) && (
+        <p className="detail-help">
+          离开或刷新会暂停后续提交；当前页继续保存，回来可接着补齐。
+        </p>
+      )}
+      {disabled && (
+        <p className="detail-help">
+          请先完成当前风格编辑或提炼，再补齐样例与发布。
+        </p>
+      )}
+      {message && (
+        <p className="style-publish-message" role="status">
+          {message}
+        </p>
+      )}
+      {error && (
+        <p className="error-text" role="alert">
+          {error}
+        </p>
+      )}
+      {loadError && (
+        <p className="error-text" role="alert">
+          {loadError}
+        </p>
+      )}
+      {!samples && loadError && (
+        <Button
+          onClick={() => {
+            setLoadError("");
+            read().catch((e) => setLoadError(e.message));
+          }}
+        >
+          重新读取样例
+        </Button>
+      )}
+      {samples && (
+        <details
+          open={showPages}
+          onToggle={(event) => setShowPages(event.currentTarget.open)}
+          className="style-publish-versions"
+        >
+          <summary>查看八页样例与版本</summary>
+          <div className="style-publish-examples">
+            {STYLE_SAMPLE_PAGES.map((page, index) => {
+              const choices = trials.filter(
+                (trial) =>
+                  trial.purpose === "standard-sample" &&
+                  trial.samplePageId === page.id &&
+                  trial.sampleVersion === STYLE_SAMPLE_VERSION &&
+                  trial.baseFingerprint === fingerprint &&
+                  trial.status === "completed" &&
+                  trial.image,
+              );
+              const chosen = selected[index];
+              const making = trials.some(
+                (trial) =>
+                  trial.samplePageId === page.id && active(trial.status),
+              );
+              return (
+                <label key={page.id}>
+                  <span>
+                    {page.number} {page.type}
+                  </span>
+                  {chosen?.image ? (
+                    <a
+                      href={asset(chosen.image)}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label={`查看${page.type}大图`}
+                    >
+                      <img
+                        src={asset(chosen.image)}
+                        alt={`${page.type}：${page.title}`}
+                      />
+                    </a>
+                  ) : (
+                    <div className="style-publish-missing">
+                      {making ? "正在制作…" : "待补齐"}
+                    </div>
+                  )}
+                  <select
+                    aria-label={`选择${page.type}样例`}
+                    value={chosen?.id || ""}
+                    disabled={publishing || running || !choices.length}
+                    onChange={(event) =>
+                      setPreferred(
+                        selected.map((trial, i) =>
+                          i === index ? event.target.value : trial?.id || "",
+                        ),
+                      )
+                    }
+                  >
+                    {!choices.length && (
+                      <option value="">
+                        {making ? "正在制作" : "尚无样例"}
+                      </option>
+                    )}
+                    {choices.map((trial, i) => (
+                      <option key={trial.id} value={trial.id}>
+                        {page.type} · 版本 {choices.length - i}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              );
+            })}
+          </div>
+        </details>
+      )}
+    </section>
   );
 }

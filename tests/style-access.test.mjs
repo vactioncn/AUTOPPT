@@ -485,10 +485,9 @@ test(
         await page
           .getByRole("button", { name: "高级设置", exact: true })
           .click();
-        await page
-          .getByText("已发布 · 管理客户样例", { exact: true })
-          .waitFor();
-        await page.getByText("已发布 · 管理客户样例", { exact: true }).click();
+        const publishing = page.getByRole("region", { name: "样例与发布" });
+        await publishing.getByText("已发布", { exact: true }).waitFor();
+        await publishing.getByText("查看八页样例与版本", { exact: true }).click();
         assert.equal(
           await page
             .getByRole("combobox", { name: "选择封面页样例" })
@@ -496,15 +495,15 @@ test(
           trialIds[0],
         );
         await page
-          .getByRole("button", { name: "更新已发布风格与样例" })
+          .getByRole("button", { name: "一键更新发布" })
           .click();
-        await page
-          .getByText("风格与所选样例已发布，客户刷新风格库即可看到。", {
+        await publishing
+          .getByText("风格与八页样例已发布，客户刷新风格库即可看到。", {
             exact: true,
           })
           .waitFor();
         await page.getByRole("button", { name: "从客户风格库下架" }).click();
-        await page
+        await publishing
           .getByText("已从客户风格库下架，已有项目仍可继续使用。", {
             exact: true,
           })

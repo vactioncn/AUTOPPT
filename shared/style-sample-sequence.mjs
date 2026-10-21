@@ -15,6 +15,19 @@ export function completedSample(trials, pageId, fingerprint) {
   );
 }
 
+// Trials arrive newest first. Keep an explicit valid choice; otherwise use the
+// latest completed version of each page, never a cover or an older style.
+export function sampleSelection(trials, fingerprint, preferredIds = []) {
+  return STYLE_SAMPLE_PAGES.map(
+    (page) =>
+      completedSample(
+        trials.filter((trial) => preferredIds.includes(trial.id)),
+        page.id,
+        fingerprint,
+      ) || completedSample(trials, page.id, fingerprint),
+  );
+}
+
 // Each page gets a separate request. A saved, completed image is the only
 // condition that permits advancing; errors never trigger automatic resubmission.
 export async function runSampleSequence({
@@ -34,7 +47,15 @@ export async function runSampleSequence({
       throw new Error("正式风格已改变，已暂停。请查看新风格后重新开始制作。");
     if (completedSample(state.trials, page.id, fingerprint)) continue;
     onPage(page);
-    const trial = await create(page.id, fingerprint);
+    const trial =
+      state.trials.find(
+        (item) =>
+          item.purpose === "standard-sample" &&
+          item.samplePageId === page.id &&
+          item.sampleVersion === STYLE_SAMPLE_VERSION &&
+          item.baseFingerprint === fingerprint &&
+          ["queued", "running"].includes(item.status),
+      ) || (await create(page.id, fingerprint));
     onTrial(trial);
     for (;;) {
       if (stopped()) return;

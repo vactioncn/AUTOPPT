@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { runSampleSequence } from "../shared/style-sample-sequence.mjs";
+import {
+  runSampleSequence,
+  sampleSelection,
+} from "../shared/style-sample-sequence.mjs";
 import {
   STYLE_SAMPLE_PAGES,
   STYLE_SAMPLE_VERSION,
@@ -136,4 +139,71 @@ test("incomplete or old-style images never count as a finished current suite", a
   });
   await runSampleSequence(f.options);
   assert.equal(f.calls.length, 8);
+});
+
+test("filling a partial suite preserves finished pages and creates only missing pages", async () => {
+  const f = fixture();
+  for (const pageId of ["cover", "framework", "action"]) {
+    await f.options.create(pageId, "current");
+    await f.options.wait();
+  }
+  const saved = structuredClone(f.state.trials);
+  const priorCalls = f.calls.length;
+  await runSampleSequence(f.options);
+  assert.deepEqual(f.calls.slice(priorCalls), [
+    "point",
+    "data",
+    "process",
+    "comparison",
+    "story",
+  ]);
+  for (const trial of saved)
+    assert.deepEqual(
+      f.state.trials.find((t) => t.samplePageId === trial.samplePageId),
+      trial,
+    );
+});
+
+test("resume waits for an already accepted page without submitting it again", async () => {
+  const f = fixture();
+  await f.options.create("cover", "current");
+  await runSampleSequence(f.options);
+  assert.equal(f.calls.filter((id) => id === "cover").length, 1);
+  assert.equal(f.calls.length, 8);
+  assert.equal(f.maximum(), 1);
+});
+
+test("one-click publication selects complete current pages in order and respects valid manual choices", () => {
+  const base = {
+    purpose: "standard-sample",
+    sampleVersion: STYLE_SAMPLE_VERSION,
+    baseFingerprint: "current",
+    status: "completed",
+    image: "saved.png",
+  };
+  const trials = STYLE_SAMPLE_PAGES.map((page) => ({
+    ...base,
+    id: page.id,
+    samplePageId: page.id,
+  }));
+  const older = { ...trials[0], id: "older-cover" };
+  trials.push(older);
+  trials.unshift(
+    { ...trials[0], id: "old-style", baseFingerprint: "old" },
+    { ...trials[1], id: "failed", status: "failed" },
+    { ...trials[2], id: "no-image", image: null },
+  );
+  assert.deepEqual(
+    sampleSelection(trials, "current").map((t) => t.id),
+    STYLE_SAMPLE_PAGES.map((p) => p.id),
+  );
+  const chosen = sampleSelection(trials, "current", [
+    "old-style",
+    "failed",
+    "no-image",
+    "older-cover",
+  ]);
+  assert.equal(chosen[0].id, "older-cover");
+  assert.equal(chosen.filter(Boolean).length, 8);
+  assert(sampleSelection(trials, "different").every((t) => t === undefined));
 });

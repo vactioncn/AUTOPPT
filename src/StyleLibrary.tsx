@@ -759,11 +759,13 @@ function StyleDetail({
       }
     }),
     [feedback, setFeedback] = useState<string>(refinementDraft.feedback || ""),
-    [busy, setBusy] = useState(false),
+    [actionBusy, setBusy] = useState(false),
+    [samplesBusy, setSamplesBusy] = useState(false),
     [error, setError] = useState(""),
     [editing, setEditing] = useState(false),
     [editBase, setEditBase] = useState(style.versionToken),
     [confirmDelete, setConfirmDelete] = useState(false);
+  const busy = actionBusy || samplesBusy;
   const [detailView, setDetailView] = useState<
     "prompt" | "analysis" | "versions"
   >("prompt");
@@ -971,6 +973,8 @@ function StyleDetail({
                 style={style}
                 refresh={refresh}
                 notify={notify}
+                disabled={actionBusy || analyzing || editing}
+                onBusy={setSamplesBusy}
               />
             )}
             <section className="style-overview" aria-label="风格概览">

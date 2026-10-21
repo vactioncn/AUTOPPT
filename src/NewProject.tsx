@@ -45,6 +45,7 @@ export function NewProject({
   onDraftChange,
   createProject,
   retainedManuscript = false,
+  managedStyles = false,
 }: {
   styles: Style[];
   initialStyle: string;
@@ -59,6 +60,7 @@ export function NewProject({
     designOptions: DesignOptions;
   }) => Promise<Project>;
   retainedManuscript?: boolean;
+  managedStyles?: boolean;
 }) {
   const [step, setStep] = useState(1);
   const [title, setTitle] = useState(initialDraft?.title || "");
@@ -93,7 +95,9 @@ export function NewProject({
     !!initialDraft?.customAudience.brief,
   );
   const generating = ["waiting", "generating"].includes(draftState.status);
-  const available = styles.filter((s) => s.rules && !s.deletedAt);
+  const available = styles.filter(
+    (s) => (s.canUse ?? !!s.rules) && !s.deletedAt,
+  );
   const selectedStyle = available.find((s) => s.id === styleId);
   const filtered = available.filter((s) =>
     s.name.toLowerCase().includes(query.trim().toLowerCase()),
@@ -289,7 +293,11 @@ export function NewProject({
               </>
             ) : (
               <div className="small-notice">
-                <p>风格库还没有可用风格。保存一个风格后，即可回来继续。</p>
+                <p>
+                  {managedStyles
+                    ? "风格库还没有可用风格，请联系管理员完善后继续。"
+                    : "风格库还没有可用风格。保存一个风格后，即可回来继续。"}
+                </p>
               </div>
             )}
             <Button
@@ -306,7 +314,11 @@ export function NewProject({
                 })
               }
             >
-              {available.length ? "去风格库添加" : "前往风格库创建"}
+              {managedStyles
+                ? "浏览风格库"
+                : available.length
+                  ? "去风格库添加"
+                  : "前往风格库创建"}
               <ArrowRight size={15} />
             </Button>
           </div>

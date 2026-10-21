@@ -237,7 +237,7 @@ test(
       .getByRole("button", { name: "复制完整提示词", exact: true })
       .click();
     const copied = await page.evaluate(() => navigator.clipboard.readText());
-    assert.match(copied, /一、先理解内容，再设计/);
+    assert.equal(copied, await page.locator(".rules-text").textContent());
     assert(!copied.includes("【每页生成底线】"));
     assert.match(copied, /真实数据/);
     await page.getByRole("tab", { name: "分析记录", exact: true }).click();

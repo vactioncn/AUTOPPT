@@ -1,3 +1,14 @@
+import {
+  syncStyleCatalog,
+  withdrawStyle,
+  catalogStatus,
+  registerStyleCatalog,
+} from "./style-catalog.mjs";
+import {
+  canManageStyles,
+  customerStyle,
+  styleAccess,
+} from "./style-access.mjs";
 import { createHash } from "node:crypto";
 import { presentationProgress } from "../shared/first-picture.mjs";
 import {
@@ -12,7 +23,11 @@ import {
   extractPalette,
 } from "./design-options.mjs";
 import { validateScene, renderSceneSvg } from "../shared/slides.mjs";
-import { DEFAULT_STYLE_ID, defaultStyleId } from "../shared/styles.mjs";
+import {
+  DEFAULT_STYLE_ID,
+  defaultStyleId,
+  offeredStyles,
+} from "../shared/styles.mjs";
 import { productionTargetIds } from "../shared/production.mjs";
 import express from "express";
 import { createBuildInfo, readBuildInfo } from "./build-info.mjs";
@@ -161,6 +176,11 @@ app.use("/api", (req, res, next) => {
     return res.status(415).json({ error: "请使用工作台提交操作。" });
   next();
 });
+app.use(["/api/styles", "/api/style-imports"], styleAccess);
+app.use("/api", (req, res, next) => {
+  syncStyleCatalog();
+  next();
+});
 app.use(express.json({ limit: "4mb" }));
 app.use(usageMiddleware);
 // Explicit download variants leave saved originals and asset URLs untouched.
@@ -276,7 +296,11 @@ app.get("/api/bootstrap", (req, res) => {
       }))
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
     styles: all("style")
-      .map(withStyleVersion)
+      .map((style) =>
+        canManageStyles(req)
+          ? catalogStatus(withStyleVersion(style))
+          : customerStyle(style),
+      )
       .sort(
         (a, b) =>
           Number(b.id === DEFAULT_STYLE_ID) - Number(a.id === DEFAULT_STYLE_ID),
@@ -319,7 +343,9 @@ app.post("/api/projects", (req, res) => {
     throw new Error("请输入 1–100 字的演讲主题。");
   const styleId =
     req.body.styleId === undefined
-      ? defaultStyleId(all("style"))
+      ? defaultStyleId(
+          offeredStyles(all("style"), !!process.env.AUTOPPT_WORKER_TOKEN),
+        )
       : req.body.styleId;
   const draft = req.body.draft ?? "";
   if (typeof draft !== "string" || draft.length > 200000)
@@ -345,6 +371,15 @@ app.post("/api/projects", (req, res) => {
     return res.json(existing);
   }
   styleReady(styleId);
+  if (
+    !canManageStyles(req) &&
+    !offeredStyles(all("style"), true).some((s) => s.id === styleId)
+  )
+    return res
+      .status(400)
+      .json({
+        error: "这个风格已不在当前风格库中，请重新选择。已有项目仍可继续使用。",
+      });
   const p = put("project", {
     id: id(),
     title,
@@ -955,20 +990,28 @@ app.get("/api/jobs", (req, res) =>
       .map(safeJob),
   ),
 );
-app.post("/api/jobs/:id/retry", (req, res) =>
-  res.json(
-    safeJob(
-      retry(req.params.id, {
-        acknowledgeUncertain: req.body?.acknowledgeUncertain === true,
-      }),
+app.post(
+  "/api/jobs/:id/retry",
+  (req, res, next) => {
+    if (["style", "trial"].includes(get("job", req.params.id)?.type))
+      return styleAccess(req, res, next);
+    next();
+  },
+  (req, res) =>
+    res.json(
+      safeJob(
+        retry(req.params.id, {
+          acknowledgeUncertain: req.body?.acknowledgeUncertain === true,
+        }),
+      ),
     ),
-  ),
 );
 app.post("/api/jobs/:id/cancel", (req, res) =>
   res.json(safeJob(cancel(req.params.id))),
 );
 registerTrials(app, { enqueue });
 registerStyleVersions(app);
+registerStyleCatalog(app);
 registerStyleImports(app, { dataDir, assetPath, put, id, now, enqueue });
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -1118,6 +1161,7 @@ app.delete("/api/styles/:id", (req, res) => {
       { status: 409 },
     );
   // Keep a tombstone and reference assets for existing projects, image history and in-flight snapshots.
+  withdrawStyle(s.id);
   s.deletedAt ||= now();
   put("style", s);
   res.json({ deleted: true });

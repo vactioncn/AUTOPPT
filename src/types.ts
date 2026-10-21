@@ -282,6 +282,15 @@ export type GeneratedStyle = {
   rules: string;
 };
 export type Style = {
+  canUse?: boolean;
+  catalogSourceId?: string;
+  catalogHidden?: boolean;
+  projectOnly?: boolean;
+  replacesStyleId?: string;
+  catalogAvailable?: boolean;
+  publishedAt?: string | null;
+  publishedTrialIds?: string[];
+  examples?: { id: string; title: string; expression: string; image: string }[];
   autoName?: boolean;
   analysisContext?: StyleContext;
   cover?: string;

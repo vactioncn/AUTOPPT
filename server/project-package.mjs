@@ -550,6 +550,13 @@ export async function importProjectPackage(buffer) {
         delete v.deletedAt;
       }
       if (r.kind === "style") {
+        // Imported rules are project dependencies, not customer-created library entries.
+        v.projectOnly = !!process.env.AUTOPPT_WORKER_TOKEN;
+        delete v.catalogSourceId;
+        delete v.catalogHidden;
+        delete v.replacesStyleId;
+        delete v.catalogAvailable;
+        delete v.publishedAt;
         v.builtin = false;
         v.name += "（项目导入）";
         delete v.deletedAt;

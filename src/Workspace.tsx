@@ -1805,7 +1805,7 @@ export function Workspace({
                   </option>
                 )}
                 {offeredStyles(styles, hosted, project.styleId)
-                  .filter((s) => !!s.rules && !s.deletedAt)
+                  .filter((s) => !!(s.canUse ?? !!s.rules) && !s.deletedAt)
                   .map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.name}

@@ -491,7 +491,8 @@ test(
       assert(!JSON.stringify(boot).includes(dir));
       const style = boot.styles.find((s) => s.name === "克制儿童摄影杂志风");
       assert(style);
-      assert(style.rules);
+      assert.equal(style.rules, "");
+      assert.equal(style.canUse, true);
       assert(!JSON.stringify(boot).includes("test-provider-secret"));
       const p = (
         await request(
@@ -585,15 +586,45 @@ test(
         "PUT",
       );
       await request("/internal/reserve", { id: randomUUID() }, first, 403);
-      const trial = async () =>
-        (
+      // Customers generate project pages; style trials are now administrator-only.
+      await request(
+        `/api/styles/${style.id}/trials`,
+        { notes: "无权限试做", rules: "不能绕过权限" },
+        first,
+        403,
+      );
+      const trial = async (cookie = first) => {
+        const project = (
           await request(
-            `/api/styles/${style.id}/trials`,
-            { notes: "我们专注做好这一件事。", rules: style.rules },
-            first,
+            "/api/projects",
+            { title: "额度验证页面", styleId: style.id },
+            cookie,
+            201,
+          )
+        ).data;
+        const inserted = (
+          await request(
+            `/api/projects/${project.id}/slides`,
+            {
+              afterSlideId: null,
+              requestId: randomUUID(),
+              notes: "我们专注做好这一件事。",
+              generate: false,
+            },
+            cookie,
+            201,
+          )
+        ).data;
+        const job = (
+          await request(
+            `/api/projects/${project.id}/render`,
+            { slideIds: [inserted.slideId] },
+            cookie,
             202,
           )
         ).data;
+        return { projectId: project.id, jobId: job.id };
+      };
       const poll = async (id) => {
         for (let i = 0; i < 150; i++) {
           const jobs = (await request("/api/jobs", undefined, first)).data;
@@ -606,10 +637,9 @@ test(
       let tr = await trial();
       let job = await poll(tr.jobId);
       assert.equal(job.status, "completed", job.error);
-      let trials = (
-        await request(`/api/styles/${style.id}/trials`, undefined, first)
-      ).data.trials;
-      const image = trials.find((x) => x.id === tr.id).image;
+      const image = (
+        await request(`/api/projects/${tr.projectId}`, undefined, first)
+      ).data.slides[0].image;
       assert.match(image, /\.jpg$/);
       const ownImage = await fetch(origin + "/assets/" + image, {
         headers: { Cookie: first },
@@ -622,11 +652,16 @@ test(
       assert.equal(account.held, 0);
       assert.equal(imageCount, 1);
       assert(textCount > 0);
-      await request(`/api/styles/${style.id}/trials/${tr.id}/apply`, {}, first);
+      await request(
+        `/api/styles/${style.id}/trials/missing/apply`,
+        {},
+        first,
+        403,
+      );
       assert.equal(
         (await request("/api/account", undefined, first)).data.user.balance,
         99,
-        "restoring/applying does not charge",
+        "blocked style editing does not charge",
       );
       failStatus = 400;
       tr = await trial();
@@ -675,14 +710,7 @@ test(
       hold = true;
       const before = imageCount;
       const one = await trial();
-      const two = (
-        await request(
-          `/api/styles/${style.id}/trials`,
-          { notes: "我们专注做好这一件事。", rules: style.rules },
-          second,
-          202,
-        )
-      ).data;
+      const two = await trial(second);
       for (let i = 0; i < 100 && !gates.length; i++)
         await new Promise((r) => setTimeout(r, 30));
       assert.equal(imageCount, before + 1);

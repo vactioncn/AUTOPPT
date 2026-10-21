@@ -62,7 +62,7 @@ export function onboardingReadiness(
     ? account?.modelReady === true
     : !!data.settings.image.hasKey;
   const styleReady = data.styles.some(
-    (style) => !style.deletedAt && !!style.rules?.trim(),
+    (style) => !style.deletedAt && (style.canUse ?? !!style.rules?.trim()),
   );
   return {
     textReady,

@@ -130,7 +130,7 @@ export default function App() {
     }
     if (!restoreDraft) setCreationDraft(null);
     setStyleRepair(false);
-    const available = offered.filter((s) => s.rules);
+    const available = offered.filter((s) => s.canUse ?? !!s.rules);
     setInitialStyle(
       available.some((s) => s.id === styleId)
         ? styleId
@@ -425,7 +425,7 @@ export default function App() {
             />
           ) : contentRoute === "styles" ? (
             <StyleLibrary
-              curated={account.hosted}
+              canManage={!account.hosted || account.user?.role === "admin"}
               promptRepair={styleRepair}
               onReturn={
                 creationDraft
@@ -433,7 +433,11 @@ export default function App() {
                   : undefined
               }
               urlImportAvailable={!!data.features?.styleUrlImport}
-              styles={offered}
+              styles={
+                !account.hosted || account.user?.role === "admin"
+                  ? data.styles
+                  : offered
+              }
               jobs={data.jobs}
               refresh={refresh}
               notify={notify}

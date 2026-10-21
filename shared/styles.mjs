@@ -22,7 +22,18 @@ const builtinIds = new Set([
 export function offeredStyles(styles, hosted = false, currentStyleId = "") {
   const available = styles.filter((s) => !s.deletedAt);
   if (!hosted) return available;
+  const replaced = new Set(
+    available
+      .filter((s) => s.catalogSourceId && !s.catalogHidden)
+      .map((s) => s.replacesStyleId)
+      .filter(Boolean),
+  );
   return available
+    .filter(
+      (s) =>
+        s.id === currentStyleId ||
+        (!s.catalogHidden && !s.projectOnly && !replaced.has(s.id)),
+    )
     .filter(
       (s) =>
         HOSTED_BUILTIN_STYLE_IDS.includes(s.id) ||
@@ -46,7 +57,9 @@ export const BUILTIN_STYLE_COVERS = {
 
 // Only new projects use this preference; saved project selections stay intact.
 export function defaultStyleId(styles) {
-  const available = styles.filter((s) => !s.deletedAt && s.rules?.trim());
+  const available = styles.filter(
+    (s) => !s.deletedAt && (s.canUse ?? !!s.rules?.trim()),
+  );
   return (
     available.find((s) => s.id === DEFAULT_STYLE_ID)?.id ||
     available[0]?.id ||

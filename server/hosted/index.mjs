@@ -213,6 +213,7 @@ async function worker(userId) {
       PORT: "0",
       AUTOPPT_DATA_DIR: userDir(userId),
       AUTOPPT_WORKER_TOKEN: token,
+      AUTOPPT_STYLE_CATALOG_DIR: path.join(dir, "style-catalog"),
       AUTOPPT_GATEWAY: gatewayBase,
       AUTOPPT_TEXT_MODEL: providers.text.model,
       AUTOPPT_IMAGE_MODEL: providers.image.model,
@@ -646,6 +647,7 @@ app.use(["/api", "/assets"], authenticated, async (req, res) => {
   // Only the gateway supplies readiness. Keep the body streaming and let the
   // authenticated worker resolve accepted request IDs before gating new work.
   const headers = {
+    "x-autoppt-role": req.user.role,
     "x-autoppt-worker": w.token,
     "x-autoppt-model-ready": modelsReady() ? "1" : "0",
   };

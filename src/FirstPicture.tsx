@@ -27,7 +27,9 @@ export function FirstPicture({
 }) {
   const account = useAccount();
   const key = `autoppt-first-picture:v1:${account.user!.id}`;
-  const available = styles.filter((s) => s.rules && !s.deletedAt);
+  const available = styles.filter(
+    (s) => (s.canUse ?? !!s.rules) && !s.deletedAt,
+  );
   const [draft, setDraft] = useState<Draft>(() => {
     let saved: Partial<Draft> = {};
     try {
@@ -226,7 +228,7 @@ export function FirstPicture({
           </section>
           <section className="first-picture-styles" aria-label="选择画面风格">
             <h2>选一个喜欢的风格</h2>
-            <p>四款精品，选中即可开始。</p>
+            <p>从风格库选择，选中即可开始。</p>
             <div className="first-picture-style-grid">
               {featured.map((style) => (
                 <button
@@ -255,8 +257,8 @@ export function FirstPicture({
                 onToggle={(e) => setPersonal(e.currentTarget.open)}
                 className="first-picture-personal"
               >
-                <summary>使用我的风格</summary>
-                <Field label="我的风格">
+                <summary>更多风格</summary>
+                <Field label="更多风格">
                   <select
                     value={
                       own.some((s) => s.id === draft.styleId)

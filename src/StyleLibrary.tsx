@@ -25,13 +25,12 @@ import { StyleVersions } from "./StyleVersions";
 import { StyleAnalysis } from "./StyleAnalysis";
 import { StyleContextFields } from "./StyleContextFields";
 import { StylePromptResults } from "./StylePromptResults";
-import {
-  DEFAULT_STYLE_ID,
-  HOSTED_BUILTIN_STYLE_IDS,
-} from "../shared/styles.mjs";
+import { DEFAULT_STYLE_ID } from "../shared/styles.mjs";
+import { StylePublishing } from "./StylePublishing";
+import { StyleGallery, styleExamples, styleDescription } from "./StyleGallery";
 import "./style-detail.css";
 export function StyleLibrary({
-  curated = false,
+  canManage = false,
   promptRepair = false,
   onReturn,
   urlImportAvailable,
@@ -41,7 +40,7 @@ export function StyleLibrary({
   notify,
   onUse,
 }: {
-  curated?: boolean;
+  canManage?: boolean;
   promptRepair?: boolean;
   onReturn?: (styleId?: string) => void;
   urlImportAvailable: boolean;
@@ -52,32 +51,25 @@ export function StyleLibrary({
   onUse: (id: string) => void;
 }) {
   const [deleting, setDeleting] = useState<Style | null>(null);
-  const [collection, setCollection] = useState<"featured" | "personal">(
-    "featured",
-  );
+  const [detailExample, setDetailExample] = useState<string>();
+  const openDetail = (id: string, exampleId?: string) => {
+    setDetailExample(exampleId);
+    setDetail(id);
+  };
   const [repairedStyle, setRepairedStyle] = useState<string>();
-  const [create, setCreate] = useState(promptRepair),
+  const [create, setCreate] = useState(canManage && promptRepair),
     [studio, setStudio] = useState<string | null>(null),
     [detail, setDetail] = useState<string | null>(null);
   useEffect(() => {
-    setCreate(promptRepair);
+    setCreate(canManage && promptRepair);
     if (!promptRepair) setRepairedStyle(undefined);
-  }, [promptRepair]);
-  const visibleStyles = styles.filter((s) => !s.deletedAt);
-  const featured = visibleStyles.filter((s) =>
-    HOSTED_BUILTIN_STYLE_IDS.includes(s.id),
+  }, [promptRepair, canManage]);
+  const visibleStyles = styles.filter(
+    (s) => !s.deletedAt && !(canManage && s.catalogSourceId),
   );
-  const personal = visibleStyles.filter(
-    (s) => !HOSTED_BUILTIN_STYLE_IDS.includes(s.id),
-  );
-  const shownStyles = curated
-    ? collection === "featured"
-      ? featured
-      : personal
-    : visibleStyles;
   const selected = visibleStyles.find((s) => s.id === detail);
   const studioStyle = visibleStyles.find((s) => s.id === studio);
-  if (studioStyle)
+  if (canManage && studioStyle)
     return (
       <StyleStudio
         key={studioStyle.id}
@@ -92,7 +84,7 @@ export function StyleLibrary({
       {onReturn && (
         <Button onClick={() => onReturn(repairedStyle)}>返回新建演讲</Button>
       )}
-      {deleting && (
+      {canManage && deleting && (
         <DeleteItem
           kind="style"
           id={deleting.id}
@@ -103,19 +95,23 @@ export function StyleLibrary({
       )}
       <div className="page-heading">
         <div>
-          <h1>{curated ? "选一种喜欢的风格。" : "把喜欢的，变成你的风格。"}</h1>
+          <h1>
+            {canManage ? "把喜欢的，变成你的风格。" : "选一种喜欢的风格。"}
+          </h1>
           <p>
-            {curated
-              ? "四款精品风格，直接用于你的演讲。也可以创建自己的风格。"
+            {!canManage
+              ? "看看同一种风格的不同表达，找到适合你这场演讲的画面。"
               : "从参考图建立视觉风格，再用于你的不同演讲项目。"}
           </p>
         </div>
-        <Button variant="primary" onClick={() => setCreate(true)}>
-          <Plus size={18} />
-          创建风格
-        </Button>
+        {canManage && (
+          <Button variant="primary" onClick={() => setCreate(true)}>
+            <Plus size={18} />
+            创建风格
+          </Button>
+        )}
       </div>
-      {!curated && (
+      {canManage && (
         <div className="styles-explainer">
           <div className="reference-mini">
             <div />
@@ -139,64 +135,45 @@ export function StyleLibrary({
         </div>
       )}
       <div className="section-heading">
-        {curated ? (
-          <div className="segmented" role="group" aria-label="风格分类">
-            <button
-              className={collection === "featured" ? "active" : ""}
-              aria-pressed={collection === "featured"}
-              onClick={() => setCollection("featured")}
-            >
-              精品风格 <span>{featured.length}</span>
-            </button>
-            <button
-              className={collection === "personal" ? "active" : ""}
-              aria-pressed={collection === "personal"}
-              onClick={() => setCollection("personal")}
-            >
-              我的风格 <span>{personal.length}</span>
-            </button>
-          </div>
-        ) : (
-          <div>
-            <h2>
-              全部风格{" "}
-              <span>{String(visibleStyles.length).padStart(2, "0")}</span>
-            </h2>
-          </div>
-        )}
+        <h2>
+          风格库 <span>{String(visibleStyles.length).padStart(2, "0")}</span>
+        </h2>
         <span className="muted">跨项目使用，持续积累</span>
       </div>
-      {!shownStyles.length && (
+      {!visibleStyles.length && (
         <section className="onboarding-card" aria-label="风格库空状态">
-          <h2>
-            {curated && collection === "personal"
-              ? "你的专属风格，从这里开始"
-              : "从第一个风格开始"}
-          </h2>
+          <h2>{canManage ? "从第一个风格开始" : "风格库正在准备中"}</h2>
           <p>
-            打开创建表单，填写风格提示词并保存即可使用；无需先调用模型。也可以按需上传参考图。
+            {canManage
+              ? "填写风格提示词或上传参考图，建立一个新风格。"
+              : "管理员发布风格后，就可以在这里查看样例并开始制作。"}
           </p>
-          <Button variant="primary" onClick={() => setCreate(true)}>
-            创建第一个风格
-          </Button>
+          {canManage && (
+            <Button variant="primary" onClick={() => setCreate(true)}>
+              创建第一个风格
+            </Button>
+          )}
         </section>
       )}
       <div
-        className={`style-library-grid${curated && collection === "featured" ? " curated-style-grid" : ""}`}
+        className={`style-library-grid${!canManage ? " customer-style-grid" : ""}`}
       >
-        {shownStyles.map((s) => (
+        {visibleStyles.map((s) => (
           <article className="style-card" key={s.id}>
-            <button
-              className="card-delete"
-              aria-label={`删除风格：${s.name}`}
-              onClick={() => setDeleting(s)}
-            >
-              <Trash size={16} />
-              删除
-            </button>
+            {canManage && (
+              <button
+                className="card-delete"
+                aria-label={`删除风格：${s.name}`}
+                onClick={() => setDeleting(s)}
+              >
+                <Trash size={16} />
+                删除
+              </button>
+            )}
             <button
               className="style-cover-button"
-              onClick={() => setDetail(s.id)}
+              aria-label={`浏览风格封面：${s.name}`}
+              onClick={() => openDetail(s.id)}
             >
               <StylePreview style={s} />
             </button>
@@ -204,16 +181,37 @@ export function StyleLibrary({
               <div>
                 <h3>{s.name}</h3>
                 <span>
-                  {s.id === DEFAULT_STYLE_ID
-                    ? "默认风格"
-                    : s.builtin
-                      ? "内置起始风格"
-                      : s.refs.length
-                        ? `${s.refs.length} 张参考图`
-                        : "提示词风格"}
+                  {!canManage
+                    ? `${styleExamples(s).length} 个效果示例`
+                    : s.id === DEFAULT_STYLE_ID
+                      ? "默认风格"
+                      : s.builtin
+                        ? "内置起始风格"
+                        : s.refs.length
+                          ? `${s.refs.length} 张参考图`
+                          : "提示词风格"}
                 </span>
               </div>
-              <p>{s.description}</p>
+              <p>{canManage ? s.description : styleDescription(s)}</p>
+              {!canManage && (
+                <div className="style-card-examples">
+                  {styleExamples(s)
+                    .slice(0, 3)
+                    .map((example) => (
+                      <button
+                        key={example.id}
+                        onClick={() => openDetail(s.id, example.id)}
+                        aria-label={`查看${s.name}：${example.title}`}
+                      >
+                        <img
+                          src={example.thumbnail || example.src}
+                          alt={example.title}
+                          loading="lazy"
+                        />
+                      </button>
+                    ))}
+                </div>
+              )}
               <div className="style-card-bottom">
                 <div className="swatches">
                   {s.colors.map((c, i) => (
@@ -228,7 +226,7 @@ export function StyleLibrary({
                 ) : s.status === "error" ? (
                   <Status tone="warm">提炼未完成</Status>
                 ) : (
-                  <Button variant="ghost" onClick={() => setDetail(s.id)}>
+                  <Button variant="ghost" onClick={() => openDetail(s.id)}>
                     查看风格
                     <ArrowRight size={15} />
                   </Button>
@@ -238,7 +236,7 @@ export function StyleLibrary({
           </article>
         ))}
       </div>
-      {create && (
+      {canManage && create && (
         <CreateStyle
           initialSource={
             promptRepair || !styles.some((s) => !s.deletedAt && s.rules?.trim())
@@ -250,7 +248,6 @@ export function StyleLibrary({
           onDone={async (s) => {
             setCreate(false);
             await refresh();
-            if (curated) setCollection("personal");
             if (promptRepair && onReturn) setRepairedStyle(s.id);
             else if (promptRepair) onUse(s.id);
             else setDetail(s.id);
@@ -262,7 +259,19 @@ export function StyleLibrary({
           }}
         />
       )}
-      {selected && (
+      {selected && !canManage && (
+        <StyleGallery
+          key={selected.id}
+          initialExampleId={detailExample}
+          style={selected}
+          onClose={() => setDetail(null)}
+          onUse={() => {
+            setDetail(null);
+            onUse(selected.id);
+          }}
+        />
+      )}
+      {selected && canManage && (
         <StyleDetail
           key={selected.id}
           style={selected}
@@ -958,6 +967,13 @@ function StyleDetail({
             aria-label="风格概览与高级设置"
             tabIndex={0}
           >
+            {style.catalogAvailable && (
+              <StylePublishing
+                style={style}
+                refresh={refresh}
+                notify={notify}
+              />
+            )}
             <section className="style-overview" aria-label="风格概览">
               <h3>{style.rules ? "已保存到风格库" : "参考图已保存"}</h3>
               <p>

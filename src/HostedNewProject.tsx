@@ -57,7 +57,9 @@ export function HostedNewProject({
           : example
             ? exampleManuscript
             : "";
-    const available = styles.filter((s) => s.rules && !s.deletedAt);
+    const available = styles.filter(
+      (s) => (s.canUse ?? !!s.rules) && !s.deletedAt,
+    );
     const preferredStyles =
       saved.routeStyle === (initialStyle || null)
         ? [saved.draft?.styleId, initialStyle, legacy.styleId]
@@ -123,6 +125,7 @@ export function HostedNewProject({
   };
   return (
     <NewProject
+      managedStyles
       styles={styles}
       initialStyle={initial.draft.styleId}
       initialDraft={initial.draft}

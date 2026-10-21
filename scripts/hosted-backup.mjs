@@ -35,6 +35,8 @@ function inspect(dir) {
     const file = path.join(dir, "users", user.name, "autoppt.sqlite");
     if (existsSync(file)) databases.push(file);
   }
+  const catalog = path.join(dir, "style-catalog", "catalog.sqlite");
+  if (existsSync(catalog)) databases.push(catalog);
   for (const file of databases) {
     // SQLite WAL readers may need a writable shared-memory file. Inspect a
     // complete temporary snapshot so a read-only source volume stays untouched.
@@ -43,7 +45,8 @@ function inspect(dir) {
     try {
       const copied = path.join(snapshot, "database.sqlite");
       for (const suffix of ["", "-wal", "-shm"]) {
-        if (existsSync(file + suffix)) copyFileSync(file + suffix, copied + suffix);
+        if (existsSync(file + suffix))
+          copyFileSync(file + suffix, copied + suffix);
       }
       db = new DatabaseSync(copied, { readOnly: true });
       if (

@@ -11,6 +11,7 @@ import { Button, Field } from "./components";
 import { clearWorkspacePreferences } from "./onboarding";
 import "./account.css";
 import { WebSite } from "./WebSite";
+import { AdminModels } from "./AdminModels";
 import { BrandLockup } from "./BrandLockup";
 import {
   visiblePublicPage,
@@ -115,10 +116,12 @@ export function AccountGate({ children }: { children: ReactNode }) {
       );
     };
     window.addEventListener("autoppt-session-expired", expired);
+    window.addEventListener("autoppt-account-refresh", refresh);
     return () => {
       mounted.current = false;
       refreshSequence.current++;
       window.removeEventListener("autoppt-session-expired", expired);
+      window.removeEventListener("autoppt-account-refresh", refresh);
     };
   }, []);
   useEffect(() => {
@@ -215,7 +218,13 @@ const statusName: Record<string, string> = {
   complete: "已完成",
   failed: "未扣额度",
 };
-export function AccountPage({ adminOnly = false }: { adminOnly?: boolean }) {
+export function AccountPage({
+  adminOnly = false,
+  section = "users",
+}: {
+  adminOnly?: boolean;
+  section?: "users" | "models";
+}) {
   const { user } = useAccount();
   const [usage, setUsage] = useState<Entry[]>([]),
     [error, setError] = useState(""),
@@ -231,11 +240,25 @@ export function AccountPage({ adminOnly = false }: { adminOnly?: boolean }) {
     return (
       <div className="account-page">
         <h1>网站管理</h1>
-        <p>
-          邀请、账号、图片额度与待核对用量在这里管理。模型连接由部署配置统一维护。
-        </p>
+        <p>管理全站账号、图片额度与模型服务。</p>
         {user?.role === "admin" ? (
-          <AdminPanel />
+          <>
+            <nav className="admin-tabs" aria-label="网站管理分类">
+              <a
+                href="#admin"
+                aria-current={section === "users" ? "page" : undefined}
+              >
+                账号与用量
+              </a>
+              <a
+                href="#admin/models"
+                aria-current={section === "models" ? "page" : undefined}
+              >
+                模型服务
+              </a>
+            </nav>
+            {section === "models" ? <AdminModels /> : <AdminPanel />}
+          </>
         ) : (
           <p role="alert">此页面仅供管理员使用。</p>
         )}

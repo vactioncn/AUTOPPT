@@ -178,3 +178,102 @@
 .account-story .brand {
   display: inline-flex;
 }
+
+.admin-tabs {
+  display: flex;
+  gap: 24px;
+  border-bottom: 1px solid #dedfd7;
+  margin: 28px 0;
+}
+.admin-tabs a {
+  padding: 10px 2px 13px;
+  text-decoration: none;
+  color: #69705f;
+  border-bottom: 2px solid transparent;
+}
+.admin-tabs a[aria-current="page"] {
+  border-color: #934936;
+  color: #293023;
+  font-weight: 650;
+}
+.admin-models-intro h2 {
+  margin: 0;
+  font-size: 22px;
+}
+.admin-models-intro p {
+  margin: 8px 0 24px;
+}
+.admin-model-grid {
+  display: grid;
+  gap: 20px;
+}
+@media (min-width: 1100px) {
+  .admin-model-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.account-page .admin-model-card {
+  max-width: none;
+  margin: 0;
+  padding: 26px;
+  border: 1px solid #dedfd7;
+  border-radius: 16px;
+  background: #fff;
+}
+.admin-model-card-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+.admin-model-card h3 {
+  margin: 0;
+  font-size: 18px;
+}
+.admin-model-card-heading p {
+  margin: 4px 0 0;
+  font-size: 13px;
+}
+.model-key-saved,
+.model-key-missing {
+  white-space: nowrap;
+  font-size: 12px;
+  padding: 3px 9px;
+  border-radius: 6px;
+  background: #eef2e7;
+  color: #4e6542;
+}
+.model-key-missing {
+  color: #a4612c;
+  background: #faf1e5;
+}
+.admin-model-card .field input {
+  width: 100%;
+}
+.admin-model-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.admin-model-card .admin-key-help,
+.admin-models-footnote {
+  font-size: 12px;
+  margin: 0;
+}
+.admin-model-card .admin-model-message {
+  margin: 0;
+  color: #48613c;
+}
+.admin-models-footnote {
+  margin-top: 20px;
+}
+@media (max-width: 600px) {
+  .account-page .admin-model-card {
+    padding: 18px;
+  }
+  .admin-model-card-heading {
+    flex-wrap: wrap;
+  }
+}

@@ -208,7 +208,9 @@ export function WorkspaceNavigation({
               <button
                 aria-label="网站管理"
                 title="网站管理"
-                aria-current={route === "admin" ? "page" : undefined}
+                aria-current={
+                  route.split("/")[0] === "admin" ? "page" : undefined
+                }
                 onClick={() => visit("admin")}
               >
                 <ShieldCheck size={20} />

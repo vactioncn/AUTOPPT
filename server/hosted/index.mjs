@@ -16,6 +16,8 @@ import { Accounts } from "./accounts.mjs";
 import { registerBackgroundMusic } from "../background-music.mjs";
 import { acquireLock } from "./process-lock.mjs";
 import { hostedSpeechConfig } from "./speech-config.mjs";
+import { ModelServices } from "./model-services.mjs";
+import { testConnection } from "../model-test.mjs";
 import { createSpeechRequestPolicy } from "../speech/request-policy.mjs";
 import {
   supportConfig,
@@ -71,37 +73,8 @@ const secret = (name) =>
   process.env[`${name}_FILE`]
     ? readFileSync(process.env[`${name}_FILE`], "utf8").trim()
     : process.env[name] || "";
-const providers = Object.fromEntries(
-  ["text", "image"].map((kind) => {
-    const prefix = `AUTOPPT_${kind.toUpperCase()}`;
-    const base = new URL(
-      process.env[`${prefix}_BASE_URL`] || "https://api.openai.com/v1",
-    );
-    if (
-      !["http:", "https:"].includes(base.protocol) ||
-      base.username ||
-      base.password ||
-      base.search ||
-      base.hash
-    )
-      throw new Error(`${prefix}_BASE_URL 无效。`);
-    if (
-      base.protocol !== "https:" &&
-      !["localhost", "127.0.0.1"].includes(base.hostname)
-    )
-      throw new Error("远程模型接口必须使用 HTTPS。");
-    return [
-      kind,
-      {
-        baseUrl: base.href.replace(/\/$/, ""),
-        apiKey: secret(`${prefix}_API_KEY`),
-        model:
-          process.env[`${prefix}_MODEL`] ||
-          (kind === "text" ? "gpt-5.4-mini" : "gpt-image-2.5-sunburst"),
-      },
-    ];
-  }),
-);
+const modelServices = new ModelServices(dir);
+const providers = modelServices.providers;
 providers.speech = hostedSpeechConfig(process.env, secret);
 if (!accounts.db.prepare("SELECT id FROM users LIMIT 1").get()) {
   const password = secret("AUTOPPT_ADMIN_PASSWORD");
@@ -114,6 +87,7 @@ const workers = new Map();
 const workerTokens = new Map();
 let gatewayBase;
 let shuttingDown = false;
+let changingModels = false;
 let calls = 0;
 const queue = [];
 const speechPacing = createSpeechRequestPolicy();
@@ -411,6 +385,59 @@ app.get("/api/admin", (req, res) =>
     },
   }),
 );
+app.get("/api/admin/models", (req, res) => res.json(modelServices.public()));
+app.post("/api/admin/models/:kind/test", async (req, res) => {
+  accounts.limit(`model-test:${req.user.id}`, 12, 60000);
+  const config = modelServices.candidate(req.params.kind, req.body);
+  res.json(await testConnection(config));
+});
+app.post("/api/admin/models/:kind", async (req, res) => {
+  modelServices.candidate(req.params.kind, req.body);
+  if (changingModels || shuttingDown)
+    fail("模型配置正在更新，请稍后重试。", 409);
+  changingModels = true;
+  try {
+    if (calls || queue.length)
+      fail("有任务正在使用模型，请等待全站任务完成后再保存。", 409);
+    const current = [...workers.values()];
+    for (const w of current) {
+      if (!w.port || w.requests)
+        fail("工作区正在处理请求，请稍后再保存。", 409);
+      let idle = false;
+      try {
+        const response = await fetch(
+          `http://127.0.0.1:${w.port}/api/activity`,
+          {
+            headers: { "x-autoppt-worker": w.token },
+            signal: AbortSignal.timeout(5000),
+          },
+        );
+        idle = response.ok && (await response.json()).activeJobs === 0;
+      } catch {
+        /* Never stop a worker whose activity is unknown. */
+      }
+      if (!idle)
+        fail("有任务尚未结束或状态无法确认，配置未修改，请稍后再保存。", 409);
+    }
+    const result = modelServices.save(req.params.kind, req.body);
+    // Only verified idle workers restart. Future workers inherit the saved model
+    // names; ongoing projects, browser drafts and account sessions stay intact.
+    await Promise.all(
+      current.map(
+        (w) =>
+          new Promise((resolve) => {
+            if (w.child.exitCode !== null || w.child.signalCode !== null)
+              return resolve();
+            w.child.once("exit", resolve);
+            w.child.kill("SIGTERM");
+          }),
+      ),
+    );
+    res.json(result);
+  } finally {
+    changingModels = false;
+  }
+});
 app.post("/api/admin/invites", (req, res) =>
   res.json(accounts.invite(req.user.id)),
 );
@@ -625,6 +652,7 @@ registerBackgroundMusic(
   process.env.AUTOPPT_MUSIC_DIR || path.join(dir, "background-music"),
 );
 app.use(["/api", "/assets"], authenticated, async (req, res) => {
+  if (changingModels) fail("模型配置正在更新，请稍后重试。", 503);
   // Express routes are case-insensitive by default. Normalize policy checks too,
   // otherwise a mixed-case URL could reach the worker with hosted restrictions bypassed.
   if (

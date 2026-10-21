@@ -302,7 +302,7 @@ export default function App() {
                       ? "用量与账单"
                       : route === "styles"
                         ? "风格库"
-                        : route === "admin"
+                        : route.split("/")[0] === "admin"
                           ? "网站管理"
                           : route === "account"
                             ? "账号与额度"
@@ -448,8 +448,11 @@ export default function App() {
             />
           ) : contentRoute === "usage" && !account.hosted ? (
             <UsagePage />
-          ) : contentRoute === "admin" && account.hosted ? (
-            <AccountPage adminOnly />
+          ) : contentRoute.split("/")[0] === "admin" && account.hosted ? (
+            <AccountPage
+              adminOnly
+              section={contentRoute === "admin/models" ? "models" : "users"}
+            />
           ) : contentRoute === "account" ? (
             <AccountPage />
           ) : contentRoute.split("/")[0] === "settings" ? (

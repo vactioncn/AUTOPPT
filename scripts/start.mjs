@@ -10,7 +10,9 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { readBuildInfo } from "../server/build-info.mjs";
 import { compareBuildInfo } from "../shared/diagnostics.mjs";
+import { usePrimaryWorkspace } from "./primary-workspace.mjs";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+if (await usePrimaryWorkspace(root)) process.exit(0);
 const port = Number(process.env.PORT || 4317),
   url = `http://127.0.0.1:${port}`;
 const healthy = async () => {

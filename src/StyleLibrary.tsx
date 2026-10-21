@@ -53,10 +53,25 @@ export function StyleLibrary({
   const [managing, setManaging] = useState(false);
   const [expandSettings, setExpandSettings] = useState(false);
   const [detailExample, setDetailExample] = useState<string>();
+  const returnPosition = useRef<{ top: number; trigger: HTMLElement | null }>({
+    top: 0,
+    trigger: null,
+  });
   const openDetail = (id: string, exampleId?: string) => {
+    returnPosition.current = {
+      top: window.scrollY,
+      trigger: document.activeElement as HTMLElement | null,
+    };
     setManaging(false);
     setDetailExample(exampleId);
     setDetail(id);
+  };
+  const closeGallery = () => {
+    setDetail(null);
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: returnPosition.current.top, behavior: "instant" });
+      returnPosition.current.trigger?.focus({ preventScroll: true });
+    });
   };
   const [repairedStyle, setRepairedStyle] = useState<string>();
   const [create, setCreate] = useState(canManage && promptRepair),
@@ -87,138 +102,143 @@ export function StyleLibrary({
       />
     );
   return (
-    <div className="page styles-page">
-      {onReturn && (
-        <Button onClick={() => onReturn(repairedStyle)}>返回新建演讲</Button>
-      )}
-      <div className="page-heading">
-        <div>
-          <h1>选一种喜欢的风格。</h1>
-          <p>看看同一种风格的不同表达，找到适合你这场演讲的画面。</p>
-        </div>
-        {canManage && (
-          <Button variant="primary" onClick={() => setCreate(true)}>
-            <Plus size={18} />
-            创建风格
-          </Button>
+    <div
+      className={`page styles-page${selected && !managed ? " style-gallery-open" : ""}`}
+    >
+      <div hidden={!!selected && !managed}>
+        {onReturn && (
+          <Button onClick={() => onReturn(repairedStyle)}>返回新建演讲</Button>
         )}
-      </div>
-      <div className="section-heading">
-        <h2>
-          风格库 <span>{String(entries.length).padStart(2, "0")}</span>
-        </h2>
-        <span className="muted">跨项目使用，持续积累</span>
-      </div>
-      {!entries.length && (
-        <section className="onboarding-card" aria-label="风格库空状态">
-          <h2>{canManage ? "从第一个风格开始" : "风格库正在准备中"}</h2>
-          <p>
-            {canManage
-              ? "填写风格提示词或上传参考图，建立一个新风格。"
-              : "管理员发布风格后，就可以在这里查看样例并开始制作。"}
-          </p>
+        <div className="page-heading">
+          <div>
+            <h1>选一种喜欢的风格。</h1>
+            <p>看看同一种风格的不同表达，找到适合你这场演讲的画面。</p>
+          </div>
           {canManage && (
             <Button variant="primary" onClick={() => setCreate(true)}>
-              创建第一个风格
+              <Plus size={18} />
+              创建风格
             </Button>
           )}
-        </section>
-      )}
-      <div className="style-library-grid style-library-gallery">
-        {entries.map(({ style: s, unpublished }) => (
-          <article className="style-card" key={s.id}>
-            <button
-              className="style-cover-button"
-              aria-label={`浏览风格封面：${s.name}`}
-              onClick={() => openDetail(s.id)}
-            >
-              <StylePreview style={s} />
-            </button>
-            <div className="style-card-info">
-              <div>
-                <h3>{s.name}</h3>
-                <span>
-                  {styleExamples(s).length} 个效果示例
-                  {unpublished && " · 未发布"}
-                </span>
-              </div>
-              <p>{styleDescription(s)}</p>
-              {!!styleExamples(s).length && (
-                <div className="style-card-examples">
-                  {styleExamples(s)
-                    .slice(0, 3)
-                    .map((example) => (
-                      <button
-                        key={example.id}
-                        onClick={() => openDetail(s.id, example.id)}
-                        aria-label={`查看${s.name}：${example.title}`}
-                      >
-                        <img
-                          src={example.thumbnail || example.src}
-                          alt={example.title}
-                          loading="lazy"
-                        />
-                      </button>
-                    ))}
+        </div>
+        <div className="section-heading">
+          <h2>
+            风格库 <span>{String(entries.length).padStart(2, "0")}</span>
+          </h2>
+          <span className="muted">跨项目使用，持续积累</span>
+        </div>
+        {!entries.length && (
+          <section className="onboarding-card" aria-label="风格库空状态">
+            <h2>{canManage ? "从第一个风格开始" : "风格库正在准备中"}</h2>
+            <p>
+              {canManage
+                ? "填写风格提示词或上传参考图，建立一个新风格。"
+                : "管理员发布风格后，就可以在这里查看样例并开始制作。"}
+            </p>
+            {canManage && (
+              <Button variant="primary" onClick={() => setCreate(true)}>
+                创建第一个风格
+              </Button>
+            )}
+          </section>
+        )}
+        <div className="style-library-grid style-library-gallery">
+          {entries.map(({ style: s, unpublished }) => (
+            <article className="style-card" key={s.id}>
+              <button
+                className="style-cover-button"
+                aria-label={`浏览风格封面：${s.name}`}
+                onClick={() => openDetail(s.id)}
+              >
+                <StylePreview style={s} />
+              </button>
+              <div className="style-card-info">
+                <div>
+                  <h3>{s.name}</h3>
+                  <span>
+                    {styleExamples(s).length} 个效果示例
+                    {unpublished && " · 未发布"}
+                  </span>
                 </div>
-              )}
-              <div className="style-card-bottom">
-                <div className="swatches">
-                  {s.colors.map((c, i) => (
-                    <span key={i} style={{ background: c }} title={c} />
-                  ))}
-                </div>
-                {s.status === "analyzing" ? (
-                  <Status>
-                    <SpinnerGap className="spin" size={14} />
-                    正在提炼
-                  </Status>
-                ) : s.status === "error" ? (
-                  <Status tone="warm">提炼未完成</Status>
-                ) : (
-                  <Button variant="ghost" onClick={() => openDetail(s.id)}>
-                    查看风格
-                    <ArrowRight size={15} />
-                  </Button>
+                <p>{styleDescription(s)}</p>
+                {!!styleExamples(s).length && (
+                  <div className="style-card-examples">
+                    {styleExamples(s)
+                      .slice(0, 3)
+                      .map((example) => (
+                        <button
+                          key={example.id}
+                          onClick={() => openDetail(s.id, example.id)}
+                          aria-label={`查看${s.name}：${example.title}`}
+                        >
+                          <img
+                            src={example.thumbnail || example.src}
+                            alt={example.title}
+                            loading="lazy"
+                          />
+                        </button>
+                      ))}
+                  </div>
                 )}
+                <div className="style-card-bottom">
+                  <div className="swatches">
+                    {s.colors.map((c, i) => (
+                      <span key={i} style={{ background: c }} title={c} />
+                    ))}
+                  </div>
+                  {s.status === "analyzing" ? (
+                    <Status>
+                      <SpinnerGap className="spin" size={14} />
+                      正在提炼
+                    </Status>
+                  ) : s.status === "error" ? (
+                    <Status tone="warm">提炼未完成</Status>
+                  ) : (
+                    <Button variant="ghost" onClick={() => openDetail(s.id)}>
+                      查看风格
+                      <ArrowRight size={15} />
+                    </Button>
+                  )}
+                </div>
               </div>
-            </div>
-          </article>
-        ))}
-      </div>
-      {canManage && create && (
-        <CreateStyle
-          initialSource={
-            promptRepair || !styles.some((s) => !s.deletedAt && s.rules?.trim())
-              ? "prompt"
-              : "upload"
-          }
-          urlImportAvailable={urlImportAvailable}
-          onClose={() => setCreate(false)}
-          onDone={async (s) => {
-            setCreate(false);
-            await refresh();
-            if (promptRepair && onReturn) setRepairedStyle(s.id);
-            else if (promptRepair) onUse(s.id);
-            else {
-              setExpandSettings(false);
-              setManaging(true);
-              setDetail(s.id);
+            </article>
+          ))}
+        </div>
+        {canManage && create && (
+          <CreateStyle
+            initialSource={
+              promptRepair ||
+              !styles.some((s) => !s.deletedAt && s.rules?.trim())
+                ? "prompt"
+                : "upload"
             }
-            notify(
-              s.status === "ready"
-                ? "风格提示词已原样保存，可以直接试做。"
-                : "参考图已保存，正在提炼视觉风格。",
-            );
-          }}
-        />
-      )}
+            urlImportAvailable={urlImportAvailable}
+            onClose={() => setCreate(false)}
+            onDone={async (s) => {
+              setCreate(false);
+              await refresh();
+              if (promptRepair && onReturn) setRepairedStyle(s.id);
+              else if (promptRepair) onUse(s.id);
+              else {
+                setExpandSettings(false);
+                setManaging(true);
+                setDetail(s.id);
+              }
+              notify(
+                s.status === "ready"
+                  ? "风格提示词已原样保存，可以直接试做。"
+                  : "参考图已保存，正在提炼视觉风格。",
+              );
+            }}
+          />
+        )}
+      </div>
       {selected && !managed && (
         <StyleGallery
           key={selected.id}
           initialExampleId={detailExample}
           style={selected}
-          onClose={() => setDetail(null)}
+          onClose={closeGallery}
           onManage={
             selectedEntry?.manageStyle
               ? () => {

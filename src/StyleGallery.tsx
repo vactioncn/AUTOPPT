@@ -1,5 +1,10 @@
-import { useState } from "react";
-import { ArrowLeft, ArrowRight, ArrowSquareOut } from "@phosphor-icons/react";
+import { useEffect, useRef, useState } from "react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  ArrowSquareOut,
+  CaretDown,
+} from "@phosphor-icons/react";
 import { STYLE_SHOWCASE } from "../shared/style-showcase.mjs";
 import {
   STYLE_SAMPLE_PAGES,
@@ -7,7 +12,7 @@ import {
 } from "../shared/style-sample-suite.mjs";
 import { BUILTIN_STYLE_COVERS } from "../shared/styles.mjs";
 import { asset } from "./api";
-import { Button, Modal } from "./components";
+import { Button } from "./components";
 import type { Style } from "./types";
 import "./style-gallery.css";
 
@@ -88,6 +93,23 @@ export function styleExamples(style: Style): GalleryExample[] {
   return examples;
 }
 
+const shortPageNames: Record<string, string> = {
+  封面页: "封面",
+  核心观点页: "观点",
+  多要点框架页: "框架",
+  数据图表页: "数据",
+  流程步骤页: "流程",
+  对比分析页: "对比",
+  案例故事页: "故事",
+  总结行动页: "行动",
+};
+const shortStyleNames: Record<string, string> = {
+  克制儿童摄影杂志风: "儿童摄影",
+  先锋酸性色彩编辑风: "先锋",
+  日系现代建筑提案风: "日系现代",
+  "当代 Neo-Swiss": "当代 NEO",
+};
+
 export function StyleGallery({
   style,
   onClose,
@@ -104,134 +126,199 @@ export function StyleGallery({
   onTest?: () => void;
 }) {
   const examples = styleExamples(style);
-  const standardSuite =
-    examples.length === 8 &&
-    examples.every((example) => example.number && example.notes);
   const [index, setIndex] = useState(() =>
     Math.max(
       0,
-      examples.findIndex((e) => e.id === initialExampleId),
+      examples.findIndex((example) => example.id === initialExampleId),
     ),
   );
-  const current = examples[Math.min(index, examples.length - 1)];
-  const step = (delta: number) =>
-    setIndex((index + delta + examples.length) % examples.length);
+  const currentIndex = Math.min(index, Math.max(0, examples.length - 1));
+  const current = examples[currentIndex];
+  const strip = useRef<HTMLDivElement>(null);
+  const back = useRef<HTMLButtonElement>(null);
+  const title = shortStyleNames[style.name] || style.name;
+  const canUse = !!(style.canUse || style.rules?.trim());
+  const step = (delta: number) => {
+    if (examples.length > 1)
+      setIndex((currentIndex + delta + examples.length) % examples.length);
+  };
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "instant" });
+    back.current?.focus({ preventScroll: true });
+  }, []);
+
+  useEffect(() => {
+    const container = strip.current;
+    const selected = container?.querySelector<HTMLElement>(
+      '[aria-pressed="true"]',
+    );
+    if (!container || !selected) return;
+    const item = selected.getBoundingClientRect();
+    const area = container.getBoundingClientRect();
+    // Scroll only this horizontal strip, never pull the main preview off screen.
+    if (item.left < area.left) container.scrollLeft += item.left - area.left;
+    else if (item.right > area.right)
+      container.scrollLeft += item.right - area.right;
+  }, [currentIndex]);
+
   return (
-    <Modal
-      wide
-      className="style-gallery-modal"
-      title={style.name}
-      subtitle={styleDescription(style)}
-      onClose={onClose}
+    <section
+      className="style-gallery-page"
+      aria-label={`风格详情：${style.name}`}
+      onKeyDown={(event) => {
+        if (
+          event.altKey ||
+          event.ctrlKey ||
+          event.metaKey ||
+          event.shiftKey ||
+          (event.target as HTMLElement).closest(
+            "input, textarea, select, [contenteditable=true]",
+          )
+        )
+          return;
+        if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+          event.preventDefault();
+          step(event.key === "ArrowLeft" ? -1 : 1);
+        }
+      }}
     >
-      <div className="style-gallery-body">
-        <div className="style-gallery-intro">
-          <h3>
-            {standardSuite
-              ? "一篇产品介绍，八种页面表达"
-              : "同一种风格，不同的表达"}
-          </h3>
-          <p>
-            {examples.length > 1
-              ? standardSuite
-                ? "从封面到行动，用完整的「讲好」介绍，看看这个风格怎样讲完一场演讲。"
-                : `${examples.length} 个效果示例 · 点击缩略图，看看不同内容怎样呈现。`
-              : "先看看整体视觉，更多页面样例正在准备中。"}
-          </p>
-        </div>
-        {current ? (
-          <>
-            <figure className="style-gallery-stage">
-              <a
-                href={current.src}
-                target="_blank"
-                rel="noreferrer"
-                aria-label={`查看大图：${current.title}`}
-              >
-                <img src={current.src} alt={current.title} />
-                <span>
-                  <ArrowSquareOut size={16} /> 查看大图
-                </span>
-              </a>
-              <figcaption aria-live="polite">
-                <div>
-                  <span>
-                    {current.number && `${current.number} · `}
-                    {current.expression}
-                  </span>
-                  <strong>{current.title}</strong>
-                </div>
-                <span>
-                  {index + 1} / {examples.length}
-                </span>
-              </figcaption>
-            </figure>
-            {examples.length > 1 && (
-              <>
-                <div className="style-gallery-navigation">
-                  <Button onClick={() => step(-1)}>
-                    <ArrowLeft size={16} /> 上一个示例
-                  </Button>
-                  <Button onClick={() => step(1)}>
-                    下一个示例 <ArrowRight size={16} />
-                  </Button>
-                </div>
-                <div
-                  className="style-gallery-thumbnails"
-                  aria-label="风格效果示例"
+      <button className="style-gallery-back" ref={back} onClick={onClose}>
+        <ArrowLeft size={20} /> 返回风格库
+      </button>
+      <div className="style-gallery-layout">
+        <div className="style-gallery-viewer">
+          {current ? (
+            <>
+              <figure className="style-gallery-stage">
+                <a
+                  href={current.src}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={`查看大图：${current.title}`}
                 >
-                  {examples.map((example, i) => (
-                    <button
-                      key={example.id}
-                      aria-pressed={index === i}
-                      onClick={() => setIndex(i)}
-                    >
-                      <img
-                        src={example.thumbnail}
-                        alt={example.title}
-                        loading="lazy"
-                      />
-                      <span>
-                        {example.number && `${example.number} `}
-                        {example.expression}
-                      </span>
-                    </button>
-                  ))}
+                  <img
+                    key={current.src}
+                    src={current.src}
+                    alt={current.title}
+                  />
+                  <span>
+                    <ArrowSquareOut size={16} /> 查看大图
+                  </span>
+                </a>
+              </figure>
+              <div className="style-gallery-caption">
+                <p aria-live="polite" aria-atomic="true">
+                  <strong>
+                    {current.number ||
+                      String(currentIndex + 1).padStart(2, "0")}{" "}
+                    · {current.expression}
+                  </strong>
+                  <span className="style-gallery-sr-only">
+                    ，{current.title}
+                  </span>
+                </p>
+                <div className="style-gallery-navigation" aria-label="样例翻页">
+                  <Button
+                    variant="ghost"
+                    onClick={() => step(-1)}
+                    disabled={examples.length < 2}
+                    aria-label="上一个示例"
+                    title="上一个示例（左方向键）"
+                  >
+                    <ArrowLeft size={20} />
+                  </Button>
+                  <span>
+                    {String(currentIndex + 1).padStart(2, "0")} /{" "}
+                    {String(examples.length).padStart(2, "0")}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    onClick={() => step(1)}
+                    disabled={examples.length < 2}
+                    aria-label="下一个示例"
+                    title="下一个示例（右方向键）"
+                  >
+                    <ArrowRight size={20} />
+                  </Button>
                 </div>
-              </>
-            )}
-            {current.notes && (
-              <details className="style-gallery-manuscript">
-                <summary>阅读本页讲稿</summary>
-                <p>{current.notes}</p>
-              </details>
-            )}
-          </>
-        ) : (
-          <div className="style-gallery-empty">
-            这个风格的效果示例正在准备中。
+              </div>
+            </>
+          ) : (
+            <div className="style-gallery-empty">
+              这个风格的效果示例正在准备中。
+            </div>
+          )}
+        </div>
+        <aside className="style-gallery-info">
+          <h1>{title}</h1>
+          {title !== style.name && (
+            <p className="style-gallery-full-name">{style.name}</p>
+          )}
+          <p className="style-gallery-description">{styleDescription(style)}</p>
+          <Button
+            variant="primary"
+            className="style-gallery-use"
+            disabled={!canUse}
+            onClick={onUse}
+          >
+            使用这个风格 <ArrowRight size={20} />
+          </Button>
+          <p className="style-gallery-use-hint">
+            {canUse
+              ? "画面会随你的内容重新设计。"
+              : "这个风格尚未准备好，请先查看其他风格。"}
+          </p>
+          {current?.notes && (
+            <details className="style-gallery-manuscript" key={current.id}>
+              <summary>
+                阅读本页讲稿 <CaretDown size={18} />
+              </summary>
+              <p>{current.notes}</p>
+            </details>
+          )}
+          {(onManage || onTest) && (
+            <div className="style-gallery-admin">
+              {onManage && (
+                <Button variant="ghost" onClick={onManage}>
+                  高级设置
+                </Button>
+              )}
+              {onTest && (
+                <Button variant="ghost" disabled={!canUse} onClick={onTest}>
+                  试做一页
+                </Button>
+              )}
+            </div>
+          )}
+        </aside>
+        {examples.length > 1 && (
+          <div
+            className="style-gallery-thumbnails"
+            ref={strip}
+            role="group"
+            aria-label="风格效果示例"
+          >
+            {examples.map((example, i) => (
+              <button
+                key={example.id}
+                aria-pressed={currentIndex === i}
+                aria-label={`${example.number || String(i + 1).padStart(2, "0")} ${example.expression}：${example.title}`}
+                title={example.title}
+                onClick={() => setIndex(i)}
+              >
+                <img src={example.thumbnail} alt="" loading="lazy" />
+                <span>
+                  <span>
+                    {example.number || String(i + 1).padStart(2, "0")}
+                  </span>
+                  {shortPageNames[example.expression] || example.expression}
+                </span>
+              </button>
+            ))}
           </div>
         )}
       </div>
-      <footer className="style-gallery-footer">
-        <p>画面会随你的内容重新设计。</p>
-        {onManage && <Button onClick={onManage}>高级设置</Button>}
-        {onTest && (
-          <Button
-            disabled={!style.canUse && !style.rules?.trim()}
-            onClick={onTest}
-          >
-            试做一页
-          </Button>
-        )}
-        <Button
-          variant="primary"
-          disabled={!style.canUse && !style.rules?.trim()}
-          onClick={onUse}
-        >
-          使用这个风格 <ArrowRight size={18} />
-        </Button>
-      </footer>
-    </Modal>
+    </section>
   );
 }

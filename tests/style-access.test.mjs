@@ -315,6 +315,7 @@ test(
           "/tmp/autoppt-style-access-screenshots";
         mkdirSync(screenshots, { recursive: true });
         for (const [name, width, height] of [
+          ["reference", 1487, 1058],
           ["desktop", 1440, 1000],
           ["mobile", 390, 844],
         ]) {
@@ -339,8 +340,14 @@ test(
             fullPage: true,
           });
           await page.locator(".style-cover-button").first().click();
-          const gallery = page.locator(".style-gallery-modal");
+          const gallery = page.locator(".style-gallery-page");
           await gallery.waitFor();
+          await gallery
+            .locator(".style-gallery-stage img")
+            .evaluate((img) => img.decode());
+          await page.screenshot({
+            path: path.join(screenshots, `${name}-cover.png`),
+          });
           assert.equal(await gallery.locator("textarea").count(), 0);
           assert.equal(
             await gallery.getByText("高级设置", { exact: true }).count(),
@@ -350,7 +357,64 @@ test(
             await gallery.locator(".style-gallery-thumbnails button").count(),
             8,
           );
+          assert.equal(await page.locator("dialog[open]").count(), 0);
+          assert.equal(
+            await page
+              .getByRole("heading", { name: "选一种喜欢的风格。" })
+              .isVisible(),
+            false,
+          );
+          const thumbnails = gallery.locator(
+            ".style-gallery-thumbnails button",
+          );
+          const boxes = await thumbnails.evaluateAll((buttons) =>
+            buttons.map((button) => {
+              const rect = button.getBoundingClientRect();
+              return { top: rect.top, width: rect.width };
+            }),
+          );
+          assert(
+            boxes.every((box) => Math.abs(box.top - boxes[0].top) < 1),
+            "samples stay in a single row",
+          );
+          assert(
+            boxes.every((box) => box.width <= 112),
+            "samples remain small navigation previews",
+          );
+          await gallery.getByRole("button", { name: "上一个示例" }).click();
+          assert.equal(
+            await thumbnails.nth(7).getAttribute("aria-pressed"),
+            "true",
+          );
+          const visibleLast = await thumbnails.nth(7).evaluate((button) => {
+            const item = button.getBoundingClientRect();
+            const strip = button.parentElement.getBoundingClientRect();
+            return item.left >= strip.left - 1 && item.right <= strip.right + 1;
+          });
+          assert(
+            visibleLast,
+            "changing pages brings the selected small preview into view",
+          );
+          await gallery
+            .getByRole("button", { name: "下一个示例" })
+            .press("ArrowRight");
+          assert.equal(
+            await thumbnails.nth(0).getAttribute("aria-pressed"),
+            "true",
+          );
+          await gallery.locator(".style-gallery-manuscript summary").click();
+          assert.match(
+            await gallery.locator(".style-gallery-manuscript p").innerText(),
+            /准备一场演讲/,
+          );
           await gallery.getByRole("button", { name: "下一个示例" }).click();
+          assert.equal(
+            await gallery
+              .locator(".style-gallery-manuscript")
+              .getAttribute("open"),
+            null,
+          );
+
           assert.equal(
             await gallery
               .locator(".style-gallery-thumbnails button")
@@ -374,6 +438,34 @@ test(
           await page.screenshot({
             path: path.join(screenshots, `${name}-gallery.png`),
           });
+          await gallery.getByRole("button", { name: "返回风格库" }).click();
+          await page
+            .getByRole("heading", { name: "选一种喜欢的风格。" })
+            .waitFor();
+          const lastCard = page.locator(".style-cover-button").last();
+          await lastCard.scrollIntoViewIfNeeded();
+          const libraryScroll = await page.evaluate(() => window.scrollY);
+          await lastCard.click();
+          await gallery.waitFor();
+          await gallery.getByRole("button", { name: "返回风格库" }).click();
+          await page.waitForFunction(
+            (top) => Math.abs(window.scrollY - top) < 2,
+            libraryScroll,
+          );
+          assert(
+            await lastCard.evaluate(
+              (button) => document.activeElement === button,
+            ),
+          );
+          await page.locator(".style-card-examples button").nth(2).click();
+          await gallery.waitFor();
+          assert.equal(
+            await gallery
+              .locator(".style-gallery-thumbnails button")
+              .nth(2)
+              .getAttribute("aria-pressed"),
+            "true",
+          );
           await gallery.getByRole("button", { name: "使用这个风格" }).click();
           await page.getByLabel("演讲主题").waitFor();
         }

@@ -130,7 +130,7 @@ export function WebSite({
       </a>
       <header className="web-header">
         <WebLink className="web-brand" href="/website" aria-label="讲好 官网">
-          <BrandLockup />
+          <BrandLockup showVersion />
         </WebLink>
         <button
           className="web-menu"

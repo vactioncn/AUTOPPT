@@ -22,6 +22,34 @@ export const capabilityLabels = {
 };
 export const knownSha = (value) => /^[a-f0-9]{40}$/i.test(value || "");
 
+// Describe the loaded bundle, not the current clock or a newer server manifest.
+export function buildLabel(info) {
+  const date = new Date(info.buildTime);
+  const valid = Number.isFinite(date.getTime());
+  const parts = valid
+    ? Object.fromEntries(
+        new Intl.DateTimeFormat("en-CA", {
+          timeZone: "Asia/Shanghai",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          hourCycle: "h23",
+        })
+          .formatToParts(date)
+          .map(({ type, value }) => [type, value]),
+      )
+    : {};
+  return {
+    version: `v${info.appVersion}`,
+    revision: knownSha(info.gitSha) ? info.gitSha.slice(0, 7) : "开发版",
+    date: valid ? `${parts.year}-${parts.month}-${parts.day}` : "时间未知",
+    time: valid ? `${parts.hour}:${parts.minute}` : "",
+    dateTime: valid ? date.toISOString() : undefined,
+  };
+}
+
 export function compareBuildInfo(frontend, backend, production = true) {
   if (!backend || backend.apiSchemaVersion !== frontend.apiSchemaVersion)
     return {

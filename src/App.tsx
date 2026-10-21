@@ -204,7 +204,7 @@ export default function App() {
             onClick={() => go("projects")}
             aria-label={`${BRAND.name} 我的演讲`}
           >
-            <BrandLockup />
+            <BrandLockup showVersion />
           </button>
           <Button
             variant="primary"

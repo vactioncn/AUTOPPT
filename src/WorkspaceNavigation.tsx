@@ -94,7 +94,7 @@ export function WorkspaceNavigation({
         >
           <List size={24} />
         </button>
-        <BrandLockup compact />
+        <BrandLockup compact showVersion />
         <button className="icon-btn" aria-label="新建演讲" onClick={onCreate}>
           <Plus size={23} />
         </button>
@@ -120,7 +120,7 @@ export function WorkspaceNavigation({
             onClick={() => visit("projects")}
             aria-label={`${BRAND.name} 我的演讲`}
           >
-            <BrandLockup />
+            <BrandLockup showVersion />
           </button>
           <button
             className="workspace-nav-close icon-btn"

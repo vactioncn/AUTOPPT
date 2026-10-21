@@ -17,6 +17,7 @@ import {
   API_SCHEMA_VERSION,
   compareBuildInfo,
   dataRootLabels,
+  buildLabel,
 } from "../shared/diagnostics.mjs";
 
 const a = "a".repeat(40),
@@ -28,6 +29,32 @@ const info = {
   apiSchemaVersion: API_SCHEMA_VERSION,
   runtimeMode: "local-browser",
 };
+
+test("brand build label uses fixed release time in Beijing, including midnight and unknown builds", () => {
+  assert.deepEqual(buildLabel(info), {
+    version: "v0.2.0",
+    revision: "aaaaaaa",
+    date: "2026-10-07",
+    time: "08:00",
+    dateTime: info.buildTime,
+  });
+  assert.equal(
+    buildLabel({ ...info, buildTime: "2026-10-07T16:00:00Z" }).date,
+    "2026-10-08",
+  );
+  assert.equal(
+    buildLabel({ ...info, buildTime: "2026-10-07T16:00:00Z" }).time,
+    "00:00",
+  );
+  const unknown = buildLabel({
+    ...info,
+    gitSha: "unknown",
+    buildTime: "unknown",
+  });
+  assert.equal(unknown.revision, "开发版");
+  assert.equal(unknown.date, "时间未知");
+  assert.equal(unknown.dateTime, undefined);
+});
 
 test("release build metadata is fixed across frontend and backend, not runtime HEAD/env", () => {
   const frozen = readBuildInfo();

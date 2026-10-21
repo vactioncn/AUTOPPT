@@ -99,6 +99,72 @@ the verdict, DESIGN.md, and every shipping raster carrying its provenance.
   margin-left: 4px;
   border-left: 1px solid var(--line);
 }
+.jianghao-build {
+  display: grid;
+  gap: 3px;
+  padding-left: 12px;
+  border-left: 1px solid var(--line);
+  color: #626b5c;
+  font:
+    400 10px/1.4 "DM Sans",
+    "PingFang SC",
+    sans-serif;
+  letter-spacing: 0;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+.jianghao-build-version,
+.jianghao-build time {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 6px;
+}
+.jianghao-build-version {
+  font-weight: 600;
+}
+.jianghao-build span {
+  white-space: nowrap;
+}
+.brand .jianghao-build {
+  grid-column: 1 / -1;
+  border-left: 0;
+  border-top: 1px solid var(--line);
+  padding: 8px 0 0;
+  margin-top: 6px;
+}
+@media (min-width: 641px) and (max-width: 950px) {
+  .workspace-nav-brand .jianghao-build {
+    width: 52px;
+    font-size: 8px;
+    margin-left: -8px;
+  }
+  .workspace-nav-brand .jianghao-build-version,
+  .workspace-nav-brand .jianghao-build time {
+    display: grid;
+  }
+  .workspace-nav-brand .jianghao-build time > span:first-child {
+    white-space: normal;
+  }
+}
+@media (max-width: 850px) {
+  .sidebar .brand .jianghao-build {
+    width: 52px;
+    font-size: 8px;
+    margin-left: -8px;
+  }
+  .sidebar .brand .jianghao-build time > span:first-child {
+    white-space: normal;
+  }
+}
+@media (max-width: 640px) {
+  .jianghao-build {
+    font-size: 9px;
+    padding-left: 8px;
+  }
+  .web-site .web-header {
+    gap: 12px;
+  }
+}
 .web-site .web-header nav {
   gap: 28px;
   font-size: 14px;

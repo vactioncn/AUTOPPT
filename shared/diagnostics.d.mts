@@ -26,6 +26,13 @@ export const runtimeLabels: Record<RuntimeMode, string>;
 export const dataRootLabels: Record<RuntimeMode, string>;
 export const capabilityLabels: Record<CapabilityId, string>;
 export function knownSha(value: unknown): boolean;
+export function buildLabel(info: BuildInfo): {
+  version: string;
+  revision: string;
+  date: string;
+  time: string;
+  dateTime: string | undefined;
+};
 export function compareBuildInfo(
   frontend: BuildInfo,
   backend: BuildInfo | undefined,

@@ -189,7 +189,9 @@ export function StyleLibrary({
                     </div>
                   )}
                 <div className="style-card-bottom">
-                  {canManage && manageStyle?.sampleProgress ? (
+                  {canManage &&
+                  manageStyle?.sampleProgress &&
+                  !s.catalogSourceId ? (
                     <button
                       className="style-card-meta style-card-progress-link"
                       aria-label={`查看${s.name}的样例进度`}

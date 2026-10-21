@@ -14,7 +14,7 @@ test("persistent batches reuse images, survive client absence, and stop safely",
   const { createTrial } = await import("../server/trials.mjs");
   const { createSampleBatches } =
     await import("../server/style-sample-batches.mjs");
-  const { sampleProgress, activeSampleBatchCount } =
+  const { sampleProgress, sampleTrials, activeSampleBatchCount } =
     await import("../server/style-sample-state.mjs");
   const enqueue = (type, projectId, payload) =>
     put("job", {
@@ -189,6 +189,20 @@ test("persistent batches reuse images, survive client absence, and stop safely",
         batch.tick();
         assert.equal(work(changed.id).length, 0);
         assert.equal(get("sample-batch", changed.id).status, "failed");
+      },
+    );
+    await t.test(
+      "one request snapshot preserves failures, missing images and finished sample progress",
+      () => {
+        const snapshot = {
+          trials: all("trial"),
+          jobs: new Map(all("job").map((job) => [job.id, job])),
+        };
+        for (const s of all("style")) {
+          const trials = sampleTrials(s.id, snapshot);
+          assert.deepEqual(trials, sampleTrials(s.id));
+          assert.deepEqual(sampleProgress(s, trials), sampleProgress(s));
+        }
       },
     );
   } finally {

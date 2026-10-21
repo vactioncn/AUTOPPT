@@ -11,12 +11,12 @@ export const sampleBatchActive = (styleId) =>
   get("sample-batch", styleId)?.status === "running";
 export const activeSampleBatchCount = () =>
   all("sample-batch").filter((b) => b.status === "running").length;
-export function sampleTrials(styleId) {
-  return all("trial")
+export function sampleTrials(styleId, snapshot) {
+  return (snapshot?.trials || all("trial"))
     .filter((t) => t.styleId === styleId)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .map((t) => {
-      const job = get("job", t.jobId);
+      const job = snapshot ? snapshot.jobs.get(t.jobId) : get("job", t.jobId);
       const trial = {
         ...t,
         status: job?.status || t.status,

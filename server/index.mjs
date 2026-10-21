@@ -3,6 +3,7 @@ import {
   sampleBatchActive,
   activeSampleBatchCount,
   sampleProgress,
+  sampleTrials,
 } from "./style-sample-state.mjs";
 import {
   syncStyleCatalog,
@@ -282,8 +283,17 @@ app.get("/api/bootstrap", (req, res) => {
   const jobs = all("job");
   const styles = all("style");
   const managesStyles = canManageStyles(req);
+  // Reuse this request's records instead of parsing every stored trial/job
+  // again for each style on every 2.5-second workspace refresh.
+  const sampleSnapshot = managesStyles
+    ? { trials: all("trial"), jobs: new Map(jobs.map((job) => [job.id, job])) }
+    : undefined;
   const samplePreviews = managesStyles
-    ? styleSamplePreviews(styles.map(catalogStatus), all("trial"), jobs)
+    ? styleSamplePreviews(
+        styles.map(catalogStatus),
+        sampleSnapshot.trials,
+        jobs,
+      )
     : new Map();
   const workingProjects = new Set(
     jobs
@@ -315,7 +325,10 @@ app.get("/api/bootstrap", (req, res) => {
           ? catalogStatus({
               ...withStyleVersion(style),
               sampleExamples: samplePreviews.get(style.id) || [],
-              sampleProgress: sampleProgress(style),
+              sampleProgress: sampleProgress(
+                style,
+                sampleTrials(style.id, sampleSnapshot),
+              ),
             })
           : customerStyle(style),
       )
@@ -393,11 +406,9 @@ app.post("/api/projects", (req, res) => {
     !canManageStyles(req) &&
     !offeredStyles(all("style"), true).some((s) => s.id === styleId)
   )
-    return res
-      .status(400)
-      .json({
-        error: "这个风格已不在当前风格库中，请重新选择。已有项目仍可继续使用。",
-      });
+    return res.status(400).json({
+      error: "这个风格已不在当前风格库中，请重新选择。已有项目仍可继续使用。",
+    });
   const p = put("project", {
     id: id(),
     title,

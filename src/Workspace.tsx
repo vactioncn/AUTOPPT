@@ -1,4 +1,5 @@
 import { VisualReview } from "./VisualReview";
+import "./first-picture.css";
 import { BRAND } from "../shared/brand.mjs";
 import { JobFeedback } from "./JobFeedback";
 import { PageConcepts } from "./OnboardingUI";

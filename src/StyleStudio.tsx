@@ -23,6 +23,7 @@ import { CopyReview } from "./CopyReview";
 import { TrialCopyPreview } from "./TrialCopyPreview";
 import { StyleVersions } from "./StyleVersions";
 import { STYLE_DEMOS, STYLE_COVER } from "../shared/style-demo.mjs";
+import { STYLE_SAMPLE_PAGES } from "../shared/style-sample-suite.mjs";
 import "./style-studio.css";
 import { isSlideAspect } from "../shared/image-output.mjs";
 export function StyleStudio({
@@ -607,6 +608,36 @@ export function StyleStudio({
                   placeholder="粘贴一段完整的逐字稿，画面会提炼重点，原文保留。"
                 />
               </Field>
+              <details className="studio-examples">
+                <summary>讲好产品介绍 · 8 种标准样例</summary>
+                <p className="detail-help">
+                  同一篇讲稿，分别验证封面、观点、框架、数据、流程、对比、故事与行动。每次只生成所选的一页，完成后可在风格详情手动发布整套样例。
+                </p>
+                <div className="web-studio-actions" aria-label="八页标准样例">
+                  {STYLE_SAMPLE_PAGES.map((page) => (
+                    <Button
+                      key={page.id}
+                      disabled={disabled}
+                      onClick={() =>
+                        act(async () => {
+                          const trial = await post<Trial>(
+                            `/styles/${style.id}/trials`,
+                            { samplePageId: page.id },
+                          );
+                          setNotes(trial.notes);
+                          setRules(trial.styleSnapshot.rules);
+                          setFeedback("");
+                          setCopyFeedback("");
+                          setSelectedId(trial.id);
+                          setPending(trial.id);
+                        })
+                      }
+                    >
+                      生成 {page.number} {page.type}
+                    </Button>
+                  ))}
+                </div>
+              </details>
               <details className="studio-examples">
                 <summary>换一段示例</summary>
                 <div className="web-studio-actions" aria-label="示例文案">

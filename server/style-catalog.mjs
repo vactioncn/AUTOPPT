@@ -4,6 +4,11 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { all, get, put, assetPath, now } from "./store.mjs";
 import { HOSTED_BUILTIN_STYLE_IDS } from "../shared/styles.mjs";
+import {
+  STYLE_SAMPLE_PAGES,
+  STYLE_SAMPLE_VERSION,
+} from "../shared/style-sample-suite.mjs";
+import { styleStamp } from "./core.mjs";
 
 const dir = process.env.AUTOPPT_STYLE_CATALOG_DIR;
 let catalog;
@@ -108,25 +113,35 @@ export function registerStyleCatalog(app) {
     const ids = req.body.trialIds;
     if (
       !Array.isArray(ids) ||
-      ids.length > 12 ||
+      ids.length !== STYLE_SAMPLE_PAGES.length ||
       new Set(ids).size !== ids.length
     )
       return res
         .status(400)
-        .json({ error: "请选择最多 12 张不同的试做样例。" });
-    const examples = ids.map((id) => {
+        .json({ error: "发布前请准备完整的 8 种标准页面样例，每种各 1 张。" });
+    const fingerprint = styleStamp(style).fingerprint;
+    const examples = ids.map((id, index) => {
       const trial = get("trial", id);
+      const page = STYLE_SAMPLE_PAGES[index];
       if (
         !trial ||
         trial.styleId !== style.id ||
         !trial.image ||
-        (get("job", trial.jobId)?.status || trial.status) !== "completed"
+        (get("job", trial.jobId)?.status || trial.status) !== "completed" ||
+        trial.purpose !== "standard-sample" ||
+        trial.samplePageId !== page.id ||
+        trial.sampleVersion !== STYLE_SAMPLE_VERSION ||
+        trial.baseFingerprint !== fingerprint
       )
-        throw new Error("只能发布这个风格已完成的图片试做。");
+        throw new Error(
+          "请按 01–08 顺序选择当前风格已完成的标准样例；修改风格后需要重新试做。",
+        );
       return {
         id: trial.id,
-        title: String(trial.plan?.title || "页面示例").slice(0, 100),
-        expression: "实际生成样例",
+        pageId: page.id,
+        number: page.number,
+        title: page.title,
+        expression: page.type,
         image: trial.image,
       };
     });
@@ -146,6 +161,7 @@ export function registerStyleCatalog(app) {
       builtin: false,
       status: "ready",
       examples,
+      sampleVersion: STYLE_SAMPLE_VERSION,
       catalogHidden: false,
       publishedAt: now(),
       updatedAt: now(),

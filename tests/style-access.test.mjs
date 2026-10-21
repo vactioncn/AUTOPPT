@@ -11,6 +11,11 @@ import { DatabaseSync } from "node:sqlite";
 import { chromium } from "playwright-core";
 import sharp from "sharp";
 import { offeredStyles, defaultStyleId } from "../shared/styles.mjs";
+import {
+  STYLE_SAMPLE_PAGES,
+  STYLE_SAMPLE_VERSION,
+} from "../shared/style-sample-suite.mjs";
+import { styleStamp } from "../server/core.mjs";
 
 test(
   "hosted style permissions, deliberate publication, customer gallery and project continuity",
@@ -165,30 +170,52 @@ test(
     const db = new DatabaseSync(
       path.join(dir, "users", adminUser.id, "autoppt.sqlite"),
     );
-    db.prepare("INSERT INTO records VALUES (?,?,?)").run(
-      "trial",
-      "example-one",
-      JSON.stringify({
-        id: "example-one",
-        styleId: draftId,
-        image: "public-example.png",
-        jobId: "fixture-job",
-        status: "completed",
-        plan: { title: "公开的页面效果" },
-        createdAt: new Date().toISOString(),
-      }),
-    );
+    const trialIds = STYLE_SAMPLE_PAGES.map((page) => `example-${page.id}`);
+    for (const [index, page] of STYLE_SAMPLE_PAGES.entries())
+      db.prepare("INSERT INTO records VALUES (?,?,?)").run(
+        "trial",
+        trialIds[index],
+        JSON.stringify({
+          id: trialIds[index],
+          styleId: draftId,
+          image: "public-example.png",
+          jobId: "fixture-job",
+          status: "completed",
+          purpose: "standard-sample",
+          samplePageId: page.id,
+          sampleVersion: STYLE_SAMPLE_VERSION,
+          baseFingerprint: styleStamp(created.style).fingerprint,
+          plan: { title: "公开的页面效果" },
+          createdAt: new Date().toISOString(),
+        }),
+      );
     db.close();
+    for (const invalid of [
+      [trialIds[0]],
+      [...trialIds].reverse(),
+      [...trialIds.slice(1), trialIds[1]],
+    ]) {
+      await request(`/styles/${draftId}/publish`, {
+        cookie: admin,
+        method: "POST",
+        body: { trialIds: invalid },
+        status: 400,
+      });
+    }
     await request(`/styles/${draftId}/publish`, {
       cookie: admin,
       method: "POST",
-      body: { trialIds: ["example-one"] },
+      body: { trialIds },
     });
     const after = await bootstrap(member);
     const published = after.styles.find((s) => s.catalogSourceId === draftId);
     assert(published?.canUse);
     assert(!JSON.stringify(after).includes(secret));
-    assert.equal(published.examples.length, 1);
+    assert.equal(published.examples.length, 8);
+    assert.deepEqual(
+      published.examples.map((page) => page.pageId),
+      STYLE_SAMPLE_PAGES.map((page) => page.id),
+    );
     assert.equal(
       (
         await fetch(base + "/assets/public-example.png", {
@@ -211,6 +238,31 @@ test(
       method: "PATCH",
       body: { rules: "changed-private-rules" },
     });
+    await request(`/styles/${draftId}/publish`, {
+      cookie: admin,
+      method: "POST",
+      body: { trialIds },
+      status: 400,
+    });
+    // Simulate fresh completed standard trials for the updated style, without model calls.
+    const updatedStyle = (await bootstrap(admin)).styles.find(
+      (style) => style.id === draftId,
+    );
+    const fixtureDb = new DatabaseSync(
+      path.join(dir, "users", adminUser.id, "autoppt.sqlite"),
+    );
+    for (const id of trialIds) {
+      const trial = JSON.parse(
+        fixtureDb
+          .prepare("SELECT data FROM records WHERE kind='trial' AND id=?")
+          .get(id).data,
+      );
+      trial.baseFingerprint = styleStamp(updatedStyle).fingerprint;
+      fixtureDb
+        .prepare("UPDATE records SET data=? WHERE kind='trial' AND id=?")
+        .run(JSON.stringify(trial), id);
+    }
+    fixtureDb.close();
     const memberDb = new DatabaseSync(
       path.join(dir, "users", memberUser.id, "autoppt.sqlite"),
     );
@@ -296,7 +348,7 @@ test(
           );
           assert.equal(
             await gallery.locator(".style-gallery-thumbnails button").count(),
-            3,
+            8,
           );
           await gallery.getByRole("button", { name: "下一个示例" }).click();
           assert.equal(
@@ -343,8 +395,10 @@ test(
           .waitFor();
         await page.getByText("已发布 · 管理客户样例", { exact: true }).click();
         assert.equal(
-          await page.getByRole("checkbox").first().isChecked(),
-          true,
+          await page
+            .getByRole("combobox", { name: "选择封面页样例" })
+            .inputValue(),
+          trialIds[0],
         );
         await page
           .getByRole("button", { name: "更新已发布风格与样例" })
@@ -387,7 +441,7 @@ test(
     await request(`/styles/${draftId}/publish`, {
       cookie: admin,
       method: "POST",
-      body: { trialIds: ["example-one"] },
+      body: { trialIds },
     });
     await request(`/styles/${draftId}`, { cookie: admin, method: "DELETE" });
     assert(

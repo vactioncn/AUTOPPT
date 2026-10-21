@@ -172,7 +172,10 @@ export type Plan = {
   styleFeatures?: string[];
   adaptations?: string;
   referenceSpec?: ReferenceSpec;
-  purpose?: "transfer" | "reconstruction" | "cover";
+  purpose?: "transfer" | "reconstruction" | "cover" | "standard-sample";
+  samplePageId?: string;
+  sampleVersion?: number;
+  baseFingerprint?: string;
   referenceMode?: "with-reference" | "rules-only" | "content-attachments";
 };
 export type ContentAttachment = {
@@ -282,6 +285,7 @@ export type GeneratedStyle = {
   rules: string;
 };
 export type Style = {
+  updatedAt?: string;
   canUse?: boolean;
   catalogSourceId?: string;
   catalogHidden?: boolean;
@@ -290,7 +294,14 @@ export type Style = {
   catalogAvailable?: boolean;
   publishedAt?: string | null;
   publishedTrialIds?: string[];
-  examples?: { id: string; title: string; expression: string; image: string }[];
+  examples?: {
+    id: string;
+    title: string;
+    expression: string;
+    image: string;
+    pageId?: string;
+    number?: string;
+  }[];
   autoName?: boolean;
   analysisContext?: StyleContext;
   cover?: string;
@@ -415,7 +426,10 @@ export type Trial = {
   mode: string;
   layoutId?: string;
   engine?: "web" | "image";
-  purpose?: "transfer" | "reconstruction" | "cover";
+  purpose?: "transfer" | "reconstruction" | "cover" | "standard-sample";
+  samplePageId?: string;
+  sampleVersion?: number;
+  baseFingerprint?: string;
   referenceMode?: "with-reference" | "rules-only";
   primaryRef: string;
   styleSnapshot: Style;

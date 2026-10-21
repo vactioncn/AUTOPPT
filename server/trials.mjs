@@ -10,6 +10,12 @@ import { saveStyleVersion } from "./style-versions.mjs";
 
 import { STYLE_COVER, STYLE_COVER_NOTES } from "../shared/style-demo.mjs";
 import { unifiedCoverPlan } from "./style-cover.mjs";
+import { standardSamplePlan } from "./style-sample-plan.mjs";
+import {
+  STYLE_SAMPLE_PAGES,
+  STYLE_SAMPLE_VERSION,
+  sampleSource,
+} from "../shared/style-sample-suite.mjs";
 import sharp from "sharp";
 import { isSlideAspect } from "../shared/image-output.mjs";
 
@@ -88,9 +94,15 @@ export function registerTrials(app, { enqueue }) {
     const style = availableStyle(req.params.id);
     assertStyleIdle(style.id);
     const isCover = req.body.purpose === "cover";
+    const sample =
+      req.body.samplePageId &&
+      STYLE_SAMPLE_PAGES.find((page) => page.id === req.body.samplePageId);
+    if (req.body.samplePageId && !sample) throw new Error("标准样例页不存在。");
     const input = isCover
       ? { notes: STYLE_COVER_NOTES, rules: style.rules, mode: "baseline" }
-      : req.body;
+      : sample
+        ? { notes: sampleSource(sample), rules: style.rules, mode: "baseline" }
+        : req.body;
     const {
       notes,
       rules,
@@ -140,8 +152,11 @@ export function registerTrials(app, { enqueue }) {
       feedback,
       copyFeedback,
       mode,
-      purpose: isCover ? "cover" : "transfer",
+      purpose: isCover ? "cover" : sample ? "standard-sample" : "transfer",
       ...(isCover ? { coverVersion: STYLE_COVER.version } : {}),
+      ...(sample
+        ? { samplePageId: sample.id, sampleVersion: STYLE_SAMPLE_VERSION }
+        : {}),
       layoutId: "",
       engine: "image",
       needsSystem: false,
@@ -288,6 +303,9 @@ export async function runTrial(job, signal, progress) {
     if (t.purpose === "cover") {
       t.plan = unifiedCoverPlan(t.styleSnapshot);
       put("trial", t);
+    } else if (t.purpose === "standard-sample") {
+      t.plan = standardSamplePlan(t.styleSnapshot, t.samplePageId);
+      put("trial", t);
     } else if (
       !t.plan ||
       t.plan.engine !== "image" ||
@@ -315,7 +333,10 @@ export async function runTrial(job, signal, progress) {
       signal.throwIfAborted();
       put("trial", t);
     }
-    t.plan = { ...t.plan, pageNumber: 1 };
+    t.plan = {
+      ...t.plan,
+      pageNumber: t.purpose === "standard-sample" ? t.plan.pageNumber : 1,
+    };
     put("trial", t);
     progress("正在生成图片，完成后自动显示");
     t.image = await generateImage(t.plan, t.styleSnapshot, signal);

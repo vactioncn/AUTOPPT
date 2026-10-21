@@ -10,6 +10,11 @@ import {
   STYLE_COVER,
   STYLE_COVER_NOTES,
 } from "../shared/style-demo.mjs";
+import {
+  STYLE_SAMPLE_PAGES,
+  STYLE_SAMPLE_VERSION,
+  sampleSource,
+} from "../shared/style-sample-suite.mjs";
 
 test("unified covers lock copy, use saved style, publish only on success and keep ordinary trials separate", async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "autoppt-cover-"));
@@ -227,6 +232,36 @@ test("unified covers lock copy, use saved style, publish only on success and kee
       assert.equal(get("style", "demo").cover, generated.image, mode);
       assert.notEqual(get("trial", next.id).coverApplied, true, mode);
     }
+    responseMode = "success";
+    put("style", { ...original, cover: generated.image });
+    const beforeSampleCalls = calls.length;
+    for (const page of STYLE_SAMPLE_PAGES) {
+      const standard = await post("/demo/trials", {
+        samplePageId: page.id,
+        notes: "不能替换标准讲稿",
+        rules: "不能替换正式风格",
+        parentId: "invalid",
+      });
+      assert.equal(standard.status, 202);
+      assert.equal(standard.body.notes, sampleSource(page));
+      assert.equal(standard.body.purpose, "standard-sample");
+      assert.equal(standard.body.sampleVersion, STYLE_SAMPLE_VERSION);
+      assert.equal(standard.body.styleSnapshot.rules, original.rules);
+      await finish(standard.body);
+      const done = get("trial", standard.body.id);
+      assert.equal(done.plan.pageNumber, Number(page.number));
+      assert.deepEqual(done.plan.displayText, page.displayText);
+      assert.equal(get("style", "demo").cover, generated.image);
+    }
+    assert.equal(
+      calls.length - beforeSampleCalls,
+      8,
+      "one image per page, no text-model rewriting",
+    );
+    assert.equal(
+      (await post("/demo/trials", { samplePageId: "missing" })).status,
+      400,
+    );
   } finally {
     await new Promise((resolve) => server.close(resolve));
     db.close();

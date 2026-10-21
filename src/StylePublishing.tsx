@@ -2,6 +2,10 @@ import { useEffect, useState } from "react";
 import { api, asset, post } from "./api";
 import { Button } from "./components";
 import type { Style, Trial } from "./types";
+import {
+  STYLE_SAMPLE_PAGES,
+  STYLE_SAMPLE_VERSION,
+} from "../shared/style-sample-suite.mjs";
 
 export function StylePublishing({
   style,
@@ -19,15 +23,32 @@ export function StylePublishing({
   const [error, setError] = useState("");
   useEffect(() => {
     let cancelled = false;
-    api<{ trials: Trial[] }>(`/styles/${style.id}/trials`)
-      .then(({ trials }) => {
+    api<{ trials: Trial[]; fingerprint: string }>(`/styles/${style.id}/trials`)
+      .then(({ trials, fingerprint }) => {
         if (cancelled) return;
-        setTrials(
-          trials.filter(
-            (t) => t.status === "completed" && t.image && t.purpose !== "cover",
-          ),
+        const available = trials.filter(
+          (t) =>
+            t.status === "completed" &&
+            t.image &&
+            t.purpose === "standard-sample" &&
+            t.sampleVersion === STYLE_SAMPLE_VERSION &&
+            t.baseFingerprint === fingerprint,
         );
-        setSelected(style.publishedTrialIds || []);
+        setTrials(available);
+        setSelected(
+          STYLE_SAMPLE_PAGES.map((page) => {
+            const choices = available.filter(
+              (trial) => trial.samplePageId === page.id,
+            );
+            return (
+              choices.find((trial) =>
+                style.publishedTrialIds?.includes(trial.id),
+              )?.id ||
+              choices[0]?.id ||
+              ""
+            );
+          }),
+        );
         setLoaded(true);
       })
       .catch((e) => {
@@ -36,7 +57,7 @@ export function StylePublishing({
     return () => {
       cancelled = true;
     };
-  }, [style.id]);
+  }, [style.id, style.updatedAt]);
   const act = async (publish: boolean) => {
     setBusy(true);
     setError("");
@@ -62,45 +83,76 @@ export function StylePublishing({
         {style.publishedAt ? "已发布 · 管理客户样例" : "发布到客户风格库"}
       </summary>
       <p className="detail-help">
-        选中适合公开展示的试做图，再发布。客户会看到风格名称、简介、封面和所选样例；保存或试做不会自动更新已发布版本。
+        用同一篇「讲好」介绍准备完整的 8 种页面，每种选 1
+        张再发布。客户会看到风格名称、简介、封面和这 8
+        张样例；保存或试做不会自动更新已发布版本。
       </p>
-      {trials.length > 0 ? (
+      {loaded ? (
         <div className="style-publish-examples">
-          {trials.map((trial) => (
-            <label key={trial.id}>
-              <img
-                src={asset(trial.image!)}
-                alt={trial.plan?.title || "试做样例"}
-              />
-              <span>
-                <input
-                  type="checkbox"
-                  checked={selected.includes(trial.id)}
-                  disabled={busy}
-                  onChange={(e) =>
+          {STYLE_SAMPLE_PAGES.map((page, index) => {
+            const choices = trials.filter(
+              (trial) => trial.samplePageId === page.id,
+            );
+            const chosen = choices.find(
+              (trial) => trial.id === selected[index],
+            );
+            return (
+              <label key={page.id}>
+                <span>
+                  {page.number} {page.type}
+                </span>
+                {chosen?.image ? (
+                  <img
+                    src={asset(chosen.image)}
+                    alt={`${page.type}：${page.title}`}
+                  />
+                ) : (
+                  <div className="style-publish-missing">
+                    请先生成这一页标准样例
+                  </div>
+                )}
+                <select
+                  aria-label={`选择${page.type}样例`}
+                  value={selected[index] || ""}
+                  disabled={busy || !choices.length}
+                  onChange={(event) =>
                     setSelected(
-                      e.target.checked
-                        ? [...selected, trial.id]
-                        : selected.filter((id) => id !== trial.id),
+                      selected.map((id, i) =>
+                        i === index ? event.target.value : id,
+                      ),
                     )
                   }
-                />
-                {trial.plan?.title || "页面示例"}
-              </span>
-            </label>
-          ))}
+                >
+                  <option value="">尚未选择</option>
+                  {choices.map((trial, i) => (
+                    <option key={trial.id} value={trial.id}>
+                      {page.title} · 版本 {choices.length - i}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            );
+          })}
         </div>
       ) : (
+        <p className="detail-help">正在读取可选样例…</p>
+      )}
+      {loaded && (
         <p className="detail-help">
-          {loaded
-            ? "暂无已完成的图片试做。可以先试做不同内容，再挑选样例；也可以先发布风格。"
-            : "正在读取可选样例…"}
+          已准备 {selected.filter(Boolean).length} / 8
+          页。缺少的页面可在“试做一页 → 讲好产品介绍 · 8 种标准样例”中生成。
         </p>
       )}
       {error && <p role="alert">{error}</p>}
       <div className="style-publish-actions">
         <Button
-          disabled={busy || !loaded || selected.length > 12 || !style.rules}
+          disabled={
+            busy ||
+            !loaded ||
+            selected.length !== 8 ||
+            selected.some((id) => !id) ||
+            !style.rules
+          }
           loading={busy}
           onClick={() => act(true)}
         >

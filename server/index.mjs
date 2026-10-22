@@ -35,7 +35,7 @@ import { validateScene, renderSceneSvg } from "../shared/slides.mjs";
 import {
   DEFAULT_STYLE_ID,
   defaultStyleId,
-  offeredStyles,
+  projectStyles,
 } from "../shared/styles.mjs";
 import { productionTargetIds } from "../shared/production.mjs";
 import express from "express";
@@ -373,12 +373,6 @@ app.post("/api/projects", (req, res) => {
   const title = String(req.body.title || "").trim();
   if (!title || title.length > 100)
     throw new Error("请输入 1–100 字的演讲主题。");
-  const styleId =
-    req.body.styleId === undefined
-      ? defaultStyleId(
-          offeredStyles(all("style"), !!process.env.AUTOPPT_WORKER_TOKEN),
-        )
-      : req.body.styleId;
   const draft = req.body.draft ?? "";
   if (typeof draft !== "string" || draft.length > 200000)
     throw new Error("草稿最多支持 20 万字。");
@@ -389,11 +383,18 @@ app.post("/api/projects", (req, res) => {
     (typeof requestId !== "string" || !/^[\w-]{16,80}$/.test(requestId))
   )
     throw new Error("创建请求无效，请重新提交。");
+  const existing =
+    requestId && all("project").find((p) => p.creationRequestId === requestId);
+  const styleId =
+    req.body.styleId === undefined
+      ? existing?.styleId ||
+        defaultStyleId(
+          projectStyles(all("style"), !!process.env.AUTOPPT_WORKER_TOKEN),
+        )
+      : req.body.styleId;
   const creationDigest = createHash("sha256")
     .update(JSON.stringify({ title, styleId, draft, options }))
     .digest("hex");
-  const existing =
-    requestId && all("project").find((p) => p.creationRequestId === requestId);
   if (existing) {
     if (existing.deletedAt || existing.creationDigest !== creationDigest)
       throw Object.assign(
@@ -404,11 +405,12 @@ app.post("/api/projects", (req, res) => {
   }
   styleReady(styleId);
   if (
-    !canManageStyles(req) &&
-    !offeredStyles(all("style"), true).some((s) => s.id === styleId)
+    process.env.AUTOPPT_WORKER_TOKEN &&
+    !projectStyles(all("style"), true).some((s) => s.id === styleId)
   )
     return res.status(400).json({
-      error: "这个风格已不在当前风格库中，请重新选择。已有项目仍可继续使用。",
+      error:
+        "这个风格尚未发布或已下架，请选择已发布风格。已有项目仍可继续使用。",
     });
   const p = put("project", {
     id: id(),
@@ -457,6 +459,15 @@ app.patch("/api/projects/:id", (req, res) => {
   if ("styleId" in req.body) {
     assertIdle(p.id);
     styleReady(req.body.styleId);
+    if (
+      process.env.AUTOPPT_WORKER_TOKEN &&
+      req.body.styleId !== p.styleId &&
+      !projectStyles(all("style"), true).some((s) => s.id === req.body.styleId)
+    )
+      return res.status(400).json({
+        error:
+          "这个风格尚未发布或已下架，请选择已发布风格。当前项目原风格仍可继续使用。",
+      });
     p.styleId = req.body.styleId;
     p.proposal = null;
   }

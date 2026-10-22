@@ -5,7 +5,11 @@ import { useAccount } from "./Account";
 import { api, post } from "./api";
 import { createGenerationRequest, exampleManuscript } from "./onboarding";
 import { manuscriptTitle } from "../shared/first-picture.mjs";
-import { HOSTED_BUILTIN_STYLE_IDS, defaultStyleId } from "../shared/styles.mjs";
+import {
+  HOSTED_BUILTIN_STYLE_IDS,
+  defaultStyleId,
+  projectStyles,
+} from "../shared/styles.mjs";
 import type { Project, Style } from "./types";
 import "./first-picture.css";
 
@@ -27,9 +31,7 @@ export function FirstPicture({
 }) {
   const account = useAccount();
   const key = `autoppt-first-picture:v1:${account.user!.id}`;
-  const available = styles.filter(
-    (s) => (s.canUse ?? !!s.rules) && !s.deletedAt,
-  );
+  const available = projectStyles(styles, account.hosted);
   const [draft, setDraft] = useState<Draft>(() => {
     let saved: Partial<Draft> = {};
     try {

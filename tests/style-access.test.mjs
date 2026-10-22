@@ -10,7 +10,11 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { chromium } from "playwright-core";
 import sharp from "sharp";
-import { offeredStyles, defaultStyleId } from "../shared/styles.mjs";
+import {
+  offeredStyles,
+  defaultStyleId,
+  projectStyles,
+} from "../shared/styles.mjs";
 import { styleLibraryEntries } from "../shared/style-library.mjs";
 import {
   STYLE_SAMPLE_PAGES,
@@ -156,6 +160,13 @@ test(
       })
     ).json();
     const draftId = created.style.id;
+    for (const cookie of [admin, member])
+      await request("/projects", {
+        cookie,
+        method: "POST",
+        status: 400,
+        body: { title: "未发布不能新建", styleId: draftId },
+      });
     assert(
       !(await bootstrap(member)).styles.some(
         (s) => s.name === "管理员示例风格",
@@ -342,11 +353,45 @@ test(
       })
     ).json();
     assert.equal(project.styleId, published.id);
+    const adminInput = {
+      title: "管理员也使用已发布版本",
+      styleId: published.id,
+      requestId: "published-style-project-retry",
+    };
+    const adminProject = await (
+      await request("/projects", {
+        cookie: admin,
+        method: "POST",
+        status: 201,
+        body: adminInput,
+      })
+    ).json();
+    const otherAdminProject = await (
+      await request("/projects", {
+        cookie: admin,
+        method: "POST",
+        status: 201,
+        body: { title: "切换风格校验", styleId },
+      })
+    ).json();
+    await request("/projects", {
+      cookie: admin,
+      method: "POST",
+      status: 400,
+      body: { title: "不能用原稿绕过发布", styleId: draftId },
+    });
     await request(`/styles/${draftId}`, {
       cookie: admin,
       method: "PATCH",
       body: { rules: "changed-private-rules" },
     });
+    assert.equal(
+      projectStyles((await bootstrap(admin)).styles, true).find(
+        (s) => s.id === published.id,
+      ).rules,
+      secret,
+      "New projects must not use the administrator's unpublished edits",
+    );
     await request(`/styles/${draftId}/publish`, {
       cookie: admin,
       method: "POST",
@@ -625,6 +670,57 @@ test(
       method: "DELETE",
     });
     const withdrawn = (await bootstrap(member)).styles;
+    const adminAfterWithdrawal = (await bootstrap(admin)).styles;
+    assert(
+      !projectStyles(adminAfterWithdrawal, true).some((s) =>
+        [draftId, published.id].includes(s.id),
+      ),
+    );
+    assert(
+      styleLibraryEntries(adminAfterWithdrawal, {
+        hosted: true,
+        canManage: true,
+      }).some((e) => e.manageStyle?.id === draftId),
+    );
+    for (const styleId of [draftId, published.id]) {
+      await request("/projects", {
+        cookie: admin,
+        method: "POST",
+        status: 400,
+        body: { title: "管理员下架后不能新建", styleId },
+      });
+      await request(`/projects/${otherAdminProject.id}`, {
+        cookie: admin,
+        method: "PATCH",
+        status: 400,
+        body: { styleId },
+      });
+    }
+    const replay = await (
+      await request("/projects", {
+        cookie: admin,
+        method: "POST",
+        body: adminInput,
+      })
+    ).json();
+    assert.equal(
+      replay.id,
+      adminProject.id,
+      "An accepted request stays idempotent after withdrawal",
+    );
+    await request(`/projects/${adminProject.id}`, {
+      cookie: admin,
+      method: "PATCH",
+      body: { styleId: published.id, draft: "原项目继续编辑" },
+    });
+    assert.equal(
+      (
+        await (
+          await request(`/projects/${adminProject.id}`, { cookie: admin })
+        ).json()
+      ).draft,
+      "原项目继续编辑",
+    );
     assert(!offeredStyles(withdrawn, true).some((s) => s.id === published.id));
     assert(
       offeredStyles(withdrawn, true, published.id).some(

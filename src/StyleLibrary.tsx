@@ -25,6 +25,7 @@ import { StyleAnalysis } from "./StyleAnalysis";
 import { StyleContextFields } from "./StyleContextFields";
 import { StylePromptResults } from "./StylePromptResults";
 import { styleLibraryEntries } from "../shared/style-library.mjs";
+import { projectStyles } from "../shared/styles.mjs";
 import { StyleSampleProgress } from "./StyleSampleProgress";
 import { StylePublishing } from "./StylePublishing";
 import { StyleGallery, styleExamples } from "./StyleGallery";
@@ -91,6 +92,12 @@ export function StyleLibrary({
       entry.style.id === detail || entry.manageStyle?.id === detailSourceId,
   );
   const selected = selectedEntry?.style;
+  const projectStyle = projectStyles(styles, hosted).find(
+    (s) =>
+      s.id === selected?.id ||
+      (s.catalogSourceId === selectedEntry?.manageStyle?.id &&
+        !!s.catalogSourceId),
+  );
   const managed = managing ? selectedEntry?.manageStyle : undefined;
   const studioStyle = styles.find((s) => !s.deletedAt && s.id === studio);
   if (canManage && studioStyle)
@@ -289,10 +296,14 @@ export function StyleLibrary({
                 }
               : undefined
           }
-          onUse={() => {
-            setDetail(null);
-            onUse(selected.id);
-          }}
+          onUse={
+            projectStyle
+              ? () => {
+                  setDetail(null);
+                  onUse(projectStyle.id);
+                }
+              : undefined
+          }
         />
       )}
       {managed && canManage && (
@@ -323,10 +334,14 @@ export function StyleLibrary({
                 active(j.status),
             )?.stage
           }
-          onUse={() => {
-            setDetail(null);
-            onUse(managed.id);
-          }}
+          onUse={
+            projectStyle
+              ? () => {
+                  setDetail(null);
+                  onUse(projectStyle.id);
+                }
+              : undefined
+          }
           onTest={() => {
             setDetail(null);
             setStudio(managed.id);
@@ -760,7 +775,7 @@ function StyleDetail({
   onClose: () => void;
   refresh: () => Promise<void>;
   notify: (s: string) => void;
-  onUse: () => void;
+  onUse?: () => void;
   analyzing: boolean;
   analysisStage?: string;
   onTest: () => void;
@@ -855,11 +870,13 @@ function StyleDetail({
       className="style-detail-modal"
       title={style.name}
       subtitle={
-        style.builtin
-          ? "内置起始规则，可以加入自己的参考图继续调整。"
-          : style.refs.length
-            ? `${style.refs.length} 张参考图 · 可用于你的所有演讲项目`
-            : "提示词风格 · 无需参考图，可直接试做或用于演讲"
+        style.catalogAvailable && !onUse
+          ? "尚未发布或已下架 · 可继续编辑和试做"
+          : style.builtin
+            ? "内置起始规则，可以加入自己的参考图继续调整。"
+            : style.refs.length
+              ? `${style.refs.length} 张参考图 · 可用于你的所有演讲项目`
+              : "提示词风格 · 无需参考图，可直接试做或用于演讲"
       }
       onClose={onClose}
     >
@@ -1014,9 +1031,11 @@ function StyleDetail({
             <section className="style-overview" aria-label="风格概览">
               <h3>{style.rules ? "已保存到风格库" : "参考图已保存"}</h3>
               <p>
-                {style.rules
-                  ? "这个风格可以用于不同项目，无需重复保存。"
-                  : "完成提炼后，即可试做或用于项目。"}
+                {style.catalogAvailable && !onUse
+                  ? "可继续编辑和试做，发布后用于新项目。"
+                  : style.rules
+                    ? "这个风格可以用于不同项目，无需重复保存。"
+                    : "完成提炼后，即可试做或用于项目。"}
               </p>
               {style.description &&
                 !style.description.startsWith("手动填写的风格提示词") && (
@@ -1155,7 +1174,9 @@ function StyleDetail({
                   ) : style.rules ? (
                     <>
                       <p className="style-prompt-caption">
-                        试做和项目制作使用这份完整提示词。
+                        {style.catalogAvailable
+                          ? "试做使用这份完整提示词；新项目使用已发布版本。"
+                          : "试做和项目制作使用这份完整提示词。"}
                       </p>
                       <div
                         className="rules-text"
@@ -1279,7 +1300,7 @@ function StyleDetail({
           </div>
           <div className="style-detail-primary-actions">
             <Button
-              disabled={!style.rules || analyzing || busy || editing}
+              disabled={!onUse || analyzing || busy || editing}
               onClick={onUse}
             >
               用此风格新建项目

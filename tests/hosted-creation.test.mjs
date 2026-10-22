@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
 import { manuscriptTitle } from "../shared/first-picture.mjs";
-import { defaultStyleId } from "../shared/styles.mjs";
+import { defaultStyleId, projectStyles } from "../shared/styles.mjs";
 import { audiencePreset } from "../shared/audience-presets.mjs";
 
 const transpile = (file, module = ts.ModuleKind.CommonJS) =>
@@ -54,7 +54,7 @@ function harness(
             onboarding.createGenerationRequest(scope, () => storage),
         };
       if (name.endsWith("first-picture.mjs")) return { manuscriptTitle };
-      if (name.endsWith("styles.mjs")) return { defaultStyleId };
+      if (name.endsWith("styles.mjs")) return { defaultStyleId, projectStyles };
       if (name === "./api")
         return {
           post: async (url, body) => {
@@ -69,8 +69,8 @@ function harness(
     const result = exports.HostedNewProject({
       userId: "one",
       styles: [
-        { id: "style-a", rules: "original" },
-        { id: "style-b", rules: "other" },
+        { id: "style-a", catalogSourceId: "source-a", rules: "original" },
+        { id: "style-b", catalogSourceId: "source-b", rules: "other" },
       ],
       example: false,
       ...props,
@@ -203,4 +203,47 @@ test("refreshing a style deep link keeps the user's later style choice", () => {
   const reopened = h.render({ initialStyle: "style-b" });
   reopened.onDraftChange({ ...reopened.initialDraft, styleId: "style-b" });
   assert.equal(h.render({ initialStyle: "style-a" }).initialStyle, "style-a");
+});
+
+test("drafts and stale routes cannot restore withdrawn choices; source links resolve to published snapshots", () => {
+  const h = harness(
+    new Map([
+      [
+        "autoppt-new-project:v1:one",
+        JSON.stringify({
+          routeStyle: "withdrawn",
+          draft: { title: "保留主题", styleId: "withdrawn" },
+          text: "保留讲稿",
+        }),
+      ],
+    ]),
+  );
+  const styles = [
+    { id: "draft", rules: "private" },
+    { id: "source", rules: "unpublished changes" },
+    { id: "withdrawn", rules: "retained source" },
+    {
+      id: "catalog-withdrawn",
+      catalogSourceId: "withdrawn",
+      catalogHidden: true,
+      rules: "old",
+    },
+    { id: "approved", catalogSourceId: "source", rules: "approved rules" },
+  ];
+  const form = h.render({ styles, initialStyle: "withdrawn" });
+  assert.deepEqual(
+    form.styles.map((s) => s.id),
+    ["approved"],
+  );
+  assert.equal(form.initialStyle, "approved");
+  assert.equal(form.initialDraft.title, "保留主题");
+  assert.equal(form.retainedManuscript, true);
+  assert.equal(
+    h.render({ styles, initialStyle: "source" }).initialStyle,
+    "approved",
+  );
+  const empty = h.render({ styles: styles.filter((s) => s.id !== "approved") });
+  assert.equal(empty.styles.length, 0);
+  assert.equal(empty.initialStyle, "");
+  assert.equal(h.calls.length, 0);
 });

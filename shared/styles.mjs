@@ -57,6 +57,26 @@ export function offeredStyles(styles, hosted = false, currentStyleId = "") {
     });
 }
 
+// Project creation uses approved snapshots, never an administrator's working
+// drafts. A withdrawn catalog also suppresses its original built-in fallback.
+// Keep an existing project's selection solely for continued work on that project.
+export function projectStyles(styles, hosted = false, currentStyleId = "") {
+  const catalogSources = new Set(
+    styles.filter((s) => s.catalogSourceId).map((s) => s.catalogSourceId),
+  );
+  return offeredStyles(styles, hosted, currentStyleId).filter(
+    (s) =>
+      (s.canUse ?? !!s.rules?.trim()) &&
+      (!hosted ||
+        s.id === currentStyleId ||
+        (!s.catalogHidden &&
+          !s.projectOnly &&
+          (s.catalogSourceId ||
+            (HOSTED_BUILTIN_STYLE_IDS.includes(s.id) &&
+              !catalogSources.has(s.id))))),
+  );
+}
+
 // Display assets only: never add these covers to model reference images.
 export const BUILTIN_STYLE_COVERS = {
   ...Object.fromEntries(RELEASE_STYLES.map((s) => [s.id, s.cover])),

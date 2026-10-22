@@ -3,7 +3,7 @@ import { NewProject, type NewProjectDraft } from "./NewProject";
 import { emptyDesignOptions } from "./DesignOptionsEditor";
 import { createGenerationRequest, exampleManuscript } from "./onboarding";
 import { manuscriptTitle } from "../shared/first-picture.mjs";
-import { defaultStyleId } from "../shared/styles.mjs";
+import { defaultStyleId, projectStyles } from "../shared/styles.mjs";
 import { post } from "./api";
 import type { DesignOptions, Project, Style } from "./types";
 
@@ -28,6 +28,7 @@ export function HostedNewProject({
 }) {
   const key = `autoppt-new-project:v1:${userId}`;
   const legacyKey = `autoppt-first-picture:v1:${userId}`;
+  const available = projectStyles(styles, true);
   const [initial] = useState(() => {
     const read = (name: string) => {
       try {
@@ -57,16 +58,19 @@ export function HostedNewProject({
           : example
             ? exampleManuscript
             : "";
-    const available = styles.filter(
-      (s) => (s.canUse ?? !!s.rules) && !s.deletedAt,
-    );
     const preferredStyles =
       saved.routeStyle === (initialStyle || null)
         ? [saved.draft?.styleId, initialStyle, legacy.styleId]
         : [initialStyle, saved.draft?.styleId, legacy.styleId];
     const styleId =
-      preferredStyles.find((id) => available.some((s) => s.id === id)) ||
-      defaultStyleId(available);
+      preferredStyles
+        .map(
+          (id) =>
+            available.find(
+              (s) => s.id === id || (s.catalogSourceId === id && !!id),
+            )?.id,
+        )
+        .find(Boolean) || defaultStyleId(available);
     const draft: NewProjectDraft = {
       title: saved.draft?.title ?? legacy.title ?? "",
       styleId,
@@ -126,7 +130,7 @@ export function HostedNewProject({
   return (
     <NewProject
       managedStyles
-      styles={styles}
+      styles={available}
       initialStyle={initial.draft.styleId}
       initialDraft={initial.draft}
       onDraftChange={saveDraft}

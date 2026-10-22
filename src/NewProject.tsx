@@ -16,7 +16,7 @@ import {
   audiencePresetId,
   type Audience,
 } from "../shared/audience-presets.mjs";
-import { DEFAULT_STYLE_ID } from "../shared/styles.mjs";
+import { DEFAULT_STYLE_ID, projectStyles } from "../shared/styles.mjs";
 import { api, post } from "./api";
 import { Button, Field, Modal, StylePreview } from "./components";
 import {
@@ -95,9 +95,7 @@ export function NewProject({
     !!initialDraft?.customAudience.brief,
   );
   const generating = ["waiting", "generating"].includes(draftState.status);
-  const available = styles.filter(
-    (s) => (s.canUse ?? !!s.rules) && !s.deletedAt,
-  );
+  const available = projectStyles(styles, managedStyles);
   const selectedStyle = available.find((s) => s.id === styleId);
   const filtered = available.filter((s) =>
     s.name.toLowerCase().includes(query.trim().toLowerCase()),

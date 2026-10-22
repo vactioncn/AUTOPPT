@@ -127,7 +127,7 @@ export function StyleGallery({
   initialExampleId?: string;
   onExampleChange?: (pageId: string) => void;
   onClose: () => void;
-  onUse: () => void;
+  onUse?: () => void;
   onManage?: () => void;
   onTest?: () => void;
 }) {
@@ -288,15 +288,19 @@ export function StyleGallery({
           <Button
             variant="primary"
             className="style-gallery-use"
-            disabled={!canUse}
+            disabled={!onUse}
             onClick={onUse}
           >
             使用这个风格 <ArrowRight size={20} />
           </Button>
           <p className="style-gallery-use-hint">
-            {canUse
-              ? "画面会随你的内容重新设计。"
-              : "这个风格尚未准备好，请先查看其他风格。"}
+            {onUse
+              ? style.samplePreview
+                ? "新项目使用已发布版本；当前新样例仅供管理员预览。"
+                : "画面会随你的内容重新设计。"
+              : onManage
+                ? "发布后才能用于新项目，可在高级设置中继续完善。"
+                : "这个风格暂不可用于新项目，请选择已发布风格。"}
           </p>
           {current?.notes && (
             <details className="style-gallery-manuscript" key={current.id}>

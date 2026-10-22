@@ -11,6 +11,7 @@ test("first picture routes survive login, unsafe redirect targets do not", () =>
     "new",
     "new/example",
     "new/27266b4f-7da5-4549-ae74-7c9cf7e910ca",
+    "new/catalog-27266b4f-7da5-4549-ae74-7c9cf7e910ca",
   ])
     assert.equal(workspaceTarget(route), route);
   for (const route of [
@@ -18,6 +19,7 @@ test("first picture routes survive login, unsafe redirect targets do not", () =>
     "new/https://example.com",
     "//example.com",
     "new/invalid",
+    "new/catalog-invalid",
   ])
     assert.equal(workspaceTarget(route), "projects");
 });

@@ -138,8 +138,13 @@ export function enqueue(type, projectId, payload = {}) {
     assertSubmission(type, projectId, payload);
     const p = projectOrThrow(projectId);
     if (!["inspect", "background-repair"].includes(type)) {
-      payload.styleSnapshot = selectedStyle(p);
-      payload.designOptions = designOptions(p.designOptions);
+      const choice = type === "render" ? payload.redesignSettings : undefined;
+      payload.styleSnapshot = selectedStyle(
+        choice ? { ...p, styleId: choice.styleId } : p,
+      );
+      payload.designOptions = designOptions(
+        choice ? choice.designOptions : p.designOptions,
+      );
     }
   }
   const j = put("job", {
@@ -184,8 +189,12 @@ export function retry(jobId, { acknowledgeUncertain = false } = {}) {
     );
   if (j.projectId) {
     assertSubmission(j.type, j.projectId, j.payload, j.id);
-    // A retry is a new attempt under the user's current choice, not the original job's style.
-    if (!["inspect", "background-repair"].includes(j.type)) {
+    // Explicit redesign choices belong to this attempt, including continuation
+    // of unfinished pages. Legacy jobs still follow the current project choice.
+    if (
+      !["inspect", "background-repair"].includes(j.type) &&
+      !j.payload.redesignSettings
+    ) {
       const p = projectOrThrow(j.projectId);
       j.payload.styleSnapshot = selectedStyle(p);
       j.payload.designOptions = designOptions(p.designOptions);

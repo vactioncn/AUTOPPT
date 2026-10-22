@@ -695,6 +695,21 @@ test(
         status: 400,
         body: { styleId },
       });
+      const rejectedRedesign = await request(
+        `/projects/${otherAdminProject.id}/render`,
+        {
+          cookie: admin,
+          method: "POST",
+          status: 400,
+          body: {
+            slideIds: ["unused"],
+            redesign: true,
+            revision: otherAdminProject.revision,
+            redesignSettings: { styleId, designOptions: null },
+          },
+        },
+      );
+      assert.match((await rejectedRedesign.json()).error, /尚未发布或已下架/);
     }
     const replay = await (
       await request("/projects", {

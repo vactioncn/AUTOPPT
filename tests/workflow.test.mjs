@@ -898,6 +898,156 @@ test(
     await req(`/projects/${id}/undo`, {});
     project = await read();
     assert.equal(project.slides.length, 3);
+    // Explicit redesign direction is scoped to chosen pages and survives a retry.
+    const redesignProject = structuredClone(project);
+    redesignProject.id = crypto.randomUUID();
+    redesignProject.title = "独立重新设计方向验收";
+    const redesignDb = new DatabaseSync(path.join(dir, "autoppt.sqlite"));
+    redesignDb
+      .prepare("INSERT INTO records VALUES (?,?,?)")
+      .run("project", redesignProject.id, JSON.stringify(redesignProject));
+    redesignDb.close();
+    const redesignUrl = `/projects/${redesignProject.id}`;
+    const targetIds = redesignProject.slides.slice(0, 2).map((s) => s.id);
+    const direction = {
+      styleId: "night",
+      designOptions: {
+        audience: {
+          description: "面向儿童摄影团队",
+          brief: "关注亲子体验，不增加原稿没有的事实。",
+        },
+        palette: {
+          name: "蓝绿",
+          colors: ["#FFFFFF", "#17324D", "#397A68"],
+          instructions: "白底、深蓝文字、绿色强调。",
+        },
+      },
+    };
+    const redesignBody = {
+      slideIds: targetIds,
+      redesign: true,
+      revision: redesignProject.revision,
+      redesignSettings: direction,
+    };
+    const beforeInvalid = [
+      calls.length,
+      imageCalls,
+      (await req("/jobs")).length,
+    ];
+    await req(
+      `${redesignUrl}/render`,
+      { ...redesignBody, revision: -1 },
+      "POST",
+      409,
+    );
+    await req(
+      `${redesignUrl}/render`,
+      {
+        ...redesignBody,
+        redesignSettings: { ...direction, styleId: "missing" },
+      },
+      "POST",
+      400,
+    );
+    await req(
+      `${redesignUrl}/render`,
+      {
+        ...redesignBody,
+        redesignSettings: {
+          ...direction,
+          designOptions: { audience: { description: "" } },
+        },
+      },
+      "POST",
+      400,
+    );
+    assert.deepEqual(
+      await req(redesignUrl),
+      redesignProject,
+      "Rejected settings do not mutate the project",
+    );
+    assert.deepEqual(
+      [calls.length, imageCalls, (await req("/jobs")).length],
+      beforeInvalid,
+    );
+    failImage = true;
+    const directedJob = await req(
+      `${redesignUrl}/render`,
+      redesignBody,
+      "POST",
+      202,
+    );
+    assert.equal((await poll(directedJob)).status, "failed");
+    const partialRedesign = await req(redesignUrl);
+    assert.equal(partialRedesign.styleId, redesignProject.styleId);
+    assert.deepEqual(
+      partialRedesign.designOptions,
+      redesignProject.designOptions,
+    );
+    assert.deepEqual(
+      partialRedesign.slides[2],
+      redesignProject.slides[2],
+      "Unselected pages are unchanged",
+    );
+    assert.equal(
+      partialRedesign.slides[0].image,
+      redesignProject.slides[0].image,
+      "Failed output keeps the old image",
+    );
+    assert.equal(partialRedesign.slides[1].imageStyle.id, direction.styleId);
+    assert.deepEqual(
+      partialRedesign.slides[1].plan.designOptions,
+      direction.designOptions,
+    );
+    assert(
+      partialRedesign.slides[1].versions.some(
+        (v) => v.image === redesignProject.slides[1].image,
+      ),
+    );
+    assert.match(
+      partialRedesign.slides[1].plan.imageRequest.prompt,
+      /面向儿童摄影团队/,
+    );
+    assert.match(
+      partialRedesign.slides[1].plan.imageRequest.prompt,
+      /白底、深蓝文字、绿色强调/,
+    );
+    await req(
+      redesignUrl,
+      { styleId: manualStyle.id, designOptions: null },
+      "PATCH",
+    );
+    assert.equal(
+      (
+        await poll(
+          await req(`/jobs/${directedJob.id}/retry`, {
+            acknowledgeUncertain: true,
+          }),
+        )
+      ).status,
+      "completed",
+    );
+    const resumedRedesign = await req(redesignUrl);
+    assert.equal(
+      resumedRedesign.slides[0].imageStyle.id,
+      direction.styleId,
+      "Continuation retains the confirmed direction",
+    );
+    assert.deepEqual(
+      resumedRedesign.slides[0].plan.designOptions,
+      direction.designOptions,
+    );
+    assert.deepEqual(
+      resumedRedesign.slides[1],
+      partialRedesign.slides[1],
+      "Successful pages are not generated twice",
+    );
+    assert.deepEqual(resumedRedesign.slides[2], redesignProject.slides[2]);
+    assert.equal(
+      resumedRedesign.styleId,
+      manualStyle.id,
+      "Redesign never replaces project defaults",
+    );
     // A failed page can resume; style changes invalidate old plans and only retry missing work.
     failDesign = true;
     job = await req(

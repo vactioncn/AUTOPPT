@@ -176,6 +176,11 @@ test(
     assert.deepEqual(requests.at(-1), {
       slideIds: ["page-1", "page-4"],
       redesign: true,
+      revision: project.revision,
+      redesignSettings: {
+        styleId: project.styleId,
+        designOptions: { audience: null, palette: null },
+      },
     });
     await open();
     await dialog

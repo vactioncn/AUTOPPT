@@ -666,7 +666,38 @@ app.post("/api/projects/:id/slides/:sid/keep-visual", (req, res) => {
 });
 app.post("/api/projects/:id/render", (req, res) => {
   const p = projectOrThrow(req.params.id);
-  styleReady(p.styleId);
+  let redesignSettings;
+  if (req.body.redesignSettings !== undefined) {
+    const value = req.body.redesignSettings;
+    if (
+      !value ||
+      typeof value !== "object" ||
+      Array.isArray(value) ||
+      typeof value.styleId !== "string" ||
+      req.body.redesign !== true
+    )
+      throw new Error("重新设计设置无效，请重新选择。");
+    if (req.body.revision !== p.revision)
+      return res
+        .status(409)
+        .json({ error: "项目已更新，请关闭窗口后重新选择设计方向。" });
+    styleReady(value.styleId);
+    if (
+      process.env.AUTOPPT_WORKER_TOKEN &&
+      value.styleId !== p.styleId &&
+      !projectStyles(all("style"), true).some((s) => s.id === value.styleId)
+    )
+      return res
+        .status(400)
+        .json({
+          error:
+            "这个风格尚未发布或已下架，请选择已发布风格。项目原风格仍可继续使用。",
+        });
+    redesignSettings = {
+      styleId: value.styleId,
+      designOptions: designOptions(value.designOptions),
+    };
+  } else styleReady(p.styleId);
   const ids = req.body.slideIds;
   if (
     !Array.isArray(ids) ||
@@ -723,6 +754,7 @@ app.post("/api/projects/:id/render", (req, res) => {
       feedback: String(req.body.feedback || "").slice(0, 10000),
       copyFeedback: String(req.body.copyFeedback || "").slice(0, 10000),
       attachmentSnapshots,
+      ...(redesignSettings ? { redesignSettings } : {}),
     }),
   );
 });

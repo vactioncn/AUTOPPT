@@ -2027,7 +2027,8 @@ export function Workspace({
       {redesignOpen && (
         <RedesignDialog
           project={project}
-          style={style}
+          styles={styles}
+          hosted={hosted}
           selected={selected}
           pageBusy={pageBusy}
           onClose={() => setRedesignOpen(false)}

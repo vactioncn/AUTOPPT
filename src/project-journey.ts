@@ -1,5 +1,8 @@
 import type { Job, Project } from "./types";
 
+// Temporarily pause the project narration UI without removing saved audio.
+export const projectRehearsalAvailable = false;
+
 export const projectAreas = {
   overview: "概览",
   studio: "制作台",

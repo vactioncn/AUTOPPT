@@ -27,8 +27,22 @@
   box-shadow: 0 1px 3px #0000000d;
   font-weight: 600;
 }
-.project-area-nav button:hover {
+.project-area-nav button:hover:not(:disabled) {
   color: #354b32;
+}
+.project-area-nav button:disabled {
+  cursor: not-allowed;
+  color: var(--muted);
+}
+.project-development-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: nowrap;
 }
 .journey-panel {
   display: grid;

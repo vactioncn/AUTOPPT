@@ -14,6 +14,7 @@ import type { Capabilities } from "../shared/diagnostics.mjs";
 import {
   completePresentation,
   projectPrimaryAction,
+  projectRehearsalAvailable,
   type JourneyAction,
   type PresentationRecord,
   type projectJourney,
@@ -100,7 +101,11 @@ export function ProjectOverview({
   journey: Journey;
   onAction: (action: JourneyAction) => void;
 }) {
-  const action = projectPrimaryAction("overview", journey);
+  const next = projectPrimaryAction("overview", journey);
+  const action: JourneyAction =
+    next.area === "rehearsal" && !projectRehearsalAvailable
+      ? { area: "delivery", target: "checks", label: "检查与下载" }
+      : next;
   return (
     <section aria-label="概览" className="journey-panel">
       <div className="journey-section-heading">
@@ -108,7 +113,7 @@ export function ProjectOverview({
         <p>
           {journey.tasks.length
             ? "查看下面的具体原因，选择现在处理或稍后继续。"
-            : "打开播放器核对画面与讲稿，再检查交付文件。"}
+            : "画面与讲稿已保存，可以检查并下载交付文件。"}
         </p>
         <Button variant="primary" onClick={() => onAction(action)}>
           {action.label}
@@ -147,15 +152,23 @@ function TaskList({
           {journey.tasks.map((task) => (
             <li key={task.id} data-tone={task.tone}>
               <p>{task.reason}</p>
-              <Button variant="ghost" onClick={() => onAction(task.action)}>
-                {task.action.label}
+              <Button
+                variant="ghost"
+                disabled={
+                  task.action.area === "rehearsal" && !projectRehearsalAvailable
+                }
+                onClick={() => onAction(task.action)}
+              >
+                {task.action.area === "rehearsal" && !projectRehearsalAvailable
+                  ? "放映与配音 · 研发中"
+                  : task.action.label}
               </Button>
             </li>
           ))}
         </ul>
       ) : (
         <p className="journey-success">
-          当前没有待制作事项。演练与交付效果仍需自行核对。
+          当前没有待制作事项。交付前请核对画面与讲稿。
         </p>
       )}
     </section>
@@ -502,8 +515,14 @@ export function DeliveryCenter({
                 >
                   下载动态 HTML
                 </Button>
-                <Button variant="ghost" onClick={onRehearsal}>
-                  前往演练中心
+                <Button
+                  variant="ghost"
+                  disabled={!projectRehearsalAvailable}
+                  onClick={onRehearsal}
+                >
+                  {projectRehearsalAvailable
+                    ? "前往演练中心"
+                    : "放映与配音 · 研发中"}
                 </Button>
               </div>
             </article>

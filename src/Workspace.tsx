@@ -104,6 +104,7 @@ import {
 } from "./ProjectJourney";
 import {
   projectAreas,
+  projectRehearsalAvailable,
   projectJourney,
   projectPrimaryAction,
   currentEditablePresentation,
@@ -212,7 +213,7 @@ export function Workspace({
   const [recordRefresh, setRecordRefresh] = useState(0);
   const records = usePresentationRecords(
     id,
-    speechAvailable,
+    projectRehearsalAvailable && speechAvailable,
     motionAvailable,
     recordRefresh,
   );
@@ -699,6 +700,7 @@ export function Workspace({
     }
   };
   const followAction = (action: JourneyAction) => {
+    if (action.area === "rehearsal" && !projectRehearsalAvailable) return;
     setPreviewPagesOpen(true);
     onAreaChange(action.area);
     if (action.area !== "studio") return;
@@ -1035,10 +1037,14 @@ export function Workspace({
         ).map(([key, label]) => (
           <button
             key={key}
+            disabled={key === "rehearsal" && !projectRehearsalAvailable}
             aria-current={area === key ? "page" : undefined}
             onClick={() => onAreaChange(key)}
           >
             {label}
+            {key === "rehearsal" && !projectRehearsalAvailable && (
+              <span className="project-development-badge">研发中</span>
+            )}
           </button>
         ))}
       </nav>
@@ -1058,7 +1064,14 @@ export function Workspace({
       {area === "overview" && (
         <ProjectOverview journey={journey} onAction={followAction} />
       )}
-      {area === "rehearsal" && (
+      {area === "rehearsal" && !projectRehearsalAvailable && (
+        <section className="journey-panel" aria-label="放映与配音研发中">
+          <h2>放映与配音 · 研发中</h2>
+          <p>AI 口播与配音暂未开放。已有讲稿、画面和音频均已保留。</p>
+          <Button onClick={() => onAreaChange("studio")}>返回画面与讲稿</Button>
+        </section>
+      )}
+      {area === "rehearsal" && projectRehearsalAvailable && (
         <RehearsalCenter
           project={project}
           journey={journey}
@@ -1287,7 +1300,7 @@ export function Workspace({
             <div className="hosted-complete-actions">
               <p>
                 {journey.total} 页画面已保存。可以下载
-                PPT，也可以加上声音再放映。
+                PPT，或直接放映、自己讲述。
               </p>
               <Button
                 onClick={() => {
@@ -1297,8 +1310,14 @@ export function Workspace({
               >
                 直接放映
               </Button>
-              <Button variant="ghost" onClick={() => onAreaChange("rehearsal")}>
-                添加配音（可选）
+              <Button
+                variant="ghost"
+                disabled={!projectRehearsalAvailable}
+                onClick={() => onAreaChange("rehearsal")}
+              >
+                {projectRehearsalAvailable
+                  ? "添加配音"
+                  : "AI 口播与配音 · 研发中"}
               </Button>
             </div>
           )}
@@ -1972,7 +1991,7 @@ export function Workspace({
           }}
         />
       )}
-      {speechOpen && (
+      {projectRehearsalAvailable && speechOpen && (
         <Suspense
           fallback={
             <div className="connection-banner" role="status">

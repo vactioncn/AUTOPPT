@@ -1,3 +1,4 @@
+import { compatibleBackendGitSha } from "./diagnostics";
 import type { Bootstrap } from "./types";
 import type { BuildInfo, CapabilityId } from "../shared/diagnostics.mjs";
 import {
@@ -66,6 +67,7 @@ export function VersionWorkspace({
     frontendBuildInfo,
     data.buildInfo,
     productionBuild,
+    compatibleBackendGitSha,
   );
   const capabilities = resolveCapabilities(data);
   return (

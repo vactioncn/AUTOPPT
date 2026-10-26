@@ -50,7 +50,7 @@ export function buildLabel(info) {
   };
 }
 
-export function compareBuildInfo(frontend, backend, production = true) {
+export function compareBuildInfo(frontend, backend, production = true, compatibleBackendGitSha = "") {
   if (!backend || backend.apiSchemaVersion !== frontend.apiSchemaVersion)
     return {
       status: "incompatible",
@@ -58,6 +58,13 @@ export function compareBuildInfo(frontend, backend, production = true) {
       message:
         "前后端接口版本不兼容，已暂停进入工作台。请刷新页面；若仍未恢复，请更新 App 或请管理员部署同一发布的前后端。已保存内容不受影响。",
     };
+  // A separately built, pinned path adapter may target one verified backend release.
+  // Keep both real commits visible; do not rewrite backend build information.
+  if (production && knownSha(frontend.gitSha) && knownSha(compatibleBackendGitSha) && knownSha(backend.gitSha)
+      && backend.gitSha.toLowerCase() === compatibleBackendGitSha.toLowerCase()
+      && frontend.appVersion === backend.appVersion && frontend.runtimeMode === backend.runtimeMode
+      && frontend.gitSha.toLowerCase() !== backend.gitSha.toLowerCase())
+    return { status: "adapter", blocked: false, message: "子目录前端已声明并核对所兼容的后端发布，接口版本兼容。" };
   if (
     knownSha(frontend.gitSha) &&
     knownSha(backend.gitSha) &&

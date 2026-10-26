@@ -46,6 +46,7 @@ import { VersionWorkspace } from "./VersionWorkspace";
 import {
   frontendBuildInfo,
   productionBuild,
+  compatibleBackendGitSha,
   resolveCapabilities,
 } from "./diagnostics";
 import { compareBuildInfo } from "../shared/diagnostics.mjs";
@@ -171,6 +172,7 @@ export default function App() {
     frontendBuildInfo,
     data.buildInfo,
     productionBuild,
+    compatibleBackendGitSha,
   );
   if (consistency.blocked)
     return (

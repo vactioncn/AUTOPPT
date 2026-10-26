@@ -6,6 +6,8 @@ import type {
 } from "../shared/diagnostics.mjs";
 
 declare const __AUTOPPT_BUILD_INFO__: BuildInfo;
+declare const __AUTOPPT_BACKEND_GIT_SHA__: string;
+export const compatibleBackendGitSha = __AUTOPPT_BACKEND_GIT_SHA__;
 export const frontendBuildInfo = __AUTOPPT_BUILD_INFO__;
 export const productionBuild = import.meta.env.PROD;
 

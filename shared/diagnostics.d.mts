@@ -17,7 +17,7 @@ export type CapabilityId =
   | "adminModelSettings";
 export type Capabilities = Record<CapabilityId, Capability>;
 export type BuildComparison = {
-  status: "incompatible" | "mismatch" | "unknown" | "matched";
+  status: "incompatible" | "mismatch" | "unknown" | "matched" | "adapter";
   blocked: boolean;
   message: string;
 };
@@ -37,4 +37,5 @@ export function compareBuildInfo(
   frontend: BuildInfo,
   backend: BuildInfo | undefined,
   production?: boolean,
+  compatibleBackendGitSha?: string,
 ): BuildComparison;

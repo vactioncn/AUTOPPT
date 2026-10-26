@@ -1,3 +1,4 @@
+import { appPath } from "../shared/app-path.mjs";
 import { exportManuscript } from "../shared/manuscript.mjs";
 import type { Project } from "./types";
 export class ApiError extends Error {
@@ -13,7 +14,7 @@ export async function api<T = any>(
   options: RequestInit = {},
 ): Promise<T> {
   const form = options.body instanceof FormData;
-  const response = await fetch("/api" + path, {
+  const response = await fetch(appPath("/api" + path), {
     ...options,
     headers: {
       ...(!form ? { "Content-Type": "application/json" } : {}),
@@ -31,7 +32,7 @@ export const post = <T = any>(path: string, body: unknown = {}) =>
   api<T>(path, { method: "POST", body: JSON.stringify(body) });
 export const patch = <T = any>(path: string, body: unknown) =>
   api<T>(path, { method: "PATCH", body: JSON.stringify(body) });
-export const asset = (name: string) => "/assets/" + encodeURIComponent(name);
+export const asset = (name: string) => appPath("/assets/" + encodeURIComponent(name));
 export async function downloadPresentation(
   id: string,
   revision: number,
@@ -67,7 +68,7 @@ export async function downloadManuscript(id: string, revision: number) {
   );
 }
 export async function downloadFile(path: string, fallback: string) {
-  const response = await fetch(path);
+  const response = await fetch(appPath(path));
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
     throw new Error(data.error || "导出没有完成，请重试。");

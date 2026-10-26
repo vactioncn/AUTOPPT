@@ -1,3 +1,4 @@
+import { appPath } from "../shared/app-path.mjs";
 import { useEffect, useId, useRef, useState } from "react";
 import { MusicNote } from "@phosphor-icons/react";
 import {
@@ -56,7 +57,7 @@ export function BackgroundMusicControls({ playing }: { playing: boolean }) {
         }
       },
     });
-    void fetch("/api/background-music")
+    void fetch(appPath("/api/background-music"))
       .then((r) => (r.ok ? r.json() : { tracks: [] }))
       .then((data) => {
         if (!closed && Array.isArray(data.tracks)) setTracks(data.tracks);

@@ -1,3 +1,4 @@
+import { appPath } from "../shared/app-path.mjs";
 import {
   createContext,
   useContext,
@@ -82,7 +83,7 @@ export function AccountGate({ children }: { children: ReactNode }) {
     const isLatest = () =>
       mounted.current && sequence === refreshSequence.current;
     try {
-      const res = await fetch("/api/account");
+      const res = await fetch(appPath("/api/account"));
       if (!isLatest()) return;
       if (res.status === 404) {
         if (

@@ -1,3 +1,4 @@
+import { appPath } from "../shared/app-path.mjs";
 import { BRAND } from "../shared/brand.mjs";
 import { buildLabel } from "../shared/diagnostics.mjs";
 import { frontendBuildInfo } from "./diagnostics";
@@ -13,7 +14,7 @@ export function BrandLockup({
 }) {
   return (
     <span className="jianghao-lockup">
-      <img src="/brand/mark.svg" width="40" height="40" alt="" />
+      <img src={appPath("/brand/mark.svg")} width="40" height="40" alt="" />
       <span className="jianghao-wordmark">{BRAND.name}</span>
       {!compact && (
         <span className="jianghao-descriptor">{BRAND.descriptor}</span>

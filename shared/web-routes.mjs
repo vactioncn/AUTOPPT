@@ -1,3 +1,4 @@
+import { appPath, stripAppBasePath } from "./app-path.mjs";
 const pages = new Set([
   "website",
   "login",
@@ -7,7 +8,7 @@ const pages = new Set([
   "terms",
 ]);
 export function publicPage(pathname = "/", hash = "") {
-  const path = pathname.replace(/\/+$/, "") || "/";
+  const path = stripAppBasePath(pathname).replace(/\/+$/, "") || "/";
   if (path === "/index.html") return "website";
   if (path !== "/")
     return pages.has(path.slice(1)) ? path.slice(1) : "notfound";
@@ -33,6 +34,6 @@ export function workspaceTarget(value) {
 export function navigateWeb(path, replace = false) {
   if (!/^\/(?:[a-z]+)?(?:[?#].*)?$/.test(path))
     throw new Error("Invalid navigation");
-  history[replace ? "replaceState" : "pushState"](null, "", path);
+  history[replace ? "replaceState" : "pushState"](null, "", appPath(path));
   window.dispatchEvent(new Event("popstate"));
 }

@@ -1,3 +1,4 @@
+import { appPath } from "../shared/app-path.mjs";
 import { useEffect, useState, useId, useRef, type ReactNode } from "react";
 import {
   ArrowRight,
@@ -43,7 +44,7 @@ export function WebLink({
   return (
     <a
       {...props}
-      href={href}
+      href={href ? appPath(href) : href}
       onClick={(e) => {
         props.onClick?.(e);
         if (
@@ -108,7 +109,7 @@ export function WebSite({
     const previousDescription = description?.content;
     if (page === "website" && description)
       description.content = BRAND.description;
-    icon?.setAttribute("href", "/brand/mark.svg");
+    icon?.setAttribute("href", appPath("/brand/mark.svg"));
     return () => {
       document.title = previousTitle;
       if (previousIcon) icon?.setAttribute("href", previousIcon);
@@ -279,12 +280,12 @@ function ProductDemo() {
           }}
         >
           <source
-            src="/product-demo/jianghao-introduction.mp4"
+            src={appPath("/product-demo/jianghao-introduction.mp4")}
             type="video/mp4"
           />
           <track
             kind="captions"
-            src="/product-demo/captions.vtt"
+            src={appPath("/product-demo/captions.vtt")}
             srcLang="zh"
             label="中文"
           />
@@ -300,7 +301,7 @@ function ProductDemo() {
           <strong>这段演讲，就是用我们的工作台做的。</strong>
           <span>使用讲好制作 · 实际生成页面与 AI 配音</span>
         </div>
-        <a href="/product-demo/讲好-产品介绍.pptx" download>
+        <a href={appPath("/product-demo/讲好-产品介绍.pptx")} download>
           下载这份 PPT <ArrowRight size={16} />
         </a>
       </figcaption>
@@ -310,7 +311,7 @@ function ProductDemo() {
           {error}
         </p>
       )}
-      <a className="web-demo-transcript" href="/product-demo/manuscript.md">
+      <a className="web-demo-transcript" href={appPath("/product-demo/manuscript.md")}>
         阅读完整介绍稿
       </a>
     </figure>

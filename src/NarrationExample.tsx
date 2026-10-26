@@ -1,3 +1,4 @@
+import { appPath } from "../shared/app-path.mjs";
 import { useEffect, useId, useRef, useState } from "react";
 import { ArrowRight, Pause, Play } from "@phosphor-icons/react";
 import "./narration-example.css";
@@ -53,7 +54,7 @@ export function NarrationExample() {
     if (!revealed) return;
     const controller = new AbortController();
     setManifestError("");
-    void fetch("/narration-demo/manifest.json", {
+    void fetch(appPath("/narration-demo/manifest.json"), {
       signal: controller.signal,
     })
       .then(async (response) => {
@@ -110,7 +111,7 @@ export function NarrationExample() {
     >
       <img
         className="narration-example-page"
-        src="/narration-demo/page.webp"
+        src={appPath("/narration-demo/page.webp")}
         width="1600"
         height="900"
         loading="lazy"
@@ -124,7 +125,7 @@ export function NarrationExample() {
         <div className="narration-example-speaker">
           <img
             className="narration-example-avatar"
-            src="/narration-demo/avatar.webp"
+            src={appPath("/narration-demo/avatar.webp")}
             alt="Amanda 的小女孩插画头像"
             width="64"
             height="64"
@@ -212,7 +213,7 @@ export function NarrationExample() {
                 </div>
                 <audio
                   ref={audio}
-                  src="/narration-demo/story.mp3"
+                  src={appPath("/narration-demo/story.mp3")}
                   preload="metadata"
                   aria-label={`${manifest.speaker} 讲述《${manifest.project}》：${manifest.title}`}
                   onPlay={() => {
@@ -258,7 +259,7 @@ export function NarrationExample() {
                 {audioError && (
                   <p className="narration-example-error" role="alert">
                     {audioError}{" "}
-                    <a href="/narration-demo/story.mp3">打开音频</a>
+                    <a href={appPath("/narration-demo/story.mp3")}>打开音频</a>
                   </p>
                 )}
               </>

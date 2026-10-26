@@ -1,3 +1,4 @@
+import { appBasePath } from "../shared/app-path.mjs";
 import { useEffect, useRef, useState } from "react";
 import {
   Plus,
@@ -163,6 +164,7 @@ export function WorkspaceNavigation({
             <span>风格库</span>
             <small>{styleCount}</small>
           </button>
+          {appBasePath && <button onClick={() => location.assign("/")}><Globe size={21} /><span>所有产品</span></button>}
         </nav>
         <div className="workspace-recents">
           <button
